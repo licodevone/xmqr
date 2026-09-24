@@ -1,0 +1,54 @@
+name: Relatar defeito
+description: Comportamento incorreto ou regressão reproduzível
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Não inclua senhas, chaves, certificados privados, hashes reais ou payloads sensíveis. Vulnerabilidades devem seguir SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Versão ou commit
+      placeholder: v0.4.0 ou SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Perfil
+      options:
+        - secure-mtls
+        - open-lab
+        - password-lab
+        - acl-lab
+        - não se aplica
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamento observado
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reprodução mínima
+      description: Inclua comandos e configuração sanitizados.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Ambiente
+      description: Sistema operacional, versão do Rust e cliente MQTT.
+    validations:
+      required: true

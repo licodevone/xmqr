@@ -27,7 +27,7 @@ const MAX_CONFIG_BYTES: u64 = 1_048_576;
 const MAX_USERS: usize = 1_024;
 const MAX_RULES: usize = 1_024;
 const MAX_TOPICS_PER_RULE: usize = 256;
-const MAX_USERNAME_BYTES: usize = 256;
+const MAX_USERNAME_BYTES: usize = 128;
 const MAX_PASSWORD_BYTES: usize = 1_024;
 const MAX_CERT_DER_BYTES: usize = 65_536;
 const MAX_TOPIC_BYTES: usize = 65_535;
@@ -60,7 +60,8 @@ struct UsersFile {
 #[serde(deny_unknown_fields)]
 struct UserRecord {
     username: String,
-    cert_sha256: String,
+    #[serde(default)]
+    cert_sha256: Option<String>,
     password_hash: String,
 }
 
@@ -81,7 +82,7 @@ struct AclRule {
 }
 
 struct User {
-    cert_fingerprint: [u8; 32],
+    cert_fingerprint: Option<[u8; 32]>,
     password_hash: String,
 }
 
@@ -107,12 +108,15 @@ const OPEN_LAB_PRINCIPAL: &str = "__open_lab__";
 
 /// Connection-level access policy selected once at broker startup.
 ///
-/// `OpenLab` accepts only anonymous MQTT CONNECT packets. The transport and
-/// broker startup validation separately guarantee a loopback-only listener.
+/// `OpenLab` is intentionally not configurable with users or ACLs and accepts
+/// only anonymous MQTT CONNECT packets. The listener separately guarantees
+/// that this mode can bind only to a loopback address.
 #[derive(Clone)]
 pub enum AccessPolicy {
     Secure(AuthPolicy),
     OpenLab,
+    PasswordLab(AuthPolicy),
+    AclLab(AuthPolicy),
 }
 
 impl AccessPolicy {
@@ -124,6 +128,16 @@ impl AccessPolicy {
     #[must_use]
     pub fn secure(policy: AuthPolicy) -> Self {
         Self::Secure(policy)
+    }
+
+    #[must_use]
+    pub fn password_lab(policy: AuthPolicy) -> Self {
+        Self::PasswordLab(policy)
+    }
+
+    #[must_use]
+    pub fn acl_lab(policy: AuthPolicy) -> Self {
+        Self::AclLab(policy)
     }
 
     /// Authenticate a CONNECT according to the startup-selected policy.
@@ -149,22 +163,37 @@ impl AccessPolicy {
                 (cert_der.is_none() && username.is_none() && password.is_none())
                     .then(|| OPEN_LAB_PRINCIPAL.to_owned()),
             ),
+            Self::PasswordLab(policy) | Self::AclLab(policy) => {
+                if cert_der.is_some() {
+                    return Ok(None);
+                }
+                let (Some(username), Some(password)) = (username, password) else {
+                    return Ok(None);
+                };
+                policy.authenticate_password(username, password).await
+            }
         }
     }
 
     #[must_use]
     pub fn allowed_publish(&self, principal: &str, topic: &str) -> bool {
         match self {
-            Self::Secure(policy) => policy.allowed_publish(principal, topic),
             Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic(topic),
+            Self::PasswordLab(policy) => policy.contains_principal(principal) && valid_topic(topic),
+            Self::Secure(policy) | Self::AclLab(policy) => policy.allowed_publish(principal, topic),
         }
     }
 
     #[must_use]
-    pub fn allowed_subscribe(&self, principal: &str, topic: &str) -> bool {
+    pub fn allowed_subscribe(&self, principal: &str, filter: &str) -> bool {
         match self {
-            Self::Secure(policy) => policy.allowed_subscribe(principal, topic),
-            Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic(topic),
+            Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic(filter),
+            Self::PasswordLab(policy) => {
+                policy.contains_principal(principal) && valid_topic(filter)
+            }
+            Self::Secure(policy) | Self::AclLab(policy) => {
+                policy.allowed_subscribe(principal, filter)
+            }
         }
     }
 
@@ -173,6 +202,9 @@ impl AccessPolicy {
         match self {
             Self::Secure(policy) => policy.contains_principal(principal),
             Self::OpenLab => principal == OPEN_LAB_PRINCIPAL,
+            Self::PasswordLab(policy) | Self::AclLab(policy) => {
+                policy.contains_principal(principal)
+            }
         }
     }
 }
@@ -185,14 +217,44 @@ impl AuthPolicy {
     /// Returns [`AuthError`] for unreadable files, malformed hashes, duplicate
     /// identities or invalid ACL rules.
     pub fn load(users_path: &Path, acl_path: &Path) -> Result<Self, AuthError> {
+        Self::load_internal(users_path, Some(acl_path), true)
+    }
+
+    /// Load password identities for a loopback lab without topic ACLs.
+    ///
+    /// # Errors
+    /// Returns [`AuthError`] for unreadable or invalid user configuration.
+    pub fn load_passwords(users_path: &Path) -> Result<Self, AuthError> {
+        Self::load_internal(users_path, None, false)
+    }
+
+    /// Load password identities plus exact-topic ACLs for a loopback lab.
+    ///
+    /// # Errors
+    /// Returns [`AuthError`] for unreadable or invalid user/ACL configuration.
+    pub fn load_passwords_with_acl(users_path: &Path, acl_path: &Path) -> Result<Self, AuthError> {
+        Self::load_internal(users_path, Some(acl_path), false)
+    }
+
+    fn load_internal(
+        users_path: &Path,
+        acl_path: Option<&Path>,
+        require_certificate: bool,
+    ) -> Result<Self, AuthError> {
         let users_text = read_bounded(users_path)?;
-        let acl_text = read_bounded(acl_path)?;
         let users_file: UsersFile =
             toml::from_str(&users_text).map_err(|_| AuthError::Config("users TOML syntax"))?;
-        let acl_file: AclFile =
-            toml::from_str(&acl_text).map_err(|_| AuthError::Config("ACL TOML syntax"))?;
+        let acl_file = acl_path
+            .map(|path| {
+                let text = read_bounded(path)?;
+                toml::from_str::<AclFile>(&text).map_err(|_| AuthError::Config("ACL TOML syntax"))
+            })
+            .transpose()?
+            .unwrap_or(AclFile { rules: Vec::new() });
 
-        if users_file.users.is_empty() || users_file.users.len() > MAX_USERS {
+        if (require_certificate && users_file.users.is_empty())
+            || users_file.users.len() > MAX_USERS
+        {
             return Err(AuthError::Config("user count is outside allowed range"));
         }
         if acl_file.rules.len() > MAX_RULES {
@@ -205,8 +267,19 @@ impl AuthPolicy {
             if !valid_username(&record.username) {
                 return Err(AuthError::Config("invalid username"));
             }
-            let cert_fingerprint = parse_fingerprint(&record.cert_sha256)?;
-            if !fingerprints.insert(cert_fingerprint) {
+            let cert_fingerprint = record
+                .cert_sha256
+                .as_deref()
+                .map(parse_fingerprint)
+                .transpose()?;
+            if require_certificate && cert_fingerprint.is_none() {
+                return Err(AuthError::Config(
+                    "secure-mtls user requires certificate fingerprint",
+                ));
+            }
+            if let Some(fingerprint) = cert_fingerprint
+                && !fingerprints.insert(fingerprint)
+            {
                 return Err(AuthError::Config(
                     "one certificate cannot belong to multiple users",
                 ));
@@ -286,13 +359,38 @@ impl AuthPolicy {
         username: &str,
         password: &[u8],
     ) -> Result<Option<String>, AuthError> {
-        if !valid_username(username)
-            || password.is_empty()
-            || password.len() > MAX_PASSWORD_BYTES
-            || cert_der.is_empty()
-            || cert_der.len() > MAX_CERT_DER_BYTES
-        {
+        if cert_der.is_empty() || cert_der.len() > MAX_CERT_DER_BYTES {
             return Ok(None);
+        }
+        let fingerprint: [u8; 32] = Sha256::digest(cert_der).into();
+        let cert_matches = self
+            .0
+            .users
+            .get(username)
+            .and_then(|user| user.cert_fingerprint.as_ref())
+            .is_some_and(|configured| bool::from(configured.ct_eq(&fingerprint)));
+        let password_matches = self.verify_password(username, password).await?;
+        Ok((cert_matches && password_matches).then(|| username.to_owned()))
+    }
+
+    /// Authenticate with username/password only. Intended solely for the
+    /// loopback-restricted password and ACL teaching modes.
+    ///
+    /// # Errors
+    /// Returns [`AuthError::Busy`] if all bounded hash workers are occupied,
+    /// or [`AuthError::Worker`] if a blocking verification task fails.
+    pub async fn authenticate_password(
+        &self,
+        username: &str,
+        password: &[u8],
+    ) -> Result<Option<String>, AuthError> {
+        let matches = self.verify_password(username, password).await?;
+        Ok(matches.then(|| username.to_owned()))
+    }
+
+    async fn verify_password(&self, username: &str, password: &[u8]) -> Result<bool, AuthError> {
+        if !valid_username(username) || password.is_empty() || password.len() > MAX_PASSWORD_BYTES {
+            return Ok(false);
         }
         let permit = self
             .0
@@ -300,15 +398,10 @@ impl AuthPolicy {
             .clone()
             .try_acquire_owned()
             .map_err(|_| AuthError::Busy)?;
-        let fingerprint: [u8; 32] = Sha256::digest(cert_der).into();
-        let (hash, cert_matches, user_exists) = match self.0.users.get(username) {
-            Some(user) => (
-                user.password_hash.clone(),
-                bool::from(user.cert_fingerprint.ct_eq(&fingerprint)),
-                true,
-            ),
-            None => (self.0.dummy_hash.clone(), false, false),
-        };
+        let (hash, user_exists) = self.0.users.get(username).map_or_else(
+            || (self.0.dummy_hash.clone(), false),
+            |user| (user.password_hash.clone(), true),
+        );
         let secret = Zeroizing::new(password.to_vec());
         let password_matches = tokio::task::spawn_blocking(move || {
             let _permit = permit;
@@ -319,8 +412,7 @@ impl AuthPolicy {
         })
         .await
         .map_err(|_| AuthError::Worker)?;
-
-        Ok((user_exists && cert_matches && password_matches).then(|| username.to_owned()))
+        Ok(user_exists && password_matches)
     }
 
     /// Permit a PUBLISH only for an authenticated principal with an exact
@@ -333,8 +425,8 @@ impl AuthPolicy {
             .is_some_and(|rule| rule.publish.contains(topic))
     }
 
-    /// Permit a SUBSCRIBE only for an authenticated principal with an exact
-    /// matching topic filter grant. Wildcard filters are not supported yet.
+    /// Permit a SUBSCRIBE only when the requested filter is explicitly present
+    /// in the principal's ACL. Exact grants do not imply broader wildcards.
     #[must_use]
     pub fn allowed_subscribe(&self, principal: &str, topic: &str) -> bool {
         self.0
@@ -574,10 +666,57 @@ mod tests {
             .expect("anonymous lab connection");
         assert!(policy.allowed_publish(&principal, "test/message"));
         assert!(policy.allowed_subscribe(&principal, "test/message"));
-        assert!(!policy.allowed_subscribe(&principal, "test/+"));
         assert!(
             policy
                 .authenticate(None, Some("user"), Some(b"password"))
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(!policy.allowed_subscribe(&principal, "test/+"));
+        assert!(!policy.allowed_publish(&principal, "test/+"));
+    }
+
+    #[tokio::test]
+    async fn password_lab_accepts_users_without_certificates() {
+        let directory = tempfile::tempdir().unwrap();
+        let salt = SaltString::encode_b64(b"sixteen-byte-salt").unwrap();
+        let hash = argon2_context()
+            .hash_password(b"correct-pass", &salt)
+            .unwrap()
+            .to_string();
+        let users = directory.path().join("users.toml");
+        let acl = directory.path().join("acl.toml");
+        fs::write(
+            &users,
+            format!("[[users]]\nusername = 'student'\npassword_hash = '{hash}'\n"),
+        )
+        .unwrap();
+        fs::write(
+            &acl,
+            "[[rules]]\nusername = 'student'\npublish = ['allowed/topic']\nsubscribe = ['allowed/topic']\n",
+        )
+        .unwrap();
+
+        assert!(AuthPolicy::load(&users, &acl).is_err());
+
+        let passwords = AuthPolicy::load_passwords(&users).unwrap();
+        let principal = passwords
+            .authenticate_password("student", b"correct-pass")
+            .await
+            .unwrap()
+            .unwrap();
+        let password_lab = AccessPolicy::password_lab(passwords);
+        assert!(password_lab.allowed_publish(&principal, "any/exact/topic"));
+        assert!(!password_lab.allowed_publish("unknown", "any/exact/topic"));
+
+        let acl_lab =
+            AccessPolicy::acl_lab(AuthPolicy::load_passwords_with_acl(&users, &acl).unwrap());
+        assert!(acl_lab.allowed_publish(&principal, "allowed/topic"));
+        assert!(!acl_lab.allowed_publish(&principal, "denied/topic"));
+        assert!(
+            acl_lab
+                .authenticate(None, Some("student"), Some(b"wrong-pass"))
                 .await
                 .unwrap()
                 .is_none()

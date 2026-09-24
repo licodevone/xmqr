@@ -1,0 +1,6 @@
+# Laboratório local sem TLS. Somente tópicos exatos são aceitos nesta versão.
+# Qualquer usuário, tópico ou ação omitida é negada.
+[[rules]]
+username = "aluno"
+publish = ["aula/permitido"]
+subscribe = ["aula/permitido"]

@@ -1,0 +1,31 @@
+name: Propor funcionalidade
+description: Nova fatia de protocolo, operação ou ferramenta
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Qual necessidade concreta deve ser resolvida?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: Descreva a menor fatia vertical útil.
+    validations:
+      required: true
+  - type: input
+    id: clauses
+    attributes:
+      label: Cláusulas MQTT relacionadas
+      placeholder: MQTT-3.3.1-2, quando aplicável
+  - type: textarea
+    id: risks
+    attributes:
+      label: Compatibilidade, limites e riscos
+      description: Inclua formato persistido, segurança, backpressure e migração.
+    validations:
+      required: true

@@ -7,6 +7,17 @@ interoperabilidade independentes, recuperação após falhas, revisão de segura
 e documentação de operação; versões `1.x` manterão compatibilidade prometida,
 e `2.0.0` indicará quebra dessa compatibilidade.
 
+## 0.4.0 — 2026-09-24
+
+- Etapas didáticas `password-lab` e `acl-lab`, sem TLS e restritas a loopback,
+  para introduzir autenticação e autorização separadamente.
+- Usuários de laboratório podem usar somente senha, sem fingerprint ou
+  certificado; `secure-mtls` continua exigindo os três fatores.
+- `mqtt-admin user create|list|update-password|delete` com lock, arquivo
+  temporário `0600`, validação, rename atômico e sincronização durável.
+- Roteiro executável para acesso aberto, senha, ACL, tópico permitido/negado e
+  administração de usuários; TLS permanece etapa posterior.
+
 ## 0.3.0 — 2026-09-24
 
 - Modo didático explícito `MQTT_MODE=open-lab`, limitado a loopback, para

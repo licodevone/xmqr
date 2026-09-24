@@ -3,6 +3,8 @@
 Para a primeira aula, sem certificados, usuário ou ACL, siga o roteiro de três
 terminais em [Laboratório inicial — MQTT aberto](laboratorio-mqtt-aberto.md).
 Esse modo exige `--open-lab`, aceita somente loopback e usa QoS 0 inicialmente.
+O mesmo roteiro evolui depois para usuário/senha e ACL, ainda sem certificados,
+usando `--plain-auth-lab`.
 
 O restante deste documento descreve o modo seguro posterior.
 

@@ -1,5 +1,14 @@
 # Autenticação mTLS + usuário/senha + ACL (primeira versão)
 
+Este é um estágio posterior ao
+[laboratório MQTT aberto](../laboratorio-mqtt-aberto.md). A primeira aula não
+precisa de certificados, usuário, senha ou ACL. Depois dela, evolua em etapas:
+usuário/senha, ACL e, por fim, TLS/certificados. O modo seguro atual reúne as
+três proteções e continua sendo o padrão quando `MQTT_MODE` não é definido.
+Os comandos sem certificado estão em
+[laboratório MQTT aberto](../laboratorio-mqtt-aberto.md), e o CRUD está em
+[administração de usuários](../administracao-usuarios.md).
+
 Cada cliente deve apresentar **os três fatores de configuração**: certificado
 de cliente aceito pela CA local, nome de usuário MQTT e senha MQTT. O broker
 vincula o nome de usuário ao SHA-256 do certificado DER apresentado no TLS.

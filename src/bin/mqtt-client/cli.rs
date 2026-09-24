@@ -18,6 +18,7 @@ pub enum Mode {
 pub enum TransportMode {
     Secure,
     OpenLab,
+    PlainAuthLab,
 }
 
 #[derive(Debug)]
@@ -37,7 +38,7 @@ pub struct Cli {
     pub transport_mode: TransportMode,
 }
 
-pub const USAGE: &str = "Uso seguro (padrao):\n  mqtt-client pub --topic TOPICO --message TEXTO --username USUARIO --ca CA.crt --cert client.crt --key client.key [opcoes]\n  mqtt-client sub --topic FILTRO --username USUARIO --ca CA.crt --cert client.crt --key client.key [opcoes]\n\nLaboratorio aberto:\n  mqtt-client pub|sub --open-lab --topic TOPICO [opcoes]\n\nOpcoes: --message TEXTO (pub), --count N (sub), --host 127.0.0.1, --port 1883, --qos 0|1|2, --retain true|false, --clean-session true|false, --client-id ID.\nSem --password-file, o modo seguro solicita a senha sem exibi-la. Nunca informe senha na linha de comando.\nO modo aberto aceita somente loopback e nao usa TLS, usuario, senha ou ACL. Nunca use fora de aula local.\n";
+pub const USAGE: &str = "Uso seguro (padrao):\n  mqtt-client pub --topic TOPICO --message TEXTO --username USUARIO --ca CA.crt --cert client.crt --key client.key [opcoes]\n  mqtt-client sub --topic FILTRO --username USUARIO --ca CA.crt --cert client.crt --key client.key [opcoes]\n\nLaboratorio aberto:\n  mqtt-client pub|sub --open-lab --topic TOPICO [opcoes]\nLaboratorio com senha em texto claro:\n  mqtt-client pub|sub --plain-auth-lab --topic TOPICO --username USUARIO [opcoes]\n\nOpcoes: --message TEXTO (pub), --count N (sub), --host 127.0.0.1, --port 1883, --qos 0|1|2, --retain true|false, --clean-session true|false, --client-id ID.\nSem --password-file, os modos autenticados solicitam a senha sem exibi-la. Nunca informe senha na linha de comando.\nOs modos de laboratorio aceitam somente loopback. --plain-auth-lab envia usuario e senha sem criptografia. Nunca use fora de aula local.\n";
 
 #[allow(clippy::too_many_lines)] // One pass enforces uniqueness and validates CLI modes.
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Cli, String> {
@@ -66,7 +67,16 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Cli, String> {
     while let Some(flag) = args.next() {
         if flag == "--open-lab" {
             if transport_mode.replace(TransportMode::OpenLab).is_some() {
-                return Err("use --open-lab somente uma vez".into());
+                return Err("use somente um modo de laboratorio".into());
+            }
+            continue;
+        }
+        if flag == "--plain-auth-lab" {
+            if transport_mode
+                .replace(TransportMode::PlainAuthLab)
+                .is_some()
+            {
+                return Err("use somente um modo de laboratorio".into());
             }
             continue;
         }
@@ -112,21 +122,18 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Cli, String> {
     )?;
 
     let transport_mode = transport_mode.unwrap_or(TransportMode::Secure);
+    let lab_mode = transport_mode != TransportMode::Secure;
     let host = host.unwrap_or_else(|| "127.0.0.1".into());
     if host.is_empty() || host.chars().any(char::is_whitespace) {
         return Err("--host invalido".into());
     }
-    if transport_mode == TransportMode::OpenLab && host != "127.0.0.1" && host != "::1" {
-        return Err("--open-lab aceita somente 127.0.0.1 ou ::1".into());
+    if lab_mode && host != "127.0.0.1" && host != "::1" {
+        return Err("modos de laboratorio aceitam somente 127.0.0.1 ou ::1".into());
     }
     let port = port
         .map(|value| value.parse::<u16>().map_err(|_| "--port invalida"))
         .transpose()?
-        .unwrap_or(if transport_mode == TransportMode::OpenLab {
-            1883
-        } else {
-            8883
-        });
+        .unwrap_or(if lab_mode { 1883 } else { 8883 });
     if port == 0 {
         return Err("--port deve ser maior que zero".into());
     }
@@ -140,7 +147,12 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Cli, String> {
     {
         return Err("--open-lab nao aceita certificados, usuario ou arquivo de senha".into());
     }
-    let secure_mode = transport_mode == TransportMode::Secure;
+    if transport_mode == TransportMode::PlainAuthLab
+        && (ca.is_some() || cert.is_some() || key.is_some())
+    {
+        return Err("--plain-auth-lab nao aceita certificados".into());
+    }
+    let secure_mode = !lab_mode;
     let ca = secure_mode
         .then(|| {
             ca.map(PathBuf::from)
@@ -433,5 +445,45 @@ mod tests {
         .into_iter()
         .map(str::to_owned);
         assert!(parse(ambiguous).is_err());
+    }
+
+    #[test]
+    fn plain_auth_lab_requires_username_and_rejects_certificates() {
+        let parsed = parse(
+            [
+                "sub",
+                "--plain-auth-lab",
+                "--topic",
+                "test/message",
+                "--username",
+                "student",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert_eq!(parsed.transport_mode, TransportMode::PlainAuthLab);
+        assert_eq!(parsed.username.as_deref(), Some("student"));
+        assert_eq!(parsed.port, 1883);
+        assert!(parsed.ca.is_none());
+
+        let no_username = ["sub", "--plain-auth-lab", "--topic", "test/message"]
+            .into_iter()
+            .map(str::to_owned);
+        assert!(parse(no_username).is_err());
+
+        let with_cert = [
+            "sub",
+            "--plain-auth-lab",
+            "--topic",
+            "test/message",
+            "--username",
+            "student",
+            "--ca",
+            "ca.crt",
+        ]
+        .into_iter()
+        .map(str::to_owned);
+        assert!(parse(with_cert).is_err());
     }
 }

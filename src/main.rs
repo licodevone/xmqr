@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let bind_address: SocketAddr = env::var("MQTT_BIND")
         .unwrap_or_else(|_| mode.default_bind().to_owned())
         .parse()?;
-    if mode == BrokerMode::OpenLab {
+    if mode.is_plain_lab() {
         validate_open_lab_bind(bind_address)?;
         mode.validate_environment()?;
     }
@@ -73,6 +73,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 })
                 .await?;
         }
+        BrokerMode::PasswordLab => {
+            let auth = Arc::new(AccessPolicy::password_lab(AuthPolicy::load_passwords(
+                &required_path("MQTT_USERS_FILE")?,
+            )?));
+            let router = Arc::new(Router::start(&state_directory, Arc::clone(&auth)).await?);
+            let transport = OpenLabTransport::bind(bind_address, limits).await?;
+            warn!(%bind_address, "PASSWORD LAB listener started without TLS or ACL; credentials are plaintext on the wire; loopback only");
+            transport
+                .serve(move |connection| {
+                    let auth = Arc::clone(&auth);
+                    let router = Arc::clone(&router);
+                    async move { mqtt::serve_connection(connection, auth, router).await }
+                })
+                .await?;
+        }
+        BrokerMode::AclLab => {
+            let auth = Arc::new(AccessPolicy::acl_lab(AuthPolicy::load_passwords_with_acl(
+                &required_path("MQTT_USERS_FILE")?,
+                &required_path("MQTT_ACL_FILE")?,
+            )?));
+            let router = Arc::new(Router::start(&state_directory, Arc::clone(&auth)).await?);
+            let transport = OpenLabTransport::bind(bind_address, limits).await?;
+            warn!(%bind_address, "ACL LAB listener started without TLS; credentials are plaintext on the wire; loopback only");
+            transport
+                .serve(move |connection| {
+                    let auth = Arc::clone(&auth);
+                    let router = Arc::clone(&router);
+                    async move { mqtt::serve_connection(connection, auth, router).await }
+                })
+                .await?;
+        }
     }
 
     Ok(())
@@ -82,6 +113,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 enum BrokerMode {
     SecureMtls,
     OpenLab,
+    PasswordLab,
+    AclLab,
 }
 
 impl BrokerMode {
@@ -91,7 +124,7 @@ impl BrokerMode {
             Err(env::VarError::NotPresent) => Self::parse(None),
             Err(env::VarError::NotUnicode(_)) => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "MQTT_MODE must be secure-mtls or open-lab",
+                "MQTT_MODE must be secure-mtls, open-lab, password-lab or acl-lab",
             )),
         }
     }
@@ -99,10 +132,12 @@ impl BrokerMode {
     fn parse(value: Option<&str>) -> Result<Self, io::Error> {
         match value {
             Some("open-lab") => Ok(Self::OpenLab),
+            Some("password-lab") => Ok(Self::PasswordLab),
+            Some("acl-lab") => Ok(Self::AclLab),
             Some("secure-mtls") | None => Ok(Self::SecureMtls),
             Some(_) => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "MQTT_MODE must be secure-mtls or open-lab",
+                "MQTT_MODE must be secure-mtls, open-lab, password-lab or acl-lab",
             )),
         }
     }
@@ -110,7 +145,7 @@ impl BrokerMode {
     const fn default_bind(self) -> &'static str {
         match self {
             Self::SecureMtls => "192.168.0.100:8883",
-            Self::OpenLab => "127.0.0.1:1883",
+            Self::OpenLab | Self::PasswordLab | Self::AclLab => "127.0.0.1:1883",
         }
     }
 
@@ -118,24 +153,36 @@ impl BrokerMode {
         match self {
             Self::SecureMtls => "secure-mtls",
             Self::OpenLab => "open-lab",
+            Self::PasswordLab => "password-lab",
+            Self::AclLab => "acl-lab",
         }
     }
 
+    const fn is_plain_lab(self) -> bool {
+        !matches!(self, Self::SecureMtls)
+    }
+
     fn validate_environment(self) -> Result<(), io::Error> {
-        if self == Self::OpenLab {
-            reject_variables(
-                &[
-                    "MQTT_SERVER_CERT",
-                    "MQTT_SERVER_KEY",
-                    "MQTT_CLIENT_CA",
-                    "MQTT_CLIENT_CRL",
-                    "MQTT_USERS_FILE",
-                    "MQTT_ACL_FILE",
-                ],
-                "open-lab rejects TLS, authentication and ACL variables",
-            )?;
+        const TLS_VARIABLES: [&str; 4] = [
+            "MQTT_SERVER_CERT",
+            "MQTT_SERVER_KEY",
+            "MQTT_CLIENT_CA",
+            "MQTT_CLIENT_CRL",
+        ];
+        reject_variables(
+            &TLS_VARIABLES,
+            "plain laboratory mode rejects TLS variables",
+        )?;
+        match self {
+            Self::OpenLab => reject_variables(
+                &["MQTT_USERS_FILE", "MQTT_ACL_FILE"],
+                "open-lab rejects authentication and ACL variables",
+            ),
+            Self::PasswordLab => {
+                reject_variables(&["MQTT_ACL_FILE"], "password-lab rejects MQTT_ACL_FILE")
+            }
+            Self::AclLab | Self::SecureMtls => Ok(()),
         }
-        Ok(())
     }
 }
 
@@ -202,6 +249,14 @@ mod tests {
         assert_eq!(
             BrokerMode::parse(Some("open-lab")).unwrap(),
             BrokerMode::OpenLab
+        );
+        assert_eq!(
+            BrokerMode::parse(Some("password-lab")).unwrap(),
+            BrokerMode::PasswordLab
+        );
+        assert_eq!(
+            BrokerMode::parse(Some("acl-lab")).unwrap(),
+            BrokerMode::AclLab
         );
         assert!(BrokerMode::parse(Some("open")).is_err());
     }
