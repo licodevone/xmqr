@@ -1,0 +1,7 @@
+# Example only. Copy to a private file outside source control.
+# Generate password_hash and cert_sha256 with mqtt-admin, never enter a
+# plaintext password into this file or a command-line argument.
+[[users]]
+username = "lab-device"
+cert_sha256 = "sha256:REPLACE_WITH_64_HEX_DIGITS"
+password_hash = "REPLACE_WITH_ARGON2ID_PHC_HASH"

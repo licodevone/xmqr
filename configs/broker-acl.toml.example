@@ -1,0 +1,6 @@
+# Exact topic names only. Any omitted user/topic/action is denied.
+# MQTT topics are created by publishing: no separate topic creation step.
+[[rules]]
+username = "lab-device"
+publish = ["teste/mensagem"]
+subscribe = ["teste/mensagem"]

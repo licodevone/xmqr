@@ -1,0 +1,17 @@
+/tools/mqtt-engineering-mcp/node_modules/
+/target/
+*.log
+.env
+.env.*
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+users.toml
+acl.toml
+*.wal
+*.snapshot
+*.snapshot.tmp
+*.db
+state.lock

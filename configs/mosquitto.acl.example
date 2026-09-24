@@ -1,0 +1,11 @@
+# O username é o CN do certificado do dispositivo por causa de
+# use_identity_as_username true. Negue tudo que não for explicitamente listado.
+
+user sensor-001
+topic write devices/sensor-001/telemetry
+topic read devices/sensor-001/commands
+
+user operator-readonly
+topic read $SYS/#
+topic read devices/+/telemetry
+
