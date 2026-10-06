@@ -28,7 +28,17 @@ O diretório de dados deve existir previamente. A garantia de `fsync` do diretó
 
 Chaves: 1–1024 bytes; valores: até 1 MiB; estado em memória: até 64 MiB/100 mil entradas; snapshot: até 80 MiB. O agregado MQTT tem quotas mais estreitas: 64 sessões, 256 tópicos retidos, 256 assinaturas por sessão, 64 mensagens offline e 32 inflight por direção/sessão, payload de 4 KiB e documento de 1 MiB. A fila de 256 comandos limita trabalho pendente. O ator faz snapshot a cada 128 commits, mas o WAL não tem quota de disco independente: monitore espaço livre e faça backup. `fsync` do documento inteiro por mutação prioriza durabilidade e é um gargalo conhecido; não há benchmark que sustente uso em alta carga.
 
-O snapshot WAL tem versão 1 e o documento MQTT interno também tem versão 1. Versões desconhecidas falham na abertura; não existe migração nem rollback automático. Sessões MQTT 3.1.1 com `CleanSession=0` não expiram automaticamente. Ainda faltam Will, wildcard, métricas de quota, testes independentes de interoperabilidade QoS 1/2, corte real de energia/VM, fuzzing e benchmarks de recuperação/carga antes de produção.
+O snapshot WAL e o documento MQTT interno mantêm a versão 1. Os filtros
+wildcard preservam a representação textual e são validados na desserialização.
+Versões desconhecidas falham na abertura; não existe rollback automático.
+Sessões MQTT 3.1.1 com `CleanSession=0` não expiram automaticamente.
+O roteiro externo verifica QoS 0/1/2, retained e sessão wildcard após queda
+do processo. Ainda faltam Will, métricas de quota, cobertura externa completa,
+perda real de energia/VM, fuzzing e benchmarks de recuperação/carga antes de produção.
+
+A 0.5 lê o estado 0.4, mas a 0.4 não restaura assinaturas wildcard: antes de
+retornar, remova-as com UNSUBSCRIBE ou restaure um backup anterior completo
+em diretório separado. Não reverta WAL e snapshot parcialmente.
 
 ### Migração e retorno manual
 

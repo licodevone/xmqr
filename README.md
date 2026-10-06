@@ -10,7 +10,7 @@ continuam com os nomes compatíveis `mqtt-broker`, `mqtt-client` e `mqtt-admin`.
 
 > **Estado do projeto:** experimental. XMQR ainda não declara conformidade MQTT
 > 3.1.1 completa nem prontidão para produção. Não há suporte a Last Will e ainda
-> faltam testes externos de interoperabilidade, carga e recuperação operacional.
+> faltam cobertura externa completa, testes de carga e recuperação operacional.
 
 ## Por que XMQR?
 
@@ -28,7 +28,7 @@ continuam com os nomes compatíveis `mqtt-broker`, `mqtt-client` e `mqtt-admin`.
 | --- | --- | --- |
 | `0.3.x` | manutenção | laboratório QoS 0 aberto, anônimo e restrito a loopback |
 | `0.4.x` | estável experimental | laboratórios com senha e com ACL; CRUD administrativo de usuários |
-| `0.5.x` | planejada, ainda não publicada | filtros de assinatura `+` e `#` |
+| `0.5.x` | em desenvolvimento, ainda não publicada | filtros `+`/`#`, regra `$` e testes com Mosquitto |
 
 Versões publicadas são identificadas por tags anotadas, por exemplo
 `v0.4.0`. As branches `release/0.3` e `release/0.4` existem apenas para
@@ -63,7 +63,7 @@ configurado.
 | `UNSUBSCRIBE`/`UNSUBACK` | implementado |
 | Mensagens retidas | implementado |
 | Sessões persistentes (`CleanSession=0`) | implementado |
-| Filtros `+` e `#` | desenvolvimento na série 0.5 |
+| Filtros `+` e `#` | implementado na série 0.5 em desenvolvimento |
 | Last Will | ainda não implementado |
 | MQTT 5.0 | fora do escopo atual |
 
@@ -188,7 +188,19 @@ estado de um perfil diferente.
 cargo fmt --all -- --check
 cargo test --locked
 cargo clippy --locked --all-targets -- -D warnings
+python3 scripts/license_inventory.py --check
 ```
+
+Para os testes externos no Linux/WSL, instale os clientes Mosquitto e execute:
+
+```bash
+sudo apt install mosquitto-clients
+cargo build --locked --bins
+python3 scripts/verify_interop.py --broker "${CARGO_TARGET_DIR:-target}/debug/mqtt-broker"
+```
+
+O script usa portas loopback descobertas e diretórios temporários próprios.
+Veja [filtros, evidências e migração](docs/wildcard-subscriptions.md).
 
 Mudanças de protocolo devem incluir testes unitários e, quando cruzarem
 componentes, testes de integração ou interoperabilidade. Consulte
@@ -234,3 +246,6 @@ interoperabilidade, testes de falha, segurança e observabilidade. Leia
 
 O XMQR é distribuído sob a licença MIT. Consulte o arquivo
 [LICENSE](LICENSE) para conhecer os termos.
+As dependências conservam suas licenças originais. Consulte o
+[inventário](docs/third-party-licenses.md) e a
+[política de distribuição](docs/licensing.md).

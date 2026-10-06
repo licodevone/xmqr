@@ -1,8 +1,9 @@
 # Versionamento
 
-O código deste snapshot identifica a versão `0.4.0` em `Cargo.toml` e
+O código deste snapshot identifica a versão `0.5.0` em `Cargo.toml` e
 `Cargo.lock`. Uma versão publicada deve receber a tag anotada correspondente,
-`v0.4.0`, somente depois de passar pelos gates de release.
+`v0.5.0`, somente depois de passar pelos gates de release. A versão 0.5.0
+está preparada localmente; não foi criada tag ou release nesta etapa.
 
 Para cada incremento futuro:
 

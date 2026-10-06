@@ -13,6 +13,7 @@ use super::store::{
     DurableSession, DurableState, InboundQos2, MqttStore, OutboundInflight, OutboundStage,
     StateError, StoredMessage,
 };
+use super::topic::TopicFilter;
 
 const COMMAND_CAPACITY: usize = 256;
 const DELIVERY_CAPACITY: usize = 64;
@@ -61,6 +62,7 @@ struct Live {
 struct Actor {
     store: MqttStore,
     state: DurableState,
+    auth: std::sync::Arc<AccessPolicy>,
     live: BTreeMap<String, Live>,
     next_generation: u64,
     fatal: bool,
@@ -77,13 +79,13 @@ enum Command {
     Subscribe {
         client_id: String,
         generation: u64,
-        filters: Vec<(String, Option<u8>)>,
+        filters: Vec<(TopicFilter, Option<u8>)>,
         reply: oneshot::Sender<SubscribeResult>,
     },
     Unsubscribe {
         client_id: String,
         generation: u64,
-        filters: Vec<String>,
+        filters: Vec<TopicFilter>,
         reply: oneshot::Sender<Result<(), RouterError>>,
     },
     Publish {
@@ -144,13 +146,13 @@ impl Router {
         for session in state.sessions.values_mut() {
             session
                 .subscriptions
-                .retain(|topic, _| auth.allowed_subscribe(&session.principal, topic));
-            session
-                .offline
-                .retain(|message| auth.allowed_subscribe(&session.principal, &message.topic));
-            session
-                .outbound
-                .retain(|entry| auth.allowed_subscribe(&session.principal, &entry.message.topic));
+                .retain(|filter, _| auth.allowed_subscribe(&session.principal, filter.as_str()));
+            session.offline.retain(|message| {
+                auth.allowed_delivery(&session.principal, message.topic.as_str())
+            });
+            session.outbound.retain(|entry| {
+                auth.allowed_delivery(&session.principal, entry.message.topic.as_str())
+            });
             // MQTT-4.3.3-2: PUBREC means the broker has accepted ownership of
             // the Application Message. A later ACL change cannot discard this
             // pending QoS 2 transition; PUBREL finishes under that decision.
@@ -165,6 +167,7 @@ impl Router {
             let mut actor = Actor {
                 store,
                 state,
+                auth,
                 live: BTreeMap::new(),
                 next_generation: 1,
                 fatal: false,
@@ -200,7 +203,7 @@ impl Router {
     pub(super) async fn subscribe(
         &self,
         session: &Session,
-        filters: Vec<(String, Option<u8>)>,
+        filters: Vec<(TopicFilter, Option<u8>)>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Subscribe {
@@ -216,7 +219,7 @@ impl Router {
     pub(super) async fn unsubscribe(
         &self,
         session: &Session,
-        filters: Vec<String>,
+        filters: Vec<TopicFilter>,
     ) -> Result<(), RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Unsubscribe {
@@ -469,14 +472,22 @@ impl Actor {
         &mut self,
         client_id: &str,
         generation: u64,
-        filters: Vec<(String, Option<u8>)>,
+        filters: Vec<(TopicFilter, Option<u8>)>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
         let mut codes = Vec::with_capacity(filters.len());
-        let mut deliveries = Vec::new();
-        for (topic, granted) in filters {
-            let Some(qos) = granted else {
+        let mut retained_matches = BTreeMap::new();
+        for (filter, granted) in filters {
+            let principal = &self
+                .state
+                .sessions
+                .get(client_id)
+                .ok_or(RouterError::Stale)?
+                .principal;
+            let Some(qos) =
+                granted.filter(|_| self.auth.allowed_subscribe(principal, filter.as_str()))
+            else {
                 codes.push(0x80);
                 continue;
             };
@@ -485,17 +496,30 @@ impl Actor {
                 .get_mut(client_id)
                 .ok_or(RouterError::Stale)?
                 .subscriptions
-                .insert(topic.clone(), qos);
+                .insert(filter.clone(), qos);
             codes.push(qos);
-            if let Some(retained) = candidate.retained.get(&topic).cloned() {
-                let mut delivered = retained;
-                delivered.qos = delivered.qos.min(qos);
-                let session = candidate
-                    .sessions
-                    .get_mut(client_id)
-                    .ok_or(RouterError::Stale)?;
-                deliveries.push(prepare_delivery(session, delivered)?);
+            for topic in candidate.retained.keys().filter(|topic| {
+                filter.matches(topic) && self.auth.allowed_delivery(principal, topic.as_str())
+            }) {
+                retained_matches
+                    .entry(topic.clone())
+                    .and_modify(|maximum: &mut u8| *maximum = (*maximum).max(qos))
+                    .or_insert(qos);
             }
+        }
+        let mut deliveries = Vec::with_capacity(retained_matches.len());
+        for (topic, maximum) in retained_matches {
+            let mut delivered = candidate
+                .retained
+                .get(&topic)
+                .cloned()
+                .ok_or(RouterError::Stale)?;
+            delivered.qos = delivered.qos.min(maximum);
+            let session = candidate
+                .sessions
+                .get_mut(client_id)
+                .ok_or(RouterError::Stale)?;
+            deliveries.push(prepare_delivery(session, delivered)?);
         }
         self.commit(candidate).await?;
         Ok((codes, deliveries))
@@ -505,7 +529,7 @@ impl Actor {
         &mut self,
         client_id: &str,
         generation: u64,
-        filters: Vec<String>,
+        filters: Vec<TopicFilter>,
     ) -> Result<(), RouterError> {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
@@ -513,8 +537,8 @@ impl Actor {
             .sessions
             .get_mut(client_id)
             .ok_or(RouterError::Stale)?;
-        for topic in filters {
-            session.subscriptions.remove(&topic);
+        for filter in filters {
+            session.subscriptions.remove(&filter);
         }
         self.commit(candidate).await
     }
@@ -546,7 +570,7 @@ impl Actor {
                 .push(InboundQos2 { packet_id, message });
             return self.commit(candidate).await;
         }
-        let deliveries = apply_message(&mut candidate, &self.live, &message)?;
+        let deliveries = apply_message(&mut candidate, &self.live, &self.auth, &message)?;
         self.commit(candidate).await?;
         self.deliver(deliveries);
         Ok(())
@@ -572,7 +596,7 @@ impl Actor {
             return Ok(());
         };
         let pending = session.inbound_qos2.remove(index);
-        let deliveries = apply_message(&mut candidate, &self.live, &pending.message)?;
+        let deliveries = apply_message(&mut candidate, &self.live, &self.auth, &pending.message)?;
         self.commit(candidate).await?;
         self.deliver(deliveries);
         Ok(())
@@ -664,6 +688,7 @@ impl Actor {
 fn apply_message(
     state: &mut DurableState,
     live: &BTreeMap<String, Live>,
+    auth: &AccessPolicy,
     message: &StoredMessage,
 ) -> Result<Vec<(String, Delivery)>, RouterError> {
     if message.retain {
@@ -677,7 +702,16 @@ fn apply_message(
     }
     let mut deliveries = Vec::new();
     for (client_id, session) in &mut state.sessions {
-        let Some(&maximum) = session.subscriptions.get(&message.topic) else {
+        if !auth.allowed_delivery(&session.principal, message.topic.as_str()) {
+            continue;
+        }
+        let Some(maximum) = session
+            .subscriptions
+            .iter()
+            .filter(|(filter, _)| filter.matches(&message.topic))
+            .map(|(_, qos)| *qos)
+            .max()
+        else {
             continue;
         };
         let mut outbound = message.clone();
@@ -756,7 +790,7 @@ fn allocate_packet_id(session: &mut DurableSession) -> Result<u16, RouterError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::AuthPolicy;
+    use crate::{auth::AuthPolicy, mqtt::topic::TopicName};
     use argon2::{
         Algorithm, Argon2, Params, Version,
         password_hash::{PasswordHasher, SaltString},
@@ -768,11 +802,13 @@ mod tests {
     async fn actor() -> (TempDir, Actor) {
         let directory = tempfile::tempdir().unwrap();
         let (store, state) = MqttStore::open(directory.path()).await.unwrap();
+        let auth = Arc::new(AccessPolicy::password_lab(policy(directory.path(), true)));
         (
             directory,
             Actor {
                 store,
                 state,
+                auth,
                 live: BTreeMap::new(),
                 next_generation: 1,
                 fatal: false,
@@ -783,11 +819,15 @@ mod tests {
 
     fn message(topic: &str, qos: u8, retain: bool, payload: &[u8]) -> StoredMessage {
         StoredMessage {
-            topic: topic.into(),
+            topic: TopicName::try_from(topic.to_owned()).unwrap(),
             payload: payload.to_vec(),
             qos,
             retain,
         }
+    }
+
+    fn filter(value: &str) -> TopicFilter {
+        TopicFilter::try_from(value.to_owned()).unwrap()
     }
 
     fn policy(directory: &Path, publish_allowed: bool) -> AuthPolicy {
@@ -837,7 +877,7 @@ mod tests {
             .subscribe(
                 "sub",
                 subscriber.generation,
-                vec![("test/state".into(), Some(2))],
+                vec![(filter("test/state"), Some(2))],
             )
             .await
             .unwrap();
@@ -901,7 +941,7 @@ mod tests {
             .subscribe(
                 "sub",
                 subscriber.generation,
-                vec![("test/state".into(), Some(2))],
+                vec![(filter("test/state"), Some(2))],
             )
             .await
             .unwrap();
@@ -961,7 +1001,7 @@ mod tests {
             .subscribe(
                 "ordered-sub",
                 subscriber.generation,
-                vec![("test/ordered".into(), Some(1))],
+                vec![(filter("test/ordered"), Some(1))],
             )
             .await
             .unwrap();
@@ -1013,7 +1053,7 @@ mod tests {
             .subscribe(
                 "qos2-sub",
                 subscriber.generation,
-                vec![("test/qos2-order".into(), Some(2))],
+                vec![(filter("test/qos2-order"), Some(2))],
             )
             .await
             .unwrap();
@@ -1050,6 +1090,7 @@ mod tests {
         let mut reopened = Actor {
             store,
             state,
+            auth: Arc::clone(&actor.auth),
             live: BTreeMap::new(),
             next_generation: 1,
             fatal: false,
@@ -1067,6 +1108,115 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn wildcard_overlap_delivers_once_at_highest_qos_and_deduplicates_retained() {
+        // MQTT-3.3.5-1, MQTT-4.7.1-2/3.
+        let (_directory, mut actor) = actor().await;
+        let mut subscriber = actor
+            .register("wildcard-sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("wildcard-pub".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let (codes, retained) = actor
+            .subscribe(
+                "wildcard-sub",
+                subscriber.generation,
+                vec![
+                    (filter("sport/#"), Some(1)),
+                    (filter("sport/+/score"), Some(2)),
+                ],
+            )
+            .await
+            .unwrap();
+        assert_eq!(codes, [1, 2]);
+        assert!(retained.is_empty());
+
+        actor
+            .publish(
+                "wildcard-pub",
+                publisher.generation,
+                message("sport/tennis/score", 2, false, b"15-0"),
+                Some(7),
+            )
+            .await
+            .unwrap();
+        actor
+            .pubrel("wildcard-pub", publisher.generation, 7)
+            .await
+            .unwrap();
+        let Delivery::Publish {
+            message: routed, ..
+        } = subscriber.outbound.try_recv().unwrap()
+        else {
+            panic!("unexpected PUBREL");
+        };
+        assert_eq!(routed.qos, 2);
+        assert!(subscriber.outbound.try_recv().is_err());
+
+        actor
+            .publish(
+                "wildcard-pub",
+                publisher.generation,
+                message("sport/tennis/state", 1, true, b"online"),
+                Some(8),
+            )
+            .await
+            .unwrap();
+        let retained_subscriber = actor
+            .register("retained-sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let (_, retained) = actor
+            .subscribe(
+                "retained-sub",
+                retained_subscriber.generation,
+                vec![
+                    (filter("sport/#"), Some(1)),
+                    (filter("sport/+/state"), Some(2)),
+                ],
+            )
+            .await
+            .unwrap();
+        assert_eq!(retained.len(), 1);
+        let Delivery::Publish {
+            message: retained_message,
+            ..
+        } = &retained[0]
+        else {
+            panic!("unexpected PUBREL");
+        };
+        assert_eq!(retained_message.topic.as_str(), "sport/tennis/state");
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn unsubscribe_removes_only_the_identical_wildcard_filter() {
+        let (_directory, mut actor) = actor().await;
+        let client = actor
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "sub",
+                client.generation,
+                vec![(filter("sport/#"), Some(1)), (filter("sport/+"), Some(1))],
+            )
+            .await
+            .unwrap();
+        actor
+            .unsubscribe("sub", client.generation, vec![filter("sport/#")])
+            .await
+            .unwrap();
+        let subscriptions = &actor.state.sessions["sub"].subscriptions;
+        assert!(!subscriptions.contains_key("sport/#"));
+        assert!(subscriptions.contains_key("sport/+"));
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn persistent_subscription_and_offline_qos_survive_reopen() {
         let (directory, mut actor) = actor().await;
         let subscriber = actor
@@ -1077,7 +1227,7 @@ mod tests {
             .subscribe(
                 "sub",
                 subscriber.generation,
-                vec![("test/offline".into(), Some(2))],
+                vec![(filter("test/#"), Some(2))],
             )
             .await
             .unwrap();
@@ -1104,6 +1254,7 @@ mod tests {
         let mut reopened = Actor {
             store,
             state,
+            auth: Arc::clone(&actor.auth),
             live: BTreeMap::new(),
             next_generation: 1,
             fatal: false,
@@ -1132,7 +1283,7 @@ mod tests {
             .subscribe(
                 "clean",
                 client.generation,
-                vec![("test/secret".into(), None)],
+                vec![(filter("test/secret"), None)],
             )
             .await
             .unwrap();
@@ -1144,17 +1295,170 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn retained_system_topics_require_explicit_filter_and_allowed_acl() {
+        // MQTT-4.7.2-1 and MQTT-3.8.4-3: retained delivery uses the same matcher.
+        let (directory, mut actor) = actor().await;
+        let publisher = actor
+            .register("pub".into(), "user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "pub",
+                publisher.generation,
+                message("$SYS/state", 0, true, b"online"),
+                None,
+            )
+            .await
+            .unwrap();
+        let subscriber = actor
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let (_, retained) = actor
+            .subscribe("sub", subscriber.generation, vec![(filter("#"), Some(0))])
+            .await
+            .unwrap();
+        assert!(retained.is_empty());
+        let (_, retained) = actor
+            .subscribe(
+                "sub",
+                subscriber.generation,
+                vec![(filter("$SYS/#"), Some(0))],
+            )
+            .await
+            .unwrap();
+        assert_eq!(retained.len(), 1);
+        let Delivery::Publish {
+            message: retained_message,
+            ..
+        } = &retained[0]
+        else {
+            panic!("expected publication")
+        };
+        assert!(retained_message.retain);
+
+        actor.auth = Arc::new(AccessPolicy::acl_lab(policy(directory.path(), true)));
+        let (codes, retained) = actor
+            .subscribe("sub", subscriber.generation, vec![(filter("#"), Some(0))])
+            .await
+            .unwrap();
+        assert_eq!(codes, [0x80]);
+        assert!(retained.is_empty());
+        // A previously installed filter cannot bypass a subsequently restricted policy.
+        let mut candidate = actor.state.clone();
+        assert!(
+            apply_message(
+                &mut candidate,
+                &actor.live,
+                &actor.auth,
+                &message("$SYS/state", 0, false, b"denied")
+            )
+            .unwrap()
+            .is_empty()
+        );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn acl_revocation_purges_wildcard_offline_and_inflight_on_recovery() {
+        let (directory, mut actor) = actor().await;
+        let subscriber = actor
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "sub",
+                subscriber.generation,
+                vec![(filter("test/#"), Some(1))],
+            )
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("pub".into(), "user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "pub",
+                publisher.generation,
+                message("test/private", 1, false, b"inflight"),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister("sub", subscriber.generation)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "pub",
+                publisher.generation,
+                message("test/private", 1, false, b"offline"),
+                Some(2),
+            )
+            .await
+            .unwrap();
+        assert_eq!(actor.state.sessions["sub"].outbound.len(), 1);
+        assert_eq!(actor.state.sessions["sub"].offline.len(), 1);
+        actor.store.shutdown().await.unwrap();
+
+        // The new policy only permits the exact test/state topic.
+        let policy = policy(directory.path(), true);
+        let router = Router::start(directory.path(), Arc::new(AccessPolicy::acl_lab(policy)))
+            .await
+            .unwrap();
+        let resumed = router
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        assert!(resumed.resumed);
+        assert!(resumed.replay.is_empty());
+    }
+
+    #[tokio::test]
+    async fn subscription_quota_failure_does_not_commit_partial_filters() {
+        let (_directory, mut actor) = actor().await;
+        let subscriber = actor
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let accepted = (0..256)
+            .map(|i| (filter(&format!("test/{i}/+")), Some(0)))
+            .collect();
+        actor
+            .subscribe("sub", subscriber.generation, accepted)
+            .await
+            .unwrap();
+        let before = actor.state.clone();
+        assert!(matches!(
+            actor
+                .subscribe(
+                    "sub",
+                    subscriber.generation,
+                    vec![(filter("extra/#"), Some(0))]
+                )
+                .await,
+            Err(RouterError::Store(StateError::Limit(_)))
+        ));
+        assert_eq!(actor.state, before);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn clean_connect_cannot_erase_another_principals_session() {
         let (_directory, mut actor) = actor().await;
         let victim = actor
-            .register("shared-id".into(), "victim".into(), false)
+            .register("shared-id".into(), "user".into(), false)
             .await
             .unwrap();
         actor
             .subscribe(
                 "shared-id",
                 victim.generation,
-                vec![("test/private".into(), Some(1))],
+                vec![(filter("test/private"), Some(1))],
             )
             .await
             .unwrap();
@@ -1164,7 +1468,7 @@ mod tests {
                 .await,
             Err(RouterError::PrincipalMismatch)
         ));
-        assert_eq!(actor.state.sessions["shared-id"].principal, "victim");
+        assert_eq!(actor.state.sessions["shared-id"].principal, "user");
         assert_eq!(actor.state.sessions["shared-id"].subscriptions.len(), 1);
         assert!(actor.current("shared-id", victim.generation).is_ok());
         actor.store.shutdown().await.unwrap();

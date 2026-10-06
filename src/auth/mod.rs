@@ -1,4 +1,4 @@
-//! Local MQTT 3.1.1 authentication and exact-topic authorization.
+//! Local MQTT 3.1.1 authentication and topic authorization.
 //!
 //! A successful TLS handshake is necessary but insufficient: each MQTT CONNECT
 //! must also present a configured username/password and the matching client
@@ -23,6 +23,8 @@ use thiserror::Error;
 use tokio::sync::Semaphore;
 use zeroize::Zeroizing;
 
+use crate::mqtt::topic::{matches_filter, valid_topic_filter, valid_topic_name};
+
 const MAX_CONFIG_BYTES: u64 = 1_048_576;
 const MAX_USERS: usize = 1_024;
 const MAX_RULES: usize = 1_024;
@@ -30,7 +32,6 @@ const MAX_TOPICS_PER_RULE: usize = 256;
 const MAX_USERNAME_BYTES: usize = 128;
 const MAX_PASSWORD_BYTES: usize = 1_024;
 const MAX_CERT_DER_BYTES: usize = 65_536;
-const MAX_TOPIC_BYTES: usize = 65_535;
 const MAX_PARALLEL_HASHES: usize = 4;
 const ARGON_MEMORY_KIB: u32 = 19_456;
 const ARGON_ITERATIONS: u32 = 2;
@@ -178,8 +179,10 @@ impl AccessPolicy {
     #[must_use]
     pub fn allowed_publish(&self, principal: &str, topic: &str) -> bool {
         match self {
-            Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic(topic),
-            Self::PasswordLab(policy) => policy.contains_principal(principal) && valid_topic(topic),
+            Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic_name(topic),
+            Self::PasswordLab(policy) => {
+                policy.contains_principal(principal) && valid_topic_name(topic)
+            }
             Self::Secure(policy) | Self::AclLab(policy) => policy.allowed_publish(principal, topic),
         }
     }
@@ -187,12 +190,26 @@ impl AccessPolicy {
     #[must_use]
     pub fn allowed_subscribe(&self, principal: &str, filter: &str) -> bool {
         match self {
-            Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic(filter),
+            Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic_filter(filter),
             Self::PasswordLab(policy) => {
-                policy.contains_principal(principal) && valid_topic(filter)
+                policy.contains_principal(principal) && valid_topic_filter(filter)
             }
             Self::Secure(policy) | Self::AclLab(policy) => {
                 policy.allowed_subscribe(principal, filter)
+            }
+        }
+    }
+
+    /// Revalidate a concrete publication topic immediately before delivery.
+    #[must_use]
+    pub fn allowed_delivery(&self, principal: &str, topic: &str) -> bool {
+        match self {
+            Self::Secure(policy) | Self::AclLab(policy) => {
+                policy.allowed_delivery(principal, topic)
+            }
+            Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic_name(topic),
+            Self::PasswordLab(policy) => {
+                policy.contains_principal(principal) && valid_topic_name(topic)
             }
         }
     }
@@ -309,15 +326,17 @@ impl AuthPolicy {
             {
                 return Err(AuthError::Config("too many topics in ACL rule"));
             }
-            if rule
-                .publish
-                .iter()
-                .chain(&rule.subscribe)
-                .any(|topic| !valid_topic(topic))
-            {
+            if rule.publish.iter().any(|topic| !valid_topic_name(topic)) {
                 return Err(AuthError::Config(
                     "ACL topic must be an exact MQTT topic name",
                 ));
+            }
+            if rule
+                .subscribe
+                .iter()
+                .any(|filter| !valid_topic_filter(filter))
+            {
+                return Err(AuthError::Config("ACL subscription filter is invalid"));
             }
             let grants = Grants {
                 publish: rule.publish.into_iter().collect(),
@@ -435,6 +454,18 @@ impl AuthPolicy {
             .is_some_and(|rule| rule.subscribe.contains(topic))
     }
 
+    /// Permit delivery when a configured subscription grant matches the
+    /// concrete publication topic.
+    #[must_use]
+    pub fn allowed_delivery(&self, principal: &str, topic: &str) -> bool {
+        valid_topic_name(topic)
+            && self.0.acl.get(principal).is_some_and(|rule| {
+                rule.subscribe
+                    .iter()
+                    .any(|filter| matches_filter(filter, topic))
+            })
+    }
+
     /// Whether a principal is still configured; used to remove orphaned
     /// persistent sessions during startup after an administrator revokes it.
     #[must_use]
@@ -460,10 +491,6 @@ fn read_bounded(path: &Path) -> Result<String, AuthError> {
 
 fn valid_username(name: &str) -> bool {
     !name.is_empty() && name.len() <= MAX_USERNAME_BYTES && !name.chars().any(char::is_control)
-}
-
-fn valid_topic(topic: &str) -> bool {
-    !topic.is_empty() && topic.len() <= MAX_TOPIC_BYTES && !topic.contains(['\0', '+', '#'])
 }
 
 fn parse_fingerprint(value: &str) -> Result<[u8; 32], AuthError> {
@@ -646,18 +673,31 @@ mod tests {
     }
 
     #[test]
-    fn acl_is_exact_and_denies_by_default() {
-        let (_dir, policy, _) = fixtures();
+    fn acl_is_explicit_and_denies_by_default() {
+        let (dir, policy, _) = fixtures();
         assert!(policy.allowed_publish("sensor1", "sensors/one"));
         assert!(policy.allowed_subscribe("sensor1", "commands/one"));
+        assert!(policy.allowed_delivery("sensor1", "commands/one"));
         assert!(!policy.allowed_publish("sensor1", "sensors/one/extra"));
         assert!(!policy.allowed_publish("sensor1", "commands/one"));
         assert!(!policy.allowed_subscribe("sensor1", "commands/+"));
         assert!(!policy.allowed_subscribe("unknown", "commands/one"));
+
+        fs::write(
+            dir.path().join("acl.toml"),
+            "[[rules]]\nusername = 'sensor1'\npublish = ['sensors/one']\nsubscribe = ['commands/+']\n",
+        )
+        .unwrap();
+        let wildcard =
+            AuthPolicy::load(&dir.path().join("users.toml"), &dir.path().join("acl.toml")).unwrap();
+        assert!(wildcard.allowed_subscribe("sensor1", "commands/+"));
+        assert!(!wildcard.allowed_subscribe("sensor1", "commands/one"));
+        assert!(wildcard.allowed_delivery("sensor1", "commands/one"));
+        assert!(!wildcard.allowed_delivery("sensor1", "commands/one/extra"));
     }
 
     #[tokio::test]
-    async fn open_lab_accepts_only_anonymous_connections_and_exact_topics() {
+    async fn open_lab_accepts_only_anonymous_connections() {
         let policy = AccessPolicy::open_lab();
         let principal = policy
             .authenticate(None, None, None)
@@ -673,7 +713,8 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
-        assert!(!policy.allowed_subscribe(&principal, "test/+"));
+        assert!(policy.allowed_subscribe(&principal, "test/+"));
+        assert!(policy.allowed_delivery(&principal, "test/one"));
         assert!(!policy.allowed_publish(&principal, "test/+"));
     }
 

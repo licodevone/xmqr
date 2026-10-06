@@ -4,6 +4,8 @@ use tokio::time::Instant;
 
 use crate::transport::BrokerConnection;
 
+use super::topic::{TopicFilter, TopicName, valid_topic_name};
+
 const MAX_PACKET: usize = 64 * 1024;
 const MAX_BUFFER: usize = MAX_PACKET + 5;
 const MAX_PAYLOAD: usize = 4096;
@@ -48,14 +50,14 @@ pub(super) enum Packet {
     },
     Subscribe {
         packet_id: u16,
-        filters: Vec<(String, Qos)>,
+        filters: Vec<(TopicFilter, Qos)>,
     },
     Unsubscribe {
         packet_id: u16,
-        filters: Vec<String>,
+        filters: Vec<TopicFilter>,
     },
     Publish {
-        topic: String,
+        topic: TopicName,
         payload: Vec<u8>,
         qos: Qos,
         retain: bool,
@@ -257,12 +259,9 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
                 if filters.len() >= MAX_SUBSCRIPTIONS {
                     return Err("too many subscriptions".into());
                 }
-                let topic = c.text()?;
+                let topic = TopicFilter::try_from(c.text()?)?;
                 // MQTT-3-8.3-4: QoS 3 and reserved option bits are malformed.
                 let qos = Qos::from_u8(c.byte()?)?;
-                if topic.is_empty() {
-                    return Err("empty subscription filter".into());
-                }
                 filters.push((topic, qos));
             }
             if filters.is_empty() {
@@ -280,10 +279,7 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
                 if filters.len() >= MAX_SUBSCRIPTIONS {
                     return Err("too many unsubscribe filters".into());
                 }
-                let filter = c.text()?;
-                if filter.is_empty() {
-                    return Err("empty unsubscribe filter".into());
-                }
+                let filter = TopicFilter::try_from(c.text()?)?;
                 filters.push(filter);
             }
             // MQTT-3.10.3-2: UNSUBSCRIBE requires at least one filter.
@@ -301,10 +297,7 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
             if qos == Qos::AtMostOnce && dup {
                 return Err("QoS 0 PUBLISH with DUP flag".into());
             }
-            let topic = c.text()?;
-            if !valid_exact_topic(&topic) {
-                return Err("invalid publish topic".into());
-            }
+            let topic = TopicName::try_from(c.text()?)?;
             // MQTT-2.3.1-5: only QoS 1/2 PUBLISH carries a Packet Identifier.
             let packet_id = if qos == Qos::AtMostOnce {
                 None
@@ -347,10 +340,6 @@ fn nonzero_ack_id(c: &mut Cursor<'_>) -> Result<u16, &'static str> {
         return Err("zero acknowledgment packet id");
     }
     Ok(id)
-}
-
-pub(super) fn valid_exact_topic(topic: &str) -> bool {
-    !topic.is_empty() && !topic.contains(['+', '#']) && !topic.starts_with('$')
 }
 
 fn encode_length(mut len: usize, output: &mut Vec<u8>) {
@@ -427,7 +416,7 @@ pub(super) fn encode_publish(
         (Qos::AtLeastOnce | Qos::ExactlyOnce, Some(1..=u16::MAX)) => (),
         _ => return Err("invalid outbound PUBLISH QoS/packet id/dup"),
     }
-    if !valid_exact_topic(topic) || payload.len() > MAX_PAYLOAD {
+    if !valid_topic_name(topic) || payload.len() > MAX_PAYLOAD {
         return Err("invalid outbound MQTT topic or payload");
     }
     let name = topic.as_bytes();
@@ -602,13 +591,23 @@ mod tests {
         // MQTT-3-8.3-4, MQTT-3.10.3-2, MQTT-3.1.2-4/6.
         assert!(matches!(
             decode(0x82, &[0, 1, 0, 1, b'a', 2]).unwrap(),
-            Packet::Subscribe { filters, .. } if filters == vec![("a".to_owned(), Qos::ExactlyOnce)]
+            Packet::Subscribe { filters, .. }
+                if filters.len() == 1
+                    && filters[0].0.as_str() == "a"
+                    && filters[0].1 == Qos::ExactlyOnce
         ));
+        assert!(matches!(
+            decode(0x82, &[0, 2, 0, 7, b's', b'p', b'o', b'r', b't', b'/', b'#', 1]).unwrap(),
+            Packet::Subscribe { filters, .. }
+                if filters[0].0.as_str() == "sport/#"
+        ));
+        assert!(decode(0x82, &[0, 2, 0, 6, b's', b'p', b'o', b'r', b't', b'#', 1]).is_err());
         assert!(decode(0x82, &[0, 1, 0, 1, b'a', 3]).is_err());
         assert!(decode(0x82, &[0, 1, 0, 1, b'a', 0x80]).is_err());
         assert!(matches!(
             decode(0xa2, &[0, 4, 0, 1, b'a']).unwrap(),
-            Packet::Unsubscribe { packet_id: 4, filters } if filters == vec!["a"]
+            Packet::Unsubscribe { packet_id: 4, filters }
+                if filters.len() == 1 && filters[0].as_str() == "a"
         ));
         assert!(decode(0xa2, &[0, 4]).is_err());
         assert!(decode(0xa0, &[0, 4, 0, 1, b'a']).is_err());

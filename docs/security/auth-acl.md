@@ -16,10 +16,14 @@ Um certificado válido de outro dispositivo não substitui o certificado
 vinculado ao usuário. O `CONNECT` é recusado se qualquer fator falhar.
 
 Após a autenticação, a ACL decide separadamente quais nomes de tópicos podem
-ser publicados ou assinados. **Tudo é negado por padrão.** Esta primeira
-versão aceita nomes exatos; filtros com `+` ou `#` ainda não são aceitos. O
-tópico não precisa ser criado antes: surge quando um cliente autorizado publica
-nele. A assinatura autorizada deve estar ativa para receber publicações.
+ser publicados ou assinados. **Tudo é negado por padrão.** `publish` continua
+aceitando somente nomes concretos. `subscribe` aceita nomes exatos e filtros
+com `+` e `#`, mas deve conter literalmente o filtro solicitado: `sensores/+`
+não autoriza pedir `sensores/#` ou `sensores/um`. A entrega do tópico concreto
+também é revalidada contra os filtros da ACL, inclusive na recuperação de
+fila offline/inflight. `#` não inclui `$SYS`; isso exige uma concessão explícita
+como `$SYS/#`. O tópico surge quando um cliente autorizado publica nele.
+Consulte [exemplos e limites](../wildcard-subscriptions.md).
 
 No laboratório, o exemplo permite publicar e assinar `teste/mensagem` com o
 mesmo usuário/certificado em dois terminais; os clientes devem ter IDs MQTT

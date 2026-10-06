@@ -7,6 +7,24 @@ interoperabilidade independentes, recuperação após falhas, revisão de segura
 e documentação de operação; versões `1.x` manterão compatibilidade prometida,
 e `2.0.0` indicará quebra dessa compatibilidade.
 
+## 0.5.0 — em desenvolvimento, ainda não publicada
+
+- Filtros MQTT 3.1.1 `+` e `#`, níveis vazios e tópicos `$` explícitos;
+  nomes de publicação e filtros são tipos distintos, validados também no restore.
+- Uma entrega por cliente para filtros sobrepostos, no maior QoS aplicável,
+  incluindo deduplicação de mensagens retidas no mesmo SUBSCRIBE.
+- ACL exige literalmente o filtro solicitado; tópicos concretos são
+  revalidados no fan-out e na recuperação de filas offline/inflight.
+- Script reproduzível com clientes Mosquitto para QoS 0/1/2, retained,
+  reinício, sessão persistente, UNSUBSCRIBE e pacotes inválidos, incorporado ao CI.
+- Inventário verificável das licenças declaradas das dependências, mantendo
+  o código XMQR sob MIT e os direitos dos componentes de terceiros.
+- O formato de estado permanece na versão 1. A 0.4 lê estados antigos,
+  mas não entende assinaturas wildcard produzidas pela 0.5: antes do retorno,
+  remova-as com UNSUBSCRIBE ou restaure um backup completo anterior.
+- Limites continuam explícitos: 256 bytes por tópico/filtro, 256 assinaturas
+  por sessão e 64 sessões. Last Will, escala e operação de produção continuam pendentes.
+
 ## 0.4.0 — 2026-09-24
 
 - Etapas didáticas `password-lab` e `acl-lab`, sem TLS e restritas a loopback,

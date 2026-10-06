@@ -10,15 +10,19 @@ vertical executável, testes e documentação antes de ser considerado concluíd
 - [x] laboratório com ACL deny-by-default;
 - [x] CRUD atômico de usuários;
 - [x] perfis de estado separados;
-- [ ] publicar evidências externas de interoperabilidade da série.
+- [x] registrar a validação local da base 0.4 com formatação, testes e Clippy;
+- [x] automatizar vetores externos do núcleo com clientes Mosquitto na fatia 0.5.
 
 ## Série 0.5 — filtros e roteamento, ainda não publicada
 
-- [ ] publicar a implementação já em validação de `+` e `#`;
-- [ ] publicar a regra de tópicos `$`;
-- [ ] publicar a deduplicação de filtros sobrepostos;
+- [x] implementar e validar `+` e `#` no XMQR;
+- [x] validar a regra de tópicos `$`;
+- [x] deduplicar filtros sobrepostos e retained;
+- [x] validar ACL, UNSUBSCRIBE, quotas e recuperação de sessões wildcard;
+- [x] testar QoS 0/1/2 e filtros com clientes Mosquitto;
+- [ ] publicar a release após revisão dos gates;
 - [ ] benchmarks de fan-out e limites;
-- [ ] testes com clientes independentes.
+- [ ] ampliar clientes independentes e cobertura TLS/mTLS e segurança.
 
 ## Próximas fatias MQTT 3.1.1
 

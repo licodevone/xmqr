@@ -1,4 +1,6 @@
-# Exact topic names only. Any omitted user/topic/action is denied.
+# PUBLISH grants are exact names. SUBSCRIBE grants are literal requested filters,
+# including +/#; e.g. subscribe = ["sensores/+/temperatura"].
+# Any omitted user/topic/action is denied. # does not include $ topics.
 # MQTT topics are created by publishing: no separate topic creation step.
 [[rules]]
 username = "lab-device"

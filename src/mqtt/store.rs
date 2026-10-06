@@ -16,6 +16,8 @@ use thiserror::Error;
 
 use crate::persistence::{StorageError, actor::PersistenceHandle};
 
+use super::topic::{TopicFilter, TopicName};
+
 const KEY: &[u8] = b"mqtt311.state.v1";
 const FORMAT_VERSION: u16 = 1;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -24,7 +26,6 @@ const MAX_RETAINED: usize = 256;
 const MAX_SUBSCRIPTIONS: usize = 256;
 const MAX_OFFLINE: usize = 64;
 const MAX_INFLIGHT: usize = 32;
-const MAX_TOPIC_BYTES: usize = 256;
 const MAX_CLIENT_ID_BYTES: usize = 256;
 const MAX_PRINCIPAL_BYTES: usize = 256;
 const MAX_PAYLOAD_BYTES: usize = 4096;
@@ -49,7 +50,7 @@ pub(super) enum StateError {
 #[serde(deny_unknown_fields)]
 pub(super) struct DurableState {
     pub sessions: BTreeMap<String, DurableSession>,
-    pub retained: BTreeMap<String, StoredMessage>,
+    pub retained: BTreeMap<TopicName, StoredMessage>,
 }
 
 /// Session state retained across reconnects. `persistent = false` marks a
@@ -59,7 +60,7 @@ pub(super) struct DurableState {
 pub(super) struct DurableSession {
     pub principal: String,
     pub persistent: bool,
-    pub subscriptions: BTreeMap<String, u8>,
+    pub subscriptions: BTreeMap<TopicFilter, u8>,
     pub offline: VecDeque<StoredMessage>,
     pub inbound_qos2: Vec<InboundQos2>,
     pub outbound: Vec<OutboundInflight>,
@@ -85,7 +86,7 @@ impl DurableSession {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct StoredMessage {
-    pub topic: String,
+    pub topic: TopicName,
     #[serde(with = "hex_bytes")]
     pub payload: Vec<u8>,
     pub qos: u8,
@@ -210,8 +211,7 @@ pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
         if session.subscriptions.len() > MAX_SUBSCRIPTIONS {
             return Err(StateError::Limit("subscriptions per session"));
         }
-        for (topic, qos) in &session.subscriptions {
-            validate_topic(topic)?;
+        for qos in session.subscriptions.values() {
             if *qos > 2 {
                 return Err(StateError::Malformed);
             }
@@ -252,7 +252,6 @@ pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
         }
     }
     for (topic, message) in &state.retained {
-        validate_topic(topic)?;
         validate_message(message)?;
         if topic != &message.topic || message.payload.is_empty() || !message.retain {
             return Err(StateError::Malformed);
@@ -262,19 +261,11 @@ pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
 }
 
 fn validate_message(message: &StoredMessage) -> Result<(), StateError> {
-    validate_topic(&message.topic)?;
     if message.payload.len() > MAX_PAYLOAD_BYTES {
         return Err(StateError::Limit("payload bytes"));
     }
     if message.qos > 2 {
         return Err(StateError::Malformed);
-    }
-    Ok(())
-}
-
-fn validate_topic(topic: &str) -> Result<(), StateError> {
-    if topic.is_empty() || topic.len() > MAX_TOPIC_BYTES || topic.contains(['+', '#']) {
-        return Err(StateError::Limit("exact topic bytes"));
     }
     Ok(())
 }
@@ -331,7 +322,7 @@ mod tests {
 
     fn message(qos: u8) -> StoredMessage {
         StoredMessage {
-            topic: "test/temperature".into(),
+            topic: TopicName::try_from("test/temperature".to_owned()).unwrap(),
             payload: vec![0, 255, 42],
             qos,
             retain: false,
@@ -345,7 +336,10 @@ mod tests {
             DurableSession {
                 principal: "sensor".into(),
                 persistent: true,
-                subscriptions: BTreeMap::from([("test/temperature".into(), 2)]),
+                subscriptions: BTreeMap::from([(
+                    TopicFilter::try_from("test/temperature".to_owned()).unwrap(),
+                    2,
+                )]),
                 offline: VecDeque::from([message(1)]),
                 inbound_qos2: vec![InboundQos2 {
                     packet_id: 7,

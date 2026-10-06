@@ -1,10 +1,11 @@
 //! MQTT 3.1.1 session handler with bounded `QoS` 0/1/2, retained messages
-//! and durable CleanSession=0 state. Exact topic names only; Will is not yet
-//! accepted, so this is not a full MQTT 3.1.1 implementation.
+//! and durable CleanSession=0 state. Topic filters support MQTT 3.1.1 `+` and
+//! `#`; Will is not yet accepted, so this is not a full implementation.
 
 mod codec;
 mod router;
 mod store;
+pub(crate) mod topic;
 
 pub use router::Router;
 
@@ -20,7 +21,7 @@ use crate::{
 use codec::{
     FrameReader, Packet, Qos, encode_connack, encode_connack_with_session, encode_pingresp,
     encode_puback, encode_pubcomp, encode_publish, encode_pubrec, encode_pubrel, encode_suback,
-    encode_unsuback, valid_exact_topic,
+    encode_unsuback,
 };
 use router::{AckKind, Delivery, RouterError};
 use store::StoredMessage;
@@ -117,9 +118,9 @@ pub async fn serve_connection(
                     last_inbound = Instant::now();
                     match incoming? {
                         Packet::Subscribe { packet_id, filters } => {
-                            let requested = filters.into_iter().map(|(topic,qos)| {
-                                let granted = (valid_exact_topic(&topic) && auth.allowed_subscribe(&principal, &topic)).then_some(qos.as_u8());
-                                (topic, granted)
+                            let requested = filters.into_iter().map(|(filter,qos)| {
+                                let granted = auth.allowed_subscribe(&principal, filter.as_str()).then_some(qos.as_u8());
+                                (filter, granted)
                             }).collect();
                             let (codes, retained) = router.subscribe(&session, requested).await?;
                             connection.write_all_with_deadline(&encode_suback(packet_id, &codes), WRITE_TIMEOUT).await?;
@@ -132,7 +133,7 @@ pub async fn serve_connection(
                         Packet::Publish { topic, payload, qos, retain, dup, packet_id } => {
                             // DUP is a PUBLISH retransmission hint, not an application dedup key.
                             let _ = dup;
-                            if !auth.allowed_publish(&principal, &topic) {
+                            if !auth.allowed_publish(&principal, topic.as_str()) {
                                 warn!(connection_id=connection.id(), "unauthorized publish; closing client");
                                 break;
                             }
@@ -192,7 +193,7 @@ async fn send_delivery(
             packet_id,
             dup,
         } => encode_publish(
-            &message.topic,
+            message.topic.as_str(),
             &message.payload,
             Qos::from_u8(message.qos)?,
             message.retain,
