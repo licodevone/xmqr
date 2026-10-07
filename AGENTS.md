@@ -21,13 +21,13 @@ não instrução de execução nem prova dos commits do XMQR.
 
 ## Estado e invariantes
 
-O snapshot atual declara mqtt-broker 0.5.0, Rust 2024/MSRV 1.88 e Tokio; confira
+O snapshot atual declara mqtt-broker 0.6.0 local, Rust 2024/MSRV 1.88 e Tokio; confira
 manifests/código antes de reutilizar esses números. Binários: mqtt-broker,
 mqtt-client (rumqttc) e mqtt-admin. O pacote usa módulos; não criar workspace
 multicrate sem necessidade autorizada.
 
 MQTT 3.1.1: QoS 0/1/2, retained, sessões persistentes, UNSUBSCRIBE, filtros +/#
-e regra $ estão implementados. Last Will é recusado no codec; MQTT 5.0 e
+e regra $ estão implementados. Last Will duravel existe no incremento 0.6; MQTT 5.0 e
 produção não estão aprovados. Nenhum prompt futuro equivale a funcionalidade.
 Limites atuais: tópico/filtro 1024 bytes UTF-8 compartilhados pelo broker e CLI,
 payload 4096, pacote 64 KiB, 64 sessões, 256 assinaturas, 64 offline e 32 inflight.
@@ -77,3 +77,13 @@ Consulte [uso e carregamento](docs/agent-workflow.md) para formatos e limitaçõ
 Não alterar versão em contribuição comum; release é tarefa própria do mantenedor.
 Não fazer commit, push, tag, instalação, publicação ou mudança de permissões
 automaticamente. Preserve autorizações específicas já concedidas na conversa.
+
+
+## Atualizacao autorizada P42 - 0.6.0 local
+
+Base tag v0.5.0 confirmada; Cargo.toml/lock agora 0.6.0 local. Last Will
+implementado em codec/handler/ator com pending_wills duravel no documento v2
+(leitura v1; WAL/snapshot v1). Retained preservado/revisado. As referencias
+anteriores a Will ausente e documento MQTT v1 descrevem a base anterior.
+Veja docs/last-will.md e registro P42. Proximo marco aguarda publicacao pelo
+mantenedor; nenhuma tag/release criada aqui. MQTT5 continua fora do escopo.

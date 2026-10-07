@@ -1,6 +1,6 @@
 # Estado de implementação MQTT 3.1.1
 
-Esta matriz descreve a série XMQR 0.5 em desenvolvimento. Não é uma declaração
+Esta matriz descreve a base XMQR 0.5 e o incremento local 0.6. Não é uma declaração
 de conformidade completa. Os testes externos usam Mosquitto 2.0.18 em
 `open-lab`; TLS/mTLS e ACL ainda precisam de uma matriz externa ampliada.
 
@@ -12,13 +12,13 @@ de conformidade completa. Os testes externos usam Mosquitto 2.0.18 em
 | §§3.8–3.9 SUBSCRIBE/SUBACK | nomes exatos e filtros | codec, ACL, sobreposição e Mosquitto | matriz TLS/mTLS e ACL externa |
 | §§3.10–3.11 UNSUBSCRIBE/UNSUBACK | implementado | remoção literal, persistência e fixture independente | ampliar combinações externas |
 | §§3.12–3.13 PINGREQ/PINGRESP | implementado | conexão, timeout e fixture independente | matriz específica de keep-alive |
-| §3.14 DISCONNECT | implementado | encerramento de sessão | Last Will ainda pendente |
+| §3.14 DISCONNECT | implementado | encerramento de sessão | cancelamento duravel Will testado na 0.6 local |
 | §3.1.2.4 Clean Session | implementado | remoção, reabertura e sessão após queda do processo | escala e falhas de energia |
 | §3.3.1.3 retained | implementado | criação/exclusão, deduplicação, restore e Mosquitto | quotas sob carga |
 | §3.3.5 QoS de filtros sobrepostos | uma entrega no maior QoS aplicável | teste do ator e Mosquitto | ampliar combinações QoS externas |
 | §4.7 filtros +/# e níveis vazios | implementado | vetores, propriedades geradas, limites e Mosquitto | benchmark de capacidade e fuzzing |
 | §4.7.2 tópicos $ | implementado | matcher, retained e Mosquitto | matriz TLS/ACL externa |
-| §3.1.2.5–6 Last Will | não implementado | rejeição explícita no codec | próxima fatia |
+| §3.1.2.5–6 Last Will | implementado na 0.6 local | codec/ator/store, ACL e9 integracoes | ampliar TLS/mTLS externo |
 
 ## Rastreabilidade
 
@@ -60,3 +60,10 @@ com 1024 bytes UTF-8 PASS. Pub/sub com mqtt-client proprio QoS 0/1/2 e
 retained apos reinicio PASS em open-lab. Nao comprova TLS/ACL externa nem
 interop Mosquitto, nao executada. Clippy 1.99 bloqueado por lint preexistente
 em store.rs:296; release 0.5 nao aprovada. Veja registro P41.
+
+
+## Incremento 0.6 - Last Will
+
+MQTT-3.1.2-8..17/-24, MQTT-3.1.3-1 e MQTT-3.14.4-3 fundamentam
+codec, fechamento e transicao duravel. Veja [Last Will](../last-will.md) e
+[registro P42](../../prompts/registros/P42-0.6.0.md) para resultados reais.

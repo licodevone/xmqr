@@ -45,6 +45,7 @@ pub(super) enum Packet {
         client_id: String,
         clean_session: bool,
         keep_alive: u16,
+        will: Option<super::store::StoredMessage>,
         username: Option<String>,
         password: Option<Vec<u8>>,
     },
@@ -226,8 +227,12 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
                 return Err("unsupported MQTT protocol".into());
             }
             let flags = c.byte()?;
-            if flags & 0x01 != 0 || flags & 0x3c != 0 {
-                return Err("unsupported CONNECT flags (no Will)".into());
+            // MQTT-3.1.2-3/11/13/14/15: reserved and conditional Will flags.
+            let has_will = flags & 0x04 != 0;
+            let will_qos = (flags >> 3) & 0x03;
+            let will_retain = flags & 0x20 != 0;
+            if flags & 0x01 != 0 || will_qos == 3 || (!has_will && (will_qos != 0 || will_retain)) {
+                return Err("invalid CONNECT Will flags".into());
             }
             let has_username = flags & 0x80 != 0;
             let has_password = flags & 0x40 != 0;
@@ -237,6 +242,22 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
             let clean_session = flags & 0x02 != 0;
             let keep_alive = c.word()?;
             let client_id = c.text()?;
+            // MQTT-3.1.3-1: Will precedes username/password. Message is binary.
+            let will = if has_will {
+                let topic = TopicName::try_from(c.text()?)?;
+                let payload = c.binary()?.to_vec();
+                if payload.len() > MAX_PAYLOAD {
+                    return Err("Will payload too large".into());
+                }
+                Some(super::store::StoredMessage {
+                    topic,
+                    payload,
+                    qos: will_qos,
+                    retain: will_retain,
+                })
+            } else {
+                None
+            };
             let username = has_username.then(|| c.text()).transpose()?;
             let password = has_password
                 .then(|| c.binary().map(<[u8]>::to_vec))
@@ -245,6 +266,7 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
                 client_id,
                 clean_session,
                 keep_alive,
+                will,
                 username,
                 password,
             }
@@ -668,5 +690,40 @@ mod tests {
         subscribe.push(1);
         assert!(decode(0x82, &subscribe).is_ok());
         assert!(encode_publish(&filter, b"x", Qos::AtMostOnce, false, false, None).is_err());
+    }
+
+    #[test]
+    fn will_wire_flags_binary_payload_and_utf8_limits() {
+        // Independent CONNECT fields: MQTT-3.1.2-8..17, MQTT-3.1.3-1.
+        fn connect(flags: u8, topic: &str, payload: &[u8]) -> Vec<u8> {
+            let mut body = vec![0, 4, b'M', b'Q', b'T', b'T', 4, flags, 0, 1, 0, 1, b'x'];
+            let raw = topic.as_bytes();
+            body.extend_from_slice(&u16::try_from(raw.len()).unwrap().to_be_bytes());
+            body.extend_from_slice(raw);
+            body.extend_from_slice(&u16::try_from(payload.len()).unwrap().to_be_bytes());
+            body.extend_from_slice(payload);
+            body
+        }
+        for qos in 0..=2 {
+            let bytes = connect(0x06 | (qos << 3) | 0x20, &"é".repeat(512), &[0, 255]);
+            let Packet::Connect {
+                will: Some(will), ..
+            } = decode(0x10, &bytes).unwrap()
+            else {
+                panic!("Will missing")
+            };
+            assert_eq!(will.qos, qos);
+            assert!(will.retain);
+            assert_eq!(will.payload, [0, 255]);
+        }
+        for flags in [0x1e, 0x0a, 0x22, 0x07] {
+            assert!(decode(0x10, &connect(flags, "test/state", b"bye")).is_err());
+        }
+        assert!(decode(0x10, &connect(0x06, &("é".repeat(512) + "x"), b"bye")).is_err());
+        assert!(decode(0x10, &connect(0x06, "test/+", b"bye")).is_err());
+        assert!(decode(0x10, &connect(0x06, "test/state", &vec![0; 4097])).is_err());
+        let mut truncated = connect(0x06, "test/state", b"bye");
+        truncated.pop();
+        assert!(decode(0x10, &truncated).is_err());
     }
 }

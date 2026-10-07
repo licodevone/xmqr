@@ -12,7 +12,7 @@ mqtt-broker. O consumidor não é o destino destas alterações.
 Existentes: TCP de laboratório, TLS/mTLS seguro, autenticação vinculada ao
 fingerprint no modo seguro, ACL, pub/sub QoS 0/1/2, retained, sessões persistentes,
 UNSUBSCRIBE, filtros +/# e regra $, WAL/snapshot versionados e CRUD local de usuários.
-Não existentes: Last Will, MQTT 5.0, WebSockets, cluster, API administrativa,
+Não existentes: MQTT 5.0, WebSockets, cluster, API administrativa,
 configuração geral versionada/reload e endpoints de métricas/health/readiness.
 Não há declaração de prontidão de produção ou conformidade integral.
 
@@ -28,3 +28,13 @@ clientes independentes. Metas de carga, SLA e requisitos de implantação seguem
 Não assumir IP, diretório pessoal ou certificado de outra máquina.
 
 Origem do contexto anterior: [cópia preservada](../origem/broker/00-project-context.md).
+
+
+## Atualizacao autorizada P42 - 0.6.0 local
+
+Base tag v0.5.0 confirmada; Cargo.toml/lock agora 0.6.0 local. Last Will
+implementado em codec/handler/ator com pending_wills duravel no documento v2
+(leitura v1; WAL/snapshot v1). Retained preservado/revisado. As referencias
+anteriores a Will ausente e documento MQTT v1 descrevem a base anterior.
+Veja docs/last-will.md e registro P42. Proximo marco aguarda publicacao pelo
+mantenedor; nenhuma tag/release criada aqui. MQTT5 continua fora do escopo.

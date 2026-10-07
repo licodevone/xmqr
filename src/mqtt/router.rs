@@ -11,7 +11,7 @@ use crate::transport::HandlerError;
 
 use super::store::{
     DurableSession, DurableState, InboundQos2, MqttStore, OutboundInflight, OutboundStage,
-    StateError, StoredMessage,
+    PendingWill, StateError, StoredMessage,
 };
 use super::topic::TopicFilter;
 
@@ -25,6 +25,8 @@ pub(super) enum RouterError {
     Store(#[from] StateError),
     #[error("session identity does not match the stored owner")]
     PrincipalMismatch,
+    #[error("Will publication denied by access policy")]
+    WillDenied,
     #[error("stale or disconnected MQTT session")]
     Stale,
     #[error("session actor unavailable")]
@@ -53,6 +55,7 @@ pub(super) struct Session {
     pub replay: Vec<Delivery>,
 }
 
+#[derive(Clone)]
 struct Live {
     generation: u64,
     sender: mpsc::Sender<Delivery>,
@@ -74,6 +77,7 @@ enum Command {
         client_id: String,
         principal: String,
         clean: bool,
+        will: Option<StoredMessage>,
         reply: oneshot::Sender<Result<Session, RouterError>>,
     },
     Subscribe {
@@ -111,6 +115,8 @@ enum Command {
     Unregister {
         client_id: String,
         generation: u64,
+        graceful: bool,
+        reply: oneshot::Sender<Result<(), RouterError>>,
     },
 }
 
@@ -128,7 +134,55 @@ pub struct Router {
     sender: mpsc::Sender<Command>,
 }
 
+/// Ensures handler cancellation/panic also closes its accepted connection.
+/// If the runtime itself disappears, the durable pending Will survives restart.
+pub(super) struct ConnectionGuard {
+    router: Router,
+    client_id: String,
+    generation: u64,
+    armed: bool,
+}
+
+impl ConnectionGuard {
+    pub(super) fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for ConnectionGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        let router = self.router.clone();
+        let client_id = self.client_id.clone();
+        let generation = self.generation;
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            runtime.spawn(async move {
+                let (reply, result) = oneshot::channel();
+                let _ = router
+                    .send(Command::Unregister {
+                        client_id,
+                        generation,
+                        graceful: false,
+                        reply,
+                    })
+                    .await;
+                let _ = result.await;
+            });
+        }
+    }
+}
+
 impl Router {
+    pub(super) fn connection_guard(&self, session: &Session) -> ConnectionGuard {
+        ConnectionGuard {
+            router: self.clone(),
+            client_id: session.client_id.clone(),
+            generation: session.generation,
+            armed: true,
+        }
+    }
     /// Recover durable state and start the session actor before binding TCP.
     ///
     /// # Errors
@@ -159,6 +213,14 @@ impl Router {
             // New PUBLISH packets are checked against the current ACL in the
             // connection handler. Removed principals still lose the session.
         }
+        // MQTT-3.1.2-8/10: broker crash can defer Will publication until restart.
+        // Remove the Will and route it in the same durable transition.
+        let pending = std::mem::take(&mut state.pending_wills);
+        for will in pending.into_values() {
+            if auth.allowed_publish(&will.principal, will.message.topic.as_str()) {
+                apply_message(&mut state, &BTreeMap::new(), &auth, &will.message)?;
+            }
+        }
         if state != before {
             store.commit(&state).await?;
         }
@@ -183,17 +245,30 @@ impl Router {
         Ok(Self { sender })
     }
 
+    #[cfg(test)]
     pub(super) async fn register(
         &self,
         client_id: String,
         principal: String,
         clean: bool,
     ) -> Result<Session, RouterError> {
+        self.register_with_will(client_id, principal, clean, None)
+            .await
+    }
+
+    pub(super) async fn register_with_will(
+        &self,
+        client_id: String,
+        principal: String,
+        clean: bool,
+        will: Option<StoredMessage>,
+    ) -> Result<Session, RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Register {
             client_id,
             principal,
             clean,
+            will,
             reply,
         })
         .await?;
@@ -284,13 +359,20 @@ impl Router {
         result.await.map_err(|_| RouterError::Unavailable)?
     }
 
-    pub(super) async fn unregister(&self, session: &Session) {
-        let _ = self
-            .send(Command::Unregister {
-                client_id: session.client_id.clone(),
-                generation: session.generation,
-            })
-            .await;
+    pub(super) async fn unregister(
+        &self,
+        session: &Session,
+        graceful: bool,
+    ) -> Result<(), RouterError> {
+        let (reply, result) = oneshot::channel();
+        self.send(Command::Unregister {
+            client_id: session.client_id.clone(),
+            generation: session.generation,
+            graceful,
+            reply,
+        })
+        .await?;
+        result.await.map_err(|_| RouterError::Unavailable)?
     }
 
     async fn send(&self, command: Command) -> Result<(), RouterError> {
@@ -308,9 +390,13 @@ impl Actor {
                 client_id,
                 principal,
                 clean,
+                will,
                 reply,
             } => {
-                let _ = reply.send(self.register(client_id, principal, clean).await);
+                let _ = reply.send(
+                    self.register_with_will(client_id, principal, clean, will)
+                        .await,
+                );
             }
             Command::Subscribe {
                 client_id,
@@ -360,8 +446,13 @@ impl Actor {
             Command::Unregister {
                 client_id,
                 generation,
+                graceful,
+                reply,
             } => {
-                let _ = self.unregister(&client_id, generation).await;
+                let _ = reply.send(
+                    self.unregister_with_reason(&client_id, generation, graceful)
+                        .await,
+                );
             }
         }
     }
@@ -404,11 +495,23 @@ impl Actor {
         }
     }
 
+    #[cfg(test)]
     async fn register(
         &mut self,
         client_id: String,
         principal: String,
         clean: bool,
+    ) -> Result<Session, RouterError> {
+        self.register_with_will(client_id, principal, clean, None)
+            .await
+    }
+
+    async fn register_with_will(
+        &mut self,
+        client_id: String,
+        principal: String,
+        clean: bool,
+        will: Option<StoredMessage>,
     ) -> Result<Session, RouterError> {
         let old = self.state.sessions.get(&client_id);
         // A ClientId belongs to its authenticated principal even when the new
@@ -417,12 +520,32 @@ impl Actor {
         if old.is_some_and(|session| session.principal != principal) {
             return Err(RouterError::PrincipalMismatch);
         }
+        if will
+            .as_ref()
+            .is_some_and(|w| !self.auth.allowed_publish(&principal, w.topic.as_str()))
+        {
+            return Err(RouterError::WillDenied);
+        }
         let session_present = !clean && old.is_some_and(|session| session.persistent);
+        if let Some(generation) = self.live.get(&client_id).map(|live| live.generation) {
+            // Existing network connection ends abnormally on same-owner takeover.
+            self.unregister_with_reason(&client_id, generation, false)
+                .await?;
+        }
         let mut candidate = self.state.clone();
         if !session_present {
             candidate
                 .sessions
                 .insert(client_id.clone(), DurableSession::new(principal, !clean));
+        }
+        if let Some(message) = will {
+            candidate.pending_wills.insert(
+                client_id.clone(),
+                PendingWill {
+                    principal: candidate.sessions[&client_id].principal.clone(),
+                    message,
+                },
+            );
         }
         let mut replay = Vec::new();
         if session_present {
@@ -658,19 +781,44 @@ impl Actor {
         Ok(actions)
     }
 
+    #[cfg(test)]
     async fn unregister(&mut self, client_id: &str, generation: u64) -> Result<(), RouterError> {
+        self.unregister_with_reason(client_id, generation, false)
+            .await
+    }
+
+    async fn unregister_with_reason(
+        &mut self,
+        client_id: &str,
+        generation: u64,
+        graceful: bool,
+    ) -> Result<(), RouterError> {
         self.current(client_id, generation)?;
-        let persistent = self
-            .state
+        let mut candidate = self.state.clone();
+        let will = candidate.pending_wills.remove(client_id);
+        if !candidate
             .sessions
             .get(client_id)
-            .is_some_and(|session| session.persistent);
-        if !persistent {
-            let mut candidate = self.state.clone();
+            .is_some_and(|s| s.persistent)
+        {
             candidate.sessions.remove(client_id);
-            self.commit(candidate).await?;
         }
-        self.live.remove(client_id);
+        let mut remaining_live = self.live.clone();
+        remaining_live.remove(client_id);
+        let mut deliveries = Vec::new();
+        if let Some(will) = will.filter(|_| !graceful)
+            && self
+                .auth
+                .allowed_publish(&will.principal, will.message.topic.as_str())
+        {
+            deliveries = apply_message(&mut candidate, &remaining_live, &self.auth, &will.message)?;
+        }
+        // MQTT-3.1.2-10 and MQTT-3.14.4-3: cancellation/publication is durable.
+        self.commit(candidate).await?;
+        if let Some(old) = self.live.remove(client_id) {
+            let _ = old.close.send(true);
+        }
+        self.deliver(deliveries);
         Ok(())
     }
 
@@ -1536,5 +1684,251 @@ mod tests {
         assert_eq!(recovered.sessions["sub"].offline[0].topic.as_str(), topic);
         assert_eq!(recovered.retained[topic.as_str()].payload, b"offline");
         store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn will_disconnect_cancel_takeover_acl_and_retained_are_atomic() {
+        let (_directory, mut actor) = actor().await;
+        let mut subscriber = actor
+            .register("watcher".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "watcher",
+                subscriber.generation,
+                vec![(filter("test/state"), Some(2))],
+            )
+            .await
+            .unwrap();
+        for qos in 0..=2 {
+            let producer = actor
+                .register_with_will(
+                    format!("source{qos}"),
+                    "user".into(),
+                    true,
+                    Some(message("test/state", qos, true, b"offline")),
+                )
+                .await
+                .unwrap();
+            actor
+                .unregister_with_reason(&producer.client_id, producer.generation, false)
+                .await
+                .unwrap();
+            let Delivery::Publish {
+                message: delivered, ..
+            } = subscriber.outbound.try_recv().unwrap()
+            else {
+                panic!("Will missing")
+            };
+            assert_eq!(delivered.qos, qos);
+            assert!(!delivered.retain);
+            assert!(!actor.state.pending_wills.contains_key(&producer.client_id));
+            assert_eq!(
+                actor.state.retained[&TopicName::try_from("test/state".to_owned()).unwrap()]
+                    .payload,
+                b"offline"
+            );
+        }
+        let source = actor
+            .register_with_will(
+                "normal".into(),
+                "user".into(),
+                false,
+                Some(message("test/state", 1, true, b"cancel")),
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister_with_reason("normal", source.generation, true)
+            .await
+            .unwrap();
+        assert!(subscriber.outbound.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn will_takeover_and_acl_revocation_do_not_duplicate_or_bypass_policy() {
+        let (directory, mut actor) = actor().await;
+        let mut subscriber = actor
+            .register("watcher".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "watcher",
+                subscriber.generation,
+                vec![(filter("test/state"), Some(2))],
+            )
+            .await
+            .unwrap();
+        let source = actor
+            .register_with_will(
+                "takeover".into(),
+                "user".into(),
+                true,
+                Some(message("test/state", 1, false, b"old")),
+            )
+            .await
+            .unwrap();
+        let replacement = actor
+            .register_with_will("takeover".into(), "user".into(), true, None)
+            .await
+            .unwrap();
+        assert!(matches!(
+            subscriber.outbound.try_recv(),
+            Ok(Delivery::Publish { .. })
+        ));
+        assert!(matches!(
+            actor
+                .unregister_with_reason("takeover", source.generation, false)
+                .await,
+            Err(RouterError::Stale)
+        ));
+        actor
+            .unregister_with_reason("takeover", replacement.generation, true)
+            .await
+            .unwrap();
+        assert!(subscriber.outbound.try_recv().is_err());
+        actor.auth = Arc::new(AccessPolicy::secure(policy(directory.path(), false)));
+        assert!(matches!(
+            actor
+                .register_with_will(
+                    "denied".into(),
+                    "user".into(),
+                    true,
+                    Some(message("test/state", 1, true, b"denied"))
+                )
+                .await,
+            Err(RouterError::WillDenied)
+        ));
+        assert!(!actor.state.sessions.contains_key("denied"));
+        // A later revocation must also prevent the Will from publishing.
+        actor.auth = Arc::new(AccessPolicy::secure(policy(directory.path(), true)));
+        let revoked = actor
+            .register_with_will(
+                "revoked".into(),
+                "user".into(),
+                true,
+                Some(message("test/state", 1, true, b"revoked")),
+            )
+            .await
+            .unwrap();
+        actor.auth = Arc::new(AccessPolicy::secure(policy(directory.path(), false)));
+        actor
+            .unregister_with_reason("revoked", revoked.generation, false)
+            .await
+            .unwrap();
+        assert!(subscriber.outbound.try_recv().is_err());
+        assert!(
+            actor
+                .state
+                .retained
+                .get(&TopicName::try_from("test/state".to_owned()).unwrap())
+                .is_none_or(|message| message.payload != b"revoked")
+        );
+    }
+
+    #[tokio::test]
+    async fn retained_empty_will_deletes_and_restart_publishes_once() {
+        let (directory, mut actor) = actor().await;
+        let topic = "é".repeat(512);
+        let source = actor
+            .register_with_will(
+                "long".into(),
+                "user".into(),
+                true,
+                Some(message(&topic, 2, true, b"crash")),
+            )
+            .await
+            .unwrap();
+        assert!(actor.state.pending_wills.contains_key(&source.client_id));
+        actor.store.shutdown().await.unwrap();
+        let auth = Arc::new(AccessPolicy::password_lab(policy(directory.path(), true)));
+        let router = Router::start(directory.path(), auth).await.unwrap();
+        let mut subscriber = router
+            .register_with_will("new".into(), "user".into(), false, None)
+            .await
+            .unwrap();
+        let (_, retained) = router
+            .subscribe(&subscriber, vec![(filter(&topic), Some(2))])
+            .await
+            .unwrap();
+        assert_eq!(retained.len(), 1);
+        let Delivery::Publish {
+            message: stored, ..
+        } = &retained[0]
+        else {
+            panic!("retained missing")
+        };
+        assert_eq!(stored.payload, b"crash");
+        assert!(stored.retain);
+        let empty = router
+            .register_with_will(
+                "empty".into(),
+                "user".into(),
+                true,
+                Some(message(&topic, 0, true, b"")),
+            )
+            .await
+            .unwrap();
+        router.unregister(&empty, false).await.unwrap();
+        let Delivery::Publish {
+            message: deleted, ..
+        } = subscriber.outbound.recv().await.unwrap()
+        else {
+            panic!("deletion missing")
+        };
+        assert_eq!(deleted.payload, []);
+        assert!(!deleted.retain);
+        let (_, retained) = router
+            .subscribe(&subscriber, vec![(filter(&topic), Some(2))])
+            .await
+            .unwrap();
+        assert!(retained.is_empty());
+        router.unregister(&subscriber, true).await.unwrap();
+        drop(router);
+    }
+
+    #[tokio::test]
+    async fn cancelled_connection_task_guard_publishes_will() {
+        let directory = tempfile::tempdir().unwrap();
+        let auth = Arc::new(AccessPolicy::open_lab());
+        let router = Router::start(directory.path(), auth).await.unwrap();
+        let mut subscriber = router
+            .register_with_will("subscriber".into(), "__open_lab__".into(), true, None)
+            .await
+            .unwrap();
+        router
+            .subscribe(&subscriber, vec![(filter("test/state"), Some(1))])
+            .await
+            .unwrap();
+        let source = router
+            .register_with_will(
+                "source".into(),
+                "__open_lab__".into(),
+                true,
+                Some(message("test/state", 1, false, b"cancelled-task")),
+            )
+            .await
+            .unwrap();
+        let guard = router.connection_guard(&source);
+        let task = tokio::spawn(async move {
+            let _guard = guard;
+            std::future::pending::<()>().await;
+        });
+        task.abort();
+        let _ = task.await;
+        let delivery = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            subscriber.outbound.recv(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let Delivery::Publish { message, .. } = delivery else {
+            panic!("Will missing")
+        };
+        assert_eq!(message.payload, b"cancelled-task");
+        router.unregister(&subscriber, true).await.unwrap();
     }
 }

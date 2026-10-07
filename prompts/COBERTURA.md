@@ -58,3 +58,12 @@ foi acionado. Nova sessão com XMQR como cwd mantém descoberta/instruções ade
 ## Retomada P41 em Unix
 
 Em 2026-10-07, Rust 1.99/Ubuntu-26.04 validou a mesma copia: 74 testes PASS, incluindo recovery de nomes longos; pub/sub proprio QoS 0/1/2 e retained apos reinicio PASS. Fmt, inventario e build PASS. Clippy falha preexistente assert_is_empty em store.rs:296; interop Mosquitto NOT_RUN. Nao existe PASS global/release. Veja registro P41 e VALIDACAO-P41.json.
+
+
+## P42 - 0.6.0 local validada
+
+Last Will implementado e retained revisado:81 testes Rust e9 integracoes PASS;
+fmt/Clippy/inventario/build PASS em WSL sobre a mesma copia Windows. Documento
+MQTT v2 le v1; rollback exige backup anterior. MIT preservada. Veja
+[registro P42](registros/P42-0.6.0.md) e VALIDACAO-P42.json. Mosquitto/TLS externo
+nao executados. Proximo marco0.7 aguarda publicacao pelo mantenedor.

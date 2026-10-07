@@ -29,3 +29,13 @@ Mantenha mudanças compiláveis e pequenas; atualize ADR/matriz quando afetados.
 Valide pela [CONTRIBUTING](../../../CONTRIBUTING.md); mudanças de wire/estado/auth
 precisam de negativos e integração pertinente. Relate diff, resultado real e
 limitações; não promover versão nem executar próxima feature automaticamente.
+
+
+## Atualizacao autorizada P42 - 0.6.0 local
+
+Base tag v0.5.0 confirmada; Cargo.toml/lock agora 0.6.0 local. Last Will
+implementado em codec/handler/ator com pending_wills duravel no documento v2
+(leitura v1; WAL/snapshot v1). Retained preservado/revisado. As referencias
+anteriores a Will ausente e documento MQTT v1 descrevem a base anterior.
+Veja docs/last-will.md e registro P42. Proximo marco aguarda publicacao pelo
+mantenedor; nenhuma tag/release criada aqui. MQTT5 continua fora do escopo.

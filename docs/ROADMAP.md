@@ -13,7 +13,7 @@ vertical executável, testes e documentação antes de ser considerado concluíd
 - [x] registrar a validação local da base 0.4 com formatação, testes e Clippy;
 - [x] automatizar vetores externos do núcleo com clientes Mosquitto na fatia 0.5.
 
-## Série 0.5 — filtros e roteamento, ainda não publicada
+## Série 0.5 - filtros e roteamento, tag v0.5.0 verificada
 
 - [x] implementar e validar `+` e `#` no XMQR;
 - [x] validar a regra de tópicos `$`;
@@ -26,7 +26,7 @@ vertical executável, testes e documentação antes de ser considerado concluíd
 
 ## Próximas fatias MQTT 3.1.1
 
-- Last Will com persistência e encerramento anormal;
+- [x] Last Will com persistencia e encerramento anormal (0.6.0 local);
 - keep-alive e timeouts com matriz de conformidade;
 - testes de interoperabilidade automatizados com Mosquitto;
 - fuzzing do codec e testes property-based;
@@ -40,3 +40,9 @@ vertical executável, testes e documentação antes de ser considerado concluíd
 MQTT 5.0 só será introduzido depois que o núcleo MQTT 3.1.1 tiver matriz de
 conformidade e regressão suficiente. Cada recurso 5.0 deverá ser negociado por
 versão e não poderá alterar silenciosamente o comportamento 3.1.1.
+
+
+## Marcos incrementais autorizados
+
+Veja [plano de versoes](incremental-versions.md). Implementacao seguinte espera
+publicacao/resolucao do marco atual pelo mantenedor. MQTT5 nao pertence ao escopo.

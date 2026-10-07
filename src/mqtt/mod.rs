@@ -1,6 +1,6 @@
 //! MQTT 3.1.1 session handler with bounded `QoS` 0/1/2, retained messages
 //! and durable CleanSession=0 state. Topic filters support MQTT 3.1.1 `+` and
-//! `#`; Will is not yet accepted, so this is not a full implementation.
+//! `#`, with durable Last Will; full conformance remains a separate gate.
 
 mod codec;
 mod router;
@@ -54,6 +54,7 @@ pub async fn serve_connection(
         client_id,
         clean_session,
         keep_alive,
+        will,
         username,
         password,
     } = connect
@@ -76,11 +77,11 @@ pub async fn serve_connection(
         return Ok(());
     };
     let mut session = match router
-        .register(client_id, principal.clone(), clean_session)
+        .register_with_will(client_id, principal.clone(), clean_session, will)
         .await
     {
         Ok(session) => session,
-        Err(RouterError::PrincipalMismatch) => {
+        Err(RouterError::PrincipalMismatch | RouterError::WillDenied) => {
             connection
                 .write_all_with_deadline(&encode_connack(5), WRITE_TIMEOUT)
                 .await?;
@@ -88,12 +89,14 @@ pub async fn serve_connection(
         }
         Err(error) => return Err(error.into()),
     };
+    let mut guard = router.connection_guard(&session);
     let connack = encode_connack_with_session(0, session.resumed)?;
     if let Err(error) = connection
         .write_all_with_deadline(&connack, WRITE_TIMEOUT)
         .await
     {
-        router.unregister(&session).await;
+        let _ = router.unregister(&session, false).await;
+        guard.disarm();
         return Err(error.into());
     }
     debug!(
@@ -101,6 +104,7 @@ pub async fn serve_connection(
         "MQTT client accepted by access policy"
     );
 
+    let mut graceful = false;
     let mut last_inbound = Instant::now();
     let result: Result<(), HandlerError> = async {
         for delivery in session.replay.drain(..) {
@@ -171,7 +175,7 @@ pub async fn serve_connection(
                             }
                         }
                         Packet::PingReq => connection.write_all_with_deadline(&encode_pingresp(), WRITE_TIMEOUT).await?,
-                        Packet::Disconnect => break,
+                        Packet::Disconnect => { graceful = true; break; },
                         Packet::Connect { .. } => return Err("duplicate CONNECT".into()),
                     }
                 }
@@ -183,7 +187,14 @@ pub async fn serve_connection(
         }
         Ok(())
     }.await;
-    router.unregister(&session).await;
+    let cleanup = router.unregister(&session, graceful).await;
+    guard.disarm();
+    // A stale generation was already closed and its Will handled by takeover.
+    if let Err(error) = cleanup
+        && !matches!(error, RouterError::Stale)
+    {
+        return Err(error.into());
+    }
     let _ = connection.shutdown().await;
     result
 }

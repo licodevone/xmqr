@@ -1,0 +1,69 @@
+{
+  "state": "0.6.0_LOCAL_VALIDADA_AGUARDANDO_PUBLICACAO",
+  "base_tag": "v0.5.0",
+  "base_commit": "59c9e702347f0442642b813c645be33eb7349fb8",
+  "target_tag": "v0.6.0",
+  "environment": "Ubuntu-26.04 WSL, Rust1.99, same Windows tree /mnt/d/projects/my-project/xmqr",
+  "gates": [
+    {
+      "gate": "fmt",
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "gate": "test",
+      "command": "cargo test --locked --offline",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "gate": "clippy",
+      "command": "cargo clippy --locked --all-targets --offline -- -D warnings",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "gate": "licenses",
+      "command": "python3 scripts/license_inventory.py --check",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "gate": "build",
+      "command": "cargo build --locked --offline --bins",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "gate": "integration",
+      "command": "python3 scripts/verify_last_will.py --broker /mnt/c/Users/licod/Documents/Codex/2026-10-07/task/target-wsl/debug/mqtt-broker --client /mnt/c/Users/licod/Documents/Codex/2026-10-07/task/target-wsl/debug/mqtt-client",
+      "exit_code": 0,
+      "status": "PASS"
+    }
+  ],
+  "rust_tests_passed": 81,
+  "counts_by_target": [
+    59,
+    4,
+    4,
+    14,
+    0
+  ],
+  "integration_tests_passed": 9,
+  "persistence": {
+    "mqtt_document": 2,
+    "reads_documents": [
+      1,
+      2
+    ],
+    "wal_snapshot": 1,
+    "rollback": "complete pre-upgrade backup required"
+  },
+  "mosquitto_interop": "NOT_RUN",
+  "tls_mtls_external": "NOT_RUN; internal ACL tests PASS",
+  "production_conformance": "NOT_CLAIMED",
+  "license_mit_sha256": "acfd4bb82db195b2ba0a8a1ea6c5048d2e66c05a0fd0bd843e08d8a46d34b465",
+  "published_by_this_task": false,
+  "next_milestone": "0.7.0 observability; wait for maintainer publication/resolution of0.6 first"
+}

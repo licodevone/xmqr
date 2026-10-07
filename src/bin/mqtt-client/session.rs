@@ -25,6 +25,14 @@ pub async fn run(cli: Cli, password: Option<String>) -> AppResult<()> {
     } else {
         options.set_transport(Transport::Tcp);
     }
+    if let Some(will) = &cli.will {
+        options.set_last_will(rumqttc::LastWill::new(
+            &will.topic,
+            will.message.as_bytes(),
+            will.qos,
+            will.retain,
+        ));
+    }
     options.set_clean_session(cli.clean_session);
     options.set_keep_alive(Duration::from_secs(30));
     options.set_max_packet_size(MAX_PACKET_BYTES, MAX_PACKET_BYTES);

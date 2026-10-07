@@ -1,20 +1,14 @@
 # Versionamento
 
-O código deste snapshot identifica a versão `0.5.0` em `Cargo.toml` e
-`Cargo.lock`. Uma versão publicada deve receber a tag anotada correspondente,
-`v0.5.0`, somente depois de passar pelos gates de release. A versão 0.5.0
-está preparada localmente; não foi criada tag ou release nesta etapa.
+Tag v0.5.0 local/remota verificada em 2026-10-07, commit59c9e70. O titulo do
+commit nao comprovava Last Will: o codec dessa base ainda recusava Will.
 
-Para cada incremento futuro:
+Metadados locais agora identificam 0.6.0 em Cargo.toml/Cargo.lock para o marco
+retained/Last Will. Nao existe tag/release 0.6 criada por esta tarefa. O mantenedor
+faz commit/push/tag somente apos gates e revisao do marco. Avise a prontidao e
+aguarde essa publicacao antes de implementar/incrementar a proxima versao.
 
-1. Implemente e teste a mudança; registre recursos, limitações e migração no
-   `CHANGELOG.md` e nos documentos relevantes.
-2. Atualize `Cargo.toml` e `Cargo.lock` para a mesma versão.
-3. Confira o diff e os arquivos preparados; nunca registre certificados,
-   chaves privadas, senhas, dados de execução ou diretórios gerados.
-4. Faça um commit da versão e crie uma tag anotada `vMAJOR.MINOR.PATCH` apenas
-   depois das verificações correspondentes.
-
-Enquanto faltarem os gates de conformidade e operação, use a série `0.x`.
-`1.0.0` exige evidências de conformidade, interoperabilidade, recuperação,
-segurança e operação. Até lá, os arquivos apenas estão preparados localmente.
+Ver [sequencia incremental](docs/incremental-versions.md). Minor 0.x.0 adiciona
+fatias; patches 0.x.1, 0.x.2 etc corrigem defeitos. 0.6.54 representa 54 patches,
+nao incremento automatico para feature. Nao ha promessa de conformidade integral,
+estabilidade de API ou producao em 0.x. MIT preservada; MQTT5 fora deste trabalho.

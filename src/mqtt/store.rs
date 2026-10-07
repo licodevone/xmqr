@@ -19,7 +19,7 @@ use crate::persistence::{StorageError, actor::PersistenceHandle};
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 1;
+const FORMAT_VERSION: u16 = 2;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
 const MAX_SESSIONS: usize = 64;
 const MAX_RETAINED: usize = 256;
@@ -51,6 +51,16 @@ pub(super) enum StateError {
 pub(super) struct DurableState {
     pub sessions: BTreeMap<String, DurableSession>,
     pub retained: BTreeMap<TopicName, StoredMessage>,
+    // Wills belong to accepted connections, including clean sessions.
+    #[serde(default)]
+    pub pending_wills: BTreeMap<String, PendingWill>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PendingWill {
+    pub principal: String,
+    pub message: StoredMessage,
 }
 
 /// Session state retained across reconnects. `persistent = false` marks a
@@ -148,7 +158,7 @@ impl MqttStore {
             }
             let text = std::str::from_utf8(&bytes).map_err(|_| StateError::Malformed)?;
             let envelope: Envelope = toml::from_str(text).map_err(|_| StateError::Malformed)?;
-            if envelope.version != FORMAT_VERSION {
+            if !matches!(envelope.version, 1 | FORMAT_VERSION) {
                 return Err(StateError::UnsupportedVersion(envelope.version));
             }
             validate(&envelope.state)?;
@@ -194,6 +204,19 @@ impl MqttStore {
 pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
     if state.sessions.len() > MAX_SESSIONS {
         return Err(StateError::Limit("sessions"));
+    }
+    if state.pending_wills.len() > MAX_SESSIONS {
+        return Err(StateError::Limit("pending Wills"));
+    }
+    for (client_id, will) in &state.pending_wills {
+        validate_message(&will.message)?;
+        if state
+            .sessions
+            .get(client_id)
+            .is_none_or(|s| s.principal != will.principal)
+        {
+            return Err(StateError::Malformed);
+        }
     }
     if state.retained.len() > MAX_RETAINED {
         return Err(StateError::Limit("retained topics"));
@@ -293,7 +316,7 @@ mod hex_bytes {
         }
         let mut output = Vec::with_capacity(bytes.len() / 2);
         let (pairs, remainder) = bytes.as_chunks::<2>();
-        debug_assert!(remainder.is_empty());
+        debug_assert_eq!(remainder, []);
         for pair in pairs {
             let high = nibble(pair[0]).ok_or_else(|| D::Error::custom("invalid payload hex"))?;
             let low = nibble(pair[1]).ok_or_else(|| D::Error::custom("invalid payload hex"))?;
@@ -425,7 +448,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(2))
+            Err(StateError::UnsupportedVersion(3))
         ));
     }
 
@@ -482,5 +505,30 @@ mod tests {
                 assert!(envelope.state == baseline || envelope.state == state());
             }
         }
+    }
+
+    #[tokio::test]
+    async fn reads_v1_and_commits_v2_without_losing_retained() {
+        let directory = tempdir().unwrap();
+        let expected = state();
+        {
+            let mut writer = Store::open(directory.path()).unwrap();
+            let document = toml::to_string(&Envelope {
+                version: 1,
+                state: expected.clone(),
+            })
+            .unwrap()
+            .replace("[state.pending_wills]\n", "");
+            writer.put(KEY, document.as_bytes()).unwrap();
+        }
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, expected);
+        store.commit(&recovered).await.unwrap();
+        store.shutdown().await.unwrap();
+        let writer = Store::open(directory.path()).unwrap();
+        let bytes = writer.get(KEY).unwrap();
+        let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
+        assert_eq!(envelope.version, 2);
+        assert_eq!(envelope.state, expected);
     }
 }

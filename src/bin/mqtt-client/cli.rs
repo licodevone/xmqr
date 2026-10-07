@@ -22,8 +22,17 @@ pub enum TransportMode {
 }
 
 #[derive(Debug)]
+pub struct Will {
+    pub topic: String,
+    pub message: String,
+    pub qos: QoS,
+    pub retain: bool,
+}
+
+#[derive(Debug)]
 pub struct Cli {
     pub mode: Mode,
+    pub will: Option<Will>,
     pub host: String,
     pub port: u16,
     pub ca: Option<PathBuf>,
@@ -38,7 +47,7 @@ pub struct Cli {
     pub transport_mode: TransportMode,
 }
 
-pub const USAGE: &str = "Uso seguro (padrao):\n  mqtt-client pub --topic TOPICO --message TEXTO --username USUARIO --ca CA.crt --cert client.crt --key client.key [opcoes]\n  mqtt-client sub --topic FILTRO --username USUARIO --ca CA.crt --cert client.crt --key client.key [opcoes]\n\nLaboratorio aberto:\n  mqtt-client pub|sub --open-lab --topic TOPICO [opcoes]\nLaboratorio com senha em texto claro:\n  mqtt-client pub|sub --plain-auth-lab --topic TOPICO --username USUARIO [opcoes]\n\nOpcoes: --message TEXTO (pub), --count N (sub), --host 127.0.0.1, --port 1883, --qos 0|1|2, --retain true|false, --clean-session true|false, --client-id ID.\nSem --password-file, os modos autenticados solicitam a senha sem exibi-la. Nunca informe senha na linha de comando.\nOs modos de laboratorio aceitam somente loopback. --plain-auth-lab envia usuario e senha sem criptografia. Nunca use fora de aula local.\n";
+pub const USAGE: &str = "Uso seguro (padrao):\n  mqtt-client pub --topic TOPICO --message TEXTO --username USUARIO --ca CA.crt --cert client.crt --key client.key [opcoes]\n  mqtt-client sub --topic FILTRO --username USUARIO --ca CA.crt --cert client.crt --key client.key [opcoes]\n\nLaboratorio aberto:\n  mqtt-client pub|sub --open-lab --topic TOPICO [opcoes]\nLaboratorio com senha em texto claro:\n  mqtt-client pub|sub --plain-auth-lab --topic TOPICO --username USUARIO [opcoes]\n\nWill: --will-topic TOPICO --will-message TEXTO [--will-qos 0|1|2] [--will-retain true|false].\nOpcoes: --message TEXTO (pub), --count N (sub), --host 127.0.0.1, --port 1883, --qos 0|1|2, --retain true|false, --clean-session true|false, --client-id ID.\nSem --password-file, os modos autenticados solicitam a senha sem exibi-la. Nunca informe senha na linha de comando.\nOs modos de laboratorio aceitam somente loopback. --plain-auth-lab envia usuario e senha sem criptografia. Nunca use fora de aula local.\n";
 
 #[allow(clippy::too_many_lines)] // One pass enforces uniqueness and validates CLI modes.
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Cli, String> {
@@ -63,6 +72,10 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Cli, String> {
     let mut retain = None;
     let mut clean_session = None;
     let mut transport_mode = None;
+    let mut will_topic = None;
+    let mut will_message = None;
+    let mut will_qos = None;
+    let mut will_retain = None;
 
     while let Some(flag) = args.next() {
         if flag == "--open-lab" {
@@ -85,6 +98,10 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Cli, String> {
             .ok_or_else(|| format!("faltou valor para {flag}"))?;
         let slot = match flag.as_str() {
             "--topic" => &mut topic,
+            "--will-topic" => &mut will_topic,
+            "--will-message" => &mut will_message,
+            "--will-qos" => &mut will_qos,
+            "--will-retain" => &mut will_retain,
             "--message" => &mut message,
             "--count" => &mut count,
             "--host" => &mut host,
@@ -199,8 +216,38 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Cli, String> {
         Some(username)
     };
 
+    let will = match (will_topic, will_message) {
+        (Some(topic), Some(message)) => {
+            if topic.is_empty()
+                || topic.len() > MAX_TOPIC_BYTES
+                || topic.contains('\0')
+                || !valid_topic(&topic)
+            {
+                return Err("--will-topic invalido ou acima de 1024 bytes".into());
+            }
+            if message.len() > MAX_MESSAGE_BYTES {
+                return Err("--will-message acima de 4096 bytes".into());
+            }
+            let qos = match will_qos.as_deref().unwrap_or("0") {
+                "0" => QoS::AtMostOnce,
+                "1" => QoS::AtLeastOnce,
+                "2" => QoS::ExactlyOnce,
+                _ => return Err("--will-qos deve ser 0, 1 ou 2".into()),
+            };
+            let retain = parse_bool(will_retain.as_deref().unwrap_or("false"), "--will-retain")?;
+            Some(Will {
+                topic,
+                message,
+                qos,
+                retain,
+            })
+        }
+        (None, None) if will_qos.is_none() && will_retain.is_none() => None,
+        _ => return Err("Will exige --will-topic e --will-message".into()),
+    };
     Ok(Cli {
         mode,
+        will,
         host,
         port,
         ca,
@@ -506,5 +553,39 @@ mod tests {
         assert!(parse(args.clone()).is_ok());
         args[2].insert(0, 'a');
         assert!(parse(args).is_err());
+    }
+
+    #[test]
+    fn will_options_validate_utf8_payload_qos_and_completeness() {
+        let base = ["sub", "--open-lab", "--topic", "test/state"];
+        let mut args: Vec<String> = base.iter().map(|s| (*s).to_owned()).collect();
+        args.extend([
+            "--will-topic".into(),
+            "é".repeat(512),
+            "--will-message".into(),
+            String::new(),
+            "--will-qos".into(),
+            "2".into(),
+            "--will-retain".into(),
+            "true".into(),
+        ]);
+        let cli = parse(args.clone()).unwrap();
+        assert!(cli.will.unwrap().retain);
+        args[5].push('x');
+        assert!(parse(args).is_err());
+        for tail in [
+            vec!["--will-qos", "1"],
+            vec!["--will-topic", "test/+"],
+            vec![
+                "--will-topic",
+                "test/state",
+                "--will-message",
+                "bye",
+                "--will-qos",
+                "3",
+            ],
+        ] {
+            assert!(parse(base.iter().chain(tail.iter()).map(|s| (*s).to_owned())).is_err());
+        }
     }
 }

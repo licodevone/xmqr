@@ -320,7 +320,7 @@ mod tests {
                 .is_some()
         );
         delete_user(&path, "student").unwrap();
-        assert!(list_users(&path).unwrap().is_empty());
+        assert_eq!(list_users(&path).unwrap(), [] as [String; 0]);
         assert!(AuthPolicy::load_passwords(&path).is_ok());
     }
 

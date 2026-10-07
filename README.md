@@ -9,7 +9,7 @@ núcleo 3.1.1.
 continuam com os nomes compatíveis `mqtt-broker`, `mqtt-client` e `mqtt-admin`.
 
 > **Estado do projeto:** experimental. XMQR ainda não declara conformidade MQTT
-> 3.1.1 completa nem prontidão para produção. Não há suporte a Last Will e ainda
+> 3.1.1 completa nem prontidão para produção. Last Will existe na 0.6 local; ainda
 > faltam cobertura externa completa, testes de carga e recuperação operacional.
 
 ## Por que XMQR?
@@ -28,12 +28,15 @@ continuam com os nomes compatíveis `mqtt-broker`, `mqtt-client` e `mqtt-admin`.
 | --- | --- | --- |
 | `0.3.x` | manutenção | laboratório QoS 0 aberto, anônimo e restrito a loopback |
 | `0.4.x` | estável experimental | laboratórios com senha e com ACL; CRUD administrativo de usuários |
-| `0.5.x` | em desenvolvimento, ainda não publicada | filtros `+`/`#`, regra `$` e testes com Mosquitto |
+| `0.5.x` | tag v0.5.0 verificada | filtros `+`/`#`, regra `$` e testes com Mosquitto |
+| `0.6.x` | gates locais aprovados, aguardando publicacao | retained revisado e Last Will duravel |
 
 Versões publicadas são identificadas por tags anotadas, por exemplo
 `v0.4.0`. As branches `release/0.3` e `release/0.4` existem apenas para
 correções compatíveis dessas séries. O desenvolvimento futuro ocorre em
 `main`. Consulte [VERSIONING.md](VERSIONING.md) e [CHANGELOG.md](CHANGELOG.md).
+
+Consulte [sequencia incremental](docs/incremental-versions.md) e [Last Will](docs/last-will.md).
 
 ## Arquitetura
 
@@ -64,7 +67,7 @@ configurado.
 | Mensagens retidas | implementado |
 | Sessões persistentes (`CleanSession=0`) | implementado |
 | Filtros `+` e `#` | implementado na série 0.5 em desenvolvimento |
-| Last Will | ainda não implementado |
+| Last Will | implementado em 0.6 local, com persistencia e ACL |
 | MQTT 5.0 | fora do escopo atual |
 
 A evidência disponível fica na

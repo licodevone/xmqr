@@ -7,7 +7,21 @@ interoperabilidade independentes, recuperação após falhas, revisão de segura
 e documentação de operação; versões `1.x` manterão compatibilidade prometida,
 e `2.0.0` indicará quebra dessa compatibilidade.
 
-## 0.5.0 — em desenvolvimento, ainda não publicada
+## 0.6.0 - local, gates aprovados, ainda nao publicada
+
+- Last Will MQTT3.1.1 duravel com QoS0/1/2, payload binario, retain, ACL e
+  limite1024 bytes UTF-8. Queda, timeout, protocolo, takeover e cancelamento
+  da task publicam; DISCONNECT cancela duravelmente.
+- Retained existente revisado: substituicao, exclusao vazia, wildcard e restore.
+- Documento MQTT v2 com leitura v1 e pending_wills; WAL/snapshot continuam v1.
+  Rollback somente com backup completo anterior; nenhum estado real migrado.
+- Cliente proprio recebe --will-topic/message/qos/retain. Script independente
+  scripts/verify_last_will.py verifica ciclo de vida, restart e CLI sem Mosquitto.
+- Lints assert_is_empty preexistentes de store e teste admin corrigidos.
+- Linux/WSL Rust1.99:81 testes e9 integracoes PASS; fmt/Clippy/inventario/build
+  PASS. Mosquitto e TLS/mTLS externo nao executados; sem conformidade integral.
+
+## 0.5.0 - tag v0.5.0 verificada
 
 - Filtros MQTT 3.1.1 `+` e `#`, níveis vazios e tópicos `$` explícitos;
   nomes de publicação e filtros são tipos distintos, validados também no restore.

@@ -82,3 +82,12 @@ Os limites desta CLI são 1024 bytes para tópico/filtro, 4096 bytes para mensag
 - Uma publicação QoS 1 retida foi recebida por um novo assinante com `retain=true` e continuou disponível após reiniciar o broker.
 - Uma assinatura `CleanSession=0` recebeu uma publicação QoS 2 feita durante sua desconexão, mesmo depois de reiniciar o broker com o mesmo diretório de estado.
 - Os testes de crash do WAL e do agregado MQTT passaram. Isso não substitui teste de perda de energia real nem interoperabilidade QoS 1/2 com clientes externos independentes.
+
+
+## Last Will (0.6 local)
+
+Opcoes --will-topic TOPICO --will-message TEXTO --will-qos 0|1|2
+--will-retain true|false. Topic e message sao obrigatorios juntos; QoS padrao0,
+retain padraofalse, payload ate4096 bytes e topic ate1024 UTF-8. Mensagem vazia
+com retain true remove retained quando Will publica. Ctrl+C/--count e pub
+concluido enviam DISCONNECT, cancelando Will; kill/queda publica Will.
