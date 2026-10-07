@@ -46,7 +46,7 @@ textualmente idêntica. Sessões persistentes mantêm filtros e fila offline;
 na inicialização, ACLs removidas purgam assinaturas e entregas não autorizadas.
 
 O matcher é iterativo e não aloca; o trabalho total é limitado por 64 sessões,
-256 assinaturas por sessão e 256 bytes por tópico/filtro. O armazenamento
+256 assinaturas por sessão e 1024 bytes UTF-8 por tópico/filtro. O armazenamento
 mantém os limites anteriores de 64 mensagens offline e 32 inflight por sessão.
 Uma transição que exceda quota não é parcialmente confirmada. Esses limites
 são fixos nesta fatia; não há promessa de capacidade ou latência sob carga.
@@ -94,3 +94,17 @@ cópia de trabalho; na outra, confirme `git status` limpo e execute
 Fontes normativas: [OASIS MQTT 3.1.1](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/mqtt-v3.1.1.html),
 §§3.3.5, 3.8.4, 3.10.4 e 4.7. Decisão:
 [ADR 0002](architecture/adr-0002-topic-filters.md).
+
+
+## Compatibilidade do limite de 1024 bytes
+
+P41 amplia a quota local de tópico/filtro para 1024 bytes UTF-8; não normaliza
+Unicode e não altera número de sessões/assinaturas, payload, pacote ou quotas
+do documento. O matcher continua linear, com até quatro vezes o orçamento de
+bytes por filtro; não há promessa nova de capacidade/latência sob carga.
+WAL e documento MQTT continuam v1: estado anterior é legível no novo código.
+O snapshot anterior de 256 bytes não restaura nomes/filtros longos. Antes de
+gravar nomes >256 bytes, preserve backup completo com o broker parado. Para
+voltar ao snapshot anterior, use backup compatível anterior em outro diretório;
+remover somente subscriptions não basta se retained/offline/inflight ainda
+contiverem nomes longos. Não misturar WAL e snapshot de momentos diferentes.

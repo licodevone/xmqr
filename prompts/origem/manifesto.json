@@ -1,0 +1,230 @@
+[
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\00-project-context.md",
+    "copia_original": "origem/broker/00-project-context.md",
+    "copia_trabalho": "broker/00-project-context.md",
+    "sha256": "65138680C832E7D4C617BA2E643D45184B715D38FD120E7AC6C9C5842A3C14E3"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\01-master-orchestrator.md",
+    "copia_original": "origem/broker/01-master-orchestrator.md",
+    "copia_trabalho": "broker/01-master-orchestrator.md",
+    "sha256": "271F6C5AE9E4D0485C6A01E07078A744091B8CEE986BB7E7E5C1847F6A22E597"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\02-scope-and-adrs.md",
+    "copia_original": "origem/broker/02-scope-and-adrs.md",
+    "copia_trabalho": "broker/02-scope-and-adrs.md",
+    "sha256": "398AC7B7EAFD5579A9E47390A87132A3C817892B314E3C50790748A9459A27B3"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\03-rust-workspace-bootstrap.md",
+    "copia_original": "origem/broker/03-rust-workspace-bootstrap.md",
+    "copia_trabalho": "broker/03-rust-workspace-bootstrap.md",
+    "sha256": "706AE8645088AF4D875BDFD34EFB15D254BA1B2B5770AB1A9FE07D4E8BC02EDD"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\04-wire-codec.md",
+    "copia_original": "origem/broker/04-wire-codec.md",
+    "copia_trabalho": "broker/04-wire-codec.md",
+    "sha256": "8974AB974012E2DB8D6484CA21DB8C16652A9D682B8124835CDEB8A3AD81A37D"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\05-connection-state-machine.md",
+    "copia_original": "origem/broker/05-connection-state-machine.md",
+    "copia_trabalho": "broker/05-connection-state-machine.md",
+    "sha256": "CEBEA89D6CD03CA17CD6EB6BCE1B467E88E8D98441C83E2E50EA93FDD3DAE846"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\06-subscriptions-and-routing.md",
+    "copia_original": "origem/broker/06-subscriptions-and-routing.md",
+    "copia_trabalho": "broker/06-subscriptions-and-routing.md",
+    "sha256": "8AE71B1AB27DABDA6816D0739ABDD567265A173662F33C15624E3AF0286BB7AE"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\07-qos-delivery.md",
+    "copia_original": "origem/broker/07-qos-delivery.md",
+    "copia_trabalho": "broker/07-qos-delivery.md",
+    "sha256": "69A72092A349BAD99D08DDD5A261FD3B0725D2767606C39EBC1870D5735ADA67"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\08-sessions-retained-will-persistence.md",
+    "copia_original": "origem/broker/08-sessions-retained-will-persistence.md",
+    "copia_trabalho": "broker/08-sessions-retained-will-persistence.md",
+    "sha256": "33966E8E0B1F81FC20F0F742ADF0657889073B38E2B3D5D630EC769C43EF624B"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\09-mqtt5-features.md",
+    "copia_original": "origem/broker/09-mqtt5-features.md",
+    "copia_trabalho": "broker/09-mqtt5-features.md",
+    "sha256": "B8F399CA29BB2DB873759DDE59DE444FFFB535607AB2A36C649E00AF83FF1E4E"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\10-security.md",
+    "copia_original": "origem/broker/10-security.md",
+    "copia_trabalho": "broker/10-security.md",
+    "sha256": "C50236F16C73D451199E36F51F1B3742825D15F9B8A93CAC3A9844807EF07F25"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\11-configuration-observability-admin.md",
+    "copia_original": "origem/broker/11-configuration-observability-admin.md",
+    "copia_trabalho": "broker/11-configuration-observability-admin.md",
+    "sha256": "C6CA26FB5FCB45AD24CD64C8F3B22ADDFC45A8BDFCBF26C5C6A7ACE326053E45"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\12-conformance-test-suite.md",
+    "copia_original": "origem/broker/12-conformance-test-suite.md",
+    "copia_trabalho": "broker/12-conformance-test-suite.md",
+    "sha256": "F015A92631270C5F2E2207420E867C08F520088E1F533B3104DF2715D527B583"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\13-fuzzing-and-property-tests.md",
+    "copia_original": "origem/broker/13-fuzzing-and-property-tests.md",
+    "copia_trabalho": "broker/13-fuzzing-and-property-tests.md",
+    "sha256": "59736FFB4B9D2B667D06551EF77C082D7BF52781C6B9F4FC822D457F33E4DF81"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\14-performance-and-capacity.md",
+    "copia_original": "origem/broker/14-performance-and-capacity.md",
+    "copia_trabalho": "broker/14-performance-and-capacity.md",
+    "sha256": "7DDEAD6BD46DB5CD82CABC6370DA832CB3237D9BFFBAC8BA4245A51DBEC67190"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\15-interoperability.md",
+    "copia_original": "origem/broker/15-interoperability.md",
+    "copia_trabalho": "broker/15-interoperability.md",
+    "sha256": "BC229BB541DCB706437D0BBAFFEBCF8A34D9808AF9097FB98812599983CF02A6"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\16-production-readiness.md",
+    "copia_original": "origem/broker/16-production-readiness.md",
+    "copia_trabalho": "broker/16-production-readiness.md",
+    "sha256": "D11C9E34C8DB427D1F44E3F62C1C3D71595BC3FFB58CB38BB6FD9D31A63D5EB7"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\17-documentation-and-examples.md",
+    "copia_original": "origem/broker/17-documentation-and-examples.md",
+    "copia_trabalho": "broker/17-documentation-and-examples.md",
+    "sha256": "EB7C415DA967B1C1D5B01143B92C68FED1E6F87C3BFCA823445E0A06FF7B1592"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\18-feature-iteration.md",
+    "copia_original": "origem/broker/18-feature-iteration.md",
+    "copia_trabalho": "broker/18-feature-iteration.md",
+    "sha256": "A091ADE275ADD410B7FF76EB6C89E684B34DB9A4D67A537F61C293C0BEF65704"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\22-mqtt311-qos0-pubsub-mvp.md",
+    "copia_original": "origem/broker/22-mqtt311-qos0-pubsub-mvp.md",
+    "copia_trabalho": "broker/22-mqtt311-qos0-pubsub-mvp.md",
+    "sha256": "C5BA5D3AAE200433F8E3581BCC948D8B492003F36F373A6E49E175D889090341"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\23-certificate-identity-and-acl.md",
+    "copia_original": "origem/broker/23-certificate-identity-and-acl.md",
+    "copia_trabalho": "broker/23-certificate-identity-and-acl.md",
+    "sha256": "6DDF36263EAD0825F044E53798890E9F787FF434416C6D3B53CF1383E37C3312"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\24-pubsub-interoperability-gate.md",
+    "copia_original": "origem/broker/24-pubsub-interoperability-gate.md",
+    "copia_trabalho": "broker/24-pubsub-interoperability-gate.md",
+    "sha256": "0C1BD5396C9B29E79D6CFD1D556414737D1B0BE36C3331E68364FCAB048BCD03"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\25-durable-mqtt-state-contract.md",
+    "copia_original": "origem/broker/25-durable-mqtt-state-contract.md",
+    "copia_trabalho": "broker/25-durable-mqtt-state-contract.md",
+    "sha256": "22AB28EF08CAF63FC79E2394457FB57D99BC7793E6CE05C0DE74FF79F9D55671"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\26-qos1-vertical-slice.md",
+    "copia_original": "origem/broker/26-qos1-vertical-slice.md",
+    "copia_trabalho": "broker/26-qos1-vertical-slice.md",
+    "sha256": "7BF3E6E785F1373DAF4C8A903EC468168616E7BCFD47E2416445DAA7459EFA83"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\27-persistent-sessions.md",
+    "copia_original": "origem/broker/27-persistent-sessions.md",
+    "copia_trabalho": "broker/27-persistent-sessions.md",
+    "sha256": "207300B0437A3E6A4F6139BFBA22B0BBD4BDC81A60C408A25ABE63226B560CD8"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\28-qos2-state-machine.md",
+    "copia_original": "origem/broker/28-qos2-state-machine.md",
+    "copia_trabalho": "broker/28-qos2-state-machine.md",
+    "sha256": "83131071304461A04DFCAC3886341F322210F1A0C788C570E88FB973046BB820"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\29-retained-messages.md",
+    "copia_original": "origem/broker/29-retained-messages.md",
+    "copia_trabalho": "broker/29-retained-messages.md",
+    "sha256": "23C6E92B2412FAEB9A5AF5AE28A1A081A006B7A54FA080751CAE60FAA0D17009"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\30-qos-session-retained-gate.md",
+    "copia_original": "origem/broker/30-qos-session-retained-gate.md",
+    "copia_trabalho": "broker/30-qos-session-retained-gate.md",
+    "sha256": "CC241865C6274BD4F4AC3DD6A86004905227F2C44631F2EFBAE2A7362B46FE37"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\31-reproduzir-validar-v020.md",
+    "copia_original": "origem/broker/31-reproduzir-validar-v020.md",
+    "copia_trabalho": "broker/31-reproduzir-validar-v020.md",
+    "sha256": "8A87442B739ED814CCB522A1A392250E4E12FA71FEBFF9095A3AF1D970B2D8BB"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\32-last-will.md",
+    "copia_original": "origem/broker/32-last-will.md",
+    "copia_trabalho": "broker/32-last-will.md",
+    "sha256": "6E636DD5FC8C65A9255CACF10E72002914803480F7150B8EBDFB3F9BA336E373"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\broker\\33-wildcard-subscriptions.md",
+    "copia_original": "origem/broker/33-wildcard-subscriptions.md",
+    "copia_trabalho": "broker/33-wildcard-subscriptions.md",
+    "sha256": "2CB454E44BE392DE70A317001CC72DF3196C03FDBC4B8D1E956AE771F173C11B"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\clients\\19-client-pubsub-scope.md",
+    "copia_original": "origem/clients/19-client-pubsub-scope.md",
+    "copia_trabalho": "clients/19-client-pubsub-scope.md",
+    "sha256": "980945189D204FDF42089B447D49AC7076E4F93D52D63CD5AB0C2FE6037854D1"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\clients\\20-client-pubsub-implementation.md",
+    "copia_original": "origem/clients/20-client-pubsub-implementation.md",
+    "copia_trabalho": "clients/20-client-pubsub-implementation.md",
+    "sha256": "F099314A71E08344EDCDF5193F553B0A4F645A13FF35650CF41A5C2691C26136"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\clients\\21-client-pubsub-tests.md",
+    "copia_original": "origem/clients/21-client-pubsub-tests.md",
+    "copia_trabalho": "clients/21-client-pubsub-tests.md",
+    "sha256": "B67D20A356E58C36BED9761DEAD7E3E6650643A1E470F9ECFDDBFA040F4DACDC"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\clients\\22-qos-retained-sessions.md",
+    "copia_original": "origem/clients/22-qos-retained-sessions.md",
+    "copia_trabalho": "clients/22-qos-retained-sessions.md",
+    "sha256": "448FADC1A5A7B1ED15BECE28F829F3FED97A53E98AECDD5D79996D476D1142CF"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\clients\\23-interoperabilidade-v020.md",
+    "copia_original": "origem/clients/23-interoperabilidade-v020.md",
+    "copia_trabalho": "clients/23-interoperabilidade-v020.md",
+    "sha256": "BF544F15379D38F97F5833938ED094E6DDC3A3F6488B5A2F4A863067B82A2D09"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\README.md",
+    "copia_original": "origem/README.md",
+    "copia_trabalho": null,
+    "sha256": "61A253BBA719C2C99A8DF06E7C8465575BCD9B3A42B8F677AD248550FB7368E0"
+  },
+  {
+    "origem": "D:\\projects\\my-project\\mqtt-broker\\prompts\\00-sequencia-mestra.md",
+    "copia_original": "origem/00-sequencia-mestra.md",
+    "copia_trabalho": null,
+    "sha256": "587AE6F889FFC9C81369791F3CEEB4EC0C2A0B97681ACDA18D8D52BF1F6BD671"
+  }
+]

@@ -1,0 +1,46 @@
+{
+  "tipo": "validacao_configuracao_sem_execucao_funcional",
+  "raiz": "D:\\projects\\my-project\\xmqr",
+  "skills": [
+    "xmqr-rust-mqtt",
+    "xmqr-security-review",
+    "xmqr-tests"
+  ],
+  "agentes_toml": [
+    "xmqr_explorer",
+    "xmqr_rust_mqtt",
+    "xmqr_security",
+    "xmqr_tests"
+  ],
+  "links_conferidos": 94,
+  "arquivos_fora_escopo_intactos": 145,
+  "erros": [],
+  "parser_toml": "Python tomllib",
+  "frontmatter": "Subconjunto YAML name/string JSON validado; PyYAML ausente",
+  "ativacao_runtime_testada": false,
+  "testes_rust_executados": false,
+  "runtime_skills_list": {
+    "initialize_ok": true,
+    "skills_descobertas": [
+      {
+        "name": "xmqr-rust-mqtt",
+        "path": "D:\\projects\\my-project\\xmqr\\.agents\\skills\\xmqr-rust-mqtt\\SKILL.md",
+        "enabled": true
+      },
+      {
+        "name": "xmqr-security-review",
+        "path": "D:\\projects\\my-project\\xmqr\\.agents\\skills\\xmqr-security-review\\SKILL.md",
+        "enabled": true
+      },
+      {
+        "name": "xmqr-tests",
+        "path": "D:\\projects\\my-project\\xmqr\\.agents\\skills\\xmqr-tests\\SKILL.md",
+        "enabled": true
+      }
+    ],
+    "erros_skills_projeto": [],
+    "agentes_acionados": false,
+    "nota": "Consulta local skills/list, sem turno de modelo ou spawn; agentes TOML validados estaticamente."
+  },
+  "agentes_acionados": false
+}

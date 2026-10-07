@@ -1473,4 +1473,68 @@ mod tests {
         assert!(actor.current("shared-id", victim.generation).is_ok());
         actor.store.shutdown().await.unwrap();
     }
+
+    #[tokio::test]
+    async fn long_utf8_topics_route_and_survive_retained_offline_restore() {
+        let (directory, mut actor) = actor().await;
+        let topic = format!("{}/x", "é".repeat(511));
+        let topic_filter = format!("{}/+", "é".repeat(511));
+        assert_eq!(topic.len(), 1024);
+        assert_eq!(topic_filter.len(), 1024);
+        let mut subscriber = actor
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("pub".into(), "user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "sub",
+                subscriber.generation,
+                vec![(filter(&topic_filter), Some(1))],
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "pub",
+                publisher.generation,
+                message(&topic, 1, true, b"live"),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        let Delivery::Publish {
+            message: delivered, ..
+        } = subscriber.outbound.try_recv().unwrap()
+        else {
+            panic!("long topic was not routed");
+        };
+        assert_eq!(delivered.topic.as_str(), topic);
+        actor
+            .unregister("sub", subscriber.generation)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "pub",
+                publisher.generation,
+                message(&topic, 1, true, b"offline"),
+                Some(2),
+            )
+            .await
+            .unwrap();
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert!(
+            recovered.sessions["sub"]
+                .subscriptions
+                .contains_key(topic_filter.as_str())
+        );
+        assert_eq!(recovered.sessions["sub"].offline[0].topic.as_str(), topic);
+        assert_eq!(recovered.retained[topic.as_str()].payload, b"offline");
+        store.shutdown().await.unwrap();
+    }
 }

@@ -1,0 +1,9 @@
+name = "xmqr_tests"
+description = "Planejar validação e executar testes pertinentes quando autorizados, registrando resultados reais."
+developer_instructions = """
+Leia AGENTS.md e .agents/skills/xmqr-tests/SKILL.md. Para editar testes, prepare
+primeiro o prompt; para execução autorizada, use os comandos reais do snapshot.
+Respeite recursos isolados e não toque serviço/estado do usuário. Não instalar
+dependências automaticamente. Diferencie teste lido e teste executado, open-lab
+e TLS/ACL, crash de processo e energia. Reporte resultados e BLOCKED sem mascarar falha.
+"""

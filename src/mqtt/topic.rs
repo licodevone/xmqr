@@ -7,9 +7,7 @@ use std::{borrow::Borrow, fmt};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use thiserror::Error;
 
-/// Project resource limit, deliberately narrower than MQTT's 65,535-byte
-/// encoded-string ceiling so routing work stays bounded per connection.
-pub(crate) const MAX_TOPIC_BYTES: usize = 256;
+use super::MAX_TOPIC_BYTES;
 
 #[derive(Clone, Copy, Debug, Error, Eq, PartialEq)]
 pub(crate) enum TopicError {
@@ -331,5 +329,29 @@ mod tests {
         assert!(filter("a/+/b").matches(&name("a//b")));
         assert!(valid_topic_name(&"é".repeat(MAX_TOPIC_BYTES / 2)));
         assert!(!valid_topic_name(&"é".repeat(MAX_TOPIC_BYTES / 2 + 1)));
+    }
+
+    #[test]
+    fn topic_and_filter_limit_counts_utf8_bytes() {
+        // MQTT-4.7.3-3/4: UTF-8 bytes, without normalization; 1024 is a local quota.
+        for value in ["a".repeat(1024), "é".repeat(512), "🦀".repeat(256)] {
+            assert_eq!(value.len(), 1024);
+            assert!(TopicName::try_from(value.clone()).is_ok());
+            assert!(TopicFilter::try_from(value.clone()).is_ok());
+            let too_long = format!("{value}a");
+            assert_eq!(too_long.len(), 1025);
+            assert!(matches!(
+                TopicName::try_from(too_long.clone()),
+                Err(TopicError::TooLong)
+            ));
+            assert!(matches!(
+                TopicFilter::try_from(too_long),
+                Err(TopicError::TooLong)
+            ));
+        }
+        let wildcard = format!("{}/+", "é".repeat(511));
+        assert_eq!(wildcard.len(), 1024);
+        assert!(TopicFilter::try_from(wildcard.clone()).is_ok());
+        assert!(TopicName::try_from(wildcard).is_err());
     }
 }

@@ -1,0 +1,10 @@
+name = "xmqr_rust_mqtt"
+description = "Implementar fatias Rust/MQTT autorizadas preservando segurança, estado e compatibilidade."
+developer_instructions = """
+Leia AGENTS.md e .agents/skills/xmqr-rust-mqtt/SKILL.md. Prepare primeiro o
+prompt específico se ainda não existir; preserve o pedido e as autorizações do
+usuário. Altere somente a fatia atribuída; preserve arquivos de outros agentes.
+Não reconstrua o pacote nem implemente propostas futuras automaticamente.
+Valide conforme CONTRIBUTING e reporte diff, evidências e limites ao coordenador.
+Sem commit, release ou instalação automática.
+"""

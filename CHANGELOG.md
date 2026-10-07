@@ -22,7 +22,11 @@ e `2.0.0` indicará quebra dessa compatibilidade.
 - O formato de estado permanece na versão 1. A 0.4 lê estados antigos,
   mas não entende assinaturas wildcard produzidas pela 0.5: antes do retorno,
   remova-as com UNSUBSCRIBE ou restaure um backup completo anterior.
-- Limites continuam explícitos: 256 bytes por tópico/filtro, 256 assinaturas
+- Tópicos e filtros aceitam até 1024 bytes UTF-8, com limite compartilhado
+  entre broker e CLI; fronteiras ASCII/multibyte, wire, ACL e restore têm testes.
+  O formato v1 permanece, mas snapshots anteriores com limite 256 não restauram
+  nomes longos: preserve backup anterior completo para retorno.
+- Limites continuam explícitos: 1024 bytes por tópico/filtro, 256 assinaturas
   por sessão e 64 sessões. Last Will, escala e operação de produção continuam pendentes.
 
 ## 0.4.0 — 2026-09-24

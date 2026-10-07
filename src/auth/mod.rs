@@ -780,4 +780,37 @@ mod tests {
         .unwrap();
         assert!(AuthPolicy::load(&users, &acl).is_err());
     }
+
+    #[test]
+    fn acl_load_enforces_1024_utf8_bytes_for_names_and_filters() {
+        let (directory, _, _) = fixtures();
+        for topic in ["a".repeat(1024), "é".repeat(512)] {
+            let filter = format!("{}/+", "é".repeat(511));
+            fs::write(directory.path().join("acl.toml"), format!(
+                "[[rules]]\nusername = 'sensor1'\npublish = ['{topic}']\nsubscribe = ['{filter}']\n"
+            )).unwrap();
+            let policy = AuthPolicy::load(
+                &directory.path().join("users.toml"),
+                &directory.path().join("acl.toml"),
+            )
+            .unwrap();
+            assert!(policy.allowed_publish("sensor1", &topic));
+            assert!(policy.allowed_subscribe("sensor1", &filter));
+            for (publish, subscribe) in [
+                (format!("{topic}a"), filter.clone()),
+                (topic.clone(), format!("a{filter}")),
+            ] {
+                fs::write(directory.path().join("acl.toml"), format!(
+                    "[[rules]]\nusername = 'sensor1'\npublish = ['{publish}']\nsubscribe = ['{subscribe}']\n"
+                )).unwrap();
+                assert!(
+                    AuthPolicy::load(
+                        &directory.path().join("users.toml"),
+                        &directory.path().join("acl.toml")
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
 }

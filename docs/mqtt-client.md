@@ -12,7 +12,7 @@ A série 0.5 do broker aceita filtros `+` e `#`, por exemplo
 `--topic 'sensores/+/temperatura'`. `pub` exige um tópico concreto.
 A ACL precisa conceder literalmente o filtro pedido; consulte
 [filtros e testes externos](wildcard-subscriptions.md). O broker limita
-tópicos/filtros a 256 bytes, mesmo quando a CLI admite um limite maior.
+tópicos/filtros a 1024 bytes UTF-8, com a mesma constante usada pela CLI.
 
 O binário `mqtt-client` publica ou assina com QoS 0, 1 ou 2 sobre TLS mútuo **e usuário/senha MQTT**. Ele exige uma CA para validar o certificado e o nome/IP do servidor; não existe opção para desativar essa verificação. Os certificados abaixo são **somente para laboratório**. A identidade autorizada pelo broker deverá combinar o certificado do dispositivo, o usuário e a ACL do tópico.
 

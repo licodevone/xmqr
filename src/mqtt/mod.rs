@@ -9,6 +9,11 @@ pub(crate) mod topic;
 
 pub use router::Router;
 
+/// Maximum UTF-8 byte length of a topic name or filter accepted by XMQR.
+///
+/// This project quota is narrower than MQTT's 65,535-byte string ceiling.
+pub const MAX_TOPIC_BYTES: usize = 1024;
+
 use std::{sync::Arc, time::Duration};
 
 use tokio::time::{Instant, sleep_until};

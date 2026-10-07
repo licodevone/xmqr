@@ -1,0 +1,197 @@
+{
+  "estado": "IMPLEMENTADO_VALIDADO_UNIX_COM_CLIPPY_PREEXISTENTE_E_INTEROP_EXTERNA_NAO_EXECUTADA",
+  "ambiente": "Windows x86_64-pc-windows-msvc; Rust 1.98.1",
+  "limite_topico_filtro_bytes_utf8": 1024,
+  "fronteiras": {
+    "aceito_bytes": 1024,
+    "rejeitado_bytes": 1025,
+    "multibyte": [
+      "é",
+      "🦀"
+    ]
+  },
+  "gates": [
+    {
+      "comando": "cargo fmt --all -- --check",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "comando": "cargo test --locked --offline",
+      "status": "FAIL_PLATAFORMA",
+      "exit_code": 1,
+      "passed": 25,
+      "failed": 17,
+      "motivo": "Persistência requer durable directory fsync Unix; compilação concluída."
+    },
+    {
+      "comando": "cargo test --locked --offline --bins",
+      "status": "FAIL_PLATAFORMA",
+      "exit_code": 1,
+      "passed": 0,
+      "failed": 3,
+      "motivo": "mqtt-admin requer administração atômica Linux/WSL; execução parou antes dos demais bins."
+    },
+    {
+      "comando": "cargo test --locked --offline --bin mqtt-client",
+      "status": "PASS",
+      "exit_code": 0,
+      "passed": 11,
+      "failed": 0
+    },
+    {
+      "comando": "cargo test --locked --offline --bin mqtt-broker",
+      "status": "PASS",
+      "exit_code": 0,
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "comando": "cargo clippy --locked --all-targets --offline -- -D warnings",
+      "status": "FAIL_PREEXISTENTE_WINDOWS",
+      "exit_code": 1,
+      "motivo": "OpenOptions não usado em mqtt-admin/users.rs; MAX_PASSWORD_FILE_BYTES sem uso em mqtt-client/credentials.rs. Ambos preexistentes e intactos."
+    },
+    {
+      "comando": "cargo clippy --locked --offline --lib -- -D warnings",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "comando": "python -X utf8 scripts/license_inventory.py --check",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "comando": "git diff --check",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "comando": "Gates Unix e scripts/verify_interop.py",
+      "status": "BLOCKED",
+      "motivo": "Nenhum cargo/rustc ou mosquitto_pub encontrado nos WSL Ubuntu-24.04/26.04. Nenhuma instalação autorizada/realizada."
+    }
+  ],
+  "novos_testes": {
+    "topic_and_filter_limit_counts_utf8_bytes": "PASS",
+    "wire_topic_and_filter_boundaries_are_utf8_bytes": "PASS",
+    "acl_load_enforces_1024_utf8_bytes_for_names_and_filters": "PASS",
+    "pub_and_sub_use_shared_utf8_byte_limit": "PASS",
+    "long_utf8_topics_route_and_survive_retained_offline_restore": "PASS_UNIX_2026-10-07"
+  },
+  "diagnostico_rustc": "Falha inicial 0xc0e90002 não reproduzida: rustc -vV, compilação e execução nativa concluíram na retomada. Causa inicial não estabelecida.",
+  "originais_preservados": 38,
+  "prompts_clientes_preservados": true,
+  "fora_escopo_alterado": [],
+  "runtime_skills_list": {
+    "initialize_ok": true,
+    "skills_descobertas": [
+      {
+        "name": "xmqr-rust-mqtt",
+        "path": "D:\\projects\\my-project\\xmqr\\.agents\\skills\\xmqr-rust-mqtt\\SKILL.md",
+        "enabled": true
+      },
+      {
+        "name": "xmqr-security-review",
+        "path": "D:\\projects\\my-project\\xmqr\\.agents\\skills\\xmqr-security-review\\SKILL.md",
+        "enabled": true
+      },
+      {
+        "name": "xmqr-tests",
+        "path": "D:\\projects\\my-project\\xmqr\\.agents\\skills\\xmqr-tests\\SKILL.md",
+        "enabled": true
+      }
+    ],
+    "erros_skills_projeto": [],
+    "agentes_acionados": false,
+    "nota": "Consulta local skills/list, sem turno de modelo ou spawn; agentes TOML validados estaticamente."
+  },
+  "agentes_toml": "4 arquivos com campos oficiais name/description/developer_instructions validados; nenhum spawn executado.",
+  "instalacao_commit_push_deploy": false,
+  "gates_nivel_raiz": "Historico da primeira execucao Windows; resultado atual em retomada_unix.",
+  "retomada_unix": {
+    "environment": "Ubuntu-26.04 WSL; Rust 1.99.0; same working tree /mnt/d/projects/my-project/xmqr",
+    "gates": [
+      {
+        "gate": "test",
+        "command": "cargo test --locked --offline",
+        "exit_code": 0,
+        "status": "PASS"
+      },
+      {
+        "gate": "fmt",
+        "command": "cargo fmt --all -- --check",
+        "exit_code": 0,
+        "status": "PASS"
+      },
+      {
+        "gate": "clippy",
+        "command": "cargo clippy --locked --all-targets --offline -- -D warnings",
+        "exit_code": 101,
+        "status": "FAIL"
+      },
+      {
+        "gate": "licenses",
+        "command": "python3 scripts/license_inventory.py --check",
+        "exit_code": 0,
+        "status": "PASS"
+      },
+      {
+        "gate": "build",
+        "command": "cargo build --locked --offline --bins",
+        "exit_code": 0,
+        "status": "PASS"
+      }
+    ],
+    "tests_passed": 74,
+    "tests_by_target": [
+      53,
+      4,
+      4,
+      13,
+      0
+    ],
+    "long_utf8_restore": "PASS",
+    "own_clients": {
+      "environment": "Ubuntu-26.04 open-lab, own mqtt-client/rumqttc",
+      "results": [
+        {
+          "scenario": "pub_sub_utf8_1024_qos0",
+          "status": "PASS"
+        },
+        {
+          "scenario": "pub_sub_utf8_1024_qos1",
+          "status": "PASS"
+        },
+        {
+          "scenario": "pub_sub_utf8_1024_qos2",
+          "status": "PASS"
+        },
+        {
+          "scenario": "retained_utf8_1024_after_restart",
+          "status": "PASS"
+        },
+        {
+          "scenario": "pub_utf8_1025_rejected_cli",
+          "status": "PASS"
+        },
+        {
+          "scenario": "sub_utf8_1025_rejected_cli",
+          "status": "PASS"
+        }
+      ]
+    },
+    "mosquitto_interop": "NOT_RUN - usuario solicitou nao instalar Mosquitto; clientes proprios nao equivalem a esse gate",
+    "remote_ci": {
+      "run": 37393863354,
+      "commit": "a0984e85b0d5e132914da688c52711f472b3398d",
+      "status": "FAIL_PREEXISTENTE",
+      "lint": "clippy::assert_is_empty",
+      "file": "src/mqtt/store.rs:296",
+      "code": "debug_assert!(remainder.is_empty());",
+      "note": "unchanged file; exists in HEAD before P41; no remote changes"
+    },
+    "release": "0.5.0 declared, no v0.5.0 tag or published release observed"
+  }
+}

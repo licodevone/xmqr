@@ -633,4 +633,40 @@ mod tests {
             }
         ));
     }
+
+    #[test]
+    fn wire_topic_and_filter_boundaries_are_utf8_bytes() {
+        // Independent wire bodies exercise PUBLISH, SUBSCRIBE and UNSUBSCRIBE.
+        // MQTT-4.7.3-3/4; 1024 bytes is XMQR's local quota.
+        for accepted in [
+            "a".repeat(1024),
+            "é".repeat(512),
+            format!("{}/x", "é".repeat(511)),
+        ] {
+            for value in [accepted.clone(), format!("{accepted}a")] {
+                let allowed = value.len() == 1024;
+                let mut field = u16::try_from(value.len()).unwrap().to_be_bytes().to_vec();
+                field.extend_from_slice(value.as_bytes());
+                let mut publish = field.clone();
+                publish.push(b'x');
+                assert_eq!(decode(0x30, &publish).is_ok(), allowed);
+                assert_eq!(
+                    encode_publish(&value, b"x", Qos::AtMostOnce, false, false, None).is_ok(),
+                    allowed
+                );
+                let mut unsubscribe = vec![0, 1];
+                unsubscribe.extend_from_slice(&field);
+                assert_eq!(decode(0xa2, &unsubscribe).is_ok(), allowed);
+                let mut subscribe = unsubscribe;
+                subscribe.push(1);
+                assert_eq!(decode(0x82, &subscribe).is_ok(), allowed);
+            }
+        }
+        let filter = format!("{}/+", "é".repeat(511));
+        let mut subscribe = vec![0, 1, 4, 0];
+        subscribe.extend_from_slice(filter.as_bytes());
+        subscribe.push(1);
+        assert!(decode(0x82, &subscribe).is_ok());
+        assert!(encode_publish(&filter, b"x", Qos::AtMostOnce, false, false, None).is_err());
+    }
 }

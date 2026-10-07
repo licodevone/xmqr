@@ -1,0 +1,19 @@
+{
+  "data": "2026-10-07",
+  "tipo": "validacao_documental_sem_execucao_funcional",
+  "raiz": "D:\\projects\\my-project\\xmqr\\prompts",
+  "originais": 38,
+  "hashes_verificados": 76,
+  "documentos_ativos": 51,
+  "links_locais": 155,
+  "evidencias_locais": 39,
+  "erros": [],
+  "testes_rust_executados": false,
+  "servico_executado": false,
+  "originais_alterados": false,
+  "observacao": "Catálogos de origem são históricos; links a trilhas não importadas não entram na validação ativa.",
+  "arquivos_preexistentes_verificados": 57,
+  "arquivos_preexistentes_modificados": 0,
+  "divergencias_copia": 0,
+  "git_escopo": "Somente prompts/ novo; diff rastreado vazio; nenhum commit."
+}

@@ -39,3 +39,24 @@ verifique resposta e encerramento, classifique a evidência e atualize a matriz
 sem declarar cobertura além do demonstrado.
 
 Fonte: [OASIS MQTT Version 3.1.1](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/mqtt-v3.1.1.html).
+
+
+## Limite local de tópico/filtro — P41
+
+Broker e CLI compartilham 1024 bytes UTF-8. Isso é quota local, abaixo do teto
+MQTT-4.7.3-3, preservando ausência de normalização (MQTT-4.7.3-4).
+Em Windows/Rust 1.98.1 passaram testes novos de nomes/filtros ASCII/multibyte,
+wire PUBLISH/SUBSCRIBE/UNSUBSCRIBE, CLI e ACL. O teste novo de
+roteamento/retained/offline/restore não chegou às asserções porque Store exige
+fsync Unix. Validação externa/Unix desta alteração permanece pendente;
+não declarar conformidade integral ou recuperação aprovada.
+Veja [registro P41](../../prompts/registros/P41-topicos-1024.md).
+
+
+### Atualizacao P41 em Unix - 2026-10-07
+
+Ubuntu-26.04/Rust 1.99, mesma copia: teste de roteamento/retained/offline/restore
+com 1024 bytes UTF-8 PASS. Pub/sub com mqtt-client proprio QoS 0/1/2 e
+retained apos reinicio PASS em open-lab. Nao comprova TLS/ACL externa nem
+interop Mosquitto, nao executada. Clippy 1.99 bloqueado por lint preexistente
+em store.rs:296; release 0.5 nao aprovada. Veja registro P41.

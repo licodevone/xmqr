@@ -3,7 +3,7 @@ use std::{env, path::PathBuf};
 use rumqttc::QoS;
 use rumqttc::mqttbytes::{valid_filter, valid_topic};
 
-const MAX_TOPIC_BYTES: usize = 1024;
+use mqtt_broker::mqtt::MAX_TOPIC_BYTES;
 const MAX_MESSAGE_BYTES: usize = 4096;
 const MAX_USERNAME_BYTES: usize = 128;
 const MAX_PASSWORD_BYTES: usize = 1024;
@@ -485,5 +485,26 @@ mod tests {
         .into_iter()
         .map(str::to_owned);
         assert!(parse(with_cert).is_err());
+    }
+
+    #[test]
+    fn pub_and_sub_use_shared_utf8_byte_limit() {
+        for accepted in ["a".repeat(1024), "é".repeat(512), "🦀".repeat(256)] {
+            for command in ["pub", "sub"] {
+                let mut args = base(command);
+                args[2] = accepted.clone();
+                if command == "pub" {
+                    args.extend(["--message".into(), "x".into()]);
+                }
+                assert!(parse(args.clone()).is_ok());
+                args[2].push('a');
+                assert!(parse(args).is_err());
+            }
+        }
+        let mut args = base("sub");
+        args[2] = format!("{}/+", "é".repeat(511));
+        assert!(parse(args.clone()).is_ok());
+        args[2].insert(0, 'a');
+        assert!(parse(args).is_err());
     }
 }
