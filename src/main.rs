@@ -6,7 +6,7 @@ use std::{
 };
 
 use mqtt_broker::{
-    auth::{AccessPolicy, AuthPolicy},
+    auth::{AccessPolicy, AuthPolicy, DynamicPolicy, watch_security},
     monitoring::{Config as MonitorConfig, Metrics, Monitor},
     mqtt::{self, Router},
     transport::{
@@ -27,6 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let monitor_config = MonitorConfig::from_env()?;
     let metrics = Arc::new(Metrics::default());
     let mode = BrokerMode::from_env()?;
+    validate_security_environment(mode)?;
     let bind_address: SocketAddr = env::var("MQTT_BIND")
         .unwrap_or_else(|_| mode.default_bind().to_owned())
         .parse()?;
@@ -67,11 +68,9 @@ async fn serve(
                 client_ca_certificate: required_path("MQTT_CLIENT_CA")?,
                 client_crl: env::var_os("MQTT_CLIENT_CRL").map(PathBuf::from),
             })?;
-            let auth = Arc::new(AccessPolicy::secure(AuthPolicy::load(
-                &required_path("MQTT_USERS_FILE")?,
-                &required_path("MQTT_ACL_FILE")?,
-            )?));
+            let auth = load_policy(true).await?;
             let router = start_router(&state_directory, &auth, &metrics).await?;
+            let _security = watch_security(&auth, router.clone())?;
             let transport = SecureTransport::bind_observed(
                 bind_address,
                 tls_config,
@@ -93,6 +92,7 @@ async fn serve(
         BrokerMode::OpenLab => {
             let auth = Arc::new(AccessPolicy::open_lab());
             let router = start_router(&state_directory, &auth, &metrics).await?;
+            let _security = watch_security(&auth, router.clone())?;
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
                     .await?;
@@ -112,6 +112,7 @@ async fn serve(
                 &required_path("MQTT_USERS_FILE")?,
             )?));
             let router = start_router(&state_directory, &auth, &metrics).await?;
+            let _security = watch_security(&auth, router.clone())?;
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
                     .await?;
@@ -127,11 +128,9 @@ async fn serve(
                 .await?;
         }
         BrokerMode::AclLab => {
-            let auth = Arc::new(AccessPolicy::acl_lab(AuthPolicy::load_passwords_with_acl(
-                &required_path("MQTT_USERS_FILE")?,
-                &required_path("MQTT_ACL_FILE")?,
-            )?));
+            let auth = load_policy(false).await?;
             let router = start_router(&state_directory, &auth, &metrics).await?;
+            let _security = watch_security(&auth, router.clone())?;
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
                     .await?;
@@ -149,6 +148,45 @@ async fn serve(
     }
 
     Ok(())
+}
+
+fn validate_security_environment(mode: BrokerMode) -> Result<(), io::Error> {
+    if env::var_os("MQTT_SECURITY_BUNDLE").is_some() {
+        if !matches!(mode, BrokerMode::SecureMtls | BrokerMode::AclLab) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "security bundle requires secure-mtls or acl-lab",
+            ));
+        }
+        reject_variables(
+            &["MQTT_USERS_FILE", "MQTT_ACL_FILE"],
+            "security bundle rejects legacy users/ACL variables",
+        )?;
+    }
+    Ok(())
+}
+
+async fn load_policy(
+    secure: bool,
+) -> Result<Arc<AccessPolicy>, mqtt_broker::transport::HandlerError> {
+    if let Some(path) = env::var_os("MQTT_SECURITY_BUNDLE") {
+        return DynamicPolicy::load(PathBuf::from(path), secure)
+            .await
+            .map(Arc::new)
+            .map_err(Into::into);
+    }
+    let policy = if secure {
+        AccessPolicy::secure(AuthPolicy::load(
+            &required_path("MQTT_USERS_FILE")?,
+            &required_path("MQTT_ACL_FILE")?,
+        )?)
+    } else {
+        AccessPolicy::acl_lab(AuthPolicy::load_passwords_with_acl(
+            &required_path("MQTT_USERS_FILE")?,
+            &required_path("MQTT_ACL_FILE")?,
+        )?)
+    };
+    Ok(Arc::new(policy))
 }
 
 async fn start_router(

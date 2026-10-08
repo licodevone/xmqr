@@ -1,0 +1,149 @@
+{
+  "prompt": "P44 revision 1.1 prepared before code",
+  "date": "2026-10-08",
+  "version": "0.8.0 local",
+  "base_commit": "3a3dde761ffea33e33c8bcac00ac767e02f6cac0",
+  "base_tag": "v0.7.0",
+  "linux_gates": [
+    {
+      "gate": "fmt",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ]
+    },
+    {
+      "gate": "test",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline"
+      ]
+    },
+    {
+      "gate": "clippy",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ]
+    },
+    {
+      "gate": "licenses",
+      "exit_code": 0,
+      "command": [
+        "python3",
+        "scripts/license_inventory.py",
+        "--check"
+      ]
+    },
+    {
+      "gate": "build",
+      "exit_code": 0,
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "--bins"
+      ]
+    }
+  ],
+  "windows_gates": [
+    {
+      "gate": "auth-test",
+      "exit_code": 0
+    },
+    {
+      "gate": "broker-test",
+      "exit_code": 0
+    },
+    {
+      "gate": "clippy",
+      "exit_code": 0
+    },
+    {
+      "gate": "build",
+      "exit_code": 0
+    }
+  ],
+  "security_integration": {
+    "exit_code": 0,
+    "tests": 9,
+    "log": "p44-integration-security-final.log"
+  },
+  "regressions": [
+    {
+      "gate": "startup",
+      "exit_code": 0,
+      "command": [
+        "python3",
+        "scripts/verify_monitoring_startup.py",
+        "--broker",
+        "/mnt/c/Users/licod/Documents/Codex/2026-10-07/task/p44-broker-bin"
+      ],
+      "client_baseline_commit": "26c1019"
+    },
+    {
+      "gate": "monitoring",
+      "exit_code": 0,
+      "command": [
+        "python3",
+        "scripts/verify_monitoring.py",
+        "--broker",
+        "/mnt/c/Users/licod/Documents/Codex/2026-10-07/task/p44-broker-bin",
+        "--client",
+        "/mnt/c/Users/licod/Documents/Codex/2026-10-07/task/p43-client-baseline-bin"
+      ],
+      "client_baseline_commit": "26c1019"
+    },
+    {
+      "gate": "will",
+      "exit_code": 0,
+      "command": [
+        "python3",
+        "scripts/verify_last_will.py",
+        "--broker",
+        "/mnt/c/Users/licod/Documents/Codex/2026-10-07/task/p44-broker-bin",
+        "--client",
+        "/mnt/c/Users/licod/Documents/Codex/2026-10-07/task/p43-client-baseline-bin"
+      ],
+      "client_baseline_commit": "26c1019"
+    }
+  ],
+  "rust_tests_linux": 78,
+  "rust_auth_tests_windows": 10,
+  "rust_profile_tests_windows": 4,
+  "source_sha256": {
+    "Cargo.toml": "2af39ea7daaf4167d1675f77b4275002d0ac067ccb0f0f1f58c3bc10d56ff112",
+    "Cargo.lock": "2ec4221eb4ea48ff8f87fccd7509207349331276e590995bfd361650f62731a3",
+    "src/auth/mod.rs": "16e2256d293746e054ef69186c0c7d62e9a1b240fb15285ed6ecc53213c67986",
+    "src/auth/dynamic.rs": "fe04df34cc41460e1a0ab09ffea5c627ce7442900e2882a13072a5783f73574c",
+    "src/main.rs": "d9375df53bfc12c2c6d3119e13390c549a3f03c9052d533b9b8028268cccc75c",
+    "src/mqtt/mod.rs": "0938b82b0f20fc99962fe484875c0be76c83db983027186bf1083b6d0c98ae5f",
+    "src/mqtt/router.rs": "a36d8387ba2a735fc1771419e79b200d6996df8a652cbfd1efa232cb59b87412",
+    "src/mqtt/store.rs": "1485f383b2472604446de4375807f9a00f4dabda96d584bc3a3edf3f81e9ba54",
+    "scripts/verify_dynamic_security.py": "d46613992f839130a7837c2578a9ee866119c9ac613007112a03e446f017e30c",
+    "examples/p44_security_fixture.rs": "faa482aa64325441207ba189463245ef69d361a8f6b66245c121577f21d342fd"
+  },
+  "not_run": [
+    "external TLS/mTLS interoperability",
+    "Mosquitto",
+    "power loss",
+    "full Windows persistence suite"
+  ],
+  "publication": "no commit, push, tag or release",
+  "auto_review": "Optional empty secure-mtls bundle change rejected. Existing certificate/identity validation preserved; all-user revocation uses disabled identities."
+}

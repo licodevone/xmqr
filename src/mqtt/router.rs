@@ -6,7 +6,7 @@ use std::{collections::BTreeMap, path::Path};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
 
-use crate::auth::AccessPolicy;
+use crate::auth::{AccessPolicy, AuthPolicy};
 use crate::monitoring::{Metrics, Rejection};
 use crate::transport::HandlerError;
 use std::sync::{Arc, atomic::Ordering};
@@ -25,6 +25,8 @@ const MAX_INFLIGHT: usize = 32;
 pub(super) enum RouterError {
     #[error(transparent)]
     Store(#[from] StateError),
+    #[error("security generation changed or reload unavailable")]
+    Security,
     #[error("session identity does not match the stored owner")]
     PrincipalMismatch,
     #[error("Will publication denied by access policy")]
@@ -76,12 +78,18 @@ struct Actor {
 }
 
 enum Command {
+    #[cfg_attr(not(unix), allow(dead_code))]
+    SecurityReload {
+        candidate: AuthPolicy,
+        reply: oneshot::Sender<Result<u64, RouterError>>,
+    },
     Probe {
         reply: oneshot::Sender<bool>,
     },
     #[cfg(test)]
     Stop,
     Register {
+        security_generation: Option<u64>,
         client_id: String,
         principal: String,
         clean: bool,
@@ -275,6 +283,18 @@ impl Router {
         Ok(Self { metrics, sender })
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
+    pub(crate) async fn reload_security(&self, candidate: AuthPolicy) -> Result<u64, HandlerError> {
+        let (reply, result) = oneshot::channel();
+        self.sender
+            .try_send(Command::SecurityReload { candidate, reply })
+            .map_err(|_| RouterError::Unavailable)?;
+        result
+            .await
+            .map_err(|_| RouterError::Unavailable)?
+            .map_err(Into::into)
+    }
+
     pub(crate) fn metrics(&self) -> Arc<Metrics> {
         self.metrics.clone()
     }
@@ -309,6 +329,7 @@ impl Router {
             .await
     }
 
+    #[cfg(test)]
     pub(super) async fn register_with_will(
         &self,
         client_id: String,
@@ -316,8 +337,21 @@ impl Router {
         clean: bool,
         will: Option<StoredMessage>,
     ) -> Result<Session, RouterError> {
+        self.register_with_epoch(client_id, principal, clean, will, None)
+            .await
+    }
+
+    pub(super) async fn register_with_epoch(
+        &self,
+        client_id: String,
+        principal: String,
+        clean: bool,
+        will: Option<StoredMessage>,
+        security_generation: Option<u64>,
+    ) -> Result<Session, RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Register {
+            security_generation,
             client_id,
             principal,
             clean,
@@ -437,32 +471,84 @@ impl Router {
 }
 
 impl Actor {
+    async fn reload_security(&mut self, policy: AuthPolicy) -> Result<u64, RouterError> {
+        let dynamic = self.auth.dynamic().ok_or(RouterError::Security)?;
+        if dynamic.generation() == u64::MAX {
+            return Err(RouterError::Security);
+        }
+        let view = dynamic.view(policy.clone());
+        let mut candidate = self.state.clone();
+        candidate.sessions.retain(|_, s| s.persistent);
+        for session in candidate.sessions.values_mut() {
+            session
+                .subscriptions
+                .retain(|filter, _| view.allowed_subscribe(&session.principal, filter.as_str()));
+            session
+                .offline
+                .retain(|m| view.allowed_delivery(&session.principal, m.topic.as_str()));
+            session
+                .outbound
+                .retain(|m| view.allowed_delivery(&session.principal, m.message.topic.as_str()));
+            // Accepted inbound QoS2 remains owned, even while credentials are revoked.
+        }
+        let mut published = 0;
+        for will in std::mem::take(&mut candidate.pending_wills).into_values() {
+            if view.allowed_publish(&will.principal, will.message.topic.as_str()) {
+                apply_message(&mut candidate, &BTreeMap::new(), &view, &will.message)?;
+                published += 1;
+            }
+        }
+        self.commit(candidate).await?;
+        let Ok(generation) = dynamic.publish(policy) else {
+            self.fail_closed();
+            return Err(RouterError::Security);
+        };
+        self.metrics.wills.fetch_add(published, Ordering::Relaxed);
+        for (_, live) in std::mem::take(&mut self.live) {
+            let _ = live.close.send(true);
+        }
+        self.update_metrics();
+        Ok(generation)
+    }
+    async fn probe(&mut self) -> bool {
+        let ready = self.store.probe().await.is_ok() && !self.fatal;
+        if !ready {
+            self.metrics
+                .persistence_errors
+                .fetch_add(1, Ordering::Relaxed);
+            self.metrics.reject(Rejection::Persistence);
+            self.fail_closed();
+        }
+        self.update_metrics();
+        ready
+    }
     async fn handle(&mut self, command: Command) {
         match command {
             #[cfg(test)]
             Command::Stop => self.fail_closed(),
             Command::Probe { reply } => {
-                let ready = self.store.probe().await.is_ok() && !self.fatal;
-                if !ready {
-                    self.metrics
-                        .persistence_errors
-                        .fetch_add(1, Ordering::Relaxed);
-                    self.metrics.reject(Rejection::Persistence);
-                    self.fail_closed();
-                }
-                self.update_metrics();
+                let ready = self.probe().await;
                 let _ = reply.send(ready);
             }
+            Command::SecurityReload { candidate, reply } => {
+                let result = self.reload_security(candidate).await;
+                let _ = reply.send(result);
+            }
             Command::Register {
+                security_generation,
                 client_id,
                 principal,
                 clean,
                 will,
                 reply,
             } => {
-                let result = self
-                    .register_with_will(client_id, principal, clean, will)
-                    .await;
+                let result =
+                    if security_generation.is_some_and(|g| g != self.auth.security_generation()) {
+                        Err(RouterError::Security)
+                    } else {
+                        self.register_with_will(client_id, principal, clean, will)
+                            .await
+                    };
                 self.record_result(&result);
                 let _ = reply.send(result);
             }
@@ -2116,5 +2202,90 @@ mod tests {
         assert!(actor.commit(invalid).await.is_err());
         assert_eq!(actor.metrics.commits.load(Ordering::Relaxed), successful);
         assert_eq!(actor.metrics.persistence_errors.load(Ordering::Relaxed), 0);
+    }
+    #[cfg(target_os = "linux")]
+    async fn dynamic_actor() -> (TempDir, Actor) {
+        use std::os::unix::fs::PermissionsExt;
+        let (directory, mut actor) = actor().await;
+        let users = fs::read_to_string(directory.path().join("users.toml")).unwrap();
+        let path = directory.path().join("private.toml");
+        fs::write(
+            &path,
+            format!("version=1\n{users}publish=['test/state']\nsubscribe=['test/state']\n"),
+        )
+        .unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        actor.auth = Arc::new(crate::auth::DynamicPolicy::load(path, false).await.unwrap());
+        (directory, actor)
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn dynamic_reload_rejects_stale_registration_and_preserves_durable_qos2() {
+        let (directory, mut actor) = dynamic_actor().await;
+        let source = actor
+            .register("source".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "source",
+                source.generation,
+                message("test/state", 2, true, b"owned"),
+                Some(7),
+            )
+            .await
+            .unwrap();
+        fs::write(
+            directory.path().join("private.toml"),
+            "version=1\nusers=[]\n",
+        )
+        .unwrap();
+        let dynamic = actor.auth.dynamic().unwrap();
+        assert_eq!(
+            actor
+                .reload_security(dynamic.candidate().await.unwrap())
+                .await
+                .unwrap(),
+            2
+        );
+        assert_eq!(actor.state.sessions["source"].inbound_qos2.len(), 1);
+        assert!(*source.closed.borrow());
+        let (reply, result) = oneshot::channel();
+        actor
+            .handle(Command::Register {
+                security_generation: Some(1),
+                client_id: "stale".into(),
+                principal: "user".into(),
+                clean: true,
+                will: None,
+                reply,
+            })
+            .await;
+        assert!(matches!(result.await.unwrap(), Err(RouterError::Security)));
+        assert!(!actor.state.sessions.contains_key("stale"));
+        actor.store.shutdown().await.unwrap();
+        let (store, state) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(state.sessions["source"].inbound_qos2.len(), 1);
+        store.shutdown().await.unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn dynamic_reload_storage_failure_does_not_publish_policy() {
+        let (directory, mut actor) = dynamic_actor().await;
+        let source = actor
+            .register("source".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let dynamic = actor.auth.dynamic().unwrap();
+        let candidate = dynamic.candidate().await.unwrap();
+        actor.store.shutdown().await.unwrap();
+        assert!(actor.reload_security(candidate).await.is_err());
+        assert_eq!(actor.auth.security_generation(), 1);
+        assert!(actor.auth.allowed_publish("user", "test/state"));
+        assert!(actor.fatal);
+        assert!(*source.closed.borrow());
+        drop(directory);
     }
 }

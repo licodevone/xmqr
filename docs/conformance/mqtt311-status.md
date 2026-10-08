@@ -93,3 +93,18 @@ baseline commit26c1019 usado sem editar melhorias C26 paralelas. Bloqueios Unix
 anteriores resolvidos. MIT/quotas/documento preservados. Publicação0.7 fica com
 usuário; sem commit/push/tag aqui. P44 segurança dinâmica preparado apenas.
 Mosquitto/TLS/mTLS externo NOT_RUN; sem conformidade integral ou produção.
+
+
+## P44 - segurança dinâmica, 0.8.0 local
+
+Base HEAD e tag v0.7.0: 3a3dde7, confirmada antes da implementação autorizada.
+Bundle privado opt-in Linux/WSL com usuários, grupos, papéis e ACL; reload por
+SIGHUP local. Reload válido encerra todas as conexões dinâmicas e exige nova
+autenticação, preservando responsabilidade inbound QoS 2. Documento durável,
+quotas, dependências e MIT preservados; cliente independente não alterado.
+Marco local validado: 78 testes Rust Linux, gates Linux/Windows e 9 testes
+de segurança dinâmica PASS; regressões 6 monitoramento, 9 Will e 6 startup PASS.
+Sem publicação automática; limitações e comandos constam no registro P44.
+Documentação: docs/security/dynamic-security.md; evidência:
+prompts/registros/P44-0.8.0.md (caminhos relativos à raiz do repositório).
+Referências anteriores a P44 apenas preparado descrevem checkpoints históricos.

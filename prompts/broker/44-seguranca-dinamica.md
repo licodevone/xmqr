@@ -113,3 +113,35 @@ BLOCKED, sem instalar. Registrar comandos, geração, rollback e limites reais.
 P44 preparado apenas. Nenhum código 0.8 implementado. Primeiro usuário publica
 ou resolve marco0.7; depois executar uma fatia por vez e parar na validação0.8.
 Sem commit/push/tag/release automático. Demais recursos ficam no roadmap.
+
+## Revisão 1.1 - implementação autorizada, 2026-10-08
+
+Base confirmada: HEAD/tag local e remota v0.7.0 = 3a3dde7; working tree limpo.
+WSL26/Rust1.99 responde. Nova autorização permite executar P44 local; preservar
+cliente paralelo C28. Implementar0.8 somente no broker, sem publicação.
+
+Controle inicial SIGHUP local Unix e bundle privado com schema1; secure-mtls e
+acl-lab opt-in, rejeitar open-lab/password-lab e combinação com users/ACL legados.
+Grupos/papéis com união de grants exatos publish e filtros literais subscribe.
+Reload válido faz commit de reconciliação antes de troca; inválido mantém anterior.
+Para revogação coerente nesta fatia, TODAS as conexões dinâmicas são encerradas
+após reload válido e exigem reautenticação; permissões novas não exigem restart
+broker. Documentar interrupção de conexões. Will permitido publicado e Will
+revogado descartado uma vez na transição durável; limpar clean sessions.
+Preservar inboundQoS2 aceito de sessões persistentes mesmo com principal removido,
+sem capacidade de novo CONNECT até reativação; restaurar esse estado sob bundle
+sem permitir auth/grants ausentes. Não apagar ownership transferido antes PUBREC.
+Decisões novas após publicação usam política atual; frames já em escrita são
+irretratáveis e explicitamente anteriores à barreira. Epoch no CONNECT/Register
+impede autenticação concorrente obsoleta. Quatro slots Argon2 globais.
+Audit apenas sucesso/falha/geração fixa, sem usernames/payload/hash/paths secretos.
+Gates/parser/negativos/reload/Will/retained/offline/QoS2 e regressões P43 obrigatórios.
+
+
+## Checkpoint final — 2026-10-08
+
+P44 implementado e validado localmente. Gates e resultados completos estão em
+[registro P44](../registros/P44-0.8.0.md). Interface administrativa: SIGHUP local
+Linux/WSL, sem API remota; reload válido encerra todas as conexões dinâmicas.
+Validação existente de identidade/certificado secure-mtls preservada.
+Cliente paralelo preservado. Sem commit, push, tag ou release; parar neste marco.

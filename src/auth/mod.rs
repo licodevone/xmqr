@@ -25,6 +25,9 @@ use zeroize::Zeroizing;
 
 use crate::mqtt::topic::{matches_filter, valid_topic_filter, valid_topic_name};
 
+mod dynamic;
+pub use dynamic::{DynamicPolicy, SecurityWatcher, watch_security};
+
 const MAX_CONFIG_BYTES: u64 = 1_048_576;
 const MAX_USERS: usize = 1_024;
 const MAX_RULES: usize = 1_024;
@@ -64,6 +67,8 @@ struct UserRecord {
     #[serde(default)]
     cert_sha256: Option<String>,
     password_hash: String,
+    #[serde(default)]
+    disabled: bool,
 }
 
 #[derive(Deserialize)]
@@ -85,6 +90,7 @@ struct AclRule {
 struct User {
     cert_fingerprint: Option<[u8; 32]>,
     password_hash: String,
+    disabled: bool,
 }
 
 struct Grants {
@@ -115,12 +121,27 @@ const OPEN_LAB_PRINCIPAL: &str = "__open_lab__";
 #[derive(Clone)]
 pub enum AccessPolicy {
     Secure(AuthPolicy),
+    Dynamic(Arc<DynamicPolicy>),
     OpenLab,
     PasswordLab(AuthPolicy),
     AclLab(AuthPolicy),
 }
 
 impl AccessPolicy {
+    #[must_use]
+    pub fn security_generation(&self) -> u64 {
+        match self {
+            Self::Dynamic(p) => p.generation(),
+            _ => 0,
+        }
+    }
+    pub(crate) fn dynamic(&self) -> Option<Arc<DynamicPolicy>> {
+        match self {
+            Self::Dynamic(p) => Some(p.clone()),
+            _ => None,
+        }
+    }
+
     #[must_use]
     pub const fn open_lab() -> Self {
         Self::OpenLab
@@ -152,6 +173,7 @@ impl AccessPolicy {
         password: Option<&[u8]>,
     ) -> Result<Option<String>, AuthError> {
         match self {
+            Self::Dynamic(policy) => policy.authenticate(cert_der, username, password).await,
             Self::Secure(policy) => {
                 let (Some(cert_der), Some(username), Some(password)) =
                     (cert_der, username, password)
@@ -179,6 +201,9 @@ impl AccessPolicy {
     #[must_use]
     pub fn allowed_publish(&self, principal: &str, topic: &str) -> bool {
         match self {
+            Self::Dynamic(policy) => policy
+                .snapshot()
+                .is_some_and(|p| p.allowed_publish(principal, topic)),
             Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic_name(topic),
             Self::PasswordLab(policy) => {
                 policy.contains_principal(principal) && valid_topic_name(topic)
@@ -190,6 +215,9 @@ impl AccessPolicy {
     #[must_use]
     pub fn allowed_subscribe(&self, principal: &str, filter: &str) -> bool {
         match self {
+            Self::Dynamic(policy) => policy
+                .snapshot()
+                .is_some_and(|p| p.allowed_subscribe(principal, filter)),
             Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic_filter(filter),
             Self::PasswordLab(policy) => {
                 policy.contains_principal(principal) && valid_topic_filter(filter)
@@ -204,6 +232,9 @@ impl AccessPolicy {
     #[must_use]
     pub fn allowed_delivery(&self, principal: &str, topic: &str) -> bool {
         match self {
+            Self::Dynamic(policy) => policy
+                .snapshot()
+                .is_some_and(|p| p.allowed_delivery(principal, topic)),
             Self::Secure(policy) | Self::AclLab(policy) => {
                 policy.allowed_delivery(principal, topic)
             }
@@ -217,6 +248,8 @@ impl AccessPolicy {
     #[must_use]
     pub fn contains_principal(&self, principal: &str) -> bool {
         match self {
+            Self::Dynamic(_) => valid_username(principal), // Keep accepted inbound ownership across removals.
+
             Self::Secure(policy) => policy.contains_principal(principal),
             Self::OpenLab => principal == OPEN_LAB_PRINCIPAL,
             Self::PasswordLab(policy) | Self::AclLab(policy) => {
@@ -269,6 +302,22 @@ impl AuthPolicy {
             .transpose()?
             .unwrap_or(AclFile { rules: Vec::new() });
 
+        Self::from_files(
+            users_file,
+            acl_file,
+            require_certificate,
+            Arc::new(Semaphore::new(MAX_PARALLEL_HASHES)),
+            None,
+        )
+    }
+
+    fn from_files(
+        users_file: UsersFile,
+        acl_file: AclFile,
+        require_certificate: bool,
+        hash_slots: Arc<Semaphore>,
+        cached_dummy: Option<String>,
+    ) -> Result<Self, AuthError> {
         if (require_certificate && users_file.users.is_empty())
             || users_file.users.len() > MAX_USERS
         {
@@ -308,6 +357,7 @@ impl AuthPolicy {
                     User {
                         cert_fingerprint,
                         password_hash: record.password_hash,
+                        disabled: record.disabled,
                     },
                 )
                 .is_some()
@@ -349,18 +399,22 @@ impl AuthPolicy {
 
         // Unknown usernames perform one real Argon2 check against a fixed,
         // valid dummy hash, avoiding the obvious fast-fail enumeration path.
-        let dummy_salt = SaltString::encode_b64(b"mqtt-broker-dummy")
-            .map_err(|_| AuthError::Config("unable to initialize auth"))?;
-        let dummy_hash = argon2_context()
-            .hash_password(b"not-a-user-secret", &dummy_salt)
-            .map_err(|_| AuthError::Config("unable to initialize auth"))?
-            .to_string();
+        let dummy_hash = if let Some(value) = cached_dummy {
+            value
+        } else {
+            let dummy_salt = SaltString::encode_b64(b"mqtt-broker-dummy")
+                .map_err(|_| AuthError::Config("unable to initialize auth"))?;
+            argon2_context()
+                .hash_password(b"not-a-user-secret", &dummy_salt)
+                .map_err(|_| AuthError::Config("unable to initialize auth"))?
+                .to_string()
+        };
 
         Ok(Self(Arc::new(Inner {
             users,
             acl,
             dummy_hash,
-            hash_slots: Arc::new(Semaphore::new(MAX_PARALLEL_HASHES)),
+            hash_slots,
         })))
     }
 
@@ -419,7 +473,7 @@ impl AuthPolicy {
             .map_err(|_| AuthError::Busy)?;
         let (hash, user_exists) = self.0.users.get(username).map_or_else(
             || (self.0.dummy_hash.clone(), false),
-            |user| (user.password_hash.clone(), true),
+            |user| (user.password_hash.clone(), !user.disabled),
         );
         let secret = Zeroizing::new(password.to_vec());
         let password_matches = tokio::task::spawn_blocking(move || {

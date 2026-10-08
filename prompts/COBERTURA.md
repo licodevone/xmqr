@@ -1,58 +1,58 @@
-# Matriz de cobertura — inspeção em 2026-10-07
+# Matriz de cobertura â€” inspeÃ§Ã£o em 2026-10-07
 
-Estado baseado em leitura, não testes executados nesta tarefa. Evidências são
-relativas à raiz XMQR; referências a testes significam código/documentação de
-testes existente, não PASS novo. Os prompts novos têm critérios de aceite futuros.
+Estado baseado em leitura, nÃ£o testes executados nesta tarefa. EvidÃªncias sÃ£o
+relativas Ã  raiz XMQR; referÃªncias a testes significam cÃ³digo/documentaÃ§Ã£o de
+testes existente, nÃ£o PASS novo. Os prompts novos tÃªm critÃ©rios de aceite futuros.
 
-| Capacidade | Estado verificado / limite | Evidência local | Prompts |
+| Capacidade | Estado verificado / limite | EvidÃªncia local | Prompts |
 | --- | --- | --- | --- |
-| Nome, pacote, licença, versão | XMQR, mqtt-broker 0.5.0 em desenvolvimento, MIT | Cargo.toml; LICENSE; VERSIONING.md | contexto; 40 |
-| Arquitetura assíncrona | Tokio, módulos em pacote existente, Rust 2024/MSRV 1.88 | Cargo.toml; src/lib.rs; src/transport/mod.rs | 02–05; 39 |
-| Codec 3.1.1 | CONNECT/CONNACK, QoS ACKs, SUB/UNSUB, PING, DISCONNECT | src/mqtt/codec.rs; src/mqtt/mod.rs | 04–05; 38 |
-| QoS 0/1/2 | implementados, commit antes dos ACKs pertinentes | src/mqtt/mod.rs; router.rs; store.rs | 07; 25–28 históricos; 36; 39 |
-| Sessões e takeover | CleanSession, offline QoS>0, gerações e vínculo principal | src/mqtt/router.rs; store.rs | 05; 08; 27 histórico; 39 |
-| Retained | estado separado, payload vazio remove, replay/dedup | src/mqtt/router.rs; store.rs | 08; 29 histórico; 33; 36 |
-| UNSUBSCRIBE | remoção literal e persistência | src/mqtt/codec.rs; mod.rs; router.rs | 27 histórico; 33; 36 |
-| Wildcards +/#, níveis vazios, $ | existentes; sobreposição com QoS máximo aplicável | src/mqtt/topic.rs; router.rs; docs/architecture/adr-0002-topic-filters.md | 06; 33 atualizado; 36 |
-| ACL literal e entrega/restore | deny-by-default, filtro exato concedido e match concreto | src/auth/mod.rs; router.rs; docs/security/auth-acl.md | 10; 23 histórico; 33; 34; 36 |
-| TLS/mTLS, Argon2id, fingerprint | existentes no perfil seguro; CRL opcional | src/auth/mod.rs; transport/mod.rs; src/main.rs | 10; 23 histórico; 34; 36 |
-| Quatro modos e estado por perfil | existentes; sem TLS só loopback; variáveis incompatíveis recusadas | src/main.rs; docs/laboratorio-mqtt-aberto.md | **34 novo** |
-| CRUD de usuários | create/list/update-password/delete atômicos; Unix/WSL, sem provisionamento de certificado | src/bin/mqtt-admin/{main,users}.rs; docs/administracao-usuarios.md | **35 novo** |
-| CLI atual | rumqttc; pub/sub, QoS, retained, CleanSession, count, senha privada e modos | src/bin/mqtt-client/{cli,credentials,session,tls}.rs | clients/19–23 históricos; **clients/24 novo** |
-| Persistência e recuperação | agregado MQTT v1, WAL/snapshot v1, escritor exclusivo, fsync e quotas | src/mqtt/store.rs; src/persistence/{mod,actor}.rs | 25 histórico; **39 novo** |
-| Limites e backpressure | pacote 64 KiB, payload 4096, 64 sessões, 256 assinaturas, 64 offline, 32 inflight | codec.rs; store.rs; router.rs; transport/mod.rs | 10; 14; 36; 39 |
-| Limite tópico/filtro | **broker/CLI 1024 bytes UTF-8**, alinhados por P41; outros limites preservados | mqtt/mod.rs MAX_TOPIC_BYTES; topic.rs; cli.rs; CHANGELOG.md | 37 histórico da decisão; **41 implementado, resultados no registro** |
-| Client ID e keep-alive | CLI restrita; recusa de ID vazio pendente; deadlines existentes sem matriz ampliada | cli.rs; codec.rs; mqtt/mod.rs; docs/conformance/mqtt311-status.md | **38 novo, proposta/validação** |
-| Last Will | não implementado; flags recusadas | src/mqtt/codec.rs; matriz MQTT | 32 atualizado, proposta |
-| MQTT 5.0 / WS / cluster | fora do núcleo atual, sem implementação comprovada | README.md; docs/ROADMAP.md; codec.rs | 09 futuro; 02/16 para avaliação, sem promessa |
-| Logs vs métricas/health/reload | Tracing existente; endpoints e configuração geral versionada são futuros | src/main.rs; docs/ROADMAP.md | 11 proposta, 10/16 gates |
-| Interop automatizada | script Mosquitto/fixtures; evidência documental open-lab, TLS/ACL externa incompleta | scripts/verify_interop.py; docs/conformance/mqtt311-status.md | 12; 15; **36 novo** |
-| Fuzzing/carga/operação | cobertura ampla e benchmarks ainda pendentes; testes gerados não são campanha de fuzzing | docs/ROADMAP.md; docs/wildcard-subscriptions.md | 13–16, gates não aprovados aqui |
-| Licenças, CI, release, clones | inventário/CI existentes; release ainda não publicada; sincronização não automática | scripts/license_inventory.py; .github/workflows; VERSIONING.md | **40 novo** |
+| Nome, pacote, licenÃ§a, versÃ£o | XMQR, mqtt-broker 0.5.0 em desenvolvimento, MIT | Cargo.toml; LICENSE; VERSIONING.md | contexto; 40 |
+| Arquitetura assÃ­ncrona | Tokio, mÃ³dulos em pacote existente, Rust 2024/MSRV 1.88 | Cargo.toml; src/lib.rs; src/transport/mod.rs | 02â€“05; 39 |
+| Codec 3.1.1 | CONNECT/CONNACK, QoS ACKs, SUB/UNSUB, PING, DISCONNECT | src/mqtt/codec.rs; src/mqtt/mod.rs | 04â€“05; 38 |
+| QoS 0/1/2 | implementados, commit antes dos ACKs pertinentes | src/mqtt/mod.rs; router.rs; store.rs | 07; 25â€“28 histÃ³ricos; 36; 39 |
+| SessÃµes e takeover | CleanSession, offline QoS>0, geraÃ§Ãµes e vÃ­nculo principal | src/mqtt/router.rs; store.rs | 05; 08; 27 histÃ³rico; 39 |
+| Retained | estado separado, payload vazio remove, replay/dedup | src/mqtt/router.rs; store.rs | 08; 29 histÃ³rico; 33; 36 |
+| UNSUBSCRIBE | remoÃ§Ã£o literal e persistÃªncia | src/mqtt/codec.rs; mod.rs; router.rs | 27 histÃ³rico; 33; 36 |
+| Wildcards +/#, nÃ­veis vazios, $ | existentes; sobreposiÃ§Ã£o com QoS mÃ¡ximo aplicÃ¡vel | src/mqtt/topic.rs; router.rs; docs/architecture/adr-0002-topic-filters.md | 06; 33 atualizado; 36 |
+| ACL literal e entrega/restore | deny-by-default, filtro exato concedido e match concreto | src/auth/mod.rs; router.rs; docs/security/auth-acl.md | 10; 23 histÃ³rico; 33; 34; 36 |
+| TLS/mTLS, Argon2id, fingerprint | existentes no perfil seguro; CRL opcional | src/auth/mod.rs; transport/mod.rs; src/main.rs | 10; 23 histÃ³rico; 34; 36 |
+| Quatro modos e estado por perfil | existentes; sem TLS sÃ³ loopback; variÃ¡veis incompatÃ­veis recusadas | src/main.rs; docs/laboratorio-mqtt-aberto.md | **34 novo** |
+| CRUD de usuÃ¡rios | create/list/update-password/delete atÃ´micos; Unix/WSL, sem provisionamento de certificado | src/bin/mqtt-admin/{main,users}.rs; docs/administracao-usuarios.md | **35 novo** |
+| CLI atual | rumqttc; pub/sub, QoS, retained, CleanSession, count, senha privada e modos | src/bin/mqtt-client/{cli,credentials,session,tls}.rs | clients/19â€“23 histÃ³ricos; **clients/24 novo** |
+| PersistÃªncia e recuperaÃ§Ã£o | agregado MQTT v1, WAL/snapshot v1, escritor exclusivo, fsync e quotas | src/mqtt/store.rs; src/persistence/{mod,actor}.rs | 25 histÃ³rico; **39 novo** |
+| Limites e backpressure | pacote 64 KiB, payload 4096, 64 sessÃµes, 256 assinaturas, 64 offline, 32 inflight | codec.rs; store.rs; router.rs; transport/mod.rs | 10; 14; 36; 39 |
+| Limite tÃ³pico/filtro | **broker/CLI 1024 bytes UTF-8**, alinhados por P41; outros limites preservados | mqtt/mod.rs MAX_TOPIC_BYTES; topic.rs; cli.rs; CHANGELOG.md | 37 histÃ³rico da decisÃ£o; **41 implementado, resultados no registro** |
+| Client ID e keep-alive | CLI restrita; recusa de ID vazio pendente; deadlines existentes sem matriz ampliada | cli.rs; codec.rs; mqtt/mod.rs; docs/conformance/mqtt311-status.md | **38 novo, proposta/validaÃ§Ã£o** |
+| Last Will | nÃ£o implementado; flags recusadas | src/mqtt/codec.rs; matriz MQTT | 32 atualizado, proposta |
+| MQTT 5.0 / WS / cluster | fora do nÃºcleo atual, sem implementaÃ§Ã£o comprovada | README.md; docs/ROADMAP.md; codec.rs | 09 futuro; 02/16 para avaliaÃ§Ã£o, sem promessa |
+| Logs vs mÃ©tricas/health/reload | Tracing existente; endpoints e configuraÃ§Ã£o geral versionada sÃ£o futuros | src/main.rs; docs/ROADMAP.md | 11 proposta, 10/16 gates |
+| Interop automatizada | script Mosquitto/fixtures; evidÃªncia documental open-lab, TLS/ACL externa incompleta | scripts/verify_interop.py; docs/conformance/mqtt311-status.md | 12; 15; **36 novo** |
+| Fuzzing/carga/operaÃ§Ã£o | cobertura ampla e benchmarks ainda pendentes; testes gerados nÃ£o sÃ£o campanha de fuzzing | docs/ROADMAP.md; docs/wildcard-subscriptions.md | 13â€“16, gates nÃ£o aprovados aqui |
+| LicenÃ§as, CI, release, clones | inventÃ¡rio/CI existentes; release ainda nÃ£o publicada; sincronizaÃ§Ã£o nÃ£o automÃ¡tica | scripts/license_inventory.py; .github/workflows; VERSIONING.md | **40 novo** |
 
-## Incertezas e inconsistências preservadas fora de prompts/
+## Incertezas e inconsistÃªncias preservadas fora de prompts/
 
-- docs/architecture/rust-tokio-resilience.md ainda diz que sessões MQTT não
-  estão integradas ao WAL; store.rs/router.rs mostram integração. P39 pede
-  reconciliação em futuro escopo próprio, sem corrigir esse arquivo agora.
-- P41 resolve a divergência broker256/CLI1024. Rollback para snapshots de 256 bytes exige backup compatível se houver nomes longos persistidos.
-- Não foi verificado GitHub remoto, publicação, hardware, serviço ativo, build
-  Windows, disponibilidade externa ou execução atual de testes.
-- Os prompts de origem não comprovam autoria ou execução histórica do XMQR.
-- Cobertura documental não prova cumprimento integral de cada requisito de
-  conformidade, segurança, desempenho ou operação do prompt.
+- docs/architecture/rust-tokio-resilience.md ainda diz que sessÃµes MQTT nÃ£o
+  estÃ£o integradas ao WAL; store.rs/router.rs mostram integraÃ§Ã£o. P39 pede
+  reconciliaÃ§Ã£o em futuro escopo prÃ³prio, sem corrigir esse arquivo agora.
+- P41 resolve a divergÃªncia broker256/CLI1024. Rollback para snapshots de 256 bytes exige backup compatÃ­vel se houver nomes longos persistidos.
+- NÃ£o foi verificado GitHub remoto, publicaÃ§Ã£o, hardware, serviÃ§o ativo, build
+  Windows, disponibilidade externa ou execuÃ§Ã£o atual de testes.
+- Os prompts de origem nÃ£o comprovam autoria ou execuÃ§Ã£o histÃ³rica do XMQR.
+- Cobertura documental nÃ£o prova cumprimento integral de cada requisito de
+  conformidade, seguranÃ§a, desempenho ou operaÃ§Ã£o do prompt.
 
 
-## Resultado P41 e configuração local
+## Resultado P41 e configuraÃ§Ã£o local
 
 Limite compartilhado 1024 bytes implementado. PASS nos testes de tipos, wire,
-CLI e ACL; recuperação Unix e interop desta revisão continuam pendentes. A suíte
+CLI e ACL; recuperaÃ§Ã£o Unix e interop desta revisÃ£o continuam pendentes. A suÃ­te
 Windows tem falhas esperadas de plataforma e Clippy geral tem avisos preexistentes:
-não existe PASS global. Evidência: [registro P41](registros/P41-topicos-1024.md).
+nÃ£o existe PASS global. EvidÃªncia: [registro P41](registros/P41-topicos-1024.md).
 
-O app-server Codex 0.160.1 confirmou por skills/list as três skills XMQR habilitadas,
-sem erros do projeto. Quatro agentes TOML estão estaticamente válidos; nenhum
-foi acionado. Nova sessão com XMQR como cwd mantém descoberta/instruções adequadas.
+O app-server Codex 0.160.1 confirmou por skills/list as trÃªs skills XMQR habilitadas,
+sem erros do projeto. Quatro agentes TOML estÃ£o estaticamente vÃ¡lidos; nenhum
+foi acionado. Nova sessÃ£o com XMQR como cwd mantÃ©m descoberta/instruÃ§Ãµes adequadas.
 
 
 ## Retomada P41 em Unix
@@ -69,30 +69,43 @@ MQTT v2 le v1; rollback exige backup anterior. MIT preservada. Veja
 nao executados. Proximo marco0.7 aguarda publicacao pelo mantenedor.
 
 
-## P43 - 0.7.0 em validação
+## P43 - 0.7.0 em validaÃ§Ã£o
 
 Base bc4cc55/tag v0.6.0 verificada. Monitoramento opcional implementado em
-monitoring.rs, com HTTP loopback limitado, probe real do ator/writer e métricas
-de labels finitos. Cargo local 0.7.0; sem novas dependências ou mudança MIT.
-Documento MQTT v2 e quotas preservados. Referências anteriores a endpoints
+monitoring.rs, com HTTP loopback limitado, probe real do ator/writer e mÃ©tricas
+de labels finitos. Cargo local 0.7.0; sem novas dependÃªncias ou mudanÃ§a MIT.
+Documento MQTT v2 e quotas preservados. ReferÃªncias anteriores a endpoints
 ausentes descrevem a base anterior. Aceite completo/release ainda pendentes.
 Veja docs/monitoring.md e prompts/registros/P43-0.7.0.md (caminhos da raiz).
-Não avançar para 0.8, extrair clientes ou criar commit/push/tag nesta tarefa.
+NÃ£o avanÃ§ar para 0.8, extrair clientes ou criar commit/push/tag nesta tarefa.
 
 ## C25 - projetos separados
 
 Cliente independente em ../xmqr-client, pacote xmqr-client 0.7.0 local,
-binário mqtt-client. Broker contém mqtt-broker/mqtt-admin; rumqttc não integra
-mais suas dependências. Gates Windows do cliente PASS; check/build/Clippy
-all-targets do broker PASS. Integração Unix/monitor e aceite completo P43
-pendentes; não declarar release. Prompts históricos continuam referência.
-Cada melhoria do cliente segue seus próprios prompts e AGENTS. Ver registro C25.
+binÃ¡rio mqtt-client. Broker contÃ©m mqtt-broker/mqtt-admin; rumqttc nÃ£o integra
+mais suas dependÃªncias. Gates Windows do cliente PASS; check/build/Clippy
+all-targets do broker PASS. IntegraÃ§Ã£o Unix/monitor e aceite completo P43
+pendentes; nÃ£o declarar release. Prompts histÃ³ricos continuam referÃªncia.
+Cada melhoria do cliente segue seus prÃ³prios prompts e AGENTS. Ver registro C25.
 
 ## Checkpoint P43 validado - 2026-10-08
 
-Mesmo repo via WSL/Rust1.99:72 testes e gates completos PASS,6 integrações
+Mesmo repo via WSL/Rust1.99:72 testes e gates completos PASS,6 integraÃ§Ãµes
 monitoring e9 Will PASS, incluindo1024UTF-8/retained/offline. Cliente independente
 baseline commit26c1019 usado sem editar melhorias C26 paralelas. Bloqueios Unix
-anteriores resolvidos. MIT/quotas/documento preservados. Publicação0.7 fica com
-usuário; sem commit/push/tag aqui. P44 segurança dinâmica preparado apenas.
-Mosquitto/TLS/mTLS externo NOT_RUN; sem conformidade integral ou produção.
+anteriores resolvidos. MIT/quotas/documento preservados. PublicaÃ§Ã£o0.7 fica com
+usuÃ¡rio; sem commit/push/tag aqui. P44 seguranÃ§a dinÃ¢mica preparado apenas.
+Mosquitto/TLS/mTLS externo NOT_RUN; sem conformidade integral ou produÃ§Ã£o.
+
+
+## P44 - seguranÃ§a dinÃ¢mica, 0.8.0 local
+
+Base HEAD e tag v0.7.0: 3a3dde7, confirmada antes da implementaÃ§Ã£o autorizada.
+Bundle privado opt-in Linux/WSL com usuÃ¡rios, grupos, papÃ©is e ACL; reload por
+SIGHUP local. Reload vÃ¡lido encerra todas as conexÃµes dinÃ¢micas e exige nova
+autenticaÃ§Ã£o, preservando responsabilidade inbound QoS 2. Documento durÃ¡vel,
+quotas, dependÃªncias e MIT preservados; cliente independente nÃ£o alterado.
+A versÃ£o aguarda registro dos gates finais; nÃ£o hÃ¡ publicaÃ§Ã£o automÃ¡tica.
+DocumentaÃ§Ã£o: docs/security/dynamic-security.md; evidÃªncia:
+prompts/registros/P44-0.8.0.md (caminhos relativos Ã  raiz do repositÃ³rio).
+ReferÃªncias anteriores a P44 apenas preparado descrevem checkpoints histÃ³ricos.

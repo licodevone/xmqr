@@ -66,6 +66,7 @@ pub async fn serve_connection(
         return Err("first MQTT packet must be CONNECT".into());
     };
 
+    let security_generation = auth.security_generation();
     let cert = connection.peer_certificates().first();
     let principal = auth
         .authenticate(
@@ -82,11 +83,17 @@ pub async fn serve_connection(
         return Ok(());
     };
     let mut session = match router
-        .register_with_will(client_id, principal.clone(), clean_session, will)
+        .register_with_epoch(
+            client_id,
+            principal.clone(),
+            clean_session,
+            will,
+            Some(security_generation),
+        )
         .await
     {
         Ok(session) => session,
-        Err(RouterError::PrincipalMismatch | RouterError::WillDenied) => {
+        Err(RouterError::PrincipalMismatch | RouterError::WillDenied | RouterError::Security) => {
             connection
                 .write_all_with_deadline(&encode_connack(5), WRITE_TIMEOUT)
                 .await?;
@@ -113,7 +120,7 @@ pub async fn serve_connection(
     let mut last_inbound = Instant::now();
     let result: Result<(), HandlerError> = async {
         for delivery in session.replay.drain(..) {
-            send_delivery(&mut connection, delivery, &metrics).await?;
+            send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
         }
         loop {
             // MQTT-3.1.2-24: disconnect after 1.5 times the advertised keep-alive.
@@ -138,7 +145,7 @@ pub async fn serve_connection(
                             }).collect();
                             let (codes, retained) = router.subscribe(&session, requested).await?;
                             connection.write_all_with_deadline(&encode_suback(packet_id, &codes), WRITE_TIMEOUT).await?;
-                            for delivery in retained { send_delivery(&mut connection, delivery, &metrics).await?; }
+                            for delivery in retained { send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?; }
                         }
                         Packet::Unsubscribe { packet_id, filters } => {
                             router.unsubscribe(&session, filters).await?;
@@ -167,17 +174,17 @@ pub async fn serve_connection(
                         }
                         Packet::PubAck(id) => {
                             for delivery in router.ack(&session, AckKind::Ack, id).await? {
-                                send_delivery(&mut connection, delivery, &metrics).await?;
+                                send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
                             }
                         }
                         Packet::PubRec(id) => {
                             for delivery in router.ack(&session, AckKind::Rec, id).await? {
-                                send_delivery(&mut connection, delivery, &metrics).await?;
+                                send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
                             }
                         }
                         Packet::PubComp(id) => {
                             for delivery in router.ack(&session, AckKind::Comp, id).await? {
-                                send_delivery(&mut connection, delivery, &metrics).await?;
+                                send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
                             }
                         }
                         Packet::PingReq => connection.write_all_with_deadline(&encode_pingresp(), WRITE_TIMEOUT).await?,
@@ -187,7 +194,7 @@ pub async fn serve_connection(
                 }
                 outbound = session.outbound.recv() => {
                     let Some(delivery) = outbound else { break; };
-                    send_delivery(&mut connection, delivery, &metrics).await?;
+                    send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
                 }
             }
         }
@@ -209,7 +216,19 @@ async fn send_delivery(
     connection: &mut BrokerConnection,
     delivery: Delivery,
     metrics: &Metrics,
+    auth: &AccessPolicy,
+    principal: &str,
+    security_generation: u64,
 ) -> Result<(), HandlerError> {
+    if auth.security_generation() != security_generation {
+        return Err("security generation changed".into());
+    }
+    if let Delivery::Publish { message, .. } = &delivery
+        && !auth.allowed_delivery(principal, message.topic.as_str())
+    {
+        return Err("delivery authorization revoked".into());
+    }
+
     let bytes = match delivery {
         Delivery::Publish {
             message,
