@@ -169,6 +169,11 @@ impl MqttStore {
         Ok((Self { writer }, state))
     }
 
+    pub(super) async fn probe(&self) -> Result<(), StateError> {
+        self.writer.probe().await?;
+        Ok(())
+    }
+
     /// Commit the whole candidate. Success is an fsync durability barrier.
     /// The caller must not expose the candidate or ACK `QoS` until this returns.
     pub async fn commit(&self, state: &DurableState) -> Result<(), StateError> {

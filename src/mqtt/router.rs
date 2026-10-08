@@ -7,7 +7,9 @@ use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::auth::AccessPolicy;
+use crate::monitoring::{Metrics, Rejection};
 use crate::transport::HandlerError;
+use std::sync::{Arc, atomic::Ordering};
 
 use super::store::{
     DurableSession, DurableState, InboundQos2, MqttStore, OutboundInflight, OutboundStage,
@@ -63,6 +65,7 @@ struct Live {
 }
 
 struct Actor {
+    metrics: Arc<Metrics>,
     store: MqttStore,
     state: DurableState,
     auth: std::sync::Arc<AccessPolicy>,
@@ -73,6 +76,11 @@ struct Actor {
 }
 
 enum Command {
+    Probe {
+        reply: oneshot::Sender<bool>,
+    },
+    #[cfg(test)]
+    Stop,
     Register {
         client_id: String,
         principal: String,
@@ -131,6 +139,7 @@ pub(super) enum AckKind {
 /// the state map directly, and every mutation is serialized by the actor.
 #[derive(Clone)]
 pub struct Router {
+    metrics: Arc<Metrics>,
     sender: mpsc::Sender<Command>,
 }
 
@@ -188,9 +197,17 @@ impl Router {
     /// # Errors
     /// Returns a storage error for corruption, incompatible version or an
     /// unavailable persistence directory. Clean-session images are purged.
-    pub async fn start(
+    pub async fn start(directory: &Path, auth: Arc<AccessPolicy>) -> Result<Self, HandlerError> {
+        Self::start_observed(directory, auth, Arc::default()).await
+    }
+
+    /// Recover and start the actor with shared, bounded process metrics.
+    /// # Errors
+    /// Returns corruption, recovery, quota or unavailable storage errors.
+    pub async fn start_observed(
         directory: &Path,
-        auth: std::sync::Arc<AccessPolicy>,
+        auth: Arc<AccessPolicy>,
+        metrics: Arc<Metrics>,
     ) -> Result<Self, HandlerError> {
         let (store, mut state) = MqttStore::open(directory).await?;
         let before = state.clone();
@@ -215,18 +232,31 @@ impl Router {
         }
         // MQTT-3.1.2-8/10: broker crash can defer Will publication until restart.
         // Remove the Will and route it in the same durable transition.
+        let mut recovered_wills = 0_u64;
         let pending = std::mem::take(&mut state.pending_wills);
         for will in pending.into_values() {
             if auth.allowed_publish(&will.principal, will.message.topic.as_str()) {
                 apply_message(&mut state, &BTreeMap::new(), &auth, &will.message)?;
+                recovered_wills += 1;
             }
         }
         if state != before {
+            let start = std::time::Instant::now();
             store.commit(&state).await?;
+            metrics.commit_attempts.fetch_add(1, Ordering::Relaxed);
+            metrics.commit_nanos.fetch_add(
+                u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX),
+                Ordering::Relaxed,
+            );
+            metrics.commits.fetch_add(1, Ordering::Relaxed);
         }
+        metrics.wills.fetch_add(recovered_wills, Ordering::Relaxed);
         let (sender, mut receiver) = mpsc::channel(COMMAND_CAPACITY);
+        let actor_metrics = metrics.clone();
         tokio::spawn(async move {
+            let _actor_metric = actor_metrics.actor();
             let mut actor = Actor {
+                metrics: actor_metrics,
                 store,
                 state,
                 auth,
@@ -242,7 +272,30 @@ impl Router {
                 }
             }
         });
-        Ok(Self { sender })
+        Ok(Self { metrics, sender })
+    }
+
+    pub(crate) fn metrics(&self) -> Arc<Metrics> {
+        self.metrics.clone()
+    }
+
+    pub(crate) async fn probe(&self) -> bool {
+        let (reply, result) = oneshot::channel();
+        if self.sender.try_send(Command::Probe { reply }).is_err() {
+            return false;
+        }
+        let ready = result.await.unwrap_or(false);
+        self.metrics.commands_queued.store(
+            u64::try_from(self.sender.max_capacity() - self.sender.capacity()).unwrap_or(u64::MAX),
+            Ordering::Relaxed,
+        );
+        ready && self.metrics.actor_alive.load(Ordering::Relaxed)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn stop_for_test(&self) {
+        let _ = self.sender.send(Command::Stop).await;
+        self.sender.closed().await;
     }
 
     #[cfg(test)]
@@ -386,6 +439,20 @@ impl Router {
 impl Actor {
     async fn handle(&mut self, command: Command) {
         match command {
+            #[cfg(test)]
+            Command::Stop => self.fail_closed(),
+            Command::Probe { reply } => {
+                let ready = self.store.probe().await.is_ok() && !self.fatal;
+                if !ready {
+                    self.metrics
+                        .persistence_errors
+                        .fetch_add(1, Ordering::Relaxed);
+                    self.metrics.reject(Rejection::Persistence);
+                    self.fail_closed();
+                }
+                self.update_metrics();
+                let _ = reply.send(ready);
+            }
             Command::Register {
                 client_id,
                 principal,
@@ -393,10 +460,11 @@ impl Actor {
                 will,
                 reply,
             } => {
-                let _ = reply.send(
-                    self.register_with_will(client_id, principal, clean, will)
-                        .await,
-                );
+                let result = self
+                    .register_with_will(client_id, principal, clean, will)
+                    .await;
+                self.record_result(&result);
+                let _ = reply.send(result);
             }
             Command::Subscribe {
                 client_id,
@@ -404,7 +472,9 @@ impl Actor {
                 filters,
                 reply,
             } => {
-                let _ = reply.send(self.subscribe(&client_id, generation, filters).await);
+                let result = self.subscribe(&client_id, generation, filters).await;
+                self.record_result(&result);
+                let _ = reply.send(result);
             }
             Command::Unsubscribe {
                 client_id,
@@ -412,7 +482,9 @@ impl Actor {
                 filters,
                 reply,
             } => {
-                let _ = reply.send(self.unsubscribe(&client_id, generation, filters).await);
+                let result = self.unsubscribe(&client_id, generation, filters).await;
+                self.record_result(&result);
+                let _ = reply.send(result);
             }
             Command::Publish {
                 client_id,
@@ -421,10 +493,11 @@ impl Actor {
                 packet_id,
                 reply,
             } => {
-                let _ = reply.send(
-                    self.publish(&client_id, generation, message, packet_id)
-                        .await,
-                );
+                let result = self
+                    .publish(&client_id, generation, message, packet_id)
+                    .await;
+                self.record_result(&result);
+                let _ = reply.send(result);
             }
             Command::PubRel {
                 client_id,
@@ -432,7 +505,9 @@ impl Actor {
                 packet_id,
                 reply,
             } => {
-                let _ = reply.send(self.pubrel(&client_id, generation, packet_id).await);
+                let result = self.pubrel(&client_id, generation, packet_id).await;
+                self.record_result(&result);
+                let _ = reply.send(result);
             }
             Command::Ack {
                 client_id,
@@ -441,7 +516,9 @@ impl Actor {
                 packet_id,
                 reply,
             } => {
-                let _ = reply.send(self.ack(&client_id, generation, kind, packet_id).await);
+                let result = self.ack(&client_id, generation, kind, packet_id).await;
+                self.record_result(&result);
+                let _ = reply.send(result);
             }
             Command::Unregister {
                 client_id,
@@ -449,33 +526,99 @@ impl Actor {
                 graceful,
                 reply,
             } => {
-                let _ = reply.send(
-                    self.unregister_with_reason(&client_id, generation, graceful)
-                        .await,
-                );
+                let result = self
+                    .unregister_with_reason(&client_id, generation, graceful)
+                    .await;
+                self.record_result(&result);
+                let _ = reply.send(result);
             }
         }
     }
 
+    fn record_result<T>(&self, result: &Result<T, RouterError>) {
+        if let Err(error) = result {
+            match error {
+                RouterError::Store(StateError::Limit(_)) => self.metrics.reject(Rejection::Quota),
+                RouterError::WillDenied | RouterError::PrincipalMismatch => {
+                    self.metrics.reject(Rejection::Authorization);
+                }
+                RouterError::Store(StateError::Storage(_) | StateError::WorkerUnavailable) => {
+                    self.metrics.reject(Rejection::Persistence);
+                }
+                _ => {}
+            }
+        }
+    }
+    fn update_metrics(&self) {
+        fn count(value: usize) -> u64 {
+            u64::try_from(value).unwrap_or(u64::MAX)
+        }
+        self.metrics
+            .sessions
+            .store(count(self.state.sessions.len()), Ordering::Relaxed);
+        self.metrics
+            .retained
+            .store(count(self.state.retained.len()), Ordering::Relaxed);
+        self.metrics.offline.store(
+            count(self.state.sessions.values().map(|s| s.offline.len()).sum()),
+            Ordering::Relaxed,
+        );
+        self.metrics.inflight.store(
+            count(
+                self.state
+                    .sessions
+                    .values()
+                    .map(|s| s.outbound.len() + s.inbound_qos2.len())
+                    .sum(),
+            ),
+            Ordering::Relaxed,
+        );
+        self.metrics.deliveries_queued.store(
+            count(
+                self.live
+                    .values()
+                    .map(|l| l.sender.max_capacity() - l.sender.capacity())
+                    .sum(),
+            ),
+            Ordering::Relaxed,
+        );
+    }
+
     async fn commit(&mut self, candidate: DurableState) -> Result<(), RouterError> {
-        if let Err(error) = self.store.commit(&candidate).await {
+        let started = std::time::Instant::now();
+        let result = self.store.commit(&candidate).await;
+        self.metrics.commit_attempts.fetch_add(1, Ordering::Relaxed);
+        self.metrics.commit_nanos.fetch_add(
+            u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            Ordering::Relaxed,
+        );
+        if let Err(error) = result {
             // The WAL outcome can be uncertain after an I/O error or a cancelled
             // reply. Never continue from stale in-memory state; reopen on restart.
             if !matches!(
                 error,
                 StateError::Limit(_) | StateError::Malformed | StateError::UnsupportedVersion(_)
             ) {
+                self.metrics
+                    .persistence_errors
+                    .fetch_add(1, Ordering::Relaxed);
                 self.fail_closed();
             }
             return Err(error.into());
         }
+        self.metrics.commits.fetch_add(1, Ordering::Relaxed);
         self.state = candidate;
+        self.update_metrics();
         self.commits_since_snapshot += 1;
         if self.commits_since_snapshot >= 128 {
             if let Err(error) = self.store.snapshot().await {
+                self.metrics
+                    .persistence_errors
+                    .fetch_add(1, Ordering::Relaxed);
                 self.fail_closed();
                 return Err(error.into());
             }
+            self.metrics.snapshots.fetch_add(1, Ordering::Relaxed);
             self.commits_since_snapshot = 0;
         }
         Ok(())
@@ -483,6 +626,7 @@ impl Actor {
 
     fn fail_closed(&mut self) {
         self.fatal = true;
+        self.metrics.actor_alive.store(false, Ordering::Relaxed);
         for live in self.live.values() {
             let _ = live.close.send(true);
         }
@@ -611,6 +755,7 @@ impl Actor {
             let Some(qos) =
                 granted.filter(|_| self.auth.allowed_subscribe(principal, filter.as_str()))
             else {
+                self.metrics.reject(Rejection::Authorization);
                 codes.push(0x80);
                 continue;
             };
@@ -674,6 +819,7 @@ impl Actor {
         packet_id: Option<u16>,
     ) -> Result<(), RouterError> {
         self.current(client_id, generation)?;
+        let qos = usize::from(message.qos);
         let mut candidate = self.state.clone();
         if message.qos == 2 {
             let packet_id = packet_id.ok_or(RouterError::Stale)?;
@@ -691,10 +837,13 @@ impl Actor {
             session
                 .inbound_qos2
                 .push(InboundQos2 { packet_id, message });
-            return self.commit(candidate).await;
+            self.commit(candidate).await?;
+            self.metrics.received[qos].fetch_add(1, Ordering::Relaxed);
+            return Ok(());
         }
         let deliveries = apply_message(&mut candidate, &self.live, &self.auth, &message)?;
         self.commit(candidate).await?;
+        self.metrics.received[qos].fetch_add(1, Ordering::Relaxed);
         self.deliver(deliveries);
         Ok(())
     }
@@ -806,15 +955,20 @@ impl Actor {
         let mut remaining_live = self.live.clone();
         remaining_live.remove(client_id);
         let mut deliveries = Vec::new();
+        let mut published = false;
         if let Some(will) = will.filter(|_| !graceful)
             && self
                 .auth
                 .allowed_publish(&will.principal, will.message.topic.as_str())
         {
+            published = true;
             deliveries = apply_message(&mut candidate, &remaining_live, &self.auth, &will.message)?;
         }
         // MQTT-3.1.2-10 and MQTT-3.14.4-3: cancellation/publication is durable.
         self.commit(candidate).await?;
+        if published {
+            self.metrics.wills.fetch_add(1, Ordering::Relaxed);
+        }
         if let Some(old) = self.live.remove(client_id) {
             let _ = old.close.send(true);
         }
@@ -827,6 +981,7 @@ impl Actor {
             if let Some(live) = self.live.get(&client_id)
                 && live.sender.try_send(delivery).is_err()
             {
+                self.metrics.reject(Rejection::Delivery);
                 let _ = live.close.send(true);
             }
         }
@@ -954,6 +1109,7 @@ mod tests {
         (
             directory,
             Actor {
+                metrics: Arc::default(),
                 store,
                 state,
                 auth,
@@ -1236,6 +1392,7 @@ mod tests {
 
         let (store, state) = MqttStore::open(directory.path()).await.unwrap();
         let mut reopened = Actor {
+            metrics: Arc::default(),
             store,
             state,
             auth: Arc::clone(&actor.auth),
@@ -1400,6 +1557,7 @@ mod tests {
         actor.store.shutdown().await.unwrap();
         let (store, state) = MqttStore::open(directory.path()).await.unwrap();
         let mut reopened = Actor {
+            metrics: Arc::default(),
             store,
             state,
             auth: Arc::clone(&actor.auth),
@@ -1930,5 +2088,33 @@ mod tests {
         };
         assert_eq!(message.payload, b"cancelled-task");
         router.unregister(&subscriber, true).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn metrics_count_qos2_acceptance_once_and_no_success_for_invalid_commit() {
+        let (_directory, mut actor) = actor().await;
+        let source = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let qos2 = message("test/state", 2, true, b"value");
+        actor
+            .publish("source", source.generation, qos2.clone(), Some(1))
+            .await
+            .unwrap();
+        actor
+            .publish("source", source.generation, qos2, Some(1))
+            .await
+            .unwrap();
+        assert_eq!(actor.metrics.received[2].load(Ordering::Relaxed), 1);
+        actor.pubrel("source", source.generation, 1).await.unwrap();
+        assert_eq!(actor.metrics.received[2].load(Ordering::Relaxed), 1);
+        assert_eq!(actor.metrics.retained.load(Ordering::Relaxed), 1);
+        let successful = actor.metrics.commits.load(Ordering::Relaxed);
+        let mut invalid = actor.state.clone();
+        invalid.sessions.get_mut("source").unwrap().next_packet_id = 0;
+        assert!(actor.commit(invalid).await.is_err());
+        assert_eq!(actor.metrics.commits.load(Ordering::Relaxed), successful);
+        assert_eq!(actor.metrics.persistence_errors.load(Ordering::Relaxed), 0);
     }
 }

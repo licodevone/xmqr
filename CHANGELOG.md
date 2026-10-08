@@ -7,7 +7,17 @@ interoperabilidade independentes, recuperação após falhas, revisão de segura
 e documentação de operação; versões `1.x` manterão compatibilidade prometida,
 e `2.0.0` indicará quebra dessa compatibilidade.
 
-## 0.6.0 - local, gates aprovados, ainda nao publicada
+## 0.7.0 - gates aprovados, aguardando publicação
+
+- Monitoramento HTTP opcional, somente loopback: health, readiness por probe
+  real do ator/writer e métricas Prometheus com labels finitos.
+- Contadores de conexões, mensagens QoS, rejeições, commits/latência/snapshots
+  e Will; gauges agregados de filas/sessões/retained. Sem novas dependências.
+- HTTP limitado a 16 handlers, header 4096 bytes, read/write 1 s e probe 500 ms.
+- Documento durável, quotas e MIT preservados. Não há release 0.7 aprovada;
+  resultados e bloqueios estão no registro P43.
+
+## 0.6.0 - tag v0.6.0 local/remota verificada
 
 - Last Will MQTT3.1.1 duravel com QoS0/1/2, payload binario, retain, ACL e
   limite1024 bytes UTF-8. Queda, timeout, protocolo, takeover e cancelamento
@@ -78,3 +88,11 @@ e `2.0.0` indicará quebra dessa compatibilidade.
 
 - Transporte TLS/mTLS, autenticação usuário/senha com vínculo ao certificado,
   ACL de tópicos exatos e fluxo MQTT QoS 0.
+
+## Resultado atual P43
+
+2026-10-08:72 testes Unix, fmt/Clippy/inventário/build e6 integrações monitoring
+mais9 regressões Will PASS, com cliente independente baseline26c1019. Seis
+recusas de configuração reais também PASS. Histórico de bloqueios anteriores
+não descreve o estado atual. Mosquitto/TLS/mTLS externo NOT_RUN. Aguardar
+publicação do mantenedor; ver registro P43. Nenhuma implementação0.8 executada.

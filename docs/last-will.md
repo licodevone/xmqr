@@ -33,10 +33,11 @@ estado real foi migrado por esta implementacao; testes usam diretorios temporari
 
 ## Validacao reproduzivel
 
-Execute fmt/test/clippy/inventario e build --bins. Depois, em Linux/WSL:
+Execute fmt/test/clippy/inventario e build --bins nos dois projetos, sem compartilhar
+CARGO_TARGET_DIR para os caminhos abaixo. Depois, em Linux/WSL:
 
 ```sh
-python3 scripts/verify_last_will.py --broker target/debug/mqtt-broker --client target/debug/mqtt-client
+python3 scripts/verify_last_will.py --broker target/debug/mqtt-broker --client ../xmqr-client/target/debug/mqtt-client
 ```
 
 Fixtures socket independentes e cliente rumqttc proprio; portas loopback e

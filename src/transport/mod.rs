@@ -3,6 +3,7 @@
 //! The default path is TLS-only with mutual authentication. A deliberately
 //! named open-lab path exists only for loopback teaching labs.
 
+use crate::monitoring::{Metrics, Rejection};
 use std::{
     future::Future,
     io::{self, BufReader},
@@ -224,6 +225,7 @@ pub struct SecureTransport {
     tls_acceptor: TlsAcceptor,
     connection_slots: Arc<Semaphore>,
     next_connection_id: Arc<AtomicU64>,
+    metrics: Option<Arc<Metrics>>,
 }
 
 /// Plain TCP listener for a local teaching lab. Construction rejects every
@@ -232,6 +234,7 @@ pub struct OpenLabTransport {
     listener: TcpListener,
     connection_slots: Arc<Semaphore>,
     next_connection_id: Arc<AtomicU64>,
+    metrics: Option<Arc<Metrics>>,
 }
 
 impl SecureTransport {
@@ -246,6 +249,17 @@ impl SecureTransport {
         tls_config: Arc<ServerConfig>,
         limits: TransportLimits,
     ) -> io::Result<Self> {
+        Self::bind_observed(address, tls_config, limits, None).await
+    }
+    /// Bind with optional bounded monitoring counters.
+    /// # Errors
+    /// Same validation and socket errors as `bind`.
+    pub async fn bind_observed(
+        address: SocketAddr,
+        tls_config: Arc<ServerConfig>,
+        limits: TransportLimits,
+        metrics: Option<Arc<Metrics>>,
+    ) -> io::Result<Self> {
         if limits.max_concurrent_connections == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -259,6 +273,7 @@ impl SecureTransport {
             tls_acceptor: TlsAcceptor::from(tls_config),
             connection_slots: Arc::new(Semaphore::new(limits.max_concurrent_connections)),
             next_connection_id: Arc::new(AtomicU64::new(1)),
+            metrics,
         })
     }
 
@@ -288,7 +303,13 @@ impl SecureTransport {
                 }
             };
 
+            if let Some(metrics) = &self.metrics {
+                metrics.tcp_accepted.fetch_add(1, Ordering::Relaxed);
+            }
             let Ok(permit) = Arc::clone(&self.connection_slots).try_acquire_owned() else {
+                if let Some(metrics) = &self.metrics {
+                    metrics.reject(Rejection::Admission);
+                }
                 warn!(%peer_addr, "connection rejected because the admission limit is full");
                 drop(socket);
                 continue;
@@ -301,6 +322,7 @@ impl SecureTransport {
             let tls_acceptor = self.tls_acceptor.clone();
             let client_handler = handler.clone();
             let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
+            let metrics = self.metrics.clone();
 
             // Intentionally detached: Tokio contains task panics in the JoinHandle,
             // and catch_unwind below lets us record the failure without propagating it.
@@ -319,6 +341,9 @@ impl SecureTransport {
                 match AssertUnwindSafe(client).catch_unwind().await {
                     Ok(Ok(())) => debug!(connection_id, %peer_addr, "client task finished"),
                     Ok(Err(ClientTaskError::Transport(source))) => {
+                        if let Some(metrics) = &metrics {
+                            metrics.reject(Rejection::Transport);
+                        }
                         warn!(connection_id, %peer_addr, error = %source, "secure transport closed client");
                     }
                     Ok(Err(ClientTaskError::Handler(_))) => {
@@ -342,6 +367,16 @@ impl OpenLabTransport {
     /// Returns [`io::ErrorKind::InvalidInput`] for a non-loopback address or a
     /// zero connection limit, and otherwise returns the socket bind error.
     pub async fn bind(address: SocketAddr, limits: TransportLimits) -> io::Result<Self> {
+        Self::bind_observed(address, limits, None).await
+    }
+    /// Bind the same loopback-only listener with optional metrics.
+    /// # Errors
+    /// Same validation and socket errors as `bind`.
+    pub async fn bind_observed(
+        address: SocketAddr,
+        limits: TransportLimits,
+        metrics: Option<Arc<Metrics>>,
+    ) -> io::Result<Self> {
         if !address.ip().is_loopback() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -359,6 +394,7 @@ impl OpenLabTransport {
             listener,
             connection_slots: Arc::new(Semaphore::new(limits.max_concurrent_connections)),
             next_connection_id: Arc::new(AtomicU64::new(1)),
+            metrics,
         })
     }
 
@@ -382,7 +418,13 @@ impl OpenLabTransport {
                     continue;
                 }
             };
+            if let Some(metrics) = &self.metrics {
+                metrics.tcp_accepted.fetch_add(1, Ordering::Relaxed);
+            }
             let Ok(permit) = Arc::clone(&self.connection_slots).try_acquire_owned() else {
+                if let Some(metrics) = &self.metrics {
+                    metrics.reject(Rejection::Admission);
+                }
                 warn!(%peer_addr, "connection rejected because the admission limit is full");
                 drop(socket);
                 continue;
@@ -393,6 +435,7 @@ impl OpenLabTransport {
             }
             let client_handler = handler.clone();
             let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
+            let metrics = self.metrics.clone();
             drop(tokio::spawn(async move {
                 let _permit = permit;
                 let client = async {
@@ -405,6 +448,9 @@ impl OpenLabTransport {
                 match AssertUnwindSafe(client).catch_unwind().await {
                     Ok(Ok(())) => debug!(connection_id, %peer_addr, "client task finished"),
                     Ok(Err(ClientTaskError::Transport(source))) => {
+                        if let Some(metrics) = &metrics {
+                            metrics.reject(Rejection::Transport);
+                        }
                         warn!(connection_id, %peer_addr, error = %source, "open-lab transport closed client");
                     }
                     Ok(Err(ClientTaskError::Handler(_))) => {

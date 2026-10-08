@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-08",
+  "version": "0.7.0",
+  "release_ready": true,
+  "environment": "WSL Ubuntu-26.04 Rust/Cargo1.99; same /mnt/d tree",
+  "fmt": "PASS",
+  "test_bin_broker": 4,
+  "clippy_broker": "PASS",
+  "clippy_all_targets": "PASS_UNIX",
+  "build_bins": "PASS",
+  "license_inventory": "PASS",
+  "unix_gates": "PASS",
+  "monitoring_integration": {
+    "status": "PASS",
+    "cases": 6
+  },
+  "will_regression": {
+    "status": "PASS",
+    "cases": 9
+  },
+  "external_mosquitto_tls": "NOT_RUN",
+  "client_extraction": "STRUCTURAL_COMPLETED_BASELINE_INTEGRATION_PASS",
+  "monitoring_script_syntax": "PASS",
+  "monitoring_script_runtime": "PASS",
+  "startup_negative_process": {
+    "exit_code": 0,
+    "cases": 6,
+    "status": "PASS",
+    "state_untouched": true
+  },
+  "test_unix": {
+    "library": 64,
+    "admin": 4,
+    "broker": 4,
+    "total": 72,
+    "status": "PASS"
+  },
+  "client_baseline_commit": "26c1019",
+  "publication_done": false,
+  "next_prompt": "P44_PREPARED_NOT_EXECUTED",
+  "test_library_windows_historical": {
+    "passed": 28,
+    "failed": 25,
+    "reason": "Unix directory fsync Unsupported"
+  },
+  "test_bin_client_integrated_windows_historical": 12
+}

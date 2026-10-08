@@ -67,3 +67,32 @@ fmt/Clippy/inventario/build PASS em WSL sobre a mesma copia Windows. Documento
 MQTT v2 le v1; rollback exige backup anterior. MIT preservada. Veja
 [registro P42](registros/P42-0.6.0.md) e VALIDACAO-P42.json. Mosquitto/TLS externo
 nao executados. Proximo marco0.7 aguarda publicacao pelo mantenedor.
+
+
+## P43 - 0.7.0 em validação
+
+Base bc4cc55/tag v0.6.0 verificada. Monitoramento opcional implementado em
+monitoring.rs, com HTTP loopback limitado, probe real do ator/writer e métricas
+de labels finitos. Cargo local 0.7.0; sem novas dependências ou mudança MIT.
+Documento MQTT v2 e quotas preservados. Referências anteriores a endpoints
+ausentes descrevem a base anterior. Aceite completo/release ainda pendentes.
+Veja docs/monitoring.md e prompts/registros/P43-0.7.0.md (caminhos da raiz).
+Não avançar para 0.8, extrair clientes ou criar commit/push/tag nesta tarefa.
+
+## C25 - projetos separados
+
+Cliente independente em ../xmqr-client, pacote xmqr-client 0.7.0 local,
+binário mqtt-client. Broker contém mqtt-broker/mqtt-admin; rumqttc não integra
+mais suas dependências. Gates Windows do cliente PASS; check/build/Clippy
+all-targets do broker PASS. Integração Unix/monitor e aceite completo P43
+pendentes; não declarar release. Prompts históricos continuam referência.
+Cada melhoria do cliente segue seus próprios prompts e AGENTS. Ver registro C25.
+
+## Checkpoint P43 validado - 2026-10-08
+
+Mesmo repo via WSL/Rust1.99:72 testes e gates completos PASS,6 integrações
+monitoring e9 Will PASS, incluindo1024UTF-8/retained/offline. Cliente independente
+baseline commit26c1019 usado sem editar melhorias C26 paralelas. Bloqueios Unix
+anteriores resolvidos. MIT/quotas/documento preservados. Publicação0.7 fica com
+usuário; sem commit/push/tag aqui. P44 segurança dinâmica preparado apenas.
+Mosquitto/TLS/mTLS externo NOT_RUN; sem conformidade integral ou produção.

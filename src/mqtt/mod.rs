@@ -19,6 +19,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::time::{Instant, sleep_until};
 use tracing::{debug, warn};
 
+use crate::monitoring::{Metrics, Rejection};
 use crate::{
     auth::AccessPolicy,
     transport::{BrokerConnection, HandlerError},
@@ -29,6 +30,7 @@ use codec::{
     encode_unsuback,
 };
 use router::{AckKind, Delivery, RouterError};
+use std::sync::atomic::Ordering;
 use store::StoredMessage;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -46,6 +48,8 @@ pub async fn serve_connection(
     auth: Arc<AccessPolicy>,
     router: Arc<Router>,
 ) -> Result<(), HandlerError> {
+    let metrics = router.metrics();
+    let _connection_metric = metrics.connection();
     let mut reader = FrameReader::new(connection.take_initial_mqtt_bytes());
     let connect = reader
         .read_packet(&mut connection, Instant::now() + CONNECT_TIMEOUT)
@@ -71,6 +75,7 @@ pub async fn serve_connection(
         )
         .await?;
     let Some(principal) = principal else {
+        metrics.reject(Rejection::Authentication);
         connection
             .write_all_with_deadline(&encode_connack(5), WRITE_TIMEOUT)
             .await?;
@@ -108,7 +113,7 @@ pub async fn serve_connection(
     let mut last_inbound = Instant::now();
     let result: Result<(), HandlerError> = async {
         for delivery in session.replay.drain(..) {
-            send_delivery(&mut connection, delivery).await?;
+            send_delivery(&mut connection, delivery, &metrics).await?;
         }
         loop {
             // MQTT-3.1.2-24: disconnect after 1.5 times the advertised keep-alive.
@@ -133,7 +138,7 @@ pub async fn serve_connection(
                             }).collect();
                             let (codes, retained) = router.subscribe(&session, requested).await?;
                             connection.write_all_with_deadline(&encode_suback(packet_id, &codes), WRITE_TIMEOUT).await?;
-                            for delivery in retained { send_delivery(&mut connection, delivery).await?; }
+                            for delivery in retained { send_delivery(&mut connection, delivery, &metrics).await?; }
                         }
                         Packet::Unsubscribe { packet_id, filters } => {
                             router.unsubscribe(&session, filters).await?;
@@ -143,6 +148,7 @@ pub async fn serve_connection(
                             // DUP is a PUBLISH retransmission hint, not an application dedup key.
                             let _ = dup;
                             if !auth.allowed_publish(&principal, topic.as_str()) {
+                                metrics.reject(Rejection::Authorization);
                                 warn!(connection_id=connection.id(), "unauthorized publish; closing client");
                                 break;
                             }
@@ -161,17 +167,17 @@ pub async fn serve_connection(
                         }
                         Packet::PubAck(id) => {
                             for delivery in router.ack(&session, AckKind::Ack, id).await? {
-                                send_delivery(&mut connection, delivery).await?;
+                                send_delivery(&mut connection, delivery, &metrics).await?;
                             }
                         }
                         Packet::PubRec(id) => {
                             for delivery in router.ack(&session, AckKind::Rec, id).await? {
-                                send_delivery(&mut connection, delivery).await?;
+                                send_delivery(&mut connection, delivery, &metrics).await?;
                             }
                         }
                         Packet::PubComp(id) => {
                             for delivery in router.ack(&session, AckKind::Comp, id).await? {
-                                send_delivery(&mut connection, delivery).await?;
+                                send_delivery(&mut connection, delivery, &metrics).await?;
                             }
                         }
                         Packet::PingReq => connection.write_all_with_deadline(&encode_pingresp(), WRITE_TIMEOUT).await?,
@@ -181,7 +187,7 @@ pub async fn serve_connection(
                 }
                 outbound = session.outbound.recv() => {
                     let Some(delivery) = outbound else { break; };
-                    send_delivery(&mut connection, delivery).await?;
+                    send_delivery(&mut connection, delivery, &metrics).await?;
                 }
             }
         }
@@ -202,6 +208,7 @@ pub async fn serve_connection(
 async fn send_delivery(
     connection: &mut BrokerConnection,
     delivery: Delivery,
+    metrics: &Metrics,
 ) -> Result<(), HandlerError> {
     let bytes = match delivery {
         Delivery::Publish {
@@ -221,5 +228,8 @@ async fn send_delivery(
     connection
         .write_all_with_deadline(&bytes, WRITE_TIMEOUT)
         .await?;
+    if bytes[0] >> 4 == 3 {
+        metrics.sent[usize::from((bytes[0] >> 1) & 3)].fetch_add(1, Ordering::Relaxed);
+    }
     Ok(())
 }

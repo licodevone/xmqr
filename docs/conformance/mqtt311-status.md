@@ -67,3 +67,29 @@ em store.rs:296; release 0.5 nao aprovada. Veja registro P41.
 MQTT-3.1.2-8..17/-24, MQTT-3.1.3-1 e MQTT-3.14.4-3 fundamentam
 codec, fechamento e transicao duravel. Veja [Last Will](../last-will.md) e
 [registro P42](../../prompts/registros/P42-0.6.0.md) para resultados reais.
+
+## P43 - monitoramento opcional, validado localmente
+
+Observabilidade não altera o contrato MQTT, formato durável ou quotas.
+
+| Área | Evidência atual | Pendência |
+| --- | --- | --- |
+| Configuração loopback/porta/booleano | seis recusas reais Windows/Unix PASS, endpoints Unix PASS | ampliar testes de carga |
+| Labels finitos e gauge de conexões | unitários e contadores sob tráfego Unix PASS | ampliar carga/conexões |
+| Readiness do ator/writer e teardown | asserções Unix PASS, incluindo ator/writer encerrados | não comprova espaço livre/energia |
+| QoS/retained/offline/Will 1024 UTF-8 com métricas | seis integrações HTTP/MQTT PASS | Mosquitto/TLS externo NOT_RUN |
+| Regressão Will com cliente separado | nove integrações Unix PASS, baseline independente26c1019 | alterações C26 não cobertas por esta baseline |
+
+Broker/admin e cliente estão em projetos separados, ambos inicialmente 0.7.0
+local. Limite 1024 UTF-8 é contrato comum com constantes locais, sem dependência
+do cliente no crate broker. Gates Windows não demonstram durabilidade Unix.
+Registro P43 contém o aceite local; publicação 0.7 aguarda o mantenedor.
+
+## Checkpoint P43 validado - 2026-10-08
+
+Mesmo repo via WSL/Rust1.99:72 testes e gates completos PASS,6 integrações
+monitoring e9 Will PASS, incluindo1024UTF-8/retained/offline. Cliente independente
+baseline commit26c1019 usado sem editar melhorias C26 paralelas. Bloqueios Unix
+anteriores resolvidos. MIT/quotas/documento preservados. Publicação0.7 fica com
+usuário; sem commit/push/tag aqui. P44 segurança dinâmica preparado apenas.
+Mosquitto/TLS/mTLS externo NOT_RUN; sem conformidade integral ou produção.

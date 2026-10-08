@@ -9,6 +9,9 @@ use super::{StorageError, Store};
 const MAILBOX_CAPACITY: usize = 256;
 
 enum Command {
+    Probe {
+        reply: oneshot::Sender<Result<(), StorageError>>,
+    },
     Put {
         key: Vec<u8>,
         value: Vec<u8>,
@@ -54,6 +57,9 @@ impl PersistenceHandle {
             .spawn(move || {
                 while let Some(command) = receiver.blocking_recv() {
                     match command {
+                        Command::Probe { reply } => {
+                            let _ = reply.send(store.ensure_writable());
+                        }
                         Command::Put { key, value, reply } => {
                             let _ = reply.send(store.put(&key, &value));
                         }
@@ -79,6 +85,15 @@ impl PersistenceHandle {
             })
             .map_err(StorageError::Io)?;
         Ok(Self { sender })
+    }
+
+    /// Check the existing writer's availability and last writable state.
+    /// # Errors
+    /// Returns a fatal writer error or a closed mailbox; performs no disk write.
+    pub async fn probe(&self) -> Result<(), StorageError> {
+        let (reply, result) = oneshot::channel();
+        self.send(Command::Probe { reply }).await?;
+        result.await.map_err(|_| closed())?
     }
 
     /// Commit an upsert; successful return means the WAL has been synced.
@@ -146,4 +161,17 @@ fn closed() -> StorageError {
         io::ErrorKind::BrokenPipe,
         "persistence writer is unavailable",
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn probe_detects_writer_shutdown_without_copying_or_writing_state() {
+        let directory = tempfile::tempdir().unwrap();
+        let writer = PersistenceHandle::start(directory.path()).unwrap();
+        writer.probe().await.unwrap();
+        writer.clone().shutdown().await.unwrap();
+        assert!(writer.probe().await.is_err());
+    }
 }

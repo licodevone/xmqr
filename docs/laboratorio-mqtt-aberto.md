@@ -14,7 +14,8 @@ Abra o Ubuntu/WSL e execute:
 ```bash
 cd /caminho/para/xmqr
 export CARGO_TARGET_DIR="$HOME/.cache/mqtt-broker-target"
-cargo build --locked --release --bin mqtt-broker --bin mqtt-client --bin mqtt-admin
+cargo build --locked --release --bin mqtt-broker --bin mqtt-admin
+cargo build --manifest-path ../xmqr-client/Cargo.toml --locked --release --bin mqtt-client
 ```
 
 ## 2. Terminal 1 — iniciar o broker

@@ -22,8 +22,7 @@ não instrução de execução nem prova dos commits do XMQR.
 ## Estado e invariantes
 
 O snapshot atual declara mqtt-broker 0.6.0 local, Rust 2024/MSRV 1.88 e Tokio; confira
-manifests/código antes de reutilizar esses números. Binários: mqtt-broker,
-mqtt-client (rumqttc) e mqtt-admin. O pacote usa módulos; não criar workspace
+manifests/código antes de reutilizar esses números. Binários neste pacote: mqtt-broker e mqtt-admin. O cliente mqtt-client (rumqttc) pertence ao projeto independente ../xmqr-client. O pacote usa módulos; não criar workspace
 multicrate sem necessidade autorizada.
 
 MQTT 3.1.1: QoS 0/1/2, retained, sessões persistentes, UNSUBSCRIBE, filtros +/#
@@ -87,3 +86,32 @@ implementado em codec/handler/ator com pending_wills duravel no documento v2
 anteriores a Will ausente e documento MQTT v1 descrevem a base anterior.
 Veja docs/last-will.md e registro P42. Proximo marco aguarda publicacao pelo
 mantenedor; nenhuma tag/release criada aqui. MQTT5 continua fora do escopo.
+
+
+## P43 - 0.7.0 em validação
+
+Base bc4cc55/tag v0.6.0 verificada. Monitoramento opcional implementado em
+monitoring.rs, com HTTP loopback limitado, probe real do ator/writer e métricas
+de labels finitos. Cargo local 0.7.0; sem novas dependências ou mudança MIT.
+Documento MQTT v2 e quotas preservados. Referências anteriores a endpoints
+ausentes descrevem a base anterior. Aceite completo/release ainda pendentes.
+Veja docs/monitoring.md e prompts/registros/P43-0.7.0.md (caminhos da raiz).
+Não avançar para 0.8, extrair clientes ou criar commit/push/tag nesta tarefa.
+
+## Separação estrutural C25
+
+Cliente extraído para ../xmqr-client, versão local inicial 0.7.0, binário
+mqtt-client. Broker contém somente mqtt-broker e mqtt-admin; rumqttc removido
+do manifest do broker. Prompts e registro do cliente governam suas melhorias.
+Integrações Unix entre os projetos continuam pendentes; não confundir separação
+validada por builds com aceite completo P43. Fonte original tem backup e hashes
+em ORIGIN.json do cliente, além do histórico Git do broker.
+
+## Checkpoint P43 validado - 2026-10-08
+
+Mesmo repo via WSL/Rust1.99:72 testes e gates completos PASS,6 integrações
+monitoring e9 Will PASS, incluindo1024UTF-8/retained/offline. Cliente independente
+baseline commit26c1019 usado sem editar melhorias C26 paralelas. Bloqueios Unix
+anteriores resolvidos. MIT/quotas/documento preservados. Publicação0.7 fica com
+usuário; sem commit/push/tag aqui. P44 segurança dinâmica preparado apenas.
+Mosquitto/TLS/mTLS externo NOT_RUN; sem conformidade integral ou produção.

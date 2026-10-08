@@ -7,6 +7,7 @@ use std::{
 
 use mqtt_broker::{
     auth::{AccessPolicy, AuthPolicy},
+    monitoring::{Config as MonitorConfig, Metrics, Monitor},
     mqtt::{self, Router},
     transport::{
         MtlsFiles, OpenLabTransport, SecureTransport, TransportLimits, load_mtls_server_config,
@@ -23,6 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .compact()
         .init();
 
+    let monitor_config = MonitorConfig::from_env()?;
+    let metrics = Arc::new(Metrics::default());
     let mode = BrokerMode::from_env()?;
     let bind_address: SocketAddr = env::var("MQTT_BIND")
         .unwrap_or_else(|_| mode.default_bind().to_owned())
@@ -37,6 +40,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         max_concurrent_connections: 64,
     };
 
+    serve(
+        mode,
+        bind_address,
+        state_directory,
+        limits,
+        monitor_config,
+        metrics,
+    )
+    .await
+}
+
+async fn serve(
+    mode: BrokerMode,
+    bind_address: SocketAddr,
+    state_directory: PathBuf,
+    limits: TransportLimits,
+    monitor_config: MonitorConfig,
+    metrics: Arc<Metrics>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     match mode {
         BrokerMode::SecureMtls => {
             let tls_config = load_mtls_server_config(&MtlsFiles {
@@ -49,8 +71,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 &required_path("MQTT_USERS_FILE")?,
                 &required_path("MQTT_ACL_FILE")?,
             )?));
-            let router = Arc::new(Router::start(&state_directory, Arc::clone(&auth)).await?);
-            let transport = SecureTransport::bind(bind_address, tls_config, limits).await?;
+            let router = start_router(&state_directory, &auth, &metrics).await?;
+            let transport = SecureTransport::bind_observed(
+                bind_address,
+                tls_config,
+                limits,
+                Some(metrics.clone()),
+            )
+            .await?;
+            metrics.set_listener_ready(true);
+            let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             info!(%bind_address, "secure MQTT listener started");
             transport
                 .serve(move |connection| {
@@ -62,8 +92,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
         BrokerMode::OpenLab => {
             let auth = Arc::new(AccessPolicy::open_lab());
-            let router = Arc::new(Router::start(&state_directory, Arc::clone(&auth)).await?);
-            let transport = OpenLabTransport::bind(bind_address, limits).await?;
+            let router = start_router(&state_directory, &auth, &metrics).await?;
+            let transport =
+                OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
+                    .await?;
+            metrics.set_listener_ready(true);
+            let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "OPEN LAB listener started without TLS, authentication or ACL; loopback only");
             transport
                 .serve(move |connection| {
@@ -77,8 +111,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let auth = Arc::new(AccessPolicy::password_lab(AuthPolicy::load_passwords(
                 &required_path("MQTT_USERS_FILE")?,
             )?));
-            let router = Arc::new(Router::start(&state_directory, Arc::clone(&auth)).await?);
-            let transport = OpenLabTransport::bind(bind_address, limits).await?;
+            let router = start_router(&state_directory, &auth, &metrics).await?;
+            let transport =
+                OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
+                    .await?;
+            metrics.set_listener_ready(true);
+            let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "PASSWORD LAB listener started without TLS or ACL; credentials are plaintext on the wire; loopback only");
             transport
                 .serve(move |connection| {
@@ -93,8 +131,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 &required_path("MQTT_USERS_FILE")?,
                 &required_path("MQTT_ACL_FILE")?,
             )?));
-            let router = Arc::new(Router::start(&state_directory, Arc::clone(&auth)).await?);
-            let transport = OpenLabTransport::bind(bind_address, limits).await?;
+            let router = start_router(&state_directory, &auth, &metrics).await?;
+            let transport =
+                OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
+                    .await?;
+            metrics.set_listener_ready(true);
+            let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "ACL LAB listener started without TLS; credentials are plaintext on the wire; loopback only");
             transport
                 .serve(move |connection| {
@@ -107,6 +149,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     Ok(())
+}
+
+async fn start_router(
+    directory: &Path,
+    auth: &Arc<AccessPolicy>,
+    metrics: &Arc<Metrics>,
+) -> Result<Arc<Router>, mqtt_broker::transport::HandlerError> {
+    Router::start_observed(directory, auth.clone(), metrics.clone())
+        .await
+        .map(Arc::new)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

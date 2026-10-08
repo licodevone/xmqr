@@ -1,6 +1,6 @@
 [package]
 name = "mqtt-broker"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.88"
 publish = false
@@ -21,7 +21,6 @@ rand_core = { version = "0.6.4", features = ["getrandom"] }
 rpassword = "7.5.4"
 rustls = { version = "0.23.45", default-features = false, features = ["aws_lc_rs", "logging", "prefer-post-quantum", "std", "tls12"] }
 rustls-pemfile = "2.2.0"
-rumqttc = { version = "=0.25.1", default-features = false, features = ["use-rustls-no-provider"] }
 serde = { version = "1.0.228", features = ["derive"] }
 sha2 = "0.10.9"
 subtle = "2.6.1"

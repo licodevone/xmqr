@@ -46,3 +46,21 @@ versão e não poderá alterar silenciosamente o comportamento 3.1.1.
 
 Veja [plano de versoes](incremental-versions.md). Implementacao seguinte espera
 publicacao/resolucao do marco atual pelo mantenedor. MQTT5 nao pertence ao escopo.
+
+## Sequência após checkpoint0.7
+
+- 0.7: monitoramento opcional validado localmente; publicação pendente.
+- 0.8: segurança dinâmica, reload atômico de usuários/ACL e grupos/papéis,
+  em fatias P44a/P44b antes da publicação. Prompt44 preparado, não executado.
+- 0.9: backup/restore verificável, após segurança dinâmica validada.
+- 0.10: quotas/rate limits configuráveis por identidade, preservando defaults.
+- 0.11: WebSocket com limites/TLS/autenticação e regressão TCP existente.
+- 0.12: bridge MQTT com identidade própria, reconexão limitada, prevenção de
+  loops e política explícita de retenção/QoS; prompt próprio antes do código.
+- MQTT5: introdução posterior por recursos negociados e coexistência3.1.1,
+  começando por desenho/codec/negativos; sem promessa de versão/data/conformidade.
+
+Referência funcional: https://mosquitto.org/documentation/dynamic-security/
+e https://mosquitto.org/man/mosquitto-conf-5.html. Não copiar API/formato/implementação
+nem executar todos os marcos de uma vez. MIT preservada; cada marco tem gates
+e publicação/revisão próprios. Próxima implementação aguarda checkpoint0.7.

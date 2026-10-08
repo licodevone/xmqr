@@ -6,7 +6,8 @@ adicionados apenas quando puderem ser isolados e verificados sem enfraquecer o
 núcleo 3.1.1.
 
 **Nome do projeto:** XMQR. Durante a série `0.x`, o crate e os executáveis
-continuam com os nomes compatíveis `mqtt-broker`, `mqtt-client` e `mqtt-admin`.
+mantêm `mqtt-broker` e `mqtt-admin`. O cliente independente `xmqr-client` mantém
+o binário compatível `mqtt-client`.
 
 > **Estado do projeto:** experimental. XMQR ainda não declara conformidade MQTT
 > 3.1.1 completa nem prontidão para produção. Last Will existe na 0.6 local; ainda
@@ -29,7 +30,8 @@ continuam com os nomes compatíveis `mqtt-broker`, `mqtt-client` e `mqtt-admin`.
 | `0.3.x` | manutenção | laboratório QoS 0 aberto, anônimo e restrito a loopback |
 | `0.4.x` | estável experimental | laboratórios com senha e com ACL; CRUD administrativo de usuários |
 | `0.5.x` | tag v0.5.0 verificada | filtros `+`/`#`, regra `$` e testes com Mosquitto |
-| `0.6.x` | gates locais aprovados, aguardando publicacao | retained revisado e Last Will duravel |
+| `0.6.x` | tag v0.6.0 local/remota verificada | retained revisado e Last Will duravel |
+| `0.7.x` | gates Unix e integrações aprovados, aguardando publicação | monitoramento HTTP opcional |
 
 Versões publicadas são identificadas por tags anotadas, por exemplo
 `v0.4.0`. As branches `release/0.3` e `release/0.4` existem apenas para
@@ -83,13 +85,14 @@ Requisitos:
 - Linux ou WSL2 para o fluxo administrativo atômico;
 - OpenSSL apenas para preparar certificados do modo seguro.
 
-Compile os três binários:
+Compile broker/admin e o cliente independente na pasta vizinha:
 
 ```bash
 git clone https://github.com/licodevone/xmqr.git
 cd xmqr
 export CARGO_TARGET_DIR="$HOME/.cache/xmqr-target"
 cargo build --locked --release --bins
+cargo build --manifest-path ../xmqr-client/Cargo.toml --locked --release --bin mqtt-client
 ```
 
 No primeiro terminal, inicie o broker local sem autenticação:
@@ -216,7 +219,7 @@ src/auth/            autenticação, identidades e ACL
 src/mqtt/            codec, máquina de conexão, roteamento e sessões
 src/persistence/     WAL, snapshots e ator de persistência
 src/transport/       TCP local e TLS/mTLS
-src/bin/mqtt-client  cliente manual de publicação e assinatura
+../xmqr-client/      projeto independente do cliente MQTT
 src/bin/mqtt-admin   administração segura de usuários
 configs/             configurações-modelo sem segredos
 docs/                arquitetura, segurança, conformidade e laboratórios
@@ -252,3 +255,17 @@ O XMQR é distribuído sob a licença MIT. Consulte o arquivo
 As dependências conservam suas licenças originais. Consulte o
 [inventário](docs/third-party-licenses.md) e a
 [política de distribuição](docs/licensing.md).
+
+## Monitoramento opcional
+
+P43 adiciona `/health`, `/ready` e `/metrics`, desabilitados por padrão e
+restritos a loopback. Consulte [configuração e semântica](docs/monitoring.md).
+Gates Unix e integrações locais aprovados; publicação 0.7 aguarda o mantenedor.
+
+## Resultado atual P43
+
+2026-10-08:72 testes Unix, fmt/Clippy/inventário/build e6 integrações monitoring
+mais9 regressões Will PASS, com cliente independente baseline26c1019. Seis
+recusas de configuração reais também PASS. Histórico de bloqueios anteriores
+não descreve o estado atual. Mosquitto/TLS/mTLS externo NOT_RUN. Aguardar
+publicação do mantenedor; ver registro P43. Nenhuma implementação0.8 executada.
