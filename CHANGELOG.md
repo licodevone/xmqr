@@ -1,6 +1,19 @@
 # Histórico de versões
 
-## 0.9.0 — candidato local, tag sugerida v0.9.0
+## 0.10.0 — systemd e Ubuntu 26.04
+
+- Tratamento SIGTERM/SIGINT e integração com systemctl.
+- Pacote .deb amd64 para Ubuntu26.04, sem ativação automática.
+- Configuração e dados preservados; guia de instalação, upgrade e remoção.
+- Release experimental com pacote e SHA-256; sem repositório APT próprio.
+- Parada durável: Wills, sessões, snapshot e shutdown do writer.
+- Evidência: prompts/registros/P47-systemd-ubuntu.md.
+
+## Histórico dos marcos anteriores
+
+# Histórico de versões
+
+## 0.9.0 — tag publicada v0.9.0
 
 - P45: `mqtt-admin state backup|verify|restore` para o estado durável MQTT offline.
 - P46: imagem Docker Debian slim multi-stage, com usuário sem privilégios, broker
@@ -28,7 +41,7 @@ e `2.0.0` indicará quebra dessa compatibilidade.
 
 
 
-## 0.8.0 - marco local validado, sem publicação
+## 0.8.0 — tag publicada v0.8.0
 
 
 
@@ -44,7 +57,7 @@ e `2.0.0` indicará quebra dessa compatibilidade.
 
 
 
-## 0.7.0 - gates aprovados, aguardando publicação
+## 0.7.0 — tag publicada v0.7.0
 
 
 
@@ -208,7 +221,7 @@ e `2.0.0` indicará quebra dessa compatibilidade.
 
 
 
-## Resultado atual P43
+## Registro histórico P43
 
 
 

@@ -78,6 +78,9 @@ struct Actor {
 }
 
 enum Command {
+    Shutdown {
+        reply: oneshot::Sender<Result<(), RouterError>>,
+    },
     #[cfg_attr(not(unix), allow(dead_code))]
     SecurityReload {
         candidate: AuthPolicy,
@@ -192,6 +195,18 @@ impl Drop for ConnectionGuard {
 }
 
 impl Router {
+    /// Drain prior commands, preserve sessions, publish Wills and stop storage.
+    /// # Errors
+    /// Returns an error when the actor or durable storage cannot complete shutdown.
+    pub async fn shutdown(&self) -> Result<(), HandlerError> {
+        let (reply, result) = oneshot::channel();
+        self.send(Command::Shutdown { reply }).await?;
+        result
+            .await
+            .map_err(|_| RouterError::Unavailable)?
+            .map_err(Into::into)
+    }
+
     pub(super) fn connection_guard(&self, session: &Session) -> ConnectionGuard {
         ConnectionGuard {
             router: self.clone(),
@@ -274,6 +289,13 @@ impl Router {
                 commits_since_snapshot: 0,
             };
             while let Some(command) = receiver.recv().await {
+                if let Command::Shutdown { reply } = command {
+                    receiver.close();
+                    let result = actor.shutdown().await;
+                    actor.fail_closed();
+                    let _ = reply.send(result);
+                    break;
+                }
                 actor.handle(command).await;
                 if actor.fatal {
                     break;
@@ -471,6 +493,29 @@ impl Router {
 }
 
 impl Actor {
+    async fn shutdown(&mut self) -> Result<(), RouterError> {
+        // Server stop is not a client DISCONNECT (MQTT-3.1.2-8/-10).
+        // Publish all Wills against an offline view so durable subscribers
+        // retain deliveries instead of losing them with the closing sockets.
+        let mut candidate = self.state.clone();
+        candidate.sessions.retain(|_, session| session.persistent);
+        let mut published = 0;
+        for will in std::mem::take(&mut candidate.pending_wills).into_values() {
+            if self
+                .auth
+                .allowed_publish(&will.principal, will.message.topic.as_str())
+            {
+                apply_message(&mut candidate, &BTreeMap::new(), &self.auth, &will.message)?;
+                published += 1;
+            }
+        }
+        self.commit(candidate).await?;
+        self.metrics.wills.fetch_add(published, Ordering::Relaxed);
+        self.store.snapshot().await?;
+        self.store.shutdown().await?;
+        Ok(())
+    }
+
     async fn reload_security(&mut self, policy: AuthPolicy) -> Result<u64, RouterError> {
         let dynamic = self.auth.dynamic().ok_or(RouterError::Security)?;
         if dynamic.generation() == u64::MAX {
@@ -524,6 +569,7 @@ impl Actor {
     }
     async fn handle(&mut self, command: Command) {
         match command {
+            Command::Shutdown { .. } => unreachable!("shutdown handled by actor loop"),
             #[cfg(test)]
             Command::Stop => self.fail_closed(),
             Command::Probe { reply } => {

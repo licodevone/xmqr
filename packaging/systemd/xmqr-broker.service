@@ -1,0 +1,27 @@
+[Unit]
+Description=XMQR experimental MQTT broker
+After=network.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=xmqr
+Group=xmqr
+EnvironmentFile=/etc/xmqr/broker.env
+ExecStart=/usr/bin/mqtt-broker
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+StateDirectory=xmqr
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

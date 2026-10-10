@@ -7,8 +7,8 @@ O processo roda como UID/GID 10001. Nenhum certificado ou credencial é copiado
 para a imagem.
 
 ```sh
-docker build -t xmqr-broker:0.9.0 .
-docker image inspect xmqr-broker:0.9.0 --format '{{.Config.User}}'
+docker build -t xmqr-broker:0.10.0 .
+docker image inspect xmqr-broker:0.10.0 --format '{{.Config.User}}'
 ```
 
 O padrão é `secure-mtls` na porta 8883, vinculado a todas as interfaces do
@@ -28,7 +28,7 @@ docker run -d --name xmqr-broker \
   -e MQTT_SERVER_KEY=/run/secrets/server.key \
   -e MQTT_CLIENT_CA=/run/secrets/clients-ca.crt \
   -e MQTT_SECURITY_BUNDLE=/run/secrets/security.toml \
-  xmqr-broker:0.9.0
+  xmqr-broker:0.10.0
 ```
 
 O volume guarda WAL, snapshot e marcador do perfil. Não compartilhe o mesmo
@@ -50,7 +50,7 @@ backup. A imagem inclui o texto MIT e o inventário de dependências; ao redistr
 preserve também os avisos/licenças de terceiros aplicáveis aos componentes.
 
 ```sh
-docker run --rm --entrypoint /usr/local/bin/mqtt-admin xmqr-broker:0.9.0 --help
+docker run --rm --entrypoint /usr/local/bin/mqtt-admin xmqr-broker:0.10.0 --help
 ```
 
 Não há `HEALTHCHECK` nesta imagem: o endpoint `/ready` é opcional e loopback, e

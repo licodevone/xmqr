@@ -128,3 +128,11 @@ A versÃ£o aguarda registro dos gates finais; nÃ£o hÃ¡ publicaÃ§Ã£o aut
 DocumentaÃ§Ã£o: docs/security/dynamic-security.md; evidÃªncia:
 prompts/registros/P44-0.8.0.md (caminhos relativos Ã  raiz do repositÃ³rio).
 ReferÃªncias anteriores a P44 apenas preparado descrevem checkpoints histÃ³ricos.
+
+
+## Checkpoint atual — systemd/Ubuntu26
+
+P47 (broker0.10.0) / C31 (client0.5.0): integração systemd e pacote deb
+Ubuntu26.04 amd64. Tags0.9/0.4 são publicadas e imutáveis. Seções anteriores
+são históricas. Ver docs/ubuntu-systemd.md e registros de validação atuais.
+Commit/push/prerelease desta etapa autorizados explicitamente pelo usuário.

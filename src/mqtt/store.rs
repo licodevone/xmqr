@@ -197,7 +197,6 @@ impl MqttStore {
     }
 
     /// Drain and stop the dedicated storage writer.
-    #[cfg(test)]
     pub async fn shutdown(&self) -> Result<(), StateError> {
         self.writer.clone().shutdown().await?;
         Ok(())

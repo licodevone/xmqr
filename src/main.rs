@@ -52,6 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     .await
 }
 
+#[allow(clippy::too_many_lines)] // Keep each security profile's startup and stop boundary explicit.
 async fn serve(
     mode: BrokerMode,
     bind_address: SocketAddr,
@@ -81,13 +82,17 @@ async fn serve(
             metrics.set_listener_ready(true);
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             info!(%bind_address, "secure MQTT listener started");
-            transport
-                .serve(move |connection| {
+            let shutdown_router = router.clone();
+            run_until_shutdown(
+                transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
                     let router = Arc::clone(&router);
                     async move { mqtt::serve_connection(connection, auth, router).await }
-                })
-                .await?;
+                }),
+                shutdown_router,
+                metrics.clone(),
+            )
+            .await?;
         }
         BrokerMode::OpenLab => {
             let auth = Arc::new(AccessPolicy::open_lab());
@@ -99,13 +104,17 @@ async fn serve(
             metrics.set_listener_ready(true);
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "OPEN LAB listener started without TLS, authentication or ACL; loopback only");
-            transport
-                .serve(move |connection| {
+            let shutdown_router = router.clone();
+            run_until_shutdown(
+                transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
                     let router = Arc::clone(&router);
                     async move { mqtt::serve_connection(connection, auth, router).await }
-                })
-                .await?;
+                }),
+                shutdown_router,
+                metrics.clone(),
+            )
+            .await?;
         }
         BrokerMode::PasswordLab => {
             let auth = Arc::new(AccessPolicy::password_lab(AuthPolicy::load_passwords(
@@ -119,13 +128,17 @@ async fn serve(
             metrics.set_listener_ready(true);
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "PASSWORD LAB listener started without TLS or ACL; credentials are plaintext on the wire; loopback only");
-            transport
-                .serve(move |connection| {
+            let shutdown_router = router.clone();
+            run_until_shutdown(
+                transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
                     let router = Arc::clone(&router);
                     async move { mqtt::serve_connection(connection, auth, router).await }
-                })
-                .await?;
+                }),
+                shutdown_router,
+                metrics.clone(),
+            )
+            .await?;
         }
         BrokerMode::AclLab => {
             let auth = load_policy(false).await?;
@@ -137,16 +150,57 @@ async fn serve(
             metrics.set_listener_ready(true);
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "ACL LAB listener started without TLS; credentials are plaintext on the wire; loopback only");
-            transport
-                .serve(move |connection| {
+            let shutdown_router = router.clone();
+            run_until_shutdown(
+                transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
                     let router = Arc::clone(&router);
                     async move { mqtt::serve_connection(connection, auth, router).await }
-                })
-                .await?;
+                }),
+                shutdown_router,
+                metrics.clone(),
+            )
+            .await?;
         }
     }
 
+    Ok(())
+}
+
+async fn shutdown_signal() -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => result,
+            _ = terminate.recv() => Ok(()),
+        }
+    }
+    #[cfg(not(unix))]
+    tokio::signal::ctrl_c().await
+}
+
+async fn run_until_shutdown(
+    serving: impl std::future::Future<Output = io::Result<()>>,
+    router: Arc<Router>,
+    metrics: Arc<Metrics>,
+) -> Result<(), mqtt_broker::transport::HandlerError> {
+    // Drop the accept loop/listener before queuing the actor shutdown barrier.
+    {
+        tokio::pin!(serving);
+        tokio::select! {
+            biased;
+            signal = shutdown_signal() => signal?,
+            result = &mut serving => result?,
+        }
+    }
+    metrics.set_listener_ready(false);
+    info!("stopping listener and durable session actor");
+    tokio::time::timeout(std::time::Duration::from_secs(15), router.shutdown())
+        .await
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "broker shutdown timed out"))??;
+    info!("durable broker shutdown complete");
     Ok(())
 }
 

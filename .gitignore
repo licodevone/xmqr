@@ -15,3 +15,5 @@ acl.toml
 *.snapshot.tmp
 *.db
 state.lock
+/dist/
+__pycache__/
