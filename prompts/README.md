@@ -55,6 +55,7 @@ Leia [relatório](RELATORIO.md), [origem](origem/README-preservacao.md),
 - [39-persistencia-recuperacao-e-resiliencia](broker/39-persistencia-recuperacao-e-resiliencia.md)
 - [40-licencas-ci-versionamento-e-sincronizacao](broker/40-licencas-ci-versionamento-e-sincronizacao.md)
 - [45-backup-restore](broker/45-backup-restore.md) — candidato 0.9.0, execução autorizada.
+- [46-container-docker](broker/46-container-docker.md) — imagem local 0.9.0 construída e smoke testada; [registro](registros/P46-docker.md).
 
 ## Cliente Rust
 

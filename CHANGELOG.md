@@ -3,11 +3,14 @@
 ## 0.9.0 — candidato local, tag sugerida v0.9.0
 
 - P45: `mqtt-admin state backup|verify|restore` para o estado durável MQTT offline.
+- P46: imagem Docker Debian slim multi-stage, com usuário sem privilégios, broker
+  e `mqtt-admin`; imagem local `xmqr-broker:0.9.0`, sem envio a registry.
 - Backup compacta o WAL, guarda manifest TOML e SHA-256; verify testa recuperação
   em cópia temporária; restore só publica num diretório novo e nunca sobrescreve.
 - Arquivos 0600 e diretórios 0700 em Unix. Bundle dinâmico, TLS e configuração
   externa não estão incluídos; backup/restore durável requer Linux/WSL.
-- Evidência: `prompts/registros/P45-0.9.0.md`; gates Linux/WSL aprovados.
+- Evidências: `prompts/registros/P45-0.9.0.md` e `P46-docker.md`;
+  gates Linux/WSL e build Docker aprovados.
 
 
 

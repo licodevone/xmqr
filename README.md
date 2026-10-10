@@ -63,6 +63,8 @@ A tag publicada mais recente é `v0.8.0`, com segurança dinâmica por bundle
 privado e reload local por SIGHUP. O próximo candidato é `0.9.0`: backup
 offline verificável e restauração em diretório novo. O backup exige broker
 parado e Linux/WSL; consulte [persistência](docs/architecture/persistence.md).
+A imagem local, parâmetros de segurança e montagem dos volumes estão em
+[Docker](docs/docker.md); não há publicação de imagem nesta etapa.
 
 ## Funcionalidades MQTT 3.1.1
 
