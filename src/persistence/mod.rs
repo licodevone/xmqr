@@ -4,6 +4,7 @@
 //! Tokio tasks so filesystem calls never block a runtime worker.
 
 pub mod actor;
+pub mod backup;
 
 use std::{
     collections::BTreeMap,

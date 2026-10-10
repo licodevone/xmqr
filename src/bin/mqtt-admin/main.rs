@@ -1,5 +1,6 @@
 //! Local-only helper for preparing broker authentication configuration.
 
+mod state;
 mod users;
 
 use std::{
@@ -66,6 +67,41 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             Ok(())
         }
+        [
+            _,
+            group,
+            command,
+            state_flag,
+            state_dir,
+            destination_flag,
+            destination,
+        ] if group == "state"
+            && command == "backup"
+            && state_flag == "--state-dir"
+            && destination_flag == "--destination" =>
+        {
+            state::backup(Path::new(state_dir), Path::new(destination))
+        }
+        [_, group, command, backup_flag, backup]
+            if group == "state" && command == "verify" && backup_flag == "--backup" =>
+        {
+            state::verify(Path::new(backup))
+        }
+        [
+            _,
+            group,
+            command,
+            backup_flag,
+            backup,
+            state_flag,
+            state_dir,
+        ] if group == "state"
+            && command == "restore"
+            && backup_flag == "--backup"
+            && state_flag == "--state-dir" =>
+        {
+            state::restore(Path::new(backup), Path::new(state_dir))
+        }
         _ => usage(),
     }
 }
@@ -115,7 +151,7 @@ fn required_utf8<'a>(value: &'a std::ffi::OsStr, kind: &str) -> Result<&'a str, 
 
 fn usage() -> Result<(), Box<dyn Error>> {
     eprintln!(
-        "Uso:\n  mqtt-admin user create --users-file ARQUIVO --username USUARIO\n  mqtt-admin user list --users-file ARQUIVO\n  mqtt-admin user update-password --users-file ARQUIVO --username USUARIO\n  mqtt-admin user delete --users-file ARQUIVO --username USUARIO\n  mqtt-admin hash-password\n  mqtt-admin fingerprint <client.crt>"
+        "Uso:\n  mqtt-admin user create --users-file ARQUIVO --username USUARIO\n  mqtt-admin user list --users-file ARQUIVO\n  mqtt-admin user update-password --users-file ARQUIVO --username USUARIO\n  mqtt-admin user delete --users-file ARQUIVO --username USUARIO\n  mqtt-admin state backup --state-dir DIR --destination NOVO_DIR\n  mqtt-admin state verify --backup DIR\n  mqtt-admin state restore --backup DIR --state-dir NOVO_DIR\n  mqtt-admin hash-password\n  mqtt-admin fingerprint <client.crt>"
     );
     std::process::exit(2);
 }

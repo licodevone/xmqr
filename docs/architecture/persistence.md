@@ -44,6 +44,31 @@ em diretório separado. Não reverta WAL e snapshot parcialmente.
 
 Antes de atualizar uma instância, pare o broker e faça backup **completo** do diretório `MQTT_STATE_DIR` e dos arquivos de usuário/ACL, preservando permissões. Confirme as versões do binário e dos arquivos de estado antes de iniciar a nova versão. A versão 0.1.x não possuía sessões MQTT persistentes; para experimentar 0.2.0, use um diretório de estado **novo e exclusivo**, sem reaproveitar dados de outra instância. Para voltar ao binário antigo, pare primeiro a versão nova e restaure o backup completo correspondente à versão antiga em um diretório separado; não tente abrir ou reverter parcialmente o WAL/snapshot 0.2.0 no lugar. Valide a recuperação em laboratório antes de qualquer mudança na porta 8883. Backups devem ser mantidos fora do diretório ativo e testados por restauração.
 
+### Backup offline do estado MQTT (0.9.0 candidato)
+
+`mqtt-admin state backup` requer que o broker esteja parado e tenta obter o
+mesmo lock exclusivo do escritor. Ele recupera e compacta o WAL em um snapshot,
+sem alterar o estado lógico, depois publica uma pasta de backup por rename no
+mesmo filesystem. O destino deve ser novo. `verify` confere manifesto, tamanhos,
+SHA-256 e recuperação numa cópia temporária. `restore` valida os mesmos itens e
+cria um diretório de estado novo; nunca substitui um destino existente. Faça o
+broker apontar para o diretório restaurado somente depois da verificação.
+
+```sh
+mqtt-admin state backup --state-dir /var/lib/xmqr --destination /var/backups/xmqr-2026-10-10
+mqtt-admin state verify --backup /var/backups/xmqr-2026-10-10
+mqtt-admin state restore --backup /var/backups/xmqr-2026-10-10 --state-dir /var/lib/xmqr-restored
+```
+
+O formato P45 inclui somente `state.snapshot`, `state.wal` e `manifest.toml`.
+Arquivos e pastas novos recebem 0600/0700 em Unix. A cópia contém payloads MQTT,
+portanto deve ser protegida como dado privado. SHA-256 detecta alteração acidental,
+mas não autentica uma cópia que um atacante possa modificar junto com o manifesto.
+Bundles de segurança, users/ACL legados, certificados, chaves e variáveis de
+ambiente ficam fora dela e devem ter backup/restauração próprios, com permissões
+preservadas. Backup/restore com sincronização durável de diretório é suportado em
+Linux/WSL; a implementação de persistência retorna `Unsupported` em Windows.
+
 ## Verificação
 
 `cargo test --all-targets` cobre round trip, substituição/deleção, bloqueio de segundo escritor, cauda truncada, checksums e versões inválidos, WAL ausente após snapshot, transições QoS/retained e interrupções forçadas do processo. Os testes de interrupção usam `process::exit`; validam recuperação após queda do processo, **não simulam perda de energia ou cache volátil de disco**. Uma prova local com clientes Rust validou QoS 1/2, retained e fila offline após reinício em porta de teste separada.

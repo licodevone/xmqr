@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 0.9.0 — candidato local, tag sugerida v0.9.0
+
+- P45: `mqtt-admin state backup|verify|restore` para o estado durável MQTT offline.
+- Backup compacta o WAL, guarda manifest TOML e SHA-256; verify testa recuperação
+  em cópia temporária; restore só publica num diretório novo e nunca sobrescreve.
+- Arquivos 0600 e diretórios 0700 em Unix. Bundle dinâmico, TLS e configuração
+  externa não estão incluídos; backup/restore durável requer Linux/WSL.
+- Evidência: `prompts/registros/P45-0.9.0.md`; gates finais ainda em execução.
+
 
 
 O projeto segue versionamento semântico. Enquanto a conformidade e a operação

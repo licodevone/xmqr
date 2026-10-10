@@ -54,6 +54,7 @@ Leia [relatório](RELATORIO.md), [origem](origem/README-preservacao.md),
 - [38-client-id-e-deadlines](broker/38-client-id-e-deadlines.md)
 - [39-persistencia-recuperacao-e-resiliencia](broker/39-persistencia-recuperacao-e-resiliencia.md)
 - [40-licencas-ci-versionamento-e-sincronizacao](broker/40-licencas-ci-versionamento-e-sincronizacao.md)
+- [45-backup-restore](broker/45-backup-restore.md) — candidato 0.9.0, execução autorizada.
 
 ## Cliente Rust
 
