@@ -64,3 +64,11 @@ Não houve instalação/ativação permanente no WSL ou alteração de estado re
 
 Commit/push/tag/releases executados após gates; hashes/URLs registrados no Git
 e na resposta final, não presumidos neste documento antes da criação.
+
+## Publicação / CI confirmados
+
+Commit de implementação:0a46c02; tag anotada v0.10.0 sincronizada.
+Prerelease:https://github.com/licodevone/xmqr/releases/tag/v0.10.0
+Deb e checksum anexados e SHA256 remoto igual ao local.
+GitHubActions:38085647450 — jobs rust e ubuntu-package PASS.
+Repositório sincronizado; nenhuma instância permanente instalada no WSL.

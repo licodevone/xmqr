@@ -94,3 +94,9 @@ seu CI executa open-lab. Isso não prova TLS/mTLS externo nem conformidade total
 
 Preserve MIT e atribuições de terceiros ao redistribuir. Nunca versionar secrets
 ou estado MQTT. Registro desta etapa: prompts/registros/P47-systemd-ubuntu.md.
+
+## Publicação verificada
+
+Prerelease atual: [v0.10.0](https://github.com/licodevone/xmqr/releases/tag/v0.10.0),
+com debUbuntu26amd64 e checksum. CI Rust e pacote Ubuntu aprovados no
+[GitHub Actions](https://github.com/licodevone/xmqr/actions/runs/38085647450).
