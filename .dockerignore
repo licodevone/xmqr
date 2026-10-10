@@ -1,0 +1,14 @@
+.git
+.serena
+target
+**/target
+.env
+*.key
+*.crt
+*.pem
+prompts
+scripts
+tests
+docs/architecture
+docs/security
+validation
