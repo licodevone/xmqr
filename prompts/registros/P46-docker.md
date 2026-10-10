@@ -16,6 +16,8 @@ healthcheck superficial nem exposição de monitor HTTP.
 
 - `docker build -t xmqr-broker:0.9.0 .`: PASS.
 - Imagem final local: 138,269,871 bytes; usuário configurado `10001:10001`.
+- Execução no modo seguro padrão sem certificados: falhou antes de abrir listener,
+  exigindo `MQTT_SERVER_CERT`, como esperado.
 - `open-lab` com bind `0.0.0.0:1883`: recusado com exit 1 como esperado.
 - Integração em containers isolados com a imagem cliente: subscriber e publisher
   comunicaram via namespace de loopback do container; PASS.
@@ -30,3 +32,5 @@ O teste de rede usou `open-lab` dentro do namespace compartilhado, somente para
 loopback. Não valida implantação mTLS, gerenciamento de certificados em produção,
 hardening do daemon/host, multi-arquitetura, imagem assinada ou publicação em
 registry. `v0.9.0` é apenas a etiqueta local da imagem e não uma tag Git.
+O runtime contém a licença MIT do projeto e o inventário; textos completos de
+licenças de terceiros devem ser incluídos antes de redistribuir a imagem.
