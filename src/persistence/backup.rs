@@ -15,6 +15,7 @@ use super::{SNAPSHOT_NAME, Store, WAL_NAME};
 
 const MANIFEST_NAME: &str = "manifest.toml";
 const FORMAT_VERSION: u16 = 1;
+const STATE_FORMAT_VERSION: u16 = 1;
 const MAX_MANIFEST_BYTES: u64 = 16 * 1024;
 const MAX_BACKUP_FILE_BYTES: u64 = 80 * 1024 * 1024;
 static NEXT_STAGING_ID: AtomicU64 = AtomicU64::new(0);
@@ -25,6 +26,7 @@ type Result<T> = std::result::Result<T, Box<dyn Error>>;
 #[serde(deny_unknown_fields)]
 struct Manifest {
     format_version: u16,
+    state_format_version: u16,
     store_sequence: u64,
     files: Vec<FileEntry>,
 }
@@ -45,6 +47,7 @@ struct FileEntry {
 /// compaction fails, the destination exists, or durable publication fails.
 pub fn create(state_dir: &Path, destination: &Path) -> Result<u64> {
     let destination = new_destination(destination)?;
+    reject_overlap(state_dir, &destination)?;
     let mut store = Store::open(state_dir)?;
     let sequence = store.snapshot()?;
     let parent = destination
@@ -61,6 +64,7 @@ pub fn create(state_dir: &Path, destination: &Path) -> Result<u64> {
         &staging.path,
         &Manifest {
             format_version: FORMAT_VERSION,
+            state_format_version: STATE_FORMAT_VERSION,
             store_sequence: sequence,
             files,
         },
@@ -97,6 +101,7 @@ pub fn verify(backup: &Path) -> Result<u64> {
 /// copied state cannot be recovered and durably published.
 pub fn restore(backup: &Path, state_dir: &Path) -> Result<u64> {
     let destination = new_destination(state_dir)?;
+    reject_overlap(backup, &destination)?;
     let manifest = read_manifest(backup)?;
     validate_files(backup, &manifest)?;
     let parent = destination
@@ -124,7 +129,9 @@ fn read_manifest(directory: &Path) -> Result<Manifest> {
     }
     let contents = fs::read_to_string(path)?;
     let manifest: Manifest = toml::from_str(&contents)?;
-    if manifest.format_version != FORMAT_VERSION {
+    if manifest.format_version != FORMAT_VERSION
+        || manifest.state_format_version != STATE_FORMAT_VERSION
+    {
         return Err(invalid_data("unsupported backup format version").into());
     }
     let names = [SNAPSHOT_NAME, WAL_NAME];
@@ -255,6 +262,14 @@ fn new_destination(path: &Path) -> Result<PathBuf> {
     Ok(parent.join(file_name))
 }
 
+fn reject_overlap(source: &Path, destination: &Path) -> Result<()> {
+    let source = fs::canonicalize(source)?;
+    if destination.starts_with(&source) || source.starts_with(destination) {
+        return Err(invalid_data("source and destination directories overlap").into());
+    }
+    Ok(())
+}
+
 struct StagingDir {
     path: PathBuf,
     published: bool,
@@ -267,7 +282,10 @@ impl StagingDir {
             let path = parent.join(format!(".xmqr-{purpose}-{}-{id}.tmp", std::process::id()));
             match fs::create_dir(&path) {
                 Ok(()) => {
-                    set_private_directory(&path)?;
+                    if let Err(error) = set_private_directory(&path) {
+                        let _ = fs::remove_dir(&path);
+                        return Err(error.into());
+                    }
                     return Ok(Self {
                         path,
                         published: false,

@@ -21,7 +21,8 @@ Adicionar ao `mqtt-admin` operações offline `state backup`, `state verify` e
 `state restore`. Backup é um diretório versionado de formato próprio, sem
 compactação ou dependência nova. Inclui somente os arquivos duráveis MQTT
 necessários (`state.wal` e `state.snapshot`), um manifesto com
-versão do formato, sequência/versão do estado e SHA-256 de cada arquivo. Não
+versão do pacote, versões dos formatos WAL/snapshot, sequência e SHA-256 de cada
+arquivo. Não
 copiar `state.lock`, temporário, bundle, certificado, chave, configuração ou
 variáveis de ambiente. Documentar esses itens excluídos e a necessidade de
 preservar separadamente os arquivos externos com suas permissões.
