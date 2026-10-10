@@ -23,19 +23,75 @@ em prompts/registros descreve o resultado de cada marco, não o estado atual.
 
 ## Instalação Ubuntu / WSL
 
-Veja [guia Ubuntu26.04 e systemd](docs/ubuntu-systemd.md). O pacote deb instala
-binários/unit/configuração, cria usuário xmqr e preserva dados. Não ativa o
-serviço antes de configurar certificados e credenciais.
+O pacote publicado é experimental e destinado ao Ubuntu 26.04 **amd64**.
+Ainda não há repositório APT próprio: baixe o `.deb` e instale-o com o APT.
 
-```sh
+1. No Windows, abra sua distribuição pelo PowerShell (confira o nome com
+   `wsl --list --verbose`):
+
+```powershell
+wsl -d Ubuntu-26.04
+```
+
+2. Execute os próximos comandos **no terminal do Ubuntu**. Confirme a versão
+   e a arquitetura; este pacote requer Ubuntu 26.04 e `amd64`:
+
+```bash
+cat /etc/os-release
+dpkg --print-architecture
+sudo apt update
+sudo apt install -y wget ca-certificates
+mkdir -p ~/xmqr-pacotes
+cd ~/xmqr-pacotes
+```
+
+3. Baixe o pacote e seu checksum da release publicada:
+
+```bash
+wget -O xmqr-broker_0.10.0-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.10.0/xmqr-broker_0.10.0-1_amd64.deb
+wget -O xmqr-broker_0.10.0-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.10.0/xmqr-broker_0.10.0-1_amd64.deb.sha256
+sha256sum -c xmqr-broker_0.10.0-1_amd64.deb.sha256
+```
+
+Prossiga somente se a verificação mostrar `OK`.
+
+4. Instale e confirme o pacote e a conta de serviço:
+
+```bash
 sudo apt install ./xmqr-broker_0.10.0-1_amd64.deb
+dpkg-query -W -f='${Status}\n' xmqr-broker
+id xmqr
+```
+
+O resultado esperado é `install ok installed`. A instalação cria o usuário e
+grupo `xmqr`; não é necessário criá-los manualmente. Se `dpkg-query` informar
+que não encontrou o pacote, a instalação ainda não foi concluída.
+
+5. Configure os certificados, credenciais e permissões conforme o
+   [guia Ubuntu e systemd](docs/ubuntu-systemd.md),
+   [transporte seguro](docs/security/secure-transport.md) e
+   [administração de usuários](docs/administracao-usuarios.md).
+   Revise `/etc/xmqr/broker.env` e instale os arquivos referenciados por ele:
+   `server.crt`, `server.key`, `clients-ca.crt` e `security.toml` em `/etc/xmqr`.
+   A chave privada e o bundle de segurança devem pertencer a `xmqr:xmqr`, com
+   permissão `0600`. Não publique chaves privadas ou senhas no GitHub.
+
+6. Após configurar TLS, usuários e ACL, habilite e inicie o serviço:
+
+```bash
 sudo systemctl enable --now xmqr-broker.service
 systemctl status xmqr-broker.service
 journalctl -u xmqr-broker.service -f
 ```
 
-O enable/start acima deve ocorrer após configurar /etc/xmqr/broker.env e
-arquivos TLS/bundle. Não há repositório APT próprio assinado ainda.
+Use `Ctrl+C` para sair do acompanhamento dos logs. O pacote não inicia o broker
+automaticamente. No WSL, o systemd deve estar habilitado; veja o guia acima.
+O serviço habilitado inicia quando a distribuição Ubuntu é iniciada.
+
+Para atualizar, baixe a nova versão, confira o checksum e repita a instalação
+com `sudo apt install ./ARQUIVO.deb`. A atualização preserva configuração e
+dados, mas para o serviço; revise a configuração e inicie-o novamente com
+`sudo systemctl start xmqr-broker.service`.
 
 ## Recursos e limites
 
