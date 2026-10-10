@@ -7,7 +7,7 @@
   em cópia temporária; restore só publica num diretório novo e nunca sobrescreve.
 - Arquivos 0600 e diretórios 0700 em Unix. Bundle dinâmico, TLS e configuração
   externa não estão incluídos; backup/restore durável requer Linux/WSL.
-- Evidência: `prompts/registros/P45-0.9.0.md`; gates finais ainda em execução.
+- Evidência: `prompts/registros/P45-0.9.0.md`; gates Linux/WSL aprovados.
 
 
 

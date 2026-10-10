@@ -28,7 +28,7 @@ testes existente, nÃ£o PASS novo. Os prompts novos tÃªm critÃ©rios de acei
 | Logs vs mÃ©tricas/health/reload | Tracing existente; endpoints e configuraÃ§Ã£o geral versionada sÃ£o futuros | src/main.rs; docs/ROADMAP.md | 11 proposta, 10/16 gates |
 | Interop automatizada | script Mosquitto/fixtures; evidÃªncia documental open-lab, TLS/ACL externa incompleta | scripts/verify_interop.py; docs/conformance/mqtt311-status.md | 12; 15; **36 novo** |
 | Fuzzing/carga/operaÃ§Ã£o | cobertura ampla e benchmarks ainda pendentes; testes gerados nÃ£o sÃ£o campanha de fuzzing | docs/ROADMAP.md; docs/wildcard-subscriptions.md | 13â€“16, gates nÃ£o aprovados aqui |
-| Backup/restore do estado MQTT | Diretório versionado, manifesto e SHA-256; operação offline; restore em diretório novo | src/persistence/backup.rs; docs/architecture/persistence.md; registro P45 | **45 implementado; gates Linux/WSL** |
+| Backup/restore do estado MQTT | Diretório versionado, manifesto e SHA-256; operação offline; restore em diretório novo | src/persistence/backup.rs; docs/architecture/persistence.md; registro P45 | **P45 implementado; 83 testes e gates Linux/WSL aprovados** |
 | LicenÃ§as, CI, release, clones | inventÃ¡rio/CI existentes; release ainda nÃ£o publicada; sincronizaÃ§Ã£o nÃ£o automÃ¡tica | scripts/license_inventory.py; .github/workflows; VERSIONING.md | **40 novo** |
 
 ## Incertezas e inconsistÃªncias preservadas fora de prompts/
