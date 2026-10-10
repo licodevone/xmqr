@@ -93,6 +93,106 @@ com `sudo apt install ./ARQUIVO.deb`. A atualização preserva configuração e
 dados, mas para o serviço; revise a configuração e inicie-o novamente com
 `sudo systemctl start xmqr-broker.service`.
 
+## Compatibilidade Ubuntu
+
+| Ambiente amd64 | Evidência atual |
+| --- | --- |
+| Ubuntu 26.04 / WSL2 | Pacotes instalados e testes de integração e systemd com TLS/mTLS aprovados. Alvo atual dos pacotes publicados. |
+| Ubuntu 24.04 / WSL2 | Os mesmos binários executaram testes de integração; instalação do `.deb` e units nessa versão ainda não validadas. |
+| Outras versões Ubuntu, outras distribuições ou arm64 | Não validadas. Não há pacote arm64 publicado nesta etapa. |
+
+Os pacotes atuais requerem `libc6 >= 2.38`, `libgcc-s1 >= 4.2`, `adduser` e
+`init-system-helpers`. No Ubuntu 24.04 testado, a glibc é 2.39 e os binários
+conseguem executar. Isso não equivale a suporte completo nessa distribuição:
+o teste de sessão após reinício recebeu uma mensagem QoS1 repetida na primeira
+execução e passou na repetição; a causa ainda não foi confirmada. O gerador de
+pacotes permanece restrito ao Ubuntu 26.04 amd64. Não force dependências nem
+substitua a glibc do sistema para instalar um pacote.
+
+## Controlar o broker com systemctl
+
+Execute os comandos abaixo no terminal Ubuntu/WSL, após a instalação e a
+configuração de certificados, usuários e ACLs. `sudo` autoriza alterações no
+serviço; as consultas geralmente não precisam dele.
+
+| Objetivo | Comando | Efeito |
+| --- | --- | --- |
+| Iniciar | `sudo systemctl start xmqr-broker.service` | Inicia agora, sem alterar o início automático. |
+| Consultar status | `systemctl status xmqr-broker.service` | Mostra estado, processo e registros recentes. |
+| Parar | `sudo systemctl stop xmqr-broker.service` | Solicita encerramento coordenado do broker. |
+| Reiniciar | `sudo systemctl restart xmqr-broker.service` | Para e inicia novamente; desconecta os clientes. |
+| Habilitar início automático | `sudo systemctl enable xmqr-broker.service` | Habilita para a próxima inicialização, sem iniciar agora. |
+| Habilitar e iniciar agora | `sudo systemctl enable --now xmqr-broker.service` | Combina início automático e início imediato. |
+| Desabilitar início automático | `sudo systemctl disable xmqr-broker.service` | Remove o início automático, sem parar o processo atual. |
+| Desabilitar e parar | `sudo systemctl disable --now xmqr-broker.service` | Remove o início automático e para agora. |
+| Consultar atividade | `systemctl is-active xmqr-broker.service` | Exibe, por exemplo, `active`, `inactive` ou `failed`. |
+| Consultar início automático | `systemctl is-enabled xmqr-broker.service` | Exibe, por exemplo, `enabled` ou `disabled`. |
+
+`active (running)` indica que o processo está em execução; confirme também uma
+conexão MQTT para validar certificados, autenticação e permissões. `inactive
+(dead)` significa que o serviço está parado; `failed` indica uma falha.
+`Unit ... could not be found` indica que a unit não está disponível: confirme
+a instalação com `dpkg-query -W xmqr-broker`.
+
+### Acompanhar e consultar os logs
+
+```bash
+# Acompanhar novos registros em tempo real
+journalctl -u xmqr-broker.service -f
+
+# Consultar as últimas 50 linhas e sair
+journalctl -u xmqr-broker.service -n 50 --no-pager
+
+# Consultar os registros desta inicialização do Ubuntu
+journalctl -u xmqr-broker.service -b --no-pager
+
+# Consultar apenas registros dos últimos 10 minutos
+journalctl -u xmqr-broker.service --since "10 minutes ago" --no-pager
+```
+
+`journalctl` consulta o journal do systemd; `-u` filtra a unit do broker e `-f`
+mantém o acompanhamento aberto. Não inicia nem para o serviço. Pressione
+**Ctrl+C** para sair do acompanhamento. Na tela paginada de `systemctl status`,
+pressione **q** para sair. Para status sem paginador, use
+`systemctl status xmqr-broker.service --no-pager`. Se não tiver acesso aos logs,
+execute a consulta com `sudo`.
+
+### Recarregar segurança e aplicar configurações
+
+```bash
+# Recarregar o bundle de usuários e ACLs
+sudo systemctl reload xmqr-broker.service
+```
+
+O reload envia SIGHUP e recarrega o bundle de segurança dinâmica configurado.
+Um reload válido encerra as conexões dinâmicas para exigir nova autenticação.
+Não aplica alterações em `/etc/xmqr/broker.env` ou nos certificados: para essas
+alterações, use `sudo systemctl restart xmqr-broker.service`.
+
+Se editar uma unit ou seu override, execute `sudo systemctl daemon-reload`
+antes de reiniciar. Esse comando recarrega as definições do systemd; não
+recarrega sozinho a configuração MQTT nem reinicia processos.
+
+### Diagnóstico e uso no WSL
+
+Confira primeiro o status e os logs. Após corrigir um erro que atingiu o limite
+de tentativas de início, limpe o estado de falha e tente iniciar:
+
+```bash
+sudo systemctl reset-failed xmqr-broker.service
+sudo systemctl start xmqr-broker.service
+```
+
+`reset-failed` não corrige certificados, credenciais ou arquivos ausentes. O
+broker tem reinício automático em falhas, limitado a cinco inícios por 120
+segundos; uma parada solicitada por `stop` não provoca reinício automático.
+
+No WSL, confira o processo principal com `ps -p 1 -o comm=`: deve ser `systemd`.
+Se não for, siga o [guia Ubuntu/WSL](docs/ubuntu-systemd.md). Uma unit habilitada
+inicia quando a distribuição Ubuntu é iniciada. Os comandos controlam os
+serviços dessa distribuição Linux. Para iniciar o broker e depois seu client
+de assinatura, veja também o [README do client](../xmqr-client/README.md).
+
 ## Recursos e limites
 
 QoS0/1/2, retained, sessões persistentes, SUBSCRIBE/UNSUBSCRIBE, filtros +/#,
