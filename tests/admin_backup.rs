@@ -1,5 +1,7 @@
+#[cfg(unix)]
 use std::process::Command;
 
+#[cfg(unix)]
 use tempfile::tempdir;
 
 #[cfg(unix)]

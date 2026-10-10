@@ -331,6 +331,7 @@ fn set_private_directory(path: &Path) -> io::Result<()> {
 }
 
 #[cfg(not(unix))]
+#[allow(clippy::unnecessary_wraps)]
 fn set_private_directory(_path: &Path) -> io::Result<()> {
     Ok(())
 }
@@ -342,6 +343,7 @@ fn set_private_file(file: &File) -> io::Result<()> {
 }
 
 #[cfg(not(unix))]
+#[allow(clippy::unnecessary_wraps)]
 fn set_private_file(_file: &File) -> io::Result<()> {
     Ok(())
 }
