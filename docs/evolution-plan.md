@@ -84,8 +84,8 @@ Pode ser antecipado sem bloquear MQTT5 quando houver disponibilidade.
 6. Commit/push após aceite. Tag imutável e prerelease apenas com binários/pacotes
    testados, notas, hashes e procedimento de upgrade/rollback. Versões independentes.
 
-Próxima execução recomendada: prompt próprio de limites configuráveis do broker
-(fase1). Não iniciar MQTT5, WebSocket e bridge juntos. Reavaliar este cronograma
+Próxima execução recomendada: [P55 — quotas do estado](../prompts/broker/55-quotas-estado.md),
+segunda fatia da fase1, após P54 (admissão TCP). Não iniciar MQTT5, WebSocket e bridge juntos. Reavaliar este cronograma
 ao encerrar cada fase e registrar desvios nos prompts correspondentes.
 
 ## Fontes e evidências
@@ -96,3 +96,17 @@ ao encerrar cada fase e registrar desvios nos prompts correspondentes.
 
 Estado baseado na leitura do código/documentação e nas evidências P52 anteriores;
 esta tarefa de planejamento não executou novos testes funcionais.
+
+
+## Retomada após P54 — 2026-10-11
+
+Commit local 7d5f371: admissão TCP configurável por TOML/ambiente, default64,
+faixa1..64, restart necessário. Quotas duráveis permanecem fixas. Registro
+[P54](../prompts/registros/P54-limite-conexoes.md) informa 92 testes e gates WSL
+aprovados, recusa/liberação TCP e 4 integrações C27. Revisão desta retomada
+conferiu código e evidências, sem reexecutar testes ou verificar publicação remota.
+
+[P55](../prompts/broker/55-quotas-estado.md) está preparado, não implementado:
+sessões, retained, assinaturas, offline e inflight configuráveis com rejeição de
+redução incompatível sem truncar dados. A fase1 continua aberta; payload/pacote,
+client e instalação/upgrade precisam de avaliação própria antes do aceite.

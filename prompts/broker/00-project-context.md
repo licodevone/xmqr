@@ -80,3 +80,20 @@ A versÃ£o aguarda registro dos gates finais; nÃ£o hÃ¡ publicaÃ§Ã£o aut
 DocumentaÃ§Ã£o: docs/security/dynamic-security.md; evidÃªncia:
 prompts/registros/P44-0.8.0.md (caminhos relativos Ã  raiz do repositÃ³rio).
 ReferÃªncias anteriores a P44 apenas preparado descrevem checkpoints histÃ³ricos.
+
+
+## Checkpoint P54 e preparação P55 — 2026-10-11
+
+HEAD inspecionado: 7d5f371. P54 implementa [limits].max_connections e
+MQTT_MAX_CONNECTIONS, default64/faixa1..64, aplicado no restart. Código/parser,
+propagação ao transporte e teste de processo foram revisados. O registro P54
+informa 92 testes e fmt/test/Clippy/build WSL aprovados, teste de recusa/liberação
+TCP e 4 integrações C27; não foram reexecutados nesta revisão documental.
+Quotas de estado permanecem fixas; não há benchmark ou nova release comprovados.
+Pacote publicado0.10.0 ainda não contém P52/P54, conforme registro P54.
+
+Próxima entrega: [P55 — quotas do estado](55-quotas-estado.md), PREPARED,
+sem implementação. Configurar sessões, retained, assinaturas, offline e inflight
+com defaults/tetos preservados e recusa de redução incompatível sem descarte.
+Payload/pacote e instalação/upgrade permanecem pendências da fase1.
+Checkpoints anteriores descrevem bases históricas; conferir código/registros.
