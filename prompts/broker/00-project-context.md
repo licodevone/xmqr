@@ -97,3 +97,11 @@ sem implementação. Configurar sessões, retained, assinaturas, offline e infli
 com defaults/tetos preservados e recusa de redução incompatível sem descarte.
 Payload/pacote e instalação/upgrade permanecem pendências da fase1.
 Checkpoints anteriores descrevem bases históricas; conferir código/registros.
+
+
+## P55 — implementação local, aceite Unix pendente
+
+Quotas de estado agora configuráveis no código local. Defaults/tetos e formato
+durável preservados; redução incompatível recusada antes das transições. Windows
+fmt/Clippy/build e testes portáveis aprovados; recuperação e interop Unix pendentes.
+Sem tag/release desta entrega. Confira registro P55 antes de avançar fases.

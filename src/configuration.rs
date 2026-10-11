@@ -24,6 +24,11 @@ const KEYS: &[&str] = &[
     "MQTT_MONITOR_ENABLED",
     "MQTT_MONITOR_BIND",
     "MQTT_MAX_CONNECTIONS",
+    "MQTT_MAX_SESSIONS",
+    "MQTT_MAX_RETAINED",
+    "MQTT_MAX_SUBSCRIPTIONS",
+    "MQTT_MAX_OFFLINE",
+    "MQTT_MAX_INFLIGHT",
 ];
 
 /// Configuration file values overlaid with explicit process variables.
@@ -74,6 +79,19 @@ impl Configuration {
             return Err(invalid("unsupported MQTT_CONFIG version"));
         }
         let mut result = Self::default();
+        for (name, value) in [
+            ("MQTT_MAX_SESSIONS", document.limits.max_sessions),
+            ("MQTT_MAX_RETAINED", document.limits.max_retained),
+            ("MQTT_MAX_SUBSCRIPTIONS", document.limits.max_subscriptions),
+            ("MQTT_MAX_OFFLINE", document.limits.max_offline),
+            ("MQTT_MAX_INFLIGHT", document.limits.max_inflight),
+        ] {
+            if let Some(value) = value {
+                result
+                    .values
+                    .insert(name.to_owned(), value.to_string().into());
+            }
+        }
         if let Some(value) = document.limits.max_connections {
             result
                 .values
@@ -137,7 +155,29 @@ impl Configuration {
         self.values.get(key).cloned()
     }
 
-    /// Admission ceiling for the executable; durable session quotas stay fixed.
+    /// Resolve immutable state quotas, honoring explicit environment overrides.
+    /// # Errors
+    /// Rejects malformed, non-Unicode, zero or excessive quota values.
+    pub fn state_limits(&self) -> io::Result<crate::mqtt::StateLimits> {
+        let read = |name: &str, default: usize| -> io::Result<usize> {
+            match self.var(name) {
+                Ok(value) => value
+                    .parse()
+                    .map_err(|_| invalid("invalid MQTT state quota")),
+                Err(env::VarError::NotPresent) => Ok(default),
+                Err(env::VarError::NotUnicode(_)) => Err(invalid("invalid MQTT state quota")),
+            }
+        };
+        crate::mqtt::StateLimits::new(
+            read("MQTT_MAX_SESSIONS", 64)?,
+            read("MQTT_MAX_RETAINED", 256)?,
+            read("MQTT_MAX_SUBSCRIPTIONS", 256)?,
+            read("MQTT_MAX_OFFLINE", 64)?,
+            read("MQTT_MAX_INFLIGHT", 32)?,
+        )
+    }
+
+    /// Admission ceiling for the executable; independent of durable session quotas.
     /// # Errors
     /// Rejects invalid explicit values instead of falling back to defaults.
     pub fn max_connections(&self) -> io::Result<usize> {
@@ -159,8 +199,14 @@ impl Configuration {
 
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(clippy::struct_field_names)] // Field names match the versioned TOML quota contract.
 struct Limits {
     max_connections: Option<usize>,
+    max_sessions: Option<usize>,
+    max_retained: Option<usize>,
+    max_subscriptions: Option<usize>,
+    max_offline: Option<usize>,
+    max_inflight: Option<usize>,
 }
 
 #[derive(Default, Deserialize)]
@@ -212,6 +258,71 @@ fn invalid(message: &'static str) -> io::Error {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn state_quota_defaults_precedence_and_invalid_values() {
+        assert_eq!(
+            Configuration::default().state_limits().unwrap(),
+            crate::mqtt::StateLimits::default()
+        );
+        for (field, key, ceiling) in [
+            ("max_sessions", "MQTT_MAX_SESSIONS", 64),
+            ("max_retained", "MQTT_MAX_RETAINED", 256),
+            ("max_subscriptions", "MQTT_MAX_SUBSCRIPTIONS", 256),
+            ("max_offline", "MQTT_MAX_OFFLINE", 64),
+            ("max_inflight", "MQTT_MAX_INFLIGHT", 32),
+        ] {
+            let text = format!("version=1\n[limits]\n{field}=1");
+            let from_file = Configuration::parse(&text, Path::new(".")).unwrap();
+            assert!(from_file.state_limits().is_ok());
+            let mut overridden = Configuration::parse(&text, Path::new(".")).unwrap();
+            overridden
+                .values
+                .insert(key.into(), ceiling.to_string().into());
+            assert_eq!(
+                overridden.state_limits().unwrap(),
+                crate::mqtt::StateLimits::default()
+            );
+            for invalid_value in [
+                "0".to_owned(),
+                (ceiling + 1).to_string(),
+                "-1".into(),
+                "bad".into(),
+                String::new(),
+                "18446744073709551616".into(),
+            ] {
+                overridden.values.insert(key.into(), invalid_value.into());
+                assert!(overridden.state_limits().is_err());
+            }
+            for bad_type in ["-1", "true", "'1'", "1.5"] {
+                assert!(
+                    Configuration::parse(
+                        &format!("version=1\n[limits]\n{field}={bad_type}"),
+                        Path::new(".")
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_unicode_state_quotas_are_rejected() {
+        use std::os::unix::ffi::OsStringExt;
+        for name in [
+            "MQTT_MAX_SESSIONS",
+            "MQTT_MAX_RETAINED",
+            "MQTT_MAX_SUBSCRIPTIONS",
+            "MQTT_MAX_OFFLINE",
+            "MQTT_MAX_INFLIGHT",
+        ] {
+            let config = Configuration {
+                values: BTreeMap::from([(name.to_owned(), OsString::from_vec(vec![255]))]),
+            };
+            assert!(config.state_limits().is_err());
+        }
+    }
+
     #[test]
     fn connection_limit_default_boundaries_and_override() {
         assert_eq!(Configuration::default().max_connections().unwrap(), 64);

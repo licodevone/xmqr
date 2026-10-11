@@ -16,16 +16,12 @@ use thiserror::Error;
 
 use crate::persistence::{StorageError, actor::PersistenceHandle};
 
+use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
 const FORMAT_VERSION: u16 = 2;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
-const MAX_SESSIONS: usize = 64;
-const MAX_RETAINED: usize = 256;
-const MAX_SUBSCRIPTIONS: usize = 256;
-const MAX_OFFLINE: usize = 64;
-const MAX_INFLIGHT: usize = 32;
 const MAX_CLIENT_ID_BYTES: usize = 256;
 const MAX_PRINCIPAL_BYTES: usize = 256;
 const MAX_PAYLOAD_BYTES: usize = 4096;
@@ -142,31 +138,49 @@ struct Envelope {
 /// has no shared mutable state; callers serialize commits themselves.
 pub(super) struct MqttStore {
     writer: PersistenceHandle,
+    limits: StateLimits,
 }
 
 impl MqttStore {
     /// Recover the last fsynced image. Disk recovery runs off Tokio workers.
+    #[cfg(test)]
     pub async fn open(path: impl AsRef<Path>) -> Result<(Self, DurableState), StateError> {
+        Self::open_with_limits(path, StateLimits::default()).await
+    }
+
+    pub async fn open_with_limits(
+        path: impl AsRef<Path>,
+        limits: StateLimits,
+    ) -> Result<(Self, DurableState), StateError> {
         let path = path.as_ref().to_path_buf();
         let writer = tokio::task::spawn_blocking(move || PersistenceHandle::start(path))
             .await
             .map_err(|_| StateError::WorkerUnavailable)??;
         let bytes = writer.get(KEY.to_vec()).await?;
-        let state = if let Some(bytes) = bytes {
-            if bytes.len() > MAX_DOCUMENT_BYTES {
-                return Err(StateError::Limit("document bytes"));
+        let recovered: Result<DurableState, StateError> = (|| {
+            let state = if let Some(bytes) = bytes {
+                if bytes.len() > MAX_DOCUMENT_BYTES {
+                    return Err(StateError::Limit("document bytes"));
+                }
+                let text = std::str::from_utf8(&bytes).map_err(|_| StateError::Malformed)?;
+                let envelope: Envelope = toml::from_str(text).map_err(|_| StateError::Malformed)?;
+                if !matches!(envelope.version, 1 | FORMAT_VERSION) {
+                    return Err(StateError::UnsupportedVersion(envelope.version));
+                }
+                validate_with_limits(&envelope.state, limits)?;
+                envelope.state
+            } else {
+                DurableState::default()
+            };
+            Ok(state)
+        })();
+        match recovered {
+            Ok(state) => Ok((Self { writer, limits }, state)),
+            Err(error) => {
+                writer.shutdown().await?;
+                Err(error)
             }
-            let text = std::str::from_utf8(&bytes).map_err(|_| StateError::Malformed)?;
-            let envelope: Envelope = toml::from_str(text).map_err(|_| StateError::Malformed)?;
-            if !matches!(envelope.version, 1 | FORMAT_VERSION) {
-                return Err(StateError::UnsupportedVersion(envelope.version));
-            }
-            validate(&envelope.state)?;
-            envelope.state
-        } else {
-            DurableState::default()
-        };
-        Ok((Self { writer }, state))
+        }
     }
 
     pub(super) async fn probe(&self) -> Result<(), StateError> {
@@ -177,7 +191,7 @@ impl MqttStore {
     /// Commit the whole candidate. Success is an fsync durability barrier.
     /// The caller must not expose the candidate or ACK `QoS` until this returns.
     pub async fn commit(&self, state: &DurableState) -> Result<(), StateError> {
-        validate(state)?;
+        validate_with_limits(state, self.limits)?;
         let envelope = Envelope {
             version: FORMAT_VERSION,
             state: state.clone(),
@@ -205,11 +219,19 @@ impl MqttStore {
 
 /// Validate quotas and semantic invariants before a WAL write or after
 /// recovery. Document-byte quota is checked separately after serialization.
+#[cfg(test)]
 pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
-    if state.sessions.len() > MAX_SESSIONS {
+    validate_with_limits(state, StateLimits::default())
+}
+
+pub(super) fn validate_with_limits(
+    state: &DurableState,
+    limits: StateLimits,
+) -> Result<(), StateError> {
+    if state.sessions.len() > limits.max_sessions {
         return Err(StateError::Limit("sessions"));
     }
-    if state.pending_wills.len() > MAX_SESSIONS {
+    if state.pending_wills.len() > limits.max_sessions {
         return Err(StateError::Limit("pending Wills"));
     }
     for (client_id, will) in &state.pending_wills {
@@ -222,7 +244,7 @@ pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
             return Err(StateError::Malformed);
         }
     }
-    if state.retained.len() > MAX_RETAINED {
+    if state.retained.len() > limits.max_retained {
         return Err(StateError::Limit("retained topics"));
     }
     for (client_id, session) in &state.sessions {
@@ -235,7 +257,7 @@ pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
         if session.next_packet_id == 0 {
             return Err(StateError::Malformed);
         }
-        if session.subscriptions.len() > MAX_SUBSCRIPTIONS {
+        if session.subscriptions.len() > limits.max_subscriptions {
             return Err(StateError::Limit("subscriptions per session"));
         }
         for qos in session.subscriptions.values() {
@@ -243,7 +265,7 @@ pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
                 return Err(StateError::Malformed);
             }
         }
-        if session.offline.len() > MAX_OFFLINE {
+        if session.offline.len() > limits.max_offline {
             return Err(StateError::Limit("offline messages per session"));
         }
         for message in &session.offline {
@@ -252,7 +274,9 @@ pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
                 return Err(StateError::Malformed);
             }
         }
-        if session.inbound_qos2.len() > MAX_INFLIGHT || session.outbound.len() > MAX_INFLIGHT {
+        if session.inbound_qos2.len() > limits.max_inflight
+            || session.outbound.len() > limits.max_inflight
+        {
             return Err(StateError::Limit("inflight messages per session"));
         }
         let mut incoming_ids = HashSet::new();
@@ -347,6 +371,106 @@ mod tests {
     use super::*;
     use crate::persistence::Store;
 
+    fn quota_candidate(kind: usize) -> DurableState {
+        let mut candidate = state();
+        match kind {
+            0 => {
+                candidate
+                    .sessions
+                    .insert("sensor-2".into(), candidate.sessions["sensor-1"].clone());
+            }
+            1 => {
+                let mut extra = message(1);
+                extra.retain = true;
+                extra.topic = TopicName::try_from("test/other".to_owned()).unwrap();
+                candidate.retained.insert(extra.topic.clone(), extra);
+            }
+            2 => {
+                candidate
+                    .sessions
+                    .get_mut("sensor-1")
+                    .unwrap()
+                    .subscriptions
+                    .insert(TopicFilter::try_from("test/other".to_owned()).unwrap(), 1);
+            }
+            3 => candidate
+                .sessions
+                .get_mut("sensor-1")
+                .unwrap()
+                .offline
+                .push_back(message(1)),
+            4 => {
+                let session = candidate.sessions.get_mut("sensor-1").unwrap();
+                let mut extra = session.inbound_qos2[0].clone();
+                extra.packet_id = 17;
+                session.inbound_qos2.push(extra);
+            }
+            5 => {
+                let session = candidate.sessions.get_mut("sensor-1").unwrap();
+                let mut extra = session.outbound[0].clone();
+                extra.packet_id = 18;
+                session.outbound.push(extra);
+            }
+            _ => unreachable!(),
+        }
+        candidate
+    }
+
+    #[test]
+    fn reduced_quotas_accept_boundary_and_reject_each_excess() {
+        let one = StateLimits::new(1, 1, 1, 1, 1).unwrap();
+        // Inbound and outbound may each contain one: they are independent.
+        validate_with_limits(&state(), one).unwrap();
+        for kind in 0..6 {
+            let candidate = quota_candidate(kind);
+            validate(&candidate).unwrap();
+            assert!(matches!(
+                validate_with_limits(&candidate, one),
+                Err(StateError::Limit(_))
+            ));
+        }
+        let mut with_will = state();
+        with_will.pending_wills.insert(
+            "sensor-1".into(),
+            PendingWill {
+                principal: "sensor".into(),
+                message: message(1),
+            },
+        );
+        validate_with_limits(&with_will, one).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn reduced_quota_recovery_never_discards_committed_data_or_holds_lock() {
+        for version in [1, 2] {
+            for kind in 0..6 {
+                let directory = tempdir().unwrap();
+                let expected = quota_candidate(kind);
+                {
+                    let mut writer = Store::open(directory.path()).unwrap();
+                    let document = toml::to_string(&Envelope {
+                        version,
+                        state: expected.clone(),
+                    })
+                    .unwrap();
+                    writer.put(KEY, document.as_bytes()).unwrap();
+                }
+                assert!(matches!(
+                    MqttStore::open_with_limits(
+                        directory.path(),
+                        StateLimits::new(1, 1, 1, 1, 1).unwrap()
+                    )
+                    .await,
+                    Err(StateError::Limit(_))
+                ));
+                let (reopened, recovered) = MqttStore::open(directory.path()).await.unwrap();
+                assert_eq!(recovered, expected);
+                reopened.shutdown().await.unwrap();
+            }
+        }
+    }
+
     fn message(qos: u8) -> StoredMessage {
         StoredMessage {
             topic: TopicName::try_from("test/temperature".to_owned()).unwrap(),
@@ -431,7 +555,9 @@ mod tests {
         assert!(matches!(validate(&state), Err(StateError::Malformed)));
         let session = state.sessions.get_mut("sensor-1").unwrap();
         session.outbound.pop();
-        session.offline.resize(MAX_OFFLINE + 1, message(1));
+        session
+            .offline
+            .resize(StateLimits::default().max_offline + 1, message(1));
         assert!(matches!(
             validate(&state),
             Err(StateError::Limit("offline messages per session"))

@@ -110,3 +110,11 @@ A versÃ£o aguarda registro dos gates finais; nÃ£o hÃ¡ publicaÃ§Ã£o aut
 DocumentaÃ§Ã£o: docs/security/dynamic-security.md; evidÃªncia:
 prompts/registros/P44-0.8.0.md (caminhos relativos Ã  raiz do repositÃ³rio).
 ReferÃªncias anteriores a P44 apenas preparado descrevem checkpoints histÃ³ricos.
+
+
+## P55 — implementação local em validação
+
+Quotas de sessões/retained/assinaturas/offline/inflight propagadas ao parser,
+router e store, com defaults/tetos preservados. Testes portáveis Windows PASS;
+recuperação durável e integração Unix BLOCKED nesta sessão. Não existe PASS
+global ou release desta fatia. Evidências em registros/P55-quotas-estado.md.

@@ -293,3 +293,12 @@ Veja [campos e exemplo](docs/architecture/configuration.md) e
 TOML e variáveis MQTT_* explícitas, nessa ordem. Caminhos relativos no TOML
 partem da pasta do arquivo. Reinicie o broker após alterações. O exemplo usa
 bundle de segurança existente; ele não cria certificados nem credenciais.
+
+
+### Quotas P55 em validação
+
+Quotas lógicas de sessões, retained, assinaturas, offline e inflight estão
+implementadas localmente, com defaults/tetos anteriores e rejeição de reduções
+incompatíveis. Aceite Unix pendente; não incluídas no pacote publicado0.10.0.
+Veja [contrato de configuração](docs/architecture/configuration.md) e
+[registro P55](prompts/registros/P55-quotas-estado.md).

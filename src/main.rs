@@ -57,6 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         required_path(&config, "MQTT_USERS_FILE")?;
         required_path(&config, "MQTT_ACL_FILE")?;
     }
+    let state_limits = config.state_limits()?;
     let limits = TransportLimits {
         max_concurrent_connections: config.max_connections()?,
     };
@@ -66,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         mode,
         bind_address,
         state_directory,
-        limits,
+        (limits, state_limits),
         monitor_config,
         metrics,
     )
@@ -79,10 +80,11 @@ async fn serve(
     mode: BrokerMode,
     bind_address: SocketAddr,
     state_directory: PathBuf,
-    limits: TransportLimits,
+    limits: (TransportLimits, mqtt::StateLimits),
     monitor_config: MonitorConfig,
     metrics: Arc<Metrics>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let (limits, state_limits) = limits;
     match mode {
         BrokerMode::SecureMtls => {
             let tls_config = load_mtls_server_config(&MtlsFiles {
@@ -93,7 +95,7 @@ async fn serve(
             })?;
             let auth = load_policy(config, true).await?;
             ensure_state_profile(&state_directory, mode.profile_name())?;
-            let router = start_router(&state_directory, &auth, &metrics).await?;
+            let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport = SecureTransport::bind_observed(
                 bind_address,
@@ -120,7 +122,7 @@ async fn serve(
         BrokerMode::OpenLab => {
             let auth = Arc::new(AccessPolicy::open_lab());
             ensure_state_profile(&state_directory, mode.profile_name())?;
-            let router = start_router(&state_directory, &auth, &metrics).await?;
+            let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
@@ -145,7 +147,7 @@ async fn serve(
                 &required_path(config, "MQTT_USERS_FILE")?,
             )?));
             ensure_state_profile(&state_directory, mode.profile_name())?;
-            let router = start_router(&state_directory, &auth, &metrics).await?;
+            let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
@@ -168,7 +170,7 @@ async fn serve(
         BrokerMode::AclLab => {
             let auth = load_policy(config, false).await?;
             ensure_state_profile(&state_directory, mode.profile_name())?;
-            let router = start_router(&state_directory, &auth, &metrics).await?;
+            let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
@@ -278,8 +280,9 @@ async fn start_router(
     directory: &Path,
     auth: &Arc<AccessPolicy>,
     metrics: &Arc<Metrics>,
+    limits: mqtt::StateLimits,
 ) -> Result<Arc<Router>, mqtt_broker::transport::HandlerError> {
-    Router::start_observed(directory, auth.clone(), metrics.clone())
+    Router::start_observed_with_limits(directory, auth.clone(), metrics.clone(), limits)
         .await
         .map(Arc::new)
 }

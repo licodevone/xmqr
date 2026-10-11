@@ -2,6 +2,9 @@
 
 ## Não lançado
 
+- P55: quotas lógicas configuráveis com recuperação/commit coerentes e redução
+  incompatível recusada; implementação local, aceite Unix pendente.
+
 - P54: limite de conexões TCP configurável em TOML ou MQTT_MAX_CONNECTIONS,
   faixa1..64; default64 e quotas duráveis preservados.
 

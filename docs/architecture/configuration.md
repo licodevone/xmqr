@@ -86,3 +86,37 @@ Campos desconhecidos, tipos incorretos e caminhos vazios são recusados. Erros
 não reproduzem o conteúdo do TOML. Para ativar em systemd, adicione
 MQTT_CONFIG=/etc/xmqr/broker.toml ao broker.env e reinicie o serviço; variáveis
 MQTT_* já presentes nesse arquivo continuam prevalecendo sobre o TOML.
+
+
+## P55 — quotas lógicas (implementação local, aceite Unix pendente)
+
+Campos de [limits] e overrides explícitos:
+
+| TOML | Ambiente | Faixa/padrão |
+| --- | --- | --- |
+| max_sessions | MQTT_MAX_SESSIONS | 1..64 / 64 |
+| max_retained | MQTT_MAX_RETAINED | 1..256 / 256 |
+| max_subscriptions | MQTT_MAX_SUBSCRIPTIONS | 1..256 / 256 por sessão |
+| max_offline | MQTT_MAX_OFFLINE | 1..64 / 64 por sessão |
+| max_inflight | MQTT_MAX_INFLIGHT | 1..32 / 32 por direção por sessão |
+
+Defaults < TOML < ambiente explícito. Zero não significa ilimitado. Valores
+inválidos recusam startup antes da criação de estado/listener. max_sessions é
+independente de max_connections. Alterações exigem restart; SIGHUP não altera quotas.
+
+Recuperação valida a imagem antes de limpar sessões, replay ou publicação de
+Wills; redução incompatível falha sem truncar dados. Volte a valores suficientes
+para reiniciar. Os commits usam as mesmas quotas; o formato MQTT v2/leitura v1
+não mudou. A recuperação física existente pode reparar cauda WAL incompleta;
+isto não autoriza descartar registros comprometidos por redução de quotas.
+
+Ao atingir inflight outbound, mensagens QoS>0 entram na fila offline; ACK libera
+espaço e drena até o limite. Offline, sessões, retained, assinaturas e inbound
+QoS2 acima da quota recusam o candidato antes do commit/ACK de sucesso, conforme
+comportamento anterior. A responsabilidade QoS2 já gravada permanece até sua
+conclusão; falhas não confirmam uma transição inexistente. Capacidades internas
+do ator/entrega, payload, pacote, tópico e documento permanecem fixas.
+
+Implementado localmente; fmt, Clippy, build e testes portáveis verificados no
+Windows. Aceite de recuperação durável/integração Unix ainda BLOCKED nesta
+sessão. Consulte o registro P55 antes de usar ou publicar. Não está na release0.10.0.

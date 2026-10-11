@@ -110,3 +110,11 @@ conferiu código e evidências, sem reexecutar testes ou verificar publicação 
 sessões, retained, assinaturas, offline e inflight configuráveis com rejeição de
 redução incompatível sem truncar dados. A fase1 continua aberta; payload/pacote,
 client e instalação/upgrade precisam de avaliação própria antes do aceite.
+
+
+## Execução local P55 — aceite pendente
+
+Quotas lógicas implementadas localmente; validação portável Windows aprovada.
+Recuperação durável e integração Linux/WSL pendentes: não há distribuição WSL
+visível nesta sessão. A fase1 segue aberta e nenhuma tag/release de aceite foi criada.
+Veja prompts/registros/P55-quotas-estado.md e retome gates Unix antes de avançar.

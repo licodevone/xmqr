@@ -3,10 +3,12 @@
 //! `#`, with durable Last Will; full conformance remains a separate gate.
 
 mod codec;
+mod limits;
 mod router;
 mod store;
 pub(crate) mod topic;
 
+pub use limits::StateLimits;
 pub use router::Router;
 
 /// Maximum UTF-8 byte length of a topic name or filter accepted by XMQR.

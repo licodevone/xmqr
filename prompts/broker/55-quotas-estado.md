@@ -1,8 +1,8 @@
-# P55 rev1 — quotas configuráveis do estado MQTT
+# P55 rev2 — quotas configuráveis do estado MQTT
 
 ## Estado de entrada e objetivo
 
-Base inspecionada: broker HEAD 7d5f371 (P54), pacote 0.10.0; confirmar HEAD, branch e alterações locais antes de executar. Há alteração preexistente em AGENTS.md: preservar integralmente. Client é projeto independente; não assumir seu HEAD nem importar seu crate.
+Base de execução: broker HEAD 4fe905a, pacote 0.10.0, árvore limpa na conferência inicial. Preparação rev1 usou 7d5f371 (P54). Confirmar HEAD e alterações locais antes de executar. Client é projeto independente; não assumir seu HEAD nem importar seu crate.
 
 P52 fornece TOML version=1; P54 configura apenas admissão TCP (1..64, default64). Registro P54 informa 92 testes e gates WSL aprovados, além de 4 integrações C27; esses resultados não foram reexecutados na preparação P55. Fase 1 de docs/evolution-plan.md permanece aberta.
 
@@ -38,7 +38,7 @@ Preservar backpressure e semântica atual de saturação; definir e documentar c
 
 Configuração imutável por processo, aplicada no restart; SIGHUP continua exclusivo do bundle de segurança. Preservar MQTT3.1.1, TLS/SAN, ACL, gerações, ordenação e MIT. Manter documento MQTT v2 com leitura v1, chave e WAL/snapshot existentes; quotas não são novos campos persistidos. Rollback seguro: restaurar defaults/limites compatíveis, nunca editar o estado para fazê-lo caber.
 
-Não configurar payload4096, pacote64KiB, tópico1024, document bytes, IDs ou principal nesta entrega. Não implementar MQTT5, listeners adicionais, WS, bridge, rate limits ou quotas por identidade. Não modificar client, versão, serviços reais, pacotes instalados, tags ou release. Não fazer commit/push automaticamente; autorização histórica do P54 não se transfere.
+Não configurar payload4096, pacote64KiB, tópico1024, document bytes, IDs ou principal nesta entrega. Não implementar MQTT5, listeners adicionais, WS, bridge, rate limits ou quotas por identidade. Nesta fatia manter client, versão, serviços reais e pacotes instalados. Pedido atual autoriza melhorias e criação de tags vinculadas a releases quando os critérios estiverem cumpridos. Preparar marco de versão em tarefa de release após validação completa; não marcar código incompleto nem reescrever tags existentes.
 
 ## Validação e critérios de aceite
 
@@ -50,3 +50,27 @@ Não configurar payload4096, pacote64KiB, tópico1024, document bytes, IDs ou pr
 6. Registrar comandos, ambiente/toolchain, commits dos dois projetos, contagens, códigos de saída e resultados PASS/FAIL/BLOCKED/NOT_RUN em prompts/registros/P55-quotas-estado.md. Atualizar README, changelog, exemplo, configuração, cobertura e plano com limites implementados e lacunas restantes.
 
 Aceite exige gates e recuperação/redução sem perda aprovados. P55 não encerra sozinho fase 1: payload/pacote, validação do client e instalação/upgrade do pacote continuam a avaliar em prompts próprios. Não iniciar fase 2 para ocultar pendências.
+
+## Execução rev2
+
+Pedido atual autoriza implementar P55. Cargo Windows1.98.1 disponível; wsl --list --quiet não retornou distribuições nesta sessão. Gates Unix devem ser registrados BLOCKED se o ambiente continuar indisponível; sem release/tag de aceite nessa condição.
+
+### Ajuste rev2.1 após primeiro gate
+
+Fmt detectou inserção indevida de inicializador no bloco impl Actor. Corrigir somente a inserção sintática e repetir fmt/check antes dos testes.
+
+### Ajuste rev2.2
+
+Check localizou também inicializadores duplicados na declaração Actor e construção de produção. Remover duplicatas, preservando defaults apenas nos testes.
+
+### Ajuste rev2.3
+
+Check apontou parâmetro de quotas ausente na assinatura start_router. Completar propagação; corrigir import Stdio condicionado a Unix para gate Windows.
+
+### Resultado do gate completo Windows
+
+Suíte falhou em 25 testes que exigem fsync de diretório Unix; 37 passaram. Não alterar garantias de persistência para fazê-los passar. Validar testes portáveis específicos e registrar aceite Unix BLOCKED.
+
+### Ajuste rev2.4 após Clippy
+
+Preservar nomes max_* no contrato público e TOML; justificar exceção local struct_field_names. Corrigir marcação Rustdoc InvalidInput e repetir Clippy.

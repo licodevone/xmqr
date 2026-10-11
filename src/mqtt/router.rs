@@ -11,6 +11,7 @@ use crate::monitoring::{Metrics, Rejection};
 use crate::transport::HandlerError;
 use std::sync::{Arc, atomic::Ordering};
 
+use super::StateLimits;
 use super::store::{
     DurableSession, DurableState, InboundQos2, MqttStore, OutboundInflight, OutboundStage,
     PendingWill, StateError, StoredMessage,
@@ -19,7 +20,6 @@ use super::topic::TopicFilter;
 
 const COMMAND_CAPACITY: usize = 256;
 const DELIVERY_CAPACITY: usize = 64;
-const MAX_INFLIGHT: usize = 32;
 
 #[derive(Debug, Error)]
 pub(super) enum RouterError {
@@ -67,6 +67,7 @@ struct Live {
 }
 
 struct Actor {
+    limits: StateLimits,
     metrics: Arc<Metrics>,
     store: MqttStore,
     state: DurableState,
@@ -232,7 +233,19 @@ impl Router {
         auth: Arc<AccessPolicy>,
         metrics: Arc<Metrics>,
     ) -> Result<Self, HandlerError> {
-        let (store, mut state) = MqttStore::open(directory).await?;
+        Self::start_observed_with_limits(directory, auth, metrics, StateLimits::default()).await
+    }
+
+    /// Recover and start with validated, immutable logical quotas.
+    /// # Errors
+    /// Rejects state above the configured quotas before recovery transitions.
+    pub async fn start_observed_with_limits(
+        directory: &Path,
+        auth: Arc<AccessPolicy>,
+        metrics: Arc<Metrics>,
+        limits: StateLimits,
+    ) -> Result<Self, HandlerError> {
+        let (store, mut state) = MqttStore::open_with_limits(directory, limits).await?;
         let before = state.clone();
         state
             .sessions
@@ -259,7 +272,7 @@ impl Router {
         let pending = std::mem::take(&mut state.pending_wills);
         for will in pending.into_values() {
             if auth.allowed_publish(&will.principal, will.message.topic.as_str()) {
-                apply_message(&mut state, &BTreeMap::new(), &auth, &will.message)?;
+                apply_message(limits, &mut state, &BTreeMap::new(), &auth, &will.message)?;
                 recovered_wills += 1;
             }
         }
@@ -279,6 +292,7 @@ impl Router {
         tokio::spawn(async move {
             let _actor_metric = actor_metrics.actor();
             let mut actor = Actor {
+                limits,
                 metrics: actor_metrics,
                 store,
                 state,
@@ -505,7 +519,13 @@ impl Actor {
                 .auth
                 .allowed_publish(&will.principal, will.message.topic.as_str())
             {
-                apply_message(&mut candidate, &BTreeMap::new(), &self.auth, &will.message)?;
+                apply_message(
+                    self.limits,
+                    &mut candidate,
+                    &BTreeMap::new(),
+                    &self.auth,
+                    &will.message,
+                )?;
                 published += 1;
             }
         }
@@ -539,7 +559,13 @@ impl Actor {
         let mut published = 0;
         for will in std::mem::take(&mut candidate.pending_wills).into_values() {
             if view.allowed_publish(&will.principal, will.message.topic.as_str()) {
-                apply_message(&mut candidate, &BTreeMap::new(), &view, &will.message)?;
+                apply_message(
+                    self.limits,
+                    &mut candidate,
+                    &BTreeMap::new(),
+                    &view,
+                    &will.message,
+                )?;
                 published += 1;
             }
         }
@@ -839,7 +865,7 @@ impl Actor {
                     },
                 });
             }
-            drain_offline(session, &mut replay)?;
+            drain_offline(self.limits, session, &mut replay)?;
         }
         self.commit(candidate).await?;
         if let Some(old) = self.live.remove(&client_id) {
@@ -919,7 +945,7 @@ impl Actor {
                 .sessions
                 .get_mut(client_id)
                 .ok_or(RouterError::Stale)?;
-            deliveries.push(prepare_delivery(session, delivered)?);
+            deliveries.push(prepare_delivery(self.limits, session, delivered)?);
         }
         self.commit(candidate).await?;
         Ok((codes, deliveries))
@@ -973,7 +999,13 @@ impl Actor {
             self.metrics.received[qos].fetch_add(1, Ordering::Relaxed);
             return Ok(());
         }
-        let deliveries = apply_message(&mut candidate, &self.live, &self.auth, &message)?;
+        let deliveries = apply_message(
+            self.limits,
+            &mut candidate,
+            &self.live,
+            &self.auth,
+            &message,
+        )?;
         self.commit(candidate).await?;
         self.metrics.received[qos].fetch_add(1, Ordering::Relaxed);
         self.deliver(deliveries);
@@ -1000,7 +1032,13 @@ impl Actor {
             return Ok(());
         };
         let pending = session.inbound_qos2.remove(index);
-        let deliveries = apply_message(&mut candidate, &self.live, &self.auth, &pending.message)?;
+        let deliveries = apply_message(
+            self.limits,
+            &mut candidate,
+            &self.live,
+            &self.auth,
+            &pending.message,
+        )?;
         self.commit(candidate).await?;
         self.deliver(deliveries);
         Ok(())
@@ -1032,7 +1070,7 @@ impl Actor {
             (AckKind::Ack, OutboundStage::AwaitPubAck)
             | (AckKind::Comp, OutboundStage::AwaitPubComp) => {
                 session.outbound.remove(index);
-                drain_offline(session, &mut actions)?;
+                drain_offline(self.limits, session, &mut actions)?;
                 self.commit(candidate).await?;
                 // Earlier publications may already be waiting in this session's
                 // mailbox. Append drained offline messages there, not to the
@@ -1094,7 +1132,13 @@ impl Actor {
                 .allowed_publish(&will.principal, will.message.topic.as_str())
         {
             published = true;
-            deliveries = apply_message(&mut candidate, &remaining_live, &self.auth, &will.message)?;
+            deliveries = apply_message(
+                self.limits,
+                &mut candidate,
+                &remaining_live,
+                &self.auth,
+                &will.message,
+            )?;
         }
         // MQTT-3.1.2-10 and MQTT-3.14.4-3: cancellation/publication is durable.
         self.commit(candidate).await?;
@@ -1121,6 +1165,7 @@ impl Actor {
 }
 
 fn apply_message(
+    limits: StateLimits,
     state: &mut DurableState,
     live: &BTreeMap<String, Live>,
     auth: &AccessPolicy,
@@ -1153,10 +1198,10 @@ fn apply_message(
         outbound.qos = outbound.qos.min(maximum);
         outbound.retain = false;
         if live.contains_key(client_id) {
-            if outbound.qos > 0 && session.outbound.len() >= MAX_INFLIGHT {
+            if outbound.qos > 0 && session.outbound.len() >= limits.max_inflight {
                 session.offline.push_back(outbound);
             } else {
-                let delivery = prepare_delivery(session, outbound)?;
+                let delivery = prepare_delivery(limits, session, outbound)?;
                 deliveries.push((client_id.clone(), delivery));
             }
         } else if session.persistent && outbound.qos > 0 {
@@ -1167,6 +1212,7 @@ fn apply_message(
 }
 
 fn prepare_delivery(
+    limits: StateLimits,
     session: &mut DurableSession,
     message: StoredMessage,
 ) -> Result<Delivery, RouterError> {
@@ -1177,7 +1223,7 @@ fn prepare_delivery(
             dup: false,
         });
     }
-    if session.outbound.len() >= MAX_INFLIGHT {
+    if session.outbound.len() >= limits.max_inflight {
         return Err(StateError::Limit("outbound inflight").into());
     }
     let packet_id = allocate_packet_id(session)?;
@@ -1199,14 +1245,15 @@ fn prepare_delivery(
 }
 
 fn drain_offline(
+    limits: StateLimits,
     session: &mut DurableSession,
     actions: &mut Vec<Delivery>,
 ) -> Result<(), RouterError> {
-    while session.outbound.len() < MAX_INFLIGHT {
+    while session.outbound.len() < limits.max_inflight {
         let Some(message) = session.offline.pop_front() else {
             break;
         };
-        actions.push(prepare_delivery(session, message)?);
+        actions.push(prepare_delivery(limits, session, message)?);
     }
     Ok(())
 }
@@ -1224,6 +1271,36 @@ fn allocate_packet_id(session: &mut DurableSession) -> Result<u16, RouterError> 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn configured_inflight_defers_and_drains_without_losing_order() {
+        let limits = StateLimits::new(64, 256, 256, 64, 1).unwrap();
+        let mut session = DurableSession::new("user".into(), true);
+        let first = StoredMessage {
+            topic: super::super::topic::TopicName::try_from("test/first".to_owned()).unwrap(),
+            payload: vec![1],
+            qos: 1,
+            retain: false,
+        };
+        let second = StoredMessage {
+            topic: super::super::topic::TopicName::try_from("test/second".to_owned()).unwrap(),
+            payload: vec![2],
+            qos: 1,
+            retain: false,
+        };
+        prepare_delivery(limits, &mut session, first.clone()).unwrap();
+        assert!(prepare_delivery(limits, &mut session, second.clone()).is_err());
+        session.offline.push_back(second.clone());
+        let mut actions = Vec::new();
+        drain_offline(limits, &mut session, &mut actions).unwrap();
+        assert!(actions.is_empty());
+        assert_eq!(session.offline.front(), Some(&second));
+        session.outbound.clear();
+        drain_offline(limits, &mut session, &mut actions).unwrap();
+        assert_eq!(actions.len(), 1);
+        assert!(session.offline.is_empty());
+        assert_eq!(session.outbound[0].message, second);
+    }
+
     use super::*;
     use crate::{auth::AuthPolicy, mqtt::topic::TopicName};
     use argon2::{
@@ -1241,6 +1318,7 @@ mod tests {
         (
             directory,
             Actor {
+                limits: StateLimits::default(),
                 metrics: Arc::default(),
                 store,
                 state,
@@ -1524,6 +1602,7 @@ mod tests {
 
         let (store, state) = MqttStore::open(directory.path()).await.unwrap();
         let mut reopened = Actor {
+            limits: StateLimits::default(),
             metrics: Arc::default(),
             store,
             state,
@@ -1689,6 +1768,7 @@ mod tests {
         actor.store.shutdown().await.unwrap();
         let (store, state) = MqttStore::open(directory.path()).await.unwrap();
         let mut reopened = Actor {
+            limits: StateLimits::default(),
             metrics: Arc::default(),
             store,
             state,
@@ -1787,6 +1867,7 @@ mod tests {
         let mut candidate = actor.state.clone();
         assert!(
             apply_message(
+                StateLimits::default(),
                 &mut candidate,
                 &actor.live,
                 &actor.auth,

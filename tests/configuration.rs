@@ -1,13 +1,12 @@
 #[cfg(unix)]
+use std::process::Stdio;
+#[cfg(unix)]
 use std::{
     thread,
     time::{Duration, Instant},
 };
 // P52: configuration is validated before state is created, using child envs.
-use std::{
-    fs,
-    process::{Command, Stdio},
-};
+use std::{fs, process::Command};
 
 fn broker(path: &std::path::Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_mqtt-broker"));
@@ -132,4 +131,33 @@ fn relative_file_configuration_starts_and_stops_durably() {
         thread::sleep(Duration::from_millis(20));
     }
     assert!(directory.path().join("state/state.snapshot").is_file());
+}
+
+#[test]
+fn invalid_state_quotas_never_create_state() {
+    for (field, key, ceiling) in [
+        ("max_sessions", "MQTT_MAX_SESSIONS", 64),
+        ("max_retained", "MQTT_MAX_RETAINED", 256),
+        ("max_subscriptions", "MQTT_MAX_SUBSCRIPTIONS", 256),
+        ("max_offline", "MQTT_MAX_OFFLINE", 64),
+        ("max_inflight", "MQTT_MAX_INFLIGHT", 32),
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("broker.toml");
+        let state = directory.path().join("state");
+        fs::write(
+            &path,
+            format!("version=1\n[broker]\nmode='open-lab'\n[limits]\n{field}=1"),
+        )
+        .unwrap();
+        for value in ["0".to_owned(), (ceiling + 1).to_string(), "invalid".into()] {
+            let output = broker(&path)
+                .env("MQTT_STATE_DIR", &state)
+                .env(key, value)
+                .output()
+                .unwrap();
+            assert!(!output.status.success());
+            assert!(!state.exists());
+        }
+    }
 }
