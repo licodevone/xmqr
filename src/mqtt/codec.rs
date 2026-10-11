@@ -6,8 +6,9 @@ use crate::transport::BrokerConnection;
 
 use super::topic::{TopicFilter, TopicName, valid_topic_name};
 
+// Local quota includes the first byte, Remaining Length bytes and body.
 const MAX_PACKET: usize = 64 * 1024;
-const MAX_BUFFER: usize = MAX_PACKET + 5;
+const MAX_BUFFER: usize = MAX_PACKET;
 const MAX_PAYLOAD: usize = 4096;
 const MAX_SUBSCRIPTIONS: usize = 256;
 const MAX_PARTIAL_FRAME_TIME: Duration = Duration::from_secs(30);
@@ -153,7 +154,7 @@ fn frame_header(
             return Ok(None);
         };
         value += usize::from(byte & 0x7f) * multiplier;
-        if value > MAX_PACKET {
+        if value + index + 1 > MAX_PACKET {
             return Err("MQTT packet too large".into());
         }
         if byte & 0x80 == 0 {
@@ -443,11 +444,14 @@ pub(super) fn encode_publish(
     }
     let name = topic.as_bytes();
     let len = 2 + name.len() + usize::from(packet_id.is_some()) * 2 + payload.len();
-    if name.len() > u16::MAX as usize || len > MAX_PACKET {
+    if name.len() > u16::MAX as usize {
         return Err("outbound MQTT packet too large");
     }
     let mut out = vec![0x30 | (qos.as_u8() << 1) | u8::from(retain) | (u8::from(dup) << 3)];
     encode_length(len, &mut out);
+    if out.len() + len > MAX_PACKET {
+        return Err("outbound MQTT packet too large");
+    }
     let topic_len = u16::try_from(name.len()).map_err(|_| "topic too long")?;
     out.extend_from_slice(&topic_len.to_be_bytes());
     out.extend_from_slice(name);
@@ -461,6 +465,93 @@ pub(super) fn encode_publish(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn packet_quota_counts_complete_header_before_waiting_for_body() {
+        // OASIS §2.2.3: Remaining Length excludes its bytes. 64 KiB is local.
+        // Independent wire vectors: body 65532 + four-byte fixed header.
+        assert_eq!(
+            frame_header(&[0x10, 0xfc, 0xff, 0x03]).unwrap(),
+            Some((4, 65532))
+        );
+        assert!(frame_header(&[0x10, 0xfd, 0xff, 0x03]).is_err());
+        assert!(frame_header(&[0x10, 0x80, 0x80, 0x04]).is_err());
+        // Count the actual encoded bytes, including a non-minimal fourth digit.
+        assert_eq!(
+            frame_header(&[0x10, 0xfb, 0xff, 0x83, 0]).unwrap(),
+            Some((5, 65531))
+        );
+        assert!(frame_header(&[0x10, 0xfc, 0xff, 0x83, 0]).is_err());
+        for partial in [&[0x10][..], &[0x10, 0xfc], &[0x10, 0xfc, 0xff]] {
+            assert!(frame_header(partial).unwrap().is_none());
+        }
+    }
+
+    #[test]
+    fn complete_packet_boundary_survives_fragmentation_and_concatenation() {
+        // MQTT §3.1.3.5 allows binary passwords; no payload quota applies to them.
+        // Build fields independently, without the production encoder.
+        fn connect(password_len: u16, last_digit: u8) -> Vec<u8> {
+            let mut frame = vec![
+                0x10, last_digit, 0xff, 0x03, 0, 4, b'M', b'Q', b'T', b'T', 4, 0xc2, 0, 30, 0, 1,
+                b'x', 0, 1, b'u',
+            ];
+            frame.extend_from_slice(&password_len.to_be_bytes());
+            frame.resize(frame.len() + usize::from(password_len), 0xff);
+            frame
+        }
+        let accepted = connect(65514, 0xfc);
+        assert_eq!(accepted.len(), MAX_PACKET);
+        let mut reader = FrameReader::new(accepted[..3].to_vec());
+        assert!(reader.try_take_packet().unwrap().is_none());
+        reader.buffer.extend_from_slice(&accepted[3..]);
+        reader.buffer.extend_from_slice(&[0xc0, 0]);
+        assert!(
+            matches!(reader.try_take_packet().unwrap(), Some(Packet::Connect {
+            password: Some(password), ..
+        }) if password.len() == 65514)
+        );
+        assert!(matches!(
+            reader.try_take_packet().unwrap(),
+            Some(Packet::PingReq)
+        ));
+        assert!(reader.try_take_packet().unwrap().is_none());
+        let rejected = connect(65515, 0xfd);
+        assert_eq!(rejected.len(), MAX_PACKET + 1);
+        assert!(FrameReader::new(rejected).try_take_packet().is_err());
+        assert!(
+            FrameReader::new(vec![0x10, 0xfd, 0xff, 0x03])
+                .try_take_packet()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn publish_payload_boundary_is_preserved_for_all_qos() {
+        // Independent MQTT §3.3 bodies exercise both decode and outbound quota.
+        for qos in 0..=2 {
+            for size in [4096, 4097] {
+                let mut body = vec![0, 1, b'a'];
+                if qos != 0 {
+                    body.extend_from_slice(&[0, 1]);
+                }
+                body.resize(body.len() + size, 0xff);
+                assert_eq!(decode(0x30 | (qos << 1), &body).is_ok(), size == 4096);
+                assert_eq!(
+                    encode_publish(
+                        "a",
+                        &vec![0xff; size],
+                        Qos::from_u8(qos).unwrap(),
+                        false,
+                        false,
+                        (qos != 0).then_some(1)
+                    )
+                    .is_ok(),
+                    size == 4096
+                );
+            }
+        }
+    }
+
     #[test]
     fn basic_vectors() {
         assert!(matches!(
@@ -721,6 +812,7 @@ mod tests {
         }
         assert!(decode(0x10, &connect(0x06, &("é".repeat(512) + "x"), b"bye")).is_err());
         assert!(decode(0x10, &connect(0x06, "test/+", b"bye")).is_err());
+        assert!(decode(0x10, &connect(0x06, "test/state", &vec![0; 4096])).is_ok());
         assert!(decode(0x10, &connect(0x06, "test/state", &vec![0; 4097])).is_err());
         let mut truncated = connect(0x06, "test/state", b"bye");
         truncated.pop();

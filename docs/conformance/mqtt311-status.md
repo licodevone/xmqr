@@ -115,3 +115,13 @@ Sem publicação automática; limitações e comandos constam no registro P44.
 Documentação: docs/security/dynamic-security.md; evidência:
 prompts/registros/P44-0.8.0.md (caminhos relativos à raiz do repositório).
 Referências anteriores a P44 apenas preparado descrevem checkpoints históricos.
+
+
+## P58 — framing limitado ao pacote completo
+
+OASIS §2.2.3 define Remaining Length como corpo sem seus bytes de codificação.
+O teto local65536 inclui cabeçalho completo; não é limite normativo MQTT.
+Negativos próprios cobrem65536/65537, declaração sem corpo, codificação com
+4 dígitos, fragmentação e concatenação. Payload4096/4097 cobre QoS0/1/2 e Will.
+Doze testes codec Windows aprovados; recuperação e integração Unix continuam
+pendentes. [Registro P58](../../prompts/registros/P58-pacote-completo.md).

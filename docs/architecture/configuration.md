@@ -137,3 +137,19 @@ python3 scripts/verify_state_limits.py --broker target/debug/mqtt-broker
 --client ../xmqr-client/target/debug/mqtt-client. O harness cobre fronteiras
 N/N+1, replay e QoS0/1/2 via CLI independente; não comprova Mosquitto ou TLS.
 Testes duráveis continuam pendentes enquanto Linux/WSL não estiver disponível.
+
+
+## P58 — pacote completo e payload
+
+O teto fixo64KiB significa65536 bytes do pacote MQTT completo: primeiro byte,
+bytes reais de Remaining Length e corpo. O broker recusa excesso assim que
+o cabeçalho declara o tamanho, sem aguardar o corpo. Um pacote com Remaining
+Length65532 codificado em3 bytes ocupa exatamente65536;65533 ocupa65537 e
+é recusado. Vários pacotes concatenados têm limites individuais.
+
+Payload PUBLISH e Will permanece4096 bytes, tópico/filtro1024 UTF-8; não há
+configuração TOML/ambiente para ampliar esses tetos. A CLI independente usa
+o mesmo contrato. A correção restringe os4 bytes extras aceitos no framing
+anterior; formato durável, ACL, QoS e TLS não mudam. Negativos wire próprios
+aprovados no Windows não comprovam recuperação Unix ou interop externa.
+Veja [registro P58](../../prompts/registros/P58-pacote-completo.md).

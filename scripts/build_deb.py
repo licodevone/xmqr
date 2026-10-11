@@ -65,6 +65,9 @@ def main():
         deps = next(line.split('=', 1)[1] for line in deps.splitlines() if line.startswith('shlibs:Depends='))
         (control / 'control').write_text(f'Package: {name}\nVersion: {version}\nArchitecture: {arch}\nMaintainer: XMQR maintainers <xmqr@localhost>\nDepends: {deps}, adduser, init-system-helpers\nSection: net\nPriority: optional\nHomepage: https://github.com/licodevone/{"xmqr" if broker else "xmqr-client"}\nDescription: Experimental MQTT 3.1.1 {"broker" if broker else "client"}\n Built and validated for Ubuntu 26.04 amd64.\n')
         if broker:
+            # P52 configuration remains opt-in; preserve the legacy env conffile.
+            put(root / 'packaging/broker.toml.example', 'usr/share/doc/xmqr-broker/broker.toml.example')
+            put(root / 'docs/architecture/configuration.md', 'usr/share/doc/xmqr-broker/configuration.md')
             put(root / 'packaging/broker.env', 'etc/xmqr/broker.env')
             (control / 'conffiles').write_text('/etc/xmqr/broker.env\n')
         else:

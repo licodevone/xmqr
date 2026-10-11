@@ -307,3 +307,10 @@ P55 rev3: saturação ao publicar Last Will torna o ator indisponível e encerra
 conexões, preservando a obrigação durável para restart com quotas suficientes.
 Consulte [configuração](docs/architecture/configuration.md) e
 [registro P55](prompts/registros/P55-quotas-estado.md); aceite Unix pendente.
+
+
+P58 alinha o teto do broker ao client:64KiB (65536 bytes) do pacote MQTT
+completo, incluindo primeiro byte e Remaining Length. Payload PUBLISH/Will
+continua4096 bytes e tópico/filtro1024 UTF-8. Excesso declarado é recusado
+antes do corpo; quotas e formato durável preservados. Evidência e pendências
+em [registro P58](prompts/registros/P58-pacote-completo.md).

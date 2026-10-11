@@ -2,6 +2,9 @@
 
 ## Não lançado
 
+- P58: teto64KiB uniforme do pacote completo, incluindo cabeçalho; negativos
+  de framing e payload4096/4097. Wire portável aprovado, integração Unix pendente.
+
 - P55: quotas lógicas configuráveis com recuperação/commit coerentes e redução
   incompatível recusada; implementação local, aceite Unix pendente.
 
