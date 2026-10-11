@@ -1,5 +1,9 @@
 # XMQR
 
+Veja o [guia HTML dos prompts, arquivos e código](docs/code-guide.html):
+entregas/evidências, arquitetura, configuração detalhada e fontes numeradas
+do broker e client. Retrato da baseline indicada no próprio documento.
+
 Broker MQTT3.1.1 experimental em Rust2024/Tokio, licença MIT. Pacote mqtt-broker;
 binários mqtt-broker e mqtt-admin. O client é o projeto independente ../xmqr-client.
 Não há declaração de conformidade completa ou prontidão para produção.
