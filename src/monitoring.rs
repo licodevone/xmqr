@@ -237,14 +237,21 @@ impl Config {
     /// # Errors
     /// Rejects malformed variables, remote addresses and port zero.
     pub fn from_env() -> io::Result<Self> {
-        let enabled = env::var("MQTT_MONITOR_ENABLED").map_err(|e| {
+        Self::from_lookup(|name| env::var(name))
+    }
+
+    /// Load monitoring values from an immutable configuration snapshot.
+    /// # Errors
+    /// Rejects invalid values and non-loopback addresses.
+    pub fn from_lookup(lookup: impl Fn(&str) -> Result<String, env::VarError>) -> io::Result<Self> {
+        let enabled = lookup("MQTT_MONITOR_ENABLED").map_err(|e| {
             if matches!(e, env::VarError::NotPresent) {
                 io::Error::new(io::ErrorKind::NotFound, "unset")
             } else {
                 io::Error::new(io::ErrorKind::InvalidInput, "invalid monitoring variable")
             }
         });
-        let bind = env::var("MQTT_MONITOR_BIND");
+        let bind = lookup("MQTT_MONITOR_BIND");
         if matches!(bind, Err(env::VarError::NotUnicode(_))) {
             return Err(invalid("invalid monitoring address"));
         }

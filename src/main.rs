@@ -7,6 +7,7 @@ use std::{
 
 use mqtt_broker::{
     auth::{AccessPolicy, AuthPolicy, DynamicPolicy, watch_security},
+    configuration::Configuration,
     monitoring::{Config as MonitorConfig, Metrics, Monitor},
     mqtt::{self, Router},
     transport::{
@@ -24,24 +25,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .compact()
         .init();
 
-    let monitor_config = MonitorConfig::from_env()?;
+    let config = Configuration::load()?;
+    let monitor_config = MonitorConfig::from_lookup(|name| config.var(name))?;
     let metrics = Arc::new(Metrics::default());
-    let mode = BrokerMode::from_env()?;
-    validate_security_environment(mode)?;
-    let bind_address: SocketAddr = env::var("MQTT_BIND")
-        .unwrap_or_else(|_| mode.default_bind().to_owned())
-        .parse()?;
+    let mode = BrokerMode::from_config(&config)?;
+    validate_security_environment(mode, &config)?;
+    let bind_address: SocketAddr = match config.var("MQTT_BIND") {
+        Ok(value) => value,
+        Err(env::VarError::NotPresent) => mode.default_bind().to_owned(),
+        Err(env::VarError::NotUnicode(_)) => {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid MQTT_BIND").into());
+        }
+    }
+    .parse()?;
     if mode.is_plain_lab() {
         validate_open_lab_bind(bind_address)?;
-        mode.validate_environment()?;
+        mode.validate_environment(&config)?;
     }
-    let state_directory = required_path("MQTT_STATE_DIR")?;
-    ensure_state_profile(&state_directory, mode.profile_name())?;
+    let state_directory = required_path(&config, "MQTT_STATE_DIR")?;
+    let required: &[&str] = match mode {
+        BrokerMode::SecureMtls => &["MQTT_SERVER_CERT", "MQTT_SERVER_KEY", "MQTT_CLIENT_CA"],
+        BrokerMode::PasswordLab => &["MQTT_USERS_FILE"],
+        BrokerMode::OpenLab | BrokerMode::AclLab => &[],
+    };
+    for name in required {
+        required_path(&config, name)?;
+    }
+    if matches!(mode, BrokerMode::SecureMtls | BrokerMode::AclLab)
+        && config.var_os("MQTT_SECURITY_BUNDLE").is_none()
+    {
+        required_path(&config, "MQTT_USERS_FILE")?;
+        required_path(&config, "MQTT_ACL_FILE")?;
+    }
     let limits = TransportLimits {
         max_concurrent_connections: 64,
     };
 
     serve(
+        &config,
         mode,
         bind_address,
         state_directory,
@@ -54,6 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 #[allow(clippy::too_many_lines)] // Keep each security profile's startup and stop boundary explicit.
 async fn serve(
+    config: &Configuration,
     mode: BrokerMode,
     bind_address: SocketAddr,
     state_directory: PathBuf,
@@ -64,12 +86,13 @@ async fn serve(
     match mode {
         BrokerMode::SecureMtls => {
             let tls_config = load_mtls_server_config(&MtlsFiles {
-                server_certificate_chain: required_path("MQTT_SERVER_CERT")?,
-                server_private_key: required_path("MQTT_SERVER_KEY")?,
-                client_ca_certificate: required_path("MQTT_CLIENT_CA")?,
-                client_crl: env::var_os("MQTT_CLIENT_CRL").map(PathBuf::from),
+                server_certificate_chain: required_path(config, "MQTT_SERVER_CERT")?,
+                server_private_key: required_path(config, "MQTT_SERVER_KEY")?,
+                client_ca_certificate: required_path(config, "MQTT_CLIENT_CA")?,
+                client_crl: config.var_os("MQTT_CLIENT_CRL").map(PathBuf::from),
             })?;
-            let auth = load_policy(true).await?;
+            let auth = load_policy(config, true).await?;
+            ensure_state_profile(&state_directory, mode.profile_name())?;
             let router = start_router(&state_directory, &auth, &metrics).await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport = SecureTransport::bind_observed(
@@ -96,6 +119,7 @@ async fn serve(
         }
         BrokerMode::OpenLab => {
             let auth = Arc::new(AccessPolicy::open_lab());
+            ensure_state_profile(&state_directory, mode.profile_name())?;
             let router = start_router(&state_directory, &auth, &metrics).await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport =
@@ -118,8 +142,9 @@ async fn serve(
         }
         BrokerMode::PasswordLab => {
             let auth = Arc::new(AccessPolicy::password_lab(AuthPolicy::load_passwords(
-                &required_path("MQTT_USERS_FILE")?,
+                &required_path(config, "MQTT_USERS_FILE")?,
             )?));
+            ensure_state_profile(&state_directory, mode.profile_name())?;
             let router = start_router(&state_directory, &auth, &metrics).await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport =
@@ -141,7 +166,8 @@ async fn serve(
             .await?;
         }
         BrokerMode::AclLab => {
-            let auth = load_policy(false).await?;
+            let auth = load_policy(config, false).await?;
+            ensure_state_profile(&state_directory, mode.profile_name())?;
             let router = start_router(&state_directory, &auth, &metrics).await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport =
@@ -204,8 +230,11 @@ async fn run_until_shutdown(
     Ok(())
 }
 
-fn validate_security_environment(mode: BrokerMode) -> Result<(), io::Error> {
-    if env::var_os("MQTT_SECURITY_BUNDLE").is_some() {
+fn validate_security_environment(
+    mode: BrokerMode,
+    config: &Configuration,
+) -> Result<(), io::Error> {
+    if config.var_os("MQTT_SECURITY_BUNDLE").is_some() {
         if !matches!(mode, BrokerMode::SecureMtls | BrokerMode::AclLab) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -213,6 +242,7 @@ fn validate_security_environment(mode: BrokerMode) -> Result<(), io::Error> {
             ));
         }
         reject_variables(
+            config,
             &["MQTT_USERS_FILE", "MQTT_ACL_FILE"],
             "security bundle rejects legacy users/ACL variables",
         )?;
@@ -221,9 +251,10 @@ fn validate_security_environment(mode: BrokerMode) -> Result<(), io::Error> {
 }
 
 async fn load_policy(
+    config: &Configuration,
     secure: bool,
 ) -> Result<Arc<AccessPolicy>, mqtt_broker::transport::HandlerError> {
-    if let Some(path) = env::var_os("MQTT_SECURITY_BUNDLE") {
+    if let Some(path) = config.var_os("MQTT_SECURITY_BUNDLE") {
         return DynamicPolicy::load(PathBuf::from(path), secure)
             .await
             .map(Arc::new)
@@ -231,13 +262,13 @@ async fn load_policy(
     }
     let policy = if secure {
         AccessPolicy::secure(AuthPolicy::load(
-            &required_path("MQTT_USERS_FILE")?,
-            &required_path("MQTT_ACL_FILE")?,
+            &required_path(config, "MQTT_USERS_FILE")?,
+            &required_path(config, "MQTT_ACL_FILE")?,
         )?)
     } else {
         AccessPolicy::acl_lab(AuthPolicy::load_passwords_with_acl(
-            &required_path("MQTT_USERS_FILE")?,
-            &required_path("MQTT_ACL_FILE")?,
+            &required_path(config, "MQTT_USERS_FILE")?,
+            &required_path(config, "MQTT_ACL_FILE")?,
         )?)
     };
     Ok(Arc::new(policy))
@@ -262,8 +293,8 @@ enum BrokerMode {
 }
 
 impl BrokerMode {
-    fn from_env() -> Result<Self, io::Error> {
-        match env::var("MQTT_MODE") {
+    fn from_config(config: &Configuration) -> Result<Self, io::Error> {
+        match config.var("MQTT_MODE") {
             Ok(value) => Self::parse(Some(&value)),
             Err(env::VarError::NotPresent) => Self::parse(None),
             Err(env::VarError::NotUnicode(_)) => Err(io::Error::new(
@@ -306,7 +337,7 @@ impl BrokerMode {
         !matches!(self, Self::SecureMtls)
     }
 
-    fn validate_environment(self) -> Result<(), io::Error> {
+    fn validate_environment(self, config: &Configuration) -> Result<(), io::Error> {
         const TLS_VARIABLES: [&str; 4] = [
             "MQTT_SERVER_CERT",
             "MQTT_SERVER_KEY",
@@ -314,24 +345,32 @@ impl BrokerMode {
             "MQTT_CLIENT_CRL",
         ];
         reject_variables(
+            config,
             &TLS_VARIABLES,
             "plain laboratory mode rejects TLS variables",
         )?;
         match self {
             Self::OpenLab => reject_variables(
+                config,
                 &["MQTT_USERS_FILE", "MQTT_ACL_FILE"],
                 "open-lab rejects authentication and ACL variables",
             ),
-            Self::PasswordLab => {
-                reject_variables(&["MQTT_ACL_FILE"], "password-lab rejects MQTT_ACL_FILE")
-            }
+            Self::PasswordLab => reject_variables(
+                config,
+                &["MQTT_ACL_FILE"],
+                "password-lab rejects MQTT_ACL_FILE",
+            ),
             Self::AclLab | Self::SecureMtls => Ok(()),
         }
     }
 }
 
-fn reject_variables(names: &[&str], message: &'static str) -> Result<(), io::Error> {
-    if names.iter().any(|name| env::var_os(name).is_some()) {
+fn reject_variables(
+    config: &Configuration,
+    names: &[&str],
+    message: &'static str,
+) -> Result<(), io::Error> {
+    if names.iter().any(|name| config.var_os(name).is_some()) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, message));
     }
     Ok(())
@@ -373,14 +412,21 @@ fn ensure_state_profile(directory: &Path, expected: &str) -> Result<(), io::Erro
     }
 }
 
-fn required_path(name: &'static str) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
-    env::var_os(name).map(PathBuf::from).ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!("required environment variable {name} is not set"),
-        )
-        .into()
-    })
+fn required_path(
+    config: &Configuration,
+    name: &'static str,
+) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+    config
+        .var_os(name)
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("required environment variable {name} is not set"),
+            )
+            .into()
+        })
 }
 
 #[cfg(test)]

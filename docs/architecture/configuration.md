@@ -1,12 +1,12 @@
-# Configuração versionada — desenho P51
+# Configuração versionada — implementação P52
 
-Status: proposta de implementação, não disponível no binário 0.10.0.
-O broker atual continua usando MQTT_* e RUST_LOG. Não instalar o exemplo abaixo
-como substituto de broker.env antes de implementar e validar o parser.
+Status: implementada no código após P52; não incluída no pacote publicado 0.10.0.
+O modo legado MQTT_* e RUST_LOG continua disponível. Use um binário compilado
+deste código para experimentar MQTT_CONFIG; preserve o broker.env existente.
 
-## Contrato proposto
+## Contrato implementado
 
-MQTT_CONFIG apontará para um TOML com version=1. Sem essa variável, preservar
+MQTT_CONFIG aponta para um TOML com version=1. Sem essa variável, preservar
 exatamente o comportamento legado. Com ela, carregar configuração tipada,
 rejeitar versão/campos desconhecidos e validar tudo antes de abrir listener ou
 estado. Não usar env::set_var nem persistir configuração em WAL/snapshot.
@@ -38,7 +38,7 @@ enabled = false
 bind = "127.0.0.1:9090"
 ```
 
-Os nomes acima são propostos. Para legado, users_file/acl_file terão equivalência
+Os nomes acima são os campos aceitos. Para legado, users_file/acl_file têm equivalência
 com MQTT_USERS_FILE/MQTT_ACL_FILE e as mesmas incompatibilidades por perfil.
 Senhas e hashes permanecem no arquivo de segurança privado, não neste TOML.
 
@@ -54,7 +54,7 @@ payload4096 e pacote64KiB. Não aumentar só o transporte sem ajustar o document
 durável. Definir limites superiores após benchmarks, não aceitar ilimitado.
 Reduzir limites abaixo do estado existente deve falhar sem truncar dados.
 
-## Aceite da implementação futura
+## Validação
 
 - Parser aceita exemplo; rejeita campos/versões desconhecidos e tipos errados.
 - Override explícito, caminho relativo e modo legado testados sem ambiente global.
@@ -64,3 +64,9 @@ Reduzir limites abaixo do estado existente deve falhar sem truncar dados.
 - Regressão QoS/retained/sessões/Will, ACL e SIGTERM em diretórios temporários.
 - Instalação Ubuntu antiga continua funcionando sem migração obrigatória.
 - Documentação anuncia suporte somente após gates e integração aprovados.
+
+O arquivo deve ser UTF-8, regular e ter no máximo 64 KiB. version é obrigatório.
+Campos desconhecidos, tipos incorretos e caminhos vazios são recusados. Erros
+não reproduzem o conteúdo do TOML. Para ativar em systemd, adicione
+MQTT_CONFIG=/etc/xmqr/broker.toml ao broker.env e reinicie o serviço; variáveis
+MQTT_* já presentes nesse arquivo continuam prevalecendo sobre o TOML.

@@ -272,3 +272,13 @@ ou estado MQTT. Registro desta etapa: prompts/registros/P47-systemd-ubuntu.md.
 Prerelease atual: [v0.10.0](https://github.com/licodevone/xmqr/releases/tag/v0.10.0),
 com debUbuntu26amd64 e checksum. CI Rust e pacote Ubuntu aprovados no
 [GitHub Actions](https://github.com/licodevone/xmqr/actions/runs/38085647450).
+
+## Configuração TOML (código após P52)
+
+O pacote publicado 0.10.0 ainda usa a configuração legada. Um binário compilado
+do código atual aceita MQTT_CONFIG apontando para um arquivo TOML version=1.
+Veja [campos e exemplo](docs/architecture/configuration.md) e
+[arquivo de exemplo](packaging/broker.toml.example). A precedência é defaults,
+TOML e variáveis MQTT_* explícitas, nessa ordem. Caminhos relativos no TOML
+partem da pasta do arquivo. Reinicie o broker após alterações. O exemplo usa
+bundle de segurança existente; ele não cria certificados nem credenciais.

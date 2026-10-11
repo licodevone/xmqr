@@ -1,6 +1,7 @@
 //! Building blocks for a secure MQTT broker.
 
 pub mod auth;
+pub mod configuration;
 pub mod monitoring;
 pub mod mqtt;
 pub mod persistence;

@@ -1,0 +1,14 @@
+version = 1
+[broker]
+mode = "secure-mtls"
+bind = "0.0.0.0:8883"
+state_dir = "/var/lib/xmqr"
+[tls]
+server_cert = "/etc/xmqr/server.crt"
+server_key = "/etc/xmqr/server.key"
+client_ca = "/etc/xmqr/clients-ca.crt"
+[security]
+bundle = "/etc/xmqr/security.toml"
+[monitor]
+enabled = false
+bind = "127.0.0.1:9090"

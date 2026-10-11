@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## Não lançado
+
+- P52: configuração TOML versionada via MQTT_CONFIG, com overrides legados,
+  caminhos relativos, validação estrita e erros sem conteúdo sensível.
+- Configuração imutável durante a execução; alterações exigem restart.
+
 ## 0.10.0 — systemd e Ubuntu 26.04
 
 - Tratamento SIGTERM/SIGINT e integração com systemctl.
