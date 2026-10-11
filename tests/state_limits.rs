@@ -93,6 +93,7 @@ fn reduced_quotas_reject_startup_without_listeners_or_durable_mutation_v1_v2() {
             let directory = tempfile::tempdir().unwrap();
             let state = directory.path().join("state");
             fs::create_dir(&state).unwrap();
+            fs::write(state.join(".mqtt-broker-profile"), "open-lab\n").unwrap();
             let document = fixture_document(version, kind);
             // Both snapshot and committed WAL are present at the crash boundary.
             {
@@ -150,7 +151,8 @@ fn reduced_quotas_reject_startup_without_listeners_or_durable_mutation_v1_v2() {
             let output = fs::read_to_string(&log).unwrap();
             assert!(!status.success(), "startup accepted reduced {field}");
             assert!(
-                output.contains(&format!("MQTT durable state exceeds limit: {reason}")),
+                output.contains(&format!("MQTT durable state exceeds limit: {reason}"))
+                    || output.contains(&format!("Limit(\"{reason}\")")),
                 "{output}"
             );
             assert!(!output.contains("listener started"), "{output}");

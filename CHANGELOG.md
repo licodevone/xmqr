@@ -1,12 +1,12 @@
 # Histórico de versões
 
-## Não lançado
+## 0.11.0 — fase1: configuração e quotas
 
 - P58: teto64KiB uniforme do pacote completo, incluindo cabeçalho; negativos
-  de framing e payload4096/4097. Wire portável aprovado, integração Unix pendente.
+  de framing e payload4096/4097. Validação completa Ubuntu26 emP61.
 
 - P55: quotas lógicas configuráveis com recuperação/commit coerentes e redução
-  incompatível recusada; implementação local, aceite Unix pendente.
+  incompatível recusada; aceite Unix aprovado emP61.
 
 - P54: limite de conexões TCP configurável em TOML ou MQTT_MAX_CONNECTIONS,
   faixa1..64; default64 e quotas duráveis preservados.
@@ -14,6 +14,10 @@
 - P52: configuração TOML versionada via MQTT_CONFIG, com overrides legados,
   caminhos relativos, validação estrita e erros sem conteúdo sensível.
 - Configuração imutável durante a execução; alterações exigem restart.
+
+- P61:103 testes broker e52 client; interopMosquitto, mTLS/systemd e shutdown;
+  pacote Ubuntu26 testado em install/upgrade/rollback/remove/purge.
+- Estado, defaults e configurações existentes preservados; release experimental.
 
 ## 0.10.0 — systemd e Ubuntu 26.04
 

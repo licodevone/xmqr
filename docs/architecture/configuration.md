@@ -1,6 +1,6 @@
 # Configuração versionada — implementação P52
 
-Status: implementada no código após P52; não incluída no pacote publicado 0.10.0.
+Status: incluída no pacote0.11.0; aceita em Ubuntu26/WSL na fase1(P61).
 O modo legado MQTT_* e RUST_LOG continua disponível. Use um binário compilado
 deste código para experimentar MQTT_CONFIG; preserve o broker.env existente.
 
@@ -44,7 +44,7 @@ Senhas e hashes permanecem no arquivo de segurança privado, não neste TOML.
 
 ## Limites e etapas
 
-P54 acrescenta, no código ainda não lançado:
+P54 acrescenta, incluído na versão0.11.0:
 
 ```toml
 [limits]
@@ -88,7 +88,7 @@ MQTT_CONFIG=/etc/xmqr/broker.toml ao broker.env e reinicie o serviço; variávei
 MQTT_* já presentes nesse arquivo continuam prevalecendo sobre o TOML.
 
 
-## P55 — quotas lógicas (implementação local, aceite Unix pendente)
+## P55 — quotas lógicas (aceitas no Ubuntu26 pela fase1/P61)
 
 Campos de [limits] e overrides explícitos:
 
@@ -136,7 +136,8 @@ Validação isolada Unix: cargo test --locked --test state_limits e
 python3 scripts/verify_state_limits.py --broker target/debug/mqtt-broker
 --client ../xmqr-client/target/debug/mqtt-client. O harness cobre fronteiras
 N/N+1, replay e QoS0/1/2 via CLI independente; não comprova Mosquitto ou TLS.
-Testes duráveis continuam pendentes enquanto Linux/WSL não estiver disponível.
+Testes duráveis foram aprovados no Ubuntu26/WSL emP61, incluindo12 imagens
+v1/v2, Will saturada e7 cenários reais. Isso não homologa outras plataformas.
 
 
 ## P58 — pacote completo e payload

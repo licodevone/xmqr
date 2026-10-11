@@ -25,6 +25,7 @@ com lacunas frente ao Mosquitto, ordem de implementação e cronograma estimado.
 | 0.8 | segurança dinâmica por bundle e SIGHUP |
 | 0.9 | backup/verify/restore offline e Docker; tag v0.9.0 publicada |
 | 0.10 | parada coordenada, systemd e deb Ubuntu26.04 amd64 |
+| 0.11 | TOML, quotas e pacote completo; fase1 aceita em Ubuntu26 |
 
 Veja [CHANGELOG](CHANGELOG.md), [versionamento](VERSIONING.md) e releases no GitHub.
 Tags antigas são imutáveis; releases0.x são experimentais. Histórico de execução
@@ -57,9 +58,9 @@ cd ~/xmqr-pacotes
 3. Baixe o pacote e seu checksum da release publicada:
 
 ```bash
-wget -O xmqr-broker_0.10.0-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.10.0/xmqr-broker_0.10.0-1_amd64.deb
-wget -O xmqr-broker_0.10.0-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.10.0/xmqr-broker_0.10.0-1_amd64.deb.sha256
-sha256sum -c xmqr-broker_0.10.0-1_amd64.deb.sha256
+wget -O xmqr-broker_0.11.0-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.11.0/xmqr-broker_0.11.0-1_amd64.deb
+wget -O xmqr-broker_0.11.0-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.11.0/xmqr-broker_0.11.0-1_amd64.deb.sha256
+sha256sum -c xmqr-broker_0.11.0-1_amd64.deb.sha256
 ```
 
 Prossiga somente se a verificação mostrar `OK`.
@@ -67,7 +68,7 @@ Prossiga somente se a verificação mostrar `OK`.
 4. Instale e confirme o pacote e a conta de serviço:
 
 ```bash
-sudo apt install ./xmqr-broker_0.10.0-1_amd64.deb
+sudo apt install ./xmqr-broker_0.11.0-1_amd64.deb
 dpkg-query -W -f='${Status}\n' xmqr-broker
 id xmqr
 ```
@@ -278,14 +279,14 @@ ou estado MQTT. Registro desta etapa: prompts/registros/P47-systemd-ubuntu.md.
 
 ## Publicação verificada
 
-Prerelease atual: [v0.10.0](https://github.com/licodevone/xmqr/releases/tag/v0.10.0),
-com debUbuntu26amd64 e checksum. CI Rust e pacote Ubuntu aprovados no
-[GitHub Actions](https://github.com/licodevone/xmqr/actions/runs/38085647450).
+Prerelease da fase1: [v0.11.0](https://github.com/licodevone/xmqr/releases/tag/v0.11.0),
+com deb Ubuntu26 amd64 e checksum. Aceite local completo em
+[registro P61](prompts/registros/P61-aceite-final-fase1.md); não confundir com CI histórica0.10.
 
 ## Configuração TOML (código após P52)
 
-O pacote publicado 0.10.0 ainda usa a configuração legada. Um binário compilado
-do código atual aceita MQTT_CONFIG apontando para um arquivo TOML version=1.
+O pacote0.11.0 aceita MQTT_CONFIG apontando para um TOML version=1.
+A instalação preserva broker.env e não ativa o TOML automaticamente.
 Em [limits], max_connections permite definir de1 a64 conexões TCP simultâneas;
 MQTT_MAX_CONNECTIONS prevalece sobre o arquivo. O padrão continua64.
 Veja [campos e exemplo](docs/architecture/configuration.md) e
@@ -295,18 +296,19 @@ partem da pasta do arquivo. Reinicie o broker após alterações. O exemplo usa
 bundle de segurança existente; ele não cria certificados nem credenciais.
 
 
-### Quotas P55 em validação
+### Quotas P55 — aceitas na fase1
 
 Quotas lógicas de sessões, retained, assinaturas, offline e inflight estão
 implementadas localmente, com defaults/tetos anteriores e rejeição de reduções
-incompatíveis. Aceite Unix pendente; não incluídas no pacote publicado0.10.0.
+incompatíveis. Aceite Ubuntu26 concluído emP61 e incluído no pacote0.11.0.
 Veja [contrato de configuração](docs/architecture/configuration.md) e
 [registro P55](prompts/registros/P55-quotas-estado.md).
 
 P55 rev3: saturação ao publicar Last Will torna o ator indisponível e encerra
 conexões, preservando a obrigação durável para restart com quotas suficientes.
 Consulte [configuração](docs/architecture/configuration.md) e
-[registro P55](prompts/registros/P55-quotas-estado.md); aceite Unix pendente.
+[registro P55](prompts/registros/P55-quotas-estado.md) e
+[aceite final P61](prompts/registros/P61-aceite-final-fase1.md).
 
 
 P58 alinha o teto do broker ao client:64KiB (65536 bytes) do pacote MQTT

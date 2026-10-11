@@ -1,47 +1,45 @@
-# Aceite da fase 1 — quotas, limites e distribuição
+# Aceite da fase1 — concluído em Ubuntu26/WSL
 
-Estado atual: **ACCEPTANCE_BLOCKED**. Os critérios são avaliados nas árvores atuais, sem usar instalação/estado do operador como laboratório. Não iniciar fase2 ou criar tag de aceite enquanto gates abaixo permanecerem pendentes.
+Estado: **PHASE1_ACCEPTED**, 2026-10-11, P61/C39. Broker0.11.0 e client0.7.0.
+Critérios de código, integração e pacote satisfeitos. Não é conformidade MQTT
+completa nem prontidão para produção; fase2 não iniciada.
 
-| Critério | Evidência atual | Estado |
-| --- | --- | --- |
-| Quotas TOML/defaults e rejeição de configuração inválida | P55 implementado; testes portáveis anteriores registrados, negativos Unix existentes | Implementado; aceite Unix pendente |
-| Redução de estado sem perda, v1/v2, Will saturada | tests/state_limits.rs, router/store e harness P55; execução Unix indisponível nesta conta | BLOCKED |
-| Pacote completo65536 / N+1 e payload4096 / N+1 no broker | P58:12 testes codec, fmt, Clippy e build PASS Windows | PASS portátil |
-| Limites/diagnósticos e conexão no client | C38:29 unitários+20 wire, fmt, Clippy/build PASS Windows | PASS portátil; integração real BLOCKED |
-| QoS0/1/2, retained/fila/inflight, C37 e regressão TCP | Runner P59 usa builds próprios e harness P54/P55/Will/C27/C38 | Preparado; execução Unix BLOCKED |
-| Interop independente Mosquitto | Runner confere clients/std buf e executa verify_interop se disponíveis | BLOCKED nesta sessão |
-| Instalação/upgrade/rollback Ubuntu26 | Lifecycle old/new explícitos, hashes e preservação em container descartável | Preparado; execução real BLOCKED |
-| Publicação de marco P52/P54/P55 e limites | Depende dos gates atuais e pacotes do commit aceito | Pendente; sem nova tag/release |
+| Critério | Resultado real |
+| --- | --- |
+| Quotas TOML/defaults/overrides e negativos | PASS:103 testes broker |
+| Redução sem descarte, v1/v2 e Will saturada | PASS:12 imagens, hashes preservados/reabertura; testes internos e7 cenários reais |
+| Pacote65536/N+1 e payload4096/N+1 | PASS: codec/client e fronteiras reaisQoS0/1/2 |
+| Client, timeout/keepalive e diagnósticos | PASS:52 testes(31unit+21wire), C38 real |
+| QoS/retained/offline/inflight/reconexão/TLS | PASS:P54/P55/Will/C27/C38, fontes congeladas |
+| Cliente independente Mosquitto | PASS:4 cenários open-lab Mosquitto2.0.22 |
+| systemctl/mTLS e shutdown | PASS:start/pub/sub/reload/restart/stop em units temporárias;3 regressões shutdown |
+| Instalação/upgrade/rollback/remove/purge | PASS:containerUbuntu26amd64; documentos/arquivos/estado fictício preservados |
 
-A suíte geral broker no Windows nesta retomada terminou exit101:41 PASS,25 FAIL de fsync Unix e1 ignorado. Isto não é PASS global nem comprova recuperação. O fsync permanece obrigatório. O client tem49 testes portáveis aprovados; estes fixtures não substituem integração com broker real.
+Runner final: target/phase1-20261011T232424Z-scjb4yeg/summary.json,
+UNIT_INTEGRATION_PASS. phase1_accepted=false no runner é intencional: ele não
+executa pacote. O aceite combinado P61 agrega lifecycle separado; resultado
+bruto preservado. Não foram promovidos testes ignorados ou bloqueados aPASS.
 
-## Contrato e compatibilidade
+## Compatibilidade e limites
 
-Broker P58 e saída SUBSCRIBE do client contam primeiro byte+Remaining Length+corpo no teto completo65536. Payload4096 e tópico1024 continuam preservados. Na recepção, rumqttc0.25.1 verifica apenas Remaining Length: C38 reserva header máximo5 e limita corpo65531. Isso mantém pacote recebido<=65536 inclusive encoding não mínimo; pode recusar por1byte um frame canônico de65536. Essa diferença defensiva está documentada e não afeta mensagens que o broker suporta com payload4096/tópico1024. Não anunciar fronteira inclusiva inbound idêntica à saída.
+Defaults e formato de estado preservados. Redução incompatível recusa startup
+sem truncar imagem; recuperar restabelecendo quotas suficientes. TOML opt-in:
+instalação não ativa MQTT_CONFIG nem troca broker.env.
 
-Formatos duráveis e quotas permanecem iguais; não truncar dados. A contagem corrigida do broker recusa frames que antes passavam apenas por não contabilizar o cabeçalho. Restaurar quotas suficientes é a recuperação prevista para estado incompatível; não editar WAL/snapshot.
+Broker/envioSUBSCRIBE contam pacote completo65536. Clientrumqttc reserva
+header5, recebe corpo até65531 e pode recusar frame canônico65536 por1byte.
+Diferença defensiva explícita; TLS/SAN e autenticação preservados.
 
-## Execução no Ubuntu do operador
+Testes isolados não operaram/desinstalaram/atualizaram os softwares em uso.
+Estado de pacote é fictício, não substitui replayMQTT validado separadamente.
+Ubuntu24, arm64, Windowsbroker e MSRV1.88 exato não homologados neste marco.
+InteropMosquitto aberta não equivale aTLS/ACL externa: mTLS foi coberto pelo
+client próprio e pelas units temporárias systemd.
 
-O Ubuntu26 informado pelo operador contém versões instaladas destes softwares. Isso não impede testes em portas livres loopback e diretórios temporários. Não desinstalar nem operar serviços/estado instalado para estes gates. A conta Windows de execução desta sessão é lico\codexsandboxoffline; tentativa wsl.exe --distribution Ubuntu-26.04 --exec uname -a retornou WSL_E_DISTRO_NOT_FOUND, embora a distribuição esteja aberta no login do operador.
+## Evidências
 
-No terminal Ubuntu, com os fontes finais já commitados e sem editá-los durante execução:
+- [P61 — tentativas, gates e publicação](../prompts/registros/P61-aceite-final-fase1.md)
+- [C39 — client](../../xmqr-client/prompts/registros/C39-release-fase1.md)
+- [Contrato de pacote](phase1-package-acceptance.md)
 
-```sh
-cd /mnt/d/projects/my-project/rapidez-projects/rapidez-broker-client
-python3 -B xmqr/scripts/verify_phase1.py --client-root xmqr-client
-```
-
-O runner não usa sudo, APT, systemctl ou binários instalados. Usa targets separados, estado em /tmp, Cargo locked/offline e gera target/phase1-*/summary.json, logs e fingerprints antes/depois. Mudanças de fontes/HEAD durante execução invalidam resultados. Toolchain/cache/pre-requisitos ausentes são bloqueios a resolver no ambiente antes de repetir; nada é instalado automaticamente. Compartilhar o caminho de summary.json permite conferir os logs no workspace.
-
-Mesmo UNIT_INTEGRATION_PASS não encerra a fase: o gate de pacote permanece separado. Consulte [aceite de pacote](phase1-package-acceptance.md) para Docker descartável, quatro artefatos antigos/candidatos, install/upgrade/rollback/remove/purge. Não executar packaging/test_package.sh no Ubuntu real do operador. Não usar arquivos privados de estado/credenciais nos anexos.
-
-Após os gates, selecionar versões independentes e coerentes, validar manifests/notas/artefatos do commit exato e hashes, testar upgrade/rollback; somente então criar tags imutáveis e publicar experimental/pre-release autorizado. Tags existentes não serão movidas para conter este código.
-
-## Registros
-
-- [P55 — quotas e Will](../prompts/registros/P55-quotas-estado.md)
-- [P58 — pacote completo](../prompts/registros/P58-pacote-completo.md)
-- [C38 — limites do client](../../xmqr-client/prompts/registros/C38-limites-fase1.md)
-- [P59 — pacote e runner](../prompts/registros/P59-aceite-pacotes.md)
-- [P60 — coordenação](../prompts/registros/P60-fechamento-fase1.md)
+Próxima entrega: prompt da fase2 para medição RAM/CPU/latência/mensagens/s.

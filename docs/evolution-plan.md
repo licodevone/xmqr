@@ -134,3 +134,10 @@ A fase1 permanece aberta. Próxima retomada: aceitar P55 em Linux/WSL com recupe
 Pedido explícito de finalizar fase1 executado em paralelo. BrokerP58 corrige teto para pacote completo65536 e reforça payload4096/N+1; clientC38 cobre SUBSCRIBE/payload, diagnósticos e recepção conservadora65531 de corpo (exceção1byte canônica explicitada). P59 adiciona lifecycle upgrade/rollback em container e runner único de gates Unix; .deb candidato passa a conter exemplo/guia TOML sem ativação automática. Portáveis passaram (brokercodec12 e client49), mas suíte geralbrokerWindows falha por fsyncUnix.
 
 [Quadro de aceite atual](phase1-acceptance.md): ACCEPTANCE_BLOCKED. Ubuntu26 do operador está aberto e contém versões instaladas, mas não é acessível à conta lico\codexsandboxoffline desta sessão. O runner usa fontes/testes/estado temporários e pode ser executado no loginUbuntu, sem remover ou alterar instalações existentes. Lifecycle somente em container descartável. Aguarda evidência Unix/interop e pacotes; fase1 não foi artificialmente encerrada e fase2 não foi iniciada.
+
+## Checkpoint atual — aceite P61/C39, 2026-10-11
+
+Fase1 concluída no Ubuntu26/WSL: broker0.11.0/client0.7.0, configuração e
+quotas, limites de pacotes, integrações e pacote install/upgrade/rollback aceitos.
+Os BLOCKED anteriores desta página são históricos. Ver [aceite da fase1](phase1-acceptance.md).
+Fase2 (capacidade/RAM/latência) aguarda prompt próprio e não foi executada aqui.

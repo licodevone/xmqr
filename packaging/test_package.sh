@@ -60,6 +60,9 @@ check_config_docs() {
 }
 sha256sum "$old_broker" "$old_client" "$new_broker" "$new_client"
 export DEBIAN_FRONTEND=noninteractive
+# The minimal Ubuntu Docker image excludes documentation by default. Preserve
+# only our package docs so installation/rollback can exercise the real files.
+printf '%s\n' 'path-include=/usr/share/doc/xmqr-broker' 'path-include=/usr/share/doc/xmqr-broker/*' 'path-include=/usr/share/doc/xmqr-client' 'path-include=/usr/share/doc/xmqr-client/*' > /etc/dpkg/dpkg.cfg.d/zz-xmqr-test-docs
 apt-get update -qq
 apt-get install -y --no-install-recommends systemd "$old_broker" "$old_client"
 check_versions() {

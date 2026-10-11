@@ -2,11 +2,11 @@
 
 ## Plano atual P53 — broker e clients, referência Mosquitto
 
-Consulte [inventário e cronograma](evolution-plan.md) para a sequência vigente,
-dependências e critérios de saída. P52 implementou TOML no código; ainda não
-incluído no pacote publicado0.10.0. P54 configura admissão TCP (1..64), ainda
-não lançada. Próxima fatia: quotas duráveis configuráveis e validação de redução.
-Os calendários e números de versões abaixo são históricos, não compromissos.
+Fase1 concluída emP61: broker0.11.0/client0.7.0, TOML/quotas/limites,
+integração e ciclo de pacotes aprovados em Ubuntu26. Veja [aceite](phase1-acceptance.md).
+Próxima fase: medição reproduzível de capacidade, RAM/CPU/latência e fan-out,
+com novo prompt antes de código. Não iniciada por esta entrega.
+Os calendários e versões abaixo são históricos, não compromissos.
 
 ## Estado atual e sequência P51 — 2026-10-11
 

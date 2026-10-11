@@ -1,5 +1,12 @@
 # P59 — aceite isolado do ciclo de pacotes, revisão 1
 
+## rev2.5 — documentação instalada na imagem mínima Ubuntu
+
+Lifecycle real encontrou pacote correto, mas dpkg da imagem descarta
+/usr/share/doc/* por /etc/dpkg/dpkg.cfg.d/excludes. Incluir caminhos docs dos
+dois pacotes apenas no container descartável antes deAPT. Não afrouxar cmp,
+upgrade/rollback ou hashes. Repetir lifecycle e registrar falha anterior.
+
 Estado de entrada em 2026-10-11: broker HEAD 57d23c0; client independente
 6ee5aa8. P55 tem implementação local e aceite Unix pendente. Nenhuma distribuição
 WSL aparece em wsl.exe --list --quiet; Docker/Podman ausentes no PATH.

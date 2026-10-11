@@ -21,6 +21,8 @@ import time
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--client-root", type=Path, required=True)
+    parser.add_argument("--build-cache-root", type=Path,
+                        help="reuse an existing /tmp/xmqr-phase1-build-* Cargo cache; all gates still run")
     args = parser.parse_args()
     if sys.platform != "linux" or sys.version_info < (3, 11):
         parser.exit(2, "BLOCKED: Linux and Python 3.11+ required; run from the current source checkout in Ubuntu/WSL\n")
@@ -34,7 +36,15 @@ def main():
         parser.exit(2, f"BLOCKED: missing prerequisites: {', '.join(missing)}\n")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output = Path(tempfile.mkdtemp(prefix=f"phase1-{stamp}-", dir=ensure_target(broker_root)))
-    targets = {"broker": output / "broker-target", "client": output / "client-target"}
+    # Native Linux build files avoid DrvFS metadata overhead; logs stay durable
+    # in the workspace. These are fresh test-owned targets, not installed bins.
+    if args.build_cache_root:
+        build_root = args.build_cache_root.resolve()
+        if not build_root.is_dir() or build_root.parent != Path("/tmp") or not build_root.name.startswith("xmqr-phase1-build-"):
+            parser.exit(2, "BLOCKED: cache must be an existing /tmp/xmqr-phase1-build-* directory\n")
+    else:
+        build_root = Path(tempfile.mkdtemp(prefix=f"xmqr-phase1-build-{stamp}-", dir="/tmp"))
+    targets = {"broker": build_root / "broker-target", "client": build_root / "client-target"}
     env = {key: value for key, value in os.environ.items() if not key.startswith("MQTT_")}
     env.update(CARGO_NET_OFFLINE="true", PYTHONDONTWRITEBYTECODE="1", PYTHONUTF8="1", TMPDIR="/tmp")
     # Build only this source, never a configured cross target or installed binary.

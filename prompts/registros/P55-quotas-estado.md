@@ -1,5 +1,9 @@
 # P55 — preparação e revisão P54
 
+> Checkpoint atual: P61 concluiu o aceite Unix em Ubuntu26 e a fase1 com
+> broker0.11.0/client0.7.0. Os PREPARED/BLOCKED abaixo são históricos;
+> veja [registro final](P61-aceite-final-fase1.md).
+
 ## Estado
 
 PREPARED: prompt rev1 criado antes das atualizações documentais. Implementação

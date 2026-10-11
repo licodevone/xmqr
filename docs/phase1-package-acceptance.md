@@ -1,5 +1,12 @@
 # Aceite de pacote da fase 1
 
+Checkpoint P61: lifecycle aprovado em Ubuntu26amd64, com broker0.11.0/client0.7.0,
+upgrade desde0.10.0/0.5.0 e rollback. O harness inclui docsXMQR explicitamente
+na imagemDocker mínima, que os exclui por padrão. [Evidência final](../prompts/registros/P61-aceite-final-fase1.md).
+O contrato abaixo permanece reproduzível. Builds do runner ficam em /tmp nativo;
+logs e snapshots no workspace. --build-cache-root pode reusar apenas a pasta
+/tmp/xmqr-phase1-build-* existente, sem pular nenhum gateCargo.
+
 O gate de distribuição é separado do aceite de quotas/recuperação MQTT. O
 harness [test_package.sh](../packaging/test_package.sh) cobre broker e client
 em um container descartável Ubuntu 26.04 amd64: install, upgrade, rollback,

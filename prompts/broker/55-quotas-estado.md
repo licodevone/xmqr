@@ -93,3 +93,17 @@ Suíte Windows:38 PASS/25 FAIL/1 ignorado;25 falhas exigem fsync Unix e não ser
 ### Ajuste rev3.2 — gate de inventário no Windows
 
 Python3.12.14 encontrado em caminho explícito. ast.parse do harness PASS e sua execução retornou BLOCKED/exit2 fora de Unix. license_inventory.py --check falhou ao ler LICENSE com locale cp1252; repetir com -X utf8, sem alterar conteúdo/licença ou flexibilizar o inventário.
+
+### rev4 — teste executado no Ubuntu26
+
+Teste state_limits falhou antes de chegar à quota porque sua imagem manual
+não tinha .mqtt-broker-profile e o broker corretamente tratou-a como segura.
+Gravar marcador open-lab na fixture antes de capturar hashes; preservar o
+teste de todos os arquivos e a proteção runtime. Repetir12 cenáriosv1/v2 e suíte.
+
+### rev5 — motivo específico na representação de erro
+
+Com marcador, runtime recusou corretamente Limit("sessions"); o teste esperava
+Display, mas Termination de main emiteDebug. Aceitar Display ou Debug com o
+mesmo motivo específico; não aceitar erro genérico. Preservar checks de porta,
+hashes de todos os arquivos e reabertura imediata. Repetir suíte completa.

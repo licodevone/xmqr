@@ -15,3 +15,10 @@ antes de tag/publicação. Não reescrever tags0.9/0.4 para incluir novos binár
 
 MIT, MQTT3.1.1, quotas e formato de estado preservados. MQTT5 não implementado.
 1.0 depende dos gates de produção; sem promessa de API estável em0.x.
+
+## Fase1 — P61
+
+Broker0.11.0 e client0.7.0 têm tags independentes e releases experimentais.
+Gates Ubuntu26/WSL, interop e ciclo de pacote em container foram aprovados.
+Não há homologação nova de Ubuntu24, arm64, Windowsbroker ou MSRV1.88 exato.
+Não há conformidade MQTT5 nem prontidão de produção. Tags antigas imutáveis.
