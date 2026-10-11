@@ -302,3 +302,8 @@ implementadas localmente, com defaults/tetos anteriores e rejeição de reduçõ
 incompatíveis. Aceite Unix pendente; não incluídas no pacote publicado0.10.0.
 Veja [contrato de configuração](docs/architecture/configuration.md) e
 [registro P55](prompts/registros/P55-quotas-estado.md).
+
+P55 rev3: saturação ao publicar Last Will torna o ator indisponível e encerra
+conexões, preservando a obrigação durável para restart com quotas suficientes.
+Consulte [configuração](docs/architecture/configuration.md) e
+[registro P55](prompts/registros/P55-quotas-estado.md); aceite Unix pendente.

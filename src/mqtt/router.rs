@@ -272,13 +272,21 @@ impl Router {
         let pending = std::mem::take(&mut state.pending_wills);
         for will in pending.into_values() {
             if auth.allowed_publish(&will.principal, will.message.topic.as_str()) {
-                apply_message(limits, &mut state, &BTreeMap::new(), &auth, &will.message)?;
+                if let Err(error) =
+                    apply_message(limits, &mut state, &BTreeMap::new(), &auth, &will.message)
+                {
+                    store.shutdown().await?;
+                    return Err(error.into());
+                }
                 recovered_wills += 1;
             }
         }
         if state != before {
             let start = std::time::Instant::now();
-            store.commit(&state).await?;
+            if let Err(error) = store.commit(&state).await {
+                store.shutdown().await?;
+                return Err(error.into());
+            }
             metrics.commit_attempts.fetch_add(1, Ordering::Relaxed);
             metrics.commit_nanos.fetch_add(
                 u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX),
@@ -1132,16 +1140,29 @@ impl Actor {
                 .allowed_publish(&will.principal, will.message.topic.as_str())
         {
             published = true;
-            deliveries = apply_message(
+            deliveries = match apply_message(
                 self.limits,
                 &mut candidate,
                 &remaining_live,
                 &self.auth,
                 &will.message,
-            )?;
+            ) {
+                Ok(deliveries) => deliveries,
+                Err(error) => {
+                    self.fail_closed();
+                    return Err(error);
+                }
+            };
         }
         // MQTT-3.1.2-10 and MQTT-3.14.4-3: cancellation/publication is durable.
-        self.commit(candidate).await?;
+        // A failed Will must remain pending; continuing would allow takeover
+        // to replace that obligation or route to a connection already gone.
+        if let Err(error) = self.commit(candidate).await {
+            if published {
+                self.fail_closed();
+            }
+            return Err(error);
+        }
         if published {
             self.metrics.wills.fetch_add(1, Ordering::Relaxed);
         }
@@ -1271,6 +1292,102 @@ fn allocate_packet_id(session: &mut DurableSession) -> Result<u16, RouterError> 
 
 #[cfg(test)]
 mod tests {
+    #[cfg_attr(not(unix), ignore = "requires Unix directory fsync")]
+    #[tokio::test]
+    async fn saturated_will_closes_actor_and_preserves_obligation_until_compatible_restart() {
+        let (directory, mut actor) = actor().await;
+        actor.limits = StateLimits::new(64, 256, 256, 1, 32).unwrap();
+        // The store and actor must enforce the same process quotas.
+        actor.store.shutdown().await.unwrap();
+        let (store, state) = MqttStore::open_with_limits(directory.path(), actor.limits)
+            .await
+            .unwrap();
+        actor.store = store;
+        actor.state = state;
+        let subscriber = actor
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "sub",
+                subscriber.generation,
+                vec![(filter("test/state"), Some(1))],
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister_with_reason("sub", subscriber.generation, true)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register_with_will(
+                "pub".into(),
+                "user".into(),
+                false,
+                Some(message("test/state", 1, false, b"pending-will")),
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "pub",
+                publisher.generation,
+                message("test/state", 1, false, b"already-queued"),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        let committed = actor.state.clone();
+        assert!(matches!(
+            actor
+                .unregister_with_reason("pub", publisher.generation, false)
+                .await,
+            Err(RouterError::Store(StateError::Limit(_)))
+        ));
+        assert!(actor.fatal);
+        assert!(*publisher.closed.borrow());
+        assert_eq!(actor.state, committed);
+        actor.store.shutdown().await.unwrap();
+
+        // Recovery also fails without erasing the Will or holding the writer.
+        for _ in 0..2 {
+            assert!(
+                Router::start_observed_with_limits(
+                    directory.path(),
+                    actor.auth.clone(),
+                    Arc::default(),
+                    actor.limits
+                )
+                .await
+                .is_err()
+            );
+            let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+            assert_eq!(recovered, committed);
+            store.shutdown().await.unwrap();
+        }
+        let router = Router::start(directory.path(), actor.auth.clone())
+            .await
+            .unwrap();
+        let resumed = router
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let payloads: Vec<_> = resumed
+            .replay
+            .iter()
+            .map(|delivery| match delivery {
+                Delivery::Publish { message, .. } => message.payload.clone(),
+                Delivery::PubRel(_) => panic!("unexpected PUBREL"),
+            })
+            .collect();
+        assert_eq!(
+            payloads,
+            [b"already-queued".to_vec(), b"pending-will".to_vec()]
+        );
+        router.shutdown().await.unwrap();
+    }
+
     #[test]
     fn configured_inflight_defers_and_drains_without_losing_order() {
         let limits = StateLimits::new(64, 256, 256, 64, 1).unwrap();

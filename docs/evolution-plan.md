@@ -118,3 +118,13 @@ Quotas lógicas implementadas localmente; validação portável Windows aprovada
 Recuperação durável e integração Linux/WSL pendentes: não há distribuição WSL
 visível nesta sessão. A fase1 segue aberta e nenhuma tag/release de aceite foi criada.
 Veja prompts/registros/P55-quotas-estado.md e retome gates Unix antes de avançar.
+
+## Retomada paralela P55/C37 — 2026-10-11
+
+Escopos preparados antes do código: P55 rev3/revisões posteriores e C37 rev4. Agentes independentes implementaram broker/client e revisaram os diffs; alterações preexistentes AGENTS.md do broker e .serena/project.yml do client foram preservadas.
+
+P55 recebeu correção local para Will saturada: recusa encerra o ator/conexões, mantendo a imagem comprometida e a obrigação pendente; recuperação aguarda encerramento do writer em erro antes de retornar. Negativos cobrem startup real com imagens v1/v2 acima de cada quota, ausência de listener, arquivos duráveis idênticos e reabertura imediata. Harness isolado acrescenta limites N/N+1 e QoS0/1/2 com CLI independente. Fmt, Clippy, build e compilação dos testes passaram em Windows; a suíte geral tem falhas de fsync Unix, e os novos negativos duráveis foram ignorados nesta plataforma. Aceite P55 continua BLOCKED, sem tag/release. Resultados detalhados no [registro P55](../prompts/registros/P55-quotas-estado.md).
+
+C37 foi implementado no client 0.6.0: --keepalive-seconds 1..65535 (default30) e --timeout-seconds 1..300 (default8), preservando reconexão, TLS/SAN, QoS e budgets existentes. Gates debug/release aprovados: 28 unitários e 17 wire em cada perfil, fmt, Clippy e builds. ZIP Windows portátil e SHA-256 verificados após extração. Commit local 6ee5aa87d0e1eb16c48c625408eeaf227197da14, tag anotada local v0.6.0 no mesmo commit. Push atômico do commit/tag falhou por credencial GitHub inacessível (wincredman); não houve publicação remota nem release Ubuntu. Detalhes no [registro C37](../../xmqr-client/prompts/registros/C37-timeout-keepalive.md).
+
+A fase1 permanece aberta. Próxima retomada: aceitar P55 em Linux/WSL com recuperação, harness de quotas, regressão P54 e integrações pertinentes; depois preparar escopo próprio para payload/pacote e distribuição. A revisão identificou diferença na borda do teto64KiB: broker conta Remaining Length, client conta pacote completo; definir contrato uniforme e negativos antes de alterar esse limite. Instalação/upgrade/rollback e interoperabilidade externa permanecem pendentes. Não iniciar fase2 para contornar esses gates.

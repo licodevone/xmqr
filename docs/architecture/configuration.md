@@ -120,3 +120,20 @@ do ator/entrega, payload, pacote, tópico e documento permanecem fixas.
 Implementado localmente; fmt, Clippy, build e testes portáveis verificados no
 Windows. Aceite de recuperação durável/integração Unix ainda BLOCKED nesta
 sessão. Consulte o registro P55 antes de usar ou publicar. Não está na release0.10.0.
+
+
+### P55 rev3 — Will sob saturação
+
+Se uma Will aceita não puder ser publicada por falta de quota, o ator encerra
+as conexões e passa a indisponível; a imagem durável original mantém a Will
+pendente e as mensagens já aceitas. Não se permite takeover substituir essa
+obrigação. Reinicie com quotas suficientes para concluir a publicação. O
+listener TCP pode permanecer ligado enquanto o processo está indisponível;
+novas operações MQTT falham e readiness não indica saúde. Na recusa durante
+recuperação, o writer é encerrado antes do erro de startup, sem expor listener.
+
+Validação isolada Unix: cargo test --locked --test state_limits e
+python3 scripts/verify_state_limits.py --broker target/debug/mqtt-broker
+--client ../xmqr-client/target/debug/mqtt-client. O harness cobre fronteiras
+N/N+1, replay e QoS0/1/2 via CLI independente; não comprova Mosquitto ou TLS.
+Testes duráveis continuam pendentes enquanto Linux/WSL não estiver disponível.

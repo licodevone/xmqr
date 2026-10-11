@@ -74,3 +74,22 @@ Suíte falhou em 25 testes que exigem fsync de diretório Unix; 37 passaram. Nã
 ### Ajuste rev2.4 após Clippy
 
 Preservar nomes max_* no contrato público e TOML; justificar exceção local struct_field_names. Corrigir marcação Rustdoc InvalidInput e repetir Clippy.
+
+
+## Retomada rev3 — 2026-10-11
+
+Entrada confirmada: broker HEAD 10e1b59e801b3a1e5a4d79531a801e5c0b4faeb0, árvore com AGENTS.md preexistente modificado, preservado. Retomar somente P55 e fase1. Aplicar xmqr-rust-mqtt/xmqr-tests. Não mudar versão ou publicar marco enquanto aceite Unix pendente.
+
+Escopo adicional: teste Unix de startup real para cada quota nos documentos v1/v2, comparação byte a byte de WAL/snapshot após recusa, observação de listener e reabertura imediata da imagem comprometida; harness isolado scripts/verify_state_limits.py reutilizando fixtures MQTT independentes e client explícito. Gates portáveis serão repetidos; Unix ausente será BLOCKED.
+
+Revisão identificou que falha na publicação de Will por saturação preserva a entrada live e permite tentativa posterior de takeover sobre uma Will pendente. Corrigir para encerrar o ator/conexões sem confirmar, sobrescrever ou descartar a imagem aceita; o restart exige quotas suficientes. Negativos devem comprovar pending Will e fila originais preservadas, fechamento e recuperação posterior sem perda. Na recuperação, aguardar shutdown do writer antes de retornar erro ao publicar Will/commit, permitindo reabertura imediata. Não afrouxar fsync ou invariantes para Windows.
+
+Documentar a política de Will saturada em docs/architecture/configuration.md/README/CHANGELOG e neste registro. O coordenador atualizará docs/evolution-plan.md após resultados reais, mantendo fase1 aberta. Mosquitto/TLS/ACL externo e pacote/upgrade continuam gates próprios, sem alegação nova de aceite.
+
+### Ajuste rev3.1 após gates
+
+Suíte Windows:38 PASS/25 FAIL/1 ignorado;25 falhas exigem fsync Unix e não serão contornadas. Clippy apontou função do novo teste de startup com104 linhas e format_push_string. Extrair montagem da fixture e usar fmt::Write; repetir fmt/Clippy e compilação afetada, sem alterar cenários.
+
+### Ajuste rev3.2 — gate de inventário no Windows
+
+Python3.12.14 encontrado em caminho explícito. ast.parse do harness PASS e sua execução retornou BLOCKED/exit2 fora de Unix. license_inventory.py --check falhou ao ler LICENSE com locale cp1252; repetir com -X utf8, sem alterar conteúdo/licença ou flexibilizar o inventário.

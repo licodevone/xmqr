@@ -246,3 +246,11 @@ recusas de configuração reais também PASS. Histórico de bloqueios anteriores
 não descreve o estado atual. Mosquitto/TLS/mTLS externo NOT_RUN. Aguardar
 
 publicação do mantenedor; ver registro P43. Nenhuma implementação0.8 executada.
+
+### Correção local P55 rev3 (aceite Unix pendente)
+
+- Last Will saturada encerra o ator/conexões e preserva a obrigação durável;
+  takeover não pode substituir a Will não publicada.
+- Recuperação que falha ao publicar Will/commit aguarda encerramento do writer.
+- Novos negativos de startup real v1/v2 e harness isolado de quotas/replay/CLI;
+  execução durável Linux/WSL ainda pendente, sem novo marco de release.
