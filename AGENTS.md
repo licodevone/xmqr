@@ -11,12 +11,12 @@ Use [modelo de feature](prompts/broker/18-feature-iteration.md) e registre execu
 real em [registros](prompts/registros/TEMPLATE.md). Um pedido de implementação
 autoriza preparar o prompt e executar o escopo solicitado; não pedir a mesma
 autorização novamente. Leitura/revisão sem mudanças não exige criar arquivo.
-Não executar a sequência inteira nem avançar para outra feature automaticamente.
+Não executar a sequÃªncia inteira nem avançar para outra feature automaticamente.
 
 Leia [contrato-base](prompts/contrato-base.md), [contexto](prompts/broker/00-project-context.md),
 [cobertura](prompts/COBERTURA.md), [CONTRIBUTING](CONTRIBUTING.md) e [VERSIONING](VERSIONING.md).
 Confirme o alvo, o estado Git e alterações locais antes de editar. Preserve trabalho
-existente; não resetar/recriar o pacote. Histórico em prompts/origem é referência,
+existente; não resetar/recriar o pacote. Histórico em prompts/origem é referÃªncia,
 não instrução de execução nem prova dos commits do XMQR.
 
 ## Estado e invariantes
@@ -32,7 +32,7 @@ Limites atuais: tópico/filtro 1024 bytes UTF-8 compartilhados pelo broker e CLI
 payload 4096, pacote 64 KiB, 64 sessÃµes, 256 assinaturas, 64 offline e 32 inflight.
 Não ampliar outras quotas sem pedido especÃ­fico; P41 registra o alinhamento de tópicos.
 
-Preserve separação codec/conexão/roteamento/persistência/segurança/transporte,
+Preserve separação codec/conexão/roteamento/persistÃªncia/segurança/transporte,
 ownership e gerações de conexão, ordem aplicável por publicador, filas limitadas
 e commit durável antes dos ACKs pertinentes. Não bloquear workers Tokio por disco,
 hashes ou locks; use as fronteiras existentes. Não confundir ACK com sucesso de negócio.
@@ -54,10 +54,10 @@ cargo test --locked
 cargo clippy --locked --all-targets -- -D warnings
 ```
 
-Wire, persistência, autenticação e ACL exigem negativos; alterações entre componentes
+Wire, persistÃªncia, autenticação e ACL exigem negativos; alterações entre componentes
 exigem integração/interoperabilidade. Para documentação/configuração, valide formatos,
-links, referências e escopo; não executar testes funcionais só para validar texto.
-Testes adicionais de inventário/interop constam na skill de testes. Dependência ausente
+links, referÃªncias e escopo; não executar testes funcionais só para validar texto.
+Testes adicionais de inventário/interop constam na skill de testes. DependÃªncia ausente
 é BLOCKED; não instalar ou iniciar serviços por ler instruções. Não extrapolar open-lab
 para TLS/ACL, crash de processo para perda de energia ou teste próprio para conformidade total.
 
@@ -92,8 +92,8 @@ mantenedor; nenhuma tag/release criada aqui. MQTT5 continua fora do escopo.
 
 Base bc4cc55/tag v0.6.0 verificada. Monitoramento opcional implementado em
 monitoring.rs, com HTTP loopback limitado, probe real do ator/writer e métricas
-de labels finitos. Cargo local 0.7.0; sem novas dependências ou mudança MIT.
-Documento MQTT v2 e quotas preservados. Referências anteriores a endpoints
+de labels finitos. Cargo local 0.7.0; sem novas dependÃªncias ou mudança MIT.
+Documento MQTT v2 e quotas preservados. ReferÃªncias anteriores a endpoints
 ausentes descrevem a base anterior. Aceite completo/release ainda pendentes.
 Veja docs/monitoring.md e prompts/registros/P43-0.7.0.md (caminhos da raiz).
 Não avançar para 0.8, extrair clientes ou criar commit/push/tag nesta tarefa.
@@ -123,11 +123,11 @@ Base HEAD e tag v0.7.0: 3a3dde7, confirmada antes da implementação autorizada.
 Bundle privado opt-in Linux/WSL com usuários, grupos, papéis e ACL; reload por
 SIGHUP local. Reload válido encerra todas as conexÃµes dinámicas e exige nova
 autenticação, preservando responsabilidade inbound QoS 2. Documento durável,
-quotas, dependências e MIT preservados; cliente independente não alterado.
+quotas, dependÃªncias e MIT preservados; cliente independente não alterado.
 A versão aguarda registro dos gates finais; não há publicação automática.
-Documentação: docs/security/dynamic-security.md; evidência:
+Documentação: docs/security/dynamic-security.md; evidÃªncia:
 prompts/registros/P44-0.8.0.md (caminhos relativos Ã  raiz do repositório).
-Referências anteriores a P44 apenas preparado descrevem checkpoints históricos.
+ReferÃªncias anteriores a P44 apenas preparado descrevem checkpoints históricos.
 
 
 ## Checkpoint atual — systemd/Ubuntu26
