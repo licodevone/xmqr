@@ -58,6 +58,27 @@ fn invalid_explicit_override_does_not_fall_back_to_file() {
     assert!(!directory.path().join("state").exists());
 }
 
+#[test]
+fn invalid_connection_limit_never_creates_state() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    let state = directory.path().join("state");
+    for value in ["0", "65", "invalid"] {
+        fs::write(
+            &path,
+            "version=1\n[broker]\nmode='open-lab'\n[limits]\nmax_connections=1",
+        )
+        .unwrap();
+        let output = broker(&path)
+            .env("MQTT_STATE_DIR", &state)
+            .env("MQTT_MAX_CONNECTIONS", value)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(!state.exists());
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn relative_file_configuration_starts_and_stops_durably() {

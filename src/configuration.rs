@@ -23,6 +23,7 @@ const KEYS: &[&str] = &[
     "MQTT_ACL_FILE",
     "MQTT_MONITOR_ENABLED",
     "MQTT_MONITOR_BIND",
+    "MQTT_MAX_CONNECTIONS",
 ];
 
 /// Configuration file values overlaid with explicit process variables.
@@ -73,6 +74,11 @@ impl Configuration {
             return Err(invalid("unsupported MQTT_CONFIG version"));
         }
         let mut result = Self::default();
+        if let Some(value) = document.limits.max_connections {
+            result
+                .values
+                .insert("MQTT_MAX_CONNECTIONS".to_owned(), value.to_string().into());
+        }
         for (name, value) in [
             ("MQTT_MODE", document.broker.mode),
             ("MQTT_BIND", document.broker.bind),
@@ -130,6 +136,31 @@ impl Configuration {
     pub fn var_os(&self, key: &str) -> Option<OsString> {
         self.values.get(key).cloned()
     }
+
+    /// Admission ceiling for the executable; durable session quotas stay fixed.
+    /// # Errors
+    /// Rejects invalid explicit values instead of falling back to defaults.
+    pub fn max_connections(&self) -> io::Result<usize> {
+        let value = match self.var("MQTT_MAX_CONNECTIONS") {
+            Ok(value) => value
+                .parse::<usize>()
+                .map_err(|_| invalid("invalid MQTT_MAX_CONNECTIONS"))?,
+            Err(env::VarError::NotPresent) => 64,
+            Err(env::VarError::NotUnicode(_)) => {
+                return Err(invalid("invalid MQTT_MAX_CONNECTIONS"));
+            }
+        };
+        if !(1..=64).contains(&value) {
+            return Err(invalid("MQTT_MAX_CONNECTIONS must be between 1 and 64"));
+        }
+        Ok(value)
+    }
+}
+
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Limits {
+    max_connections: Option<usize>,
 }
 
 #[derive(Default, Deserialize)]
@@ -165,6 +196,8 @@ struct Monitor {
 struct Document {
     version: u32,
     #[serde(default)]
+    limits: Limits,
+    #[serde(default)]
     broker: Broker,
     #[serde(default)]
     tls: Tls,
@@ -179,6 +212,54 @@ fn invalid(message: &'static str) -> io::Error {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn connection_limit_default_boundaries_and_override() {
+        assert_eq!(Configuration::default().max_connections().unwrap(), 64);
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("broker.toml");
+        std::fs::write(&path, "version=1\n[limits]\nmax_connections=1").unwrap();
+        let config = Configuration::load_with(Some(&path), BTreeMap::new()).unwrap();
+        assert_eq!(config.max_connections().unwrap(), 1);
+        for value in ["0", "65", "-1", "bad", "", "18446744073709551616"] {
+            let config = Configuration::load_with(
+                Some(&path),
+                BTreeMap::from([("MQTT_MAX_CONNECTIONS".to_owned(), value.into())]),
+            )
+            .unwrap();
+            assert!(config.max_connections().is_err());
+        }
+        let config = Configuration::load_with(
+            Some(&path),
+            BTreeMap::from([("MQTT_MAX_CONNECTIONS".to_owned(), "64".into())]),
+        )
+        .unwrap();
+        assert_eq!(config.max_connections().unwrap(), 64);
+        for value in ["-1", "'1'", "true"] {
+            assert!(
+                Configuration::parse(
+                    &format!("version=1\n[limits]\nmax_connections={value}"),
+                    Path::new(".")
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_unicode_connection_limit_is_rejected() {
+        use std::os::unix::ffi::OsStringExt;
+        let config = Configuration::load_with(
+            None,
+            BTreeMap::from([(
+                "MQTT_MAX_CONNECTIONS".to_owned(),
+                OsString::from_vec(vec![255]),
+            )]),
+        )
+        .unwrap();
+        assert!(config.max_connections().is_err());
+    }
+
     use super::*;
     #[test]
     fn strict_schema_and_redacted_errors() {

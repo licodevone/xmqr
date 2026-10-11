@@ -280,6 +280,8 @@ com debUbuntu26amd64 e checksum. CI Rust e pacote Ubuntu aprovados no
 
 O pacote publicado 0.10.0 ainda usa a configuração legada. Um binário compilado
 do código atual aceita MQTT_CONFIG apontando para um arquivo TOML version=1.
+Em [limits], max_connections permite definir de1 a64 conexões TCP simultâneas;
+MQTT_MAX_CONNECTIONS prevalece sobre o arquivo. O padrão continua64.
 Veja [campos e exemplo](docs/architecture/configuration.md) e
 [arquivo de exemplo](packaging/broker.toml.example). A precedência é defaults,
 TOML e variáveis MQTT_* explícitas, nessa ordem. Caminhos relativos no TOML

@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         required_path(&config, "MQTT_ACL_FILE")?;
     }
     let limits = TransportLimits {
-        max_concurrent_connections: 64,
+        max_concurrent_connections: config.max_connections()?,
     };
 
     serve(

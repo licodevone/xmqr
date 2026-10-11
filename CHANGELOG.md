@@ -2,6 +2,9 @@
 
 ## Não lançado
 
+- P54: limite de conexões TCP configurável em TOML ou MQTT_MAX_CONNECTIONS,
+  faixa1..64; default64 e quotas duráveis preservados.
+
 - P52: configuração TOML versionada via MQTT_CONFIG, com overrides legados,
   caminhos relativos, validação estrita e erros sem conteúdo sensível.
 - Configuração imutável durante a execução; alterações exigem restart.

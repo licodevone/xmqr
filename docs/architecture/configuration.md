@@ -44,6 +44,22 @@ Senhas e hashes permanecem no arquivo de segurança privado, não neste TOML.
 
 ## Limites e etapas
 
+P54 acrescenta, no código ainda não lançado:
+
+```toml
+[limits]
+max_connections = 64
+```
+
+MQTT_MAX_CONNECTIONS prevalece sobre o TOML. Valores aceitos:1..64; padrão64.
+Esse limite conta conexões TCP admitidas, incluindo a negociação TLS/MQTT,
+não sessões persistentes nem mensagens por segundo. Ao atingir o limite, o
+broker fecha a nova conexão antes da negociação MQTT; no MQTT3.1.1 o client
+pode observar erro de transporte, sem motivo de quota transmitido no protocolo.
+A vaga é liberada quando a tarefa da conexão termina. Alteração exige restart.
+Reduzir esse valor não remove sessões persistentes. Quotas de sessões, filas,
+inflight, pacote e payload continuam fixas; sua configuração será outra fatia.
+
 Primeira implementação: apenas campos existentes, configuração imutável por
 processo, restart para mudanças e rollback removendo MQTT_CONFIG. SIGHUP
 continua reservado ao bundle de segurança. Não ativar listener adicional.
