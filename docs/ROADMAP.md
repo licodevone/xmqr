@@ -1,5 +1,12 @@
 # Roadmap do XMQR
 
+## Plano atual P53 — broker e clients, referência Mosquitto
+
+Consulte [inventário e cronograma](evolution-plan.md) para a sequência vigente,
+dependências e critérios de saída. P52 implementou TOML no código; ainda não
+incluído no pacote publicado0.10.0. Próxima entrega: limites configuráveis.
+Os calendários e números de versões abaixo são históricos, não compromissos.
+
 ## Estado atual e sequência P51 — 2026-10-11
 
 Broker0.10.0 e client0.5.0 publicados como experimentais. Já existem monitoramento,
@@ -9,7 +16,7 @@ a próxima versão. Em particular, 0.10.0 entregou systemd/deb, não quotas conf
 
 1. Consolidar regressão e evidência atual; C35 ajusta teste de reconexão QoS1.
 2. Implementar [configuração versionada](architecture/configuration.md), conforme
-   desenho P51; parser ainda não implementado.
+   desenho P51; parser implementado por P52, ainda não lançado em pacote.
 3. Propagar limites configuráveis mantendo defaults e validando estado existente.
 4. Medir RAM/CPU/latência/mensagens por segundo em carga reproduzível e isolada.
 5. Ampliar diagnósticos/perfis do client e negativos externos de TLS/ACL.

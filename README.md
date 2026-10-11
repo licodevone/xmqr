@@ -6,6 +6,9 @@ Não há declaração de conformidade completa ou prontidão para produção.
 
 ## Versões
 
+Veja o [plano de evolução do broker e dos clients](docs/evolution-plan.md),
+com lacunas frente ao Mosquitto, ordem de implementação e cronograma estimado.
+
 | Versão | Marco |
 | --- | --- |
 | 0.3 | laboratório aberto restrito a loopback |
