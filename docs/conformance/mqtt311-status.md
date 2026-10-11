@@ -1,8 +1,15 @@
 # Estado de implementação MQTT 3.1.1
 
-Esta matriz descreve a base XMQR 0.5 e o incremento local 0.6. Não é uma declaração
-de conformidade completa. Os testes externos usam Mosquitto 2.0.18 em
-`open-lab`; TLS/mTLS e ACL ainda precisam de uma matriz externa ampliada.
+Estado atual: broker0.10.0/client0.5.0, experimentais. A tabela abaixo é a
+rastreabilidade histórica da base0.5/0.6, não uma declaração de conformidade
+completa. Mosquitto foi usado em open-lab; TLS/mTLS e ACL externos ainda precisam
+de matriz ampliada. Testes próprios de mTLS/systemd não substituem esse aceite.
+
+C35 revisa a asserção de entrega em QoS1 após reconexão: exige progresso e
+mensagens esperadas, permitindo retransmissão conforme OASIS §4.3.2/4.4.
+Não altera wire nem elimina a necessidade de investigar outros defeitos.
+Resultados atuais constam nos registros P51 e C35, sem extrapolar para energia
+ou capacidade de carga. [Desenho da configuração](../architecture/configuration.md).
 
 | Área OASIS MQTT 3.1.1 | Estado | Evidência | Pendência |
 | --- | --- | --- | --- |

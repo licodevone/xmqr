@@ -1,0 +1,66 @@
+# Configuração versionada — desenho P51
+
+Status: proposta de implementação, não disponível no binário 0.10.0.
+O broker atual continua usando MQTT_* e RUST_LOG. Não instalar o exemplo abaixo
+como substituto de broker.env antes de implementar e validar o parser.
+
+## Contrato proposto
+
+MQTT_CONFIG apontará para um TOML com version=1. Sem essa variável, preservar
+exatamente o comportamento legado. Com ela, carregar configuração tipada,
+rejeitar versão/campos desconhecidos e validar tudo antes de abrir listener ou
+estado. Não usar env::set_var nem persistir configuração em WAL/snapshot.
+
+Precedência: defaults seguros < arquivo TOML < variáveis MQTT_* explicitamente
+definidas. RUST_LOG continua independente. Caminhos relativos do TOML resolvem
+contra a pasta do TOML; caminhos de variáveis preservam a semântica legada.
+Uma variável inválida não pode ser ignorada em favor do arquivo.
+
+```toml
+version = 1
+
+[broker]
+mode = "secure-mtls"
+bind = "0.0.0.0:8883"
+state_dir = "/var/lib/xmqr"
+
+[tls]
+server_cert = "/etc/xmqr/server.crt"
+server_key = "/etc/xmqr/server.key"
+client_ca = "/etc/xmqr/clients-ca.crt"
+# client_crl = "/etc/xmqr/clients.crl"
+
+[security]
+bundle = "/etc/xmqr/security.toml"
+
+[monitor]
+enabled = false
+bind = "127.0.0.1:9090"
+```
+
+Os nomes acima são propostos. Para legado, users_file/acl_file terão equivalência
+com MQTT_USERS_FILE/MQTT_ACL_FILE e as mesmas incompatibilidades por perfil.
+Senhas e hashes permanecem no arquivo de segurança privado, não neste TOML.
+
+## Limites e etapas
+
+Primeira implementação: apenas campos existentes, configuração imutável por
+processo, restart para mudanças e rollback removendo MQTT_CONFIG. SIGHUP
+continua reservado ao bundle de segurança. Não ativar listener adicional.
+
+Etapa posterior: limites tipados propagados a transporte, ator, codec e store;
+preservar defaults 64 conexões/sessões, 32 inflight, 64 offline, 256 assinaturas,
+payload4096 e pacote64KiB. Não aumentar só o transporte sem ajustar o documento
+durável. Definir limites superiores após benchmarks, não aceitar ilimitado.
+Reduzir limites abaixo do estado existente deve falhar sem truncar dados.
+
+## Aceite da implementação futura
+
+- Parser aceita exemplo; rejeita campos/versões desconhecidos e tipos errados.
+- Override explícito, caminho relativo e modo legado testados sem ambiente global.
+- Laboratórios permanecem loopback; monitor permanece loopback.
+- Conflitos de TLS/bundle/usuários são recusados sem imprimir valores sensíveis.
+- Configuração inválida não cria estado nem abre porta.
+- Regressão QoS/retained/sessões/Will, ACL e SIGTERM em diretórios temporários.
+- Instalação Ubuntu antiga continua funcionando sem migração obrigatória.
+- Documentação anuncia suporte somente após gates e integração aprovados.

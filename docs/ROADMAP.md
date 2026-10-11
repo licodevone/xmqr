@@ -1,5 +1,26 @@
 # Roadmap do XMQR
 
+## Estado atual e sequência P51 — 2026-10-11
+
+Broker0.10.0 e client0.5.0 publicados como experimentais. Já existem monitoramento,
+segurança dinâmica, backup/restore, parada coordenada e empacotamento Ubuntu26.
+As séries abaixo registram planejamento histórico; números antigos não definem
+a próxima versão. Em particular, 0.10.0 entregou systemd/deb, não quotas configuráveis.
+
+1. Consolidar regressão e evidência atual; C35 ajusta teste de reconexão QoS1.
+2. Implementar [configuração versionada](architecture/configuration.md), conforme
+   desenho P51; parser ainda não implementado.
+3. Propagar limites configuráveis mantendo defaults e validando estado existente.
+4. Medir RAM/CPU/latência/mensagens por segundo em carga reproduzível e isolada.
+5. Ampliar diagnósticos/perfis do client e negativos externos de TLS/ACL.
+6. Testar armazenamento sob disco cheio, falhas de escrita e recuperação.
+7. Múltiplos listeners com segurança por listener e migração explícita.
+8. MQTT5 por desenho/codec/propriedades/sessões/fluxo; regressão3.1.1 obrigatória.
+
+Cada etapa exige prompt próprio antes de código e aceite antes da seguinte.
+Não anunciar capacidade de produção nem calendário/versão sem evidência.
+Windows, WebSocket e bridge continuam frentes separadas, não pré-requisitos MQTT5.
+
 O roadmap indica direção, não promessa de prazo. Cada item precisa de uma fatia
 vertical executável, testes e documentação antes de ser considerado concluído.
 
