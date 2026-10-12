@@ -1,0 +1,79 @@
+﻿repositorio;commit;versao;prompts;windows_build;windows_check;ubuntu_build;ubuntu_check;auxiliares;assunto
+xmqr;f7efe357cdcd4a05e922a5fb205bd8757cdc5625;0.3.0;;PASS;PASS;PASS;PASS;Não há;feat: reconstruir XMQR 0.3.0
+xmqr;a8bda732188e9a70af6765c9ea030ba0c01233b8;0.3.0;;PASS;PASS;PASS;PASS;Não há;docs: adicionar licença MIT
+xmqr;bc7aa95d232ba1d29592318fad4d85b04ccf2f72;0.4.0;;PASS;PASS;PASS;PASS;Não há;feat: adicionar autenticação e ACL no XMQR 0.4.0
+xmqr;a0984e85b0d5e132914da688c52711f472b3398d;0.5.0;;PASS;PASS;PASS;PASS;Não há;Add license inventory and MQTT topic validation scripts
+xmqr;59c9e702347f0442642b813c645be33eb7349fb8;0.5.0;P00, P01, P02, P03, P04, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20, P21, P22, P23, P24, P25, P26, P27, P28, P29, P30, P31, P32, P33, P34, P35, P36, P37, P38, P39, P40, P41;PASS;PASS;PASS;PASS;Não há;feat: Implement Last Will and Wildcard Subscriptions for MQTT 3.1.1
+xmqr;bc4cc553d45ca90441ef9f849c3b77e77209aa67;0.6.0;P00, P42;PASS;PASS;PASS;PASS;Não há;feat: Implement durable Last Will and enhance retained message handling
+xmqr;3a3dde761ffea33e33c8bcac00ac767e02f6cac0;0.7.0;C25, P00, P25, P43, P44;PASS;PASS;PASS;PASS;Não há;feat: Implement P43 monitoring integration and validation
+xmqr;b3f34b9e6f0d8eccc262b8d7d1428772060dee52;0.8.0;P00, P44;PASS;PASS;PASS;PASS;Não há;feat(security): introduce dynamic security bundles and password management
+xmqr;518ad796e6e0934839b1b8717116e48f7de34da5;0.8.0;P45;PASS;PASS;PASS;PASS;Não há;feat(backup): implementar backup e restauração offline verificáveis para estado MQTT
+xmqr;5cb07a7442d5ccc5a8d7be1578a87c30b359aaa9;0.8.0;P45;PASS;PASS;PASS;PASS;Não há;feat(backup): adicionar versão do estado ao manifesto e verificar sobreposição de diretórios
+xmqr;a79eb4d8a317940f723d816b02ce0c72db956c54;0.9.0;P45;PASS;PASS;PASS;PASS;Não há;docs: validar e alinhar P45 para 0.9.0
+xmqr;63a0f966264cce38ec244517f5913c0b1fa3fef2;0.9.0;P46;PASS;PASS;PASS;PASS;Não há;feat: adicionar imagem Docker local do broker 0.9.0
+xmqr;c418465e112d13e5194bc8586e03cb97c876cc22;0.9.0;;PASS;PASS;PASS;PASS;Não há;docs: registrar e documentar imagem Docker do broker
+xmqr;f83ff770fed690b4d8f7be4183d69c0767a41c89;0.9.0;P46;PASS;PASS;PASS;PASS;Não há;docs: registrar smoke test seguro da imagem do broker
+xmqr;688fa4f19b63915ad7ea4cffd983f579d2fd2d06;0.9.0;P45;PASS;PASS;PASS;PASS;Não há;fix: alinhar os gates de backup no Windows
+xmqr;0a46c025caa1842942c39e0d42abac37b971b598;0.10.0;P47;PASS;PASS;PASS;PASS;Não há;feat: integrate systemd and Ubuntu 26 deb packaging for broker 0.10.0
+xmqr;e6d2df86f164dd6573144bfee9d4f90d208ee878;0.10.0;P47;PASS;PASS;PASS;PASS;Não há;docs: record published prerelease and passing GitHub CI
+xmqr;cb52a5b9e9012eb4eef6c7652dfefd66bed50014;0.10.0;P48;PASS;PASS;PASS;PASS;Não há;docs: detalhar instalacao no Ubuntu e WSL
+xmqr;a2743bcb3ec30ae9c61dd4f3880f5d2b48fd5e80;0.10.0;P49;PASS;PASS;PASS;PASS;Não há;docs: detalhar controle systemd e compatibilidade Ubuntu
+xmqr;d70e6f878328c12f649ecbdb95bdf937b23332e5;0.10.0;P50;PASS;PASS;PASS;PASS;Não há;docs: inserir tabela comparativa de comandos systemctl
+xmqr;8e55f80e20eb98172ff34ccda716fd6480cccb33;0.10.0;P51;PASS;PASS;PASS;PASS;Não há;feat: consolidar evolucao e diagnosticos MQTT
+xmqr;7da894a2960a102c9595af9a8ec8cc139a6fa059;0.10.0;P52;PASS;PASS;PASS;PASS;Não há;feat: adicionar configuracao TOML versionada ao broker
+xmqr;d95fcb733a4fd968e3cfb5b49c5ad2a6f6d2b730;0.10.0;P53;PASS;PASS;PASS;PASS;Não há;docs: organizar paridade Mosquitto e cronograma broker client
+xmqr;7d5f3711c266f2ae2d3abcee31bcacc0fdd8fad4;0.10.0;P54;PASS;PASS;PASS;PASS;Não há;feat: configurar limite de admissao TCP do broker
+xmqr;b577dd09a7cbe5667511836efbb648cb62a95246;0.10.0;P00, P55;PASS;PASS;PASS;PASS;Não há;feat: corrigir codificação e adicionar documentação sobre quotas configuráveis do estado MQTT
+xmqr;682d3cab3ade7528b132aa316feeecbdca707c29;0.10.0;P56;PASS;PASS;PASS;PASS;Não há;feat: adicionar guia explicativo sobre prompts e estrutura de arquivos
+xmqr;627aab332966badf1563943a7c0b608889dc3b9c;0.10.0;P56;PASS;PASS;PASS;PASS;Não há;docs: adicionar guia HTML detalhado do broker e client
+xmqr;4fe905ab78382678a90cc59832808939e04ef6ad;0.10.0;P57;PASS;PASS;PASS;PASS;Não há;docs: explicar instrucoes ao lado das linhas Rust no guia HTML
+xmqr;10e1b59e801b3a1e5a4d79531a801e5c0b4faeb0;0.10.0;P00, P55;PASS;PASS;PASS;PASS;Não há;feat: configurar quotas MQTT com aceite Unix pendente
+xmqr;d76c9e93291a0be2b4efba2a135c04dc6a05ce21;0.10.0;P55;PASS;PASS;PASS;PASS;Não há;fix(quotas): preservar Will pendente em saturacao
+xmqr;57d23c0d3008ad869f81b89abe243c3e9790ee85;0.10.0;;PASS;PASS;PASS;PASS;Não há;fix: corrigir erros de codificação em AGENTS.md
+xmqr;49edfc2c61ffca27cec9d47bbe2843ff7028a697;0.10.0;P58, P59, P60;PASS;PASS;PASS;PASS;Não há;fix(broker): alinhar pacotes e preparar aceite final da fase 1
+xmqr;d7b9d413167d85b9ce8ceb1a42eca4022e72422b;0.11.0;P55, P59, P61;PASS;PASS;PASS;PASS;Não há;feat: concluir fase 1 e preparar broker 0.11.0
+xmqr;aa5fda492cdf9767dd9524dfb017caab9b76a764;0.11.0;P62;PASS;PASS;PASS;PASS;Não há;perf: medir baseline de RAM CPU e PUBACK QoS1
+xmqr;729981a87483c2576c63b813b142351b027aacaa;0.11.1;P63;PASS;PASS;PASS;PASS;Não há;build: preparar distribuicao Docker broker 0.11.1
+xmqr;121153e91d0337a140accc7d86c92fa1fc90131a;0.11.1;P63;PASS;PASS;PASS;PASS;Não há;docs: registrar aceite da distribuicao Docker
+xmqr;d5dd3511a4ebb2787400cef20137088e07cbb32a;0.11.2;P64;PASS;PASS;PASS;PASS;Não há;feat: consultar versao do broker antes de inicializar
+xmqr;725251be8e5092b676de89cf31363af1ddb04950;0.11.2;P64;PASS;PASS;PASS;PASS;Não há;docs: registrar aceite da versao CLI e pacotes 0.11.2
+xmqr;c5edf38ff6c5e8ad8f66cbe0040f484e9ee1474e;0.11.2;P65;PASS;PASS;PASS;PASS;Não há;docs: ensinar construcao do broker e client desde o inicio
+xmqr;2648f3288ee6e5ef559a039b9e825bbb6f9245fa;0.11.2;P66;PASS;PASS;PASS;PASS;Não há;docs: iniciar curso Da logica ao Broker e Clientes MQTT
+xmqr;58b6cd698961a8a44d04070a5274c17e8d1fbf8e;0.11.2;P67;PASS;PASS;PASS;PASS;Não há;docs: sincronizar sidebar e orientar tutoria no curso Rust
+xmqr;f231226537449cabd5705963ad0bdfbb55621fbf;0.11.2;P69;PASS;PASS;PASS;PASS;Não há;docs: sincronizar expansao da sidebar com conteudo do curso
+xmqr;b47e06312f3b281914b5fd98e32ed77f21550dcd;0.11.2;P70;PASS;PASS;PASS;PASS;Não há;docs: preparar curso Udemy e pacotes P70
+xmqr;69c36045a0a9d8844039ada3e089059a3207b5fe;0.11.2;P70;PASS;PASS;PASS;PASS;Não há;docs: registrar validacao dos pacotes cumulativos do curso
+xmqr;cf0c99c90f6c1b306b9155ade45686282bbc7db5;0.11.2;P71, P72;PASS;PASS;PASS;PASS;Não há;test(performance): medir QoS fan-out e mTLS e atualizar checklist
+xmqr;17a4d109331a92a8641e3b026a1bfad47ee79022;0.11.2;C41, P72;PASS;PASS;PASS;PASS;Não há;docs: registrar publicacao dos marcos P72 e C41
+xmqr;2dbeb84f5ef0da6d7c5c91e207cc595a32d5b683;0.11.2;P03, P73;PASS;PASS;PASS;PASS;Todos PASS;feat(curso): criar base P03 para Rust nativo Windows
+xmqr;af64337491270c76bc1b913cacf3d00495d0ac52;0.11.2;P04, P74;PASS;PASS;PASS;PASS;Todos PASS;feat(curso): acrescentar servidor TCP na etapa P04
+xmqr;e3e4a238ee9cff8d92b7209c30b2c264ff9b1604;0.11.2;P05, P74;PASS;PASS;PASS;PASS;Todos PASS;feat(curso): acrescentar client TCP e ZIPs cumulativos P05
+xmqr;629b64b4f654d5e3bd1215b0912787a5e7a2a51d;0.11.2;P68;PASS;PASS;PASS;PASS;Todos PASS;feat: adicionar novos arquivos tar.gz e suas somas de verificação para as versões 0.11.1 e 0.11.2 do broker
+xmqr-client;f7e00d405e9ae1e9e7b15cc54b56b4366a1f6132;0.7.0;C19, C20, C21, C22, C23, C24, C25;PASS;PASS;PASS;PASS;Não há;feat: create xmqr-client project and separate from existing broker
+xmqr-client;f8999e6e8c7593fbcbbccb9657089a75cc10985d;0.7.0;;PASS;PASS;PASS;PASS;Não há;feat: concluir separação estrutural e atualizar status de integração no README
+xmqr-client;26c10191c9ec0b6d3181488794584bfbf24ed756;0.7.0;C25;PASS;PASS;PASS;PASS;Não há;feat: atualizar registro C25 com status da separação estrutural e ajustes nos prompts
+xmqr-client;c66ccb3d9699b26ec25de2758b867dd88e8e33b1;0.7.0;C19, C20, C21, C22, C23, C24, C26, C27, C28;PASS;PASS;PASS;PASS;Todos PASS;feat: implement C27 MQTT client with reconnection and subscription handling
+xmqr-client;fe0e9e9043db9e72699bd3d16d4d9a6ca3d7cb40;0.7.0;C26, C27;PASS;PASS;PASS;PASS;Todos PASS;feat: ajustar validação e documentação das fixtures C26 e C27
+xmqr-client;dea9b72e612777f173ad8b8b320d1be467625ad1;0.7.0;;PASS;PASS;PASS;PASS;Todos PASS;feat: atualizar asserções de saída padrão e adicionar arquivo de mudanças de ativos aprovados
+xmqr-client;3881a898eaef74b005b89aba688eb7db26db1849;0.7.0;;PASS;PASS;PASS;PASS;Todos PASS;feat: adicionar suporte para argumento --only-tls e atualizar o arquivo de proveniência com mudanças de ativos aprovados
+xmqr-client;6d25b335e28ec9df1346c5a0270ef49747cf8937;0.7.0;C27;PASS;PASS;PASS;PASS;Todos PASS;feat: atualizar documentação do projeto com informações sobre o bootstrap independente C27 e validações realizadas
+xmqr-client;d26eb9cf7d8872bdfb83a4d8fd9a4335706f71e8;0.3.0;C26, C27, C28;PASS;PASS;PASS;PASS;Todos PASS;feat: Implement stdin handling and binary payload support for MQTT client
+xmqr-client;7110e4178479a29ab3431dbbe90af72c6bbca766;0.3.0;C29;PASS;PASS;PASS;PASS;Todos PASS;feat: adicionar suporte para assinatura de múltiplos tópicos e validações no cliente MQTT
+xmqr-client;c0375a6b22480bd2ac6f9af3bd03210ca294113b;0.4.0;C29;PASS;PASS;PASS;PASS;Todos PASS;feat: fechar C29 e alinhar cliente 0.4.0
+xmqr-client;d3efa3800f7bfc949f23afee1286c13bd26a5d3b;0.4.0;C30;PASS;PASS;PASS;PASS;Todos PASS;feat: adicionar imagem Docker local do cliente 0.4.0
+xmqr-client;3e7c16add45111ac96595046387a70994c0d37f1;0.4.0;C30;PASS;PASS;PASS;PASS;Todos PASS;docs: registrar teste binário da imagem do cliente
+xmqr-client;2615908186c7005b55877529803a61ec61312cb7;0.5.0;C31;PASS;PASS;PASS;PASS;Todos PASS;feat: integrate systemd and Ubuntu 26 deb packaging for client 0.5.0
+xmqr-client;24cf1068a213016bd3efcd7ca089a548b56fd6b9;0.5.0;C31;PASS;PASS;PASS;PASS;Todos PASS;docs: record published prerelease and passing GitHub CI
+xmqr-client;87653d1b68d2c616a7b6c792c69d6635cd5b4e0d;0.5.0;C32;PASS;PASS;PASS;PASS;Todos PASS;docs: detalhar instalacao no Ubuntu e WSL
+xmqr-client;ab012ad9d34227914d64b1931d11cbf9314a4bef;0.5.0;C33;PASS;PASS;PASS;PASS;Todos PASS;docs: detalhar controle systemd e compatibilidade Ubuntu
+xmqr-client;96197768282b53701e3d07b65d5cbbd8bb35389a;0.5.0;C34;PASS;PASS;PASS;PASS;Todos PASS;docs: inserir tabela comparativa de comandos systemctl
+xmqr-client;98b72f0fd4e63aa0bb55b39a7ad3d9784b7c78c3;0.5.0;C35;PASS;PASS;PASS;PASS;Todos PASS;feat: consolidar evolucao e diagnosticos MQTT
+xmqr-client;1f22a186a801694174102f7bf22bdb68065d4054;0.5.0;C36;PASS;PASS;PASS;PASS;Todos PASS;docs: definir matriz de paridade Mosquitto para o client
+xmqr-client;5d1f74207f953d31b9a246c8626bfacf359f1dd9;0.5.0;C37;PASS;PASS;PASS;PASS;Todos PASS;docs: preparar C37 e registrar ponto de retomada
+xmqr-client;6ee5aa87d0e1eb16c48c625408eeaf227197da14;0.6.0;C37;PASS;PASS;PASS;PASS;Todos PASS;feat(client): configurar timeout e keepalive
+xmqr-client;35580bae9c34f02f1e56edac9385766dfb7961ad;0.6.0;C38;PASS;PASS;PASS;PASS;Todos PASS;fix(client): alinhar limites e preparar aceite da fase 1
+xmqr-client;890829fbb70fb2501cab4c729b8db87f92c53b28;0.7.0;C38, C39;PASS;PASS;PASS;PASS;Todos PASS;feat: concluir aceite Ubuntu e preparar client 0.7.0
+xmqr-client;c4f6abfa867c75c559f5e576406ad6f8a0f9d627;0.7.1;C40;PASS;PASS;PASS;PASS;Todos PASS;build: preparar distribuicao Docker client 0.7.1
+xmqr-client;8bb7aafdea24f9e8c7bb520b8e641ecb8737be91;0.7.1;C40;PASS;PASS;PASS;PASS;Todos PASS;docs: registrar aceite Docker client
+xmqr-client;8cd0e1c9d873bce1d7b55e0f7513a685b613c161;0.8.0;C41;PASS;PASS;PASS;PASS;Todos PASS;feat(client): filtrar retained na saida e preparar marco 0.8.0
+xmqr-client;6c542814c0199393b1629a4a3b3ac79d9797b43d;0.8.0;C41;PASS;PASS;PASS;PASS;Todos PASS;docs: registrar tag e prerelease client 0.8.0

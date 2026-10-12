@@ -70,3 +70,13 @@ Corte original: broker629b64b (50 commits),client6c54281 (28 commits).
 O commit da embalagem é posterior ao corte; pode reexportar quando solicitado.
 Ver prompt75 e registroP75. Não confundir associação documental/autoria,
 preparação/implementação ou aceite histórico com execução atual de testes.
+
+P76 — compilação real dos78 snapshotsP75:
+WindowsRust1.98.1/MSVC e Ubuntu26WSL/Rust1.99:121 pacotes por plataforma,
+build --locked --bins e check --locked --all-targets:484PASS. Nenhum erro de
+compilação;125 comandos com avisos. Não executados testes/integrações/runtime.
+Ver docs/results/p76-compile-summary.json e p76-compile-matrix.csv, registroP76.
+Geradores: verify_commit_builds.py / report_commit_builds.py emscripts.
+ZIP local todos-os-commits-com-compilacao.zip e relatórios em
+../docs/curso-udemy/versoes-github/compilacao/p76-20261012-01.
+Cada versão tem COMPILACAO.md; fontes/ZIPP75 originais preservados.
