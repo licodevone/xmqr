@@ -1,7 +1,8 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
-Planejamento P53, 2026-10-11. Base broker 7da894a, versão publicada 0.10.0;
-client independente 0.5.0. Estimativas para uma sequência de desenvolvimento
+Planejamento original P53, 2026-10-11; acompanhamento atualizado em 2026-10-12
+por P71/P72/C41. Versões nos manifests atuais: broker 0.11.2 e client independente 0.8.0.
+Estimativas para uma sequência de desenvolvimento
 com dedicação regular, contadas do início da execução, não datas prometidas.
 Cada fase depende do aceite anterior; recalcular prazo após medições e falhas.
 O objetivo é paridade funcional relevante com Mosquitto, não copiar internals,
@@ -14,18 +15,85 @@ Broker: MQTT3.1.1 QoS0/1/2, retained, sessões persistentes, filtros +/# e regra
 UNSUBSCRIBE, keepalive, takeover e Last Will durável; TLS/mTLS, senha e ACL;
 bundle de segurança com grupos/papéis e reload SIGHUP; WAL/snapshot, backup,
 monitor HTTP opcional loopback, shutdown, systemd, Docker e deb Ubuntu26 amd64.
-TOML geral P52 está no código, ainda fora do pacote publicado. Esses recursos
+TOML geral P52 e quotas configuráveis foram aceitos e empacotados na fase 1.
+Esses recursos
 têm regressões locais, mas isso não prova conformidade completa nem produção.
 Client CLI: publicação/assinatura, QoS, TLS/mTLS, retained/Will, reconexão,
 diagnósticos e integração systemd/deb. Confirmar cobertura de cada nova opção
 antes de anunciar equivalência com mosquitto_pub/mosquitto_sub.
 
+## Checklist de execução — estado atual
+
+Use `- [x] ~~Entrega concluída~~` para marcar e riscar o texto; use
+`- [ ] Entrega pendente` para manter a tarefa aberta. Marcar somente após aceite,
+com link para a evidência. Uma entrega parcial não conclui toda a fase.
+Este checklist é o resumo atual; os checkpoints ao final preservam o histórico.
+
+### Fase 1 — concluída
+
+- [x] ~~Configuração TOML, precedência e limites de conexões TCP (P52/P54).~~
+- [x] ~~Quotas de sessões, retained, assinaturas, offline e inflight; redução sem descarte (P55).~~
+- [x] ~~Limites de pacote/payload e negativos no broker e client (P58/C38).~~
+- [x] ~~Keepalive e timeout configuráveis e diagnósticos do client (C37/C38).~~
+- [x] ~~Integrações Unix, recuperação e interoperabilidade Mosquitto open-lab.~~
+- [x] ~~Pacotes Ubuntu 26 amd64: instalação, upgrade e rollback.~~
+- [x] ~~Aceite combinado e marco broker 0.11.0/client 0.7.0 (P61/C39).~~
+
+Evidências: [aceite da fase 1](phase1-acceptance.md),
+[P61](../prompts/registros/P61-aceite-final-fase1.md) e
+[C39](../../xmqr-client/prompts/registros/C39-release-fase1.md).
+
+### Fase 2 — em andamento
+
+- [x] ~~Harness separado da CLI e baseline de RAM/CPU, conexões ociosas e latência PUBACK QoS1 com retained (P62).~~
+- [x] ~~Medições QoS0/1/2, fan-out 1/8 e mTLS: 36 cenários com entregas conferidas (P72).~~
+- [ ] Medir conexões simultâneas, assinantes lentos, pressão de filas e saturação.
+- [ ] Ampliar matriz Mosquitto e validar ESP32 como consumidor.
+- [ ] Avaliar limites por identidade conforme necessidade medida.
+- [ ] Consolidar relatório de capacidade e critérios de saída da fase 2.
+
+Evidências da parte concluída: [baseline P62](performance-baseline.md) e
+[campanha P72](performance-fanout.md).
+A medição inicial não comprova throughput máximo nem capacidade de produção.
+
+### Fases 3–5 — entregas restantes
+
+- [ ] Fase 3: falhas de disco/escrita, fuzzing, pressão de filas e matriz MQTT3.1.1 ampliada.
+- [ ] Fase 3: reconexão/backoff, cancelamento e interoperabilidade externa ampliada, incluindo TLS/mTLS e ACL.
+- [ ] Fase 4: múltiplos listeners, políticas por endpoint, TLS sem certificado cliente quando configurado e rotação de certificados.
+- [ ] Fase 4: perfis reutilizáveis do client e testes de rotação/erros de credenciais.
+- [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.
+- [x] ~~Client: --ignore-retained/--retained-only na saída; count filtrado e ACKs QoS1/2 preservados (C41).~~
+- [ ] Fase 5: exclusão de tópicos, outros formatos de saída, repetição com intervalo e demais opções prioritárias pub/sub.
+- [x] ~~Parcela operacional já entregue: ciclo de release experimental e pacotes com checksums/rollback (P61/C39/P63/P64/C40).~~
+
+Evidências da parcela operacional: [P63](../prompts/registros/P63-docker-distribuicao.md),
+[P64](../prompts/registros/P64-version-cli.md) e
+[C40](../../xmqr-client/prompts/registros/C40-docker-distribuicao.md).
+Evidência dos filtros: [C41](../../xmqr-client/prompts/registros/C41-filtros-retained.md).
+As fases 3–5 continuam abertas; a entrega operacional não encerra a fase 5.
+
+### Fases 6–9 e distribuição — pendentes
+
+- [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
+- [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
+- [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
+- [ ] Fase 6D: opções de assinatura, Subscription Identifier, shared subscriptions e AUTH.
+- [ ] Fase 7: WebSocket/WSS no broker e client, com regressão TCP/TLS.
+- [ ] Fase 8: bridge, reconexão, mapeamento de tópicos e prevenção de loops.
+- [ ] Fase 9: Windows nativo, serviço, instalador, persistência e permissões homologados.
+- [ ] Distribuição: homologar instalação/units Ubuntu24, arm64 e repositório APT assinado.
+- [ ] Extensões de paridade: avaliar plugins/hooks, TLS PSK, sockets Unix e opções avançadas conforme demanda.
+
+Após cada entrega aceita, atualizar este checklist, a linha da fase no cronograma
+e o link do registro. Manter itens em validação desmarcados e indicar seu bloqueio.
+
 ## Lacunas frente à referência
 
 | Área | Situação no XMQR | Entrega necessária |
 | --- | --- | --- |
-| Configuração e quotas | TOML implementado, quotas fixas | Limites globais coerentes, depois por identidade/listener; timeouts e rate limits documentados |
-| Capacidade | Sem teto de produção medido | RAM/CPU, conexões, mensagens/s, latência p95/p99 e fan-out com TLS/QoS/persistência |
+| Configuração e quotas | ~~TOML e quotas globais configuráveis aceitos na fase1~~ | Limites por identidade/listener; rate limits e timeouts adicionais conforme contrato |
+| Capacidade | ~~Baseline RAM/CPU/PUBACK QoS1 medida em P62~~; sem teto de produção medido | Ampliar QoS/fan-out/TLS e saturação; relatório de capacidade |
 | Robustez | Recuperação e backup existentes, cobertura incompleta | Disco cheio, erro de escrita, pressão de filas, fuzzing, testes prolongados e matriz3.1.1 |
 | Listeners | Um listener por processo/perfil | Múltiplos listeners, políticas por listener e TLS com senha sem exigir certificado cliente quando configurado |
 | Administração | CRUD de usuários e bundle/SIGHUP | Gestão segura de grupos/papéis/ACL, auditoria e contrato administrativo; plugins são trilha posterior |
@@ -35,7 +103,7 @@ antes de anunciar equivalência com mosquitto_pub/mosquitto_sub.
 | Bridge | Ausente | Ligação entre brokers com TLS, reconexão, mapeamento de tópicos e proteção de loops |
 | Distribuição | Deb26 amd64; sem APT próprio | Ubuntu24 validado, arm64, repositório APT assinado e política de upgrade |
 | Windows nativo | Não homologado | Persistência/locks/CRUD/sinais adaptados, serviço Windows, instalador e testes |
-| Clients | CLI própria, sem paridade exaustiva | Matriz de opções pub/sub, perfis, saída/filtros/timeouts e MQTT5; firmware ESP32 validado como consumidor |
+| Clients | CLI própria; ~~keepalive/timeout e limites aceitos~~; sem paridade exaustiva | Perfis, saída/filtros, repetição e MQTT5; validar firmware ESP32 como consumidor |
 | Extensibilidade | Sem API de plugins equivalente | Avaliar hooks de autenticação/ACL e integração externa depois de estabilizar o núcleo |
 
 TLS PSK, sockets Unix, opções avançadas de TLS/logs, API de controle e políticas
@@ -47,8 +115,8 @@ para igualar um broker Mosquitto isolado.
 
 | Fase | Janela estimada | Broker | Client/consumidores | Critério de saída |
 | --- | --- | --- | --- | --- |
-| 1 | Semanas1–2 | Quotas via TOML; validar redução frente ao estado existente; publicar P52 junto ao marco aprovado | Mensagens claras para limites, testes de payload/pacote/fila e configuração de conexão | Defaults preservados; negativos; redução sem truncar estado; pacote instalado/upgrade testado |
-| 2 | Semanas3–4 | Harness de carga, métricas de saturação e limites por identidade conforme necessidade | Gerador de carga separado da CLI; matriz Mosquitto e ESP32 | Relatório reproduzível em hardware identificado, TLS/QoS/fan-out; sem estimativas de RAM sem medição |
+| ~~1 — concluída~~ | ~~Semanas1–2~~ | ~~Quotas via TOML; redução validada; P52 empacotado~~ | ~~Diagnósticos de limites, testes de payload/pacote/fila e conexão~~ | ~~Defaults, negativos, estado preservado e install/upgrade/rollback aceitos P61/C39~~ |
+| 2 — em andamento | Semanas3–4 | ~~Harness, baseline P62 e campanha QoS/fan-out/mTLS P72~~; medir saturação e avaliar limites por identidade | ~~Gerador separado da CLI~~; ampliar matriz Mosquitto e ESP32 | Relatório reproduzível em hardware identificado, TLS/QoS/fan-out; sem estimativas de RAM sem medição |
 | 3 | Semanas5–7 | Falhas de disco, fuzzing, pressão de filas e fechamento da matriz MQTT3.1.1 | Reconexão/backoff, cancelamento, diagnóstico e testes contra Mosquitto | Recuperação comprovada nos cenários; negativos; interop automatizada; pendências normativas listadas |
 | 4 | Semanas8–10 | Listeners com políticas por endpoint, modos TLS e reload de certificados definido | Perfis de conexão, rotação e erros de certificado/credenciais | Isolamento de ACL; TLS/mTLS; rotação/rollback; nenhum laboratório remoto implicitamente habilitado |
 | 5 | Semanas11–12 | Administração de bundle, auditoria, métricas e ciclo de release | Paridade prioritária pub/sub e documentação sincronizada | Operação sem editar segredos manualmente em casos cobertos; release com anexos/checksums e rollback |
@@ -84,8 +152,10 @@ Pode ser antecipado sem bloquear MQTT5 quando houver disponibilidade.
 6. Commit/push após aceite. Tag imutável e prerelease apenas com binários/pacotes
    testados, notas, hashes e procedimento de upgrade/rollback. Versões independentes.
 
-Próxima execução recomendada: [P55 — quotas do estado](../prompts/broker/55-quotas-estado.md),
-segunda fatia da fase1, após P54 (admissão TCP). Não iniciar MQTT5, WebSocket e bridge juntos. Reavaliar este cronograma
+Próxima execução recomendada: saturação, assinantes lentos e conexões simultâneas,
+com prompt próprio, após a [campanha QoS/fan-out/mTLS P72](performance-fanout.md).
+~~P55 — quotas do estado~~ foi aceito em P61; não é mais a próxima entrega.
+Não iniciar MQTT5, WebSocket e bridge juntos. Reavaliar este cronograma
 ao encerrar cada fase e registrar desvios nos prompts correspondentes.
 
 ## Fontes e evidências
@@ -97,6 +167,11 @@ ao encerrar cada fase e registrar desvios nos prompts correspondentes.
 Estado baseado na leitura do código/documentação e nas evidências P52 anteriores;
 esta tarefa de planejamento não executou novos testes funcionais.
 
+
+## Histórico de execução
+
+Os checkpoints abaixo retratam o estado em cada execução. Seus bloqueios antigos
+não substituem o checklist atual; P61/C39 concluiu a fase 1 e P62 iniciou a fase 2.
 
 ## Retomada após P54 — 2026-10-11
 
@@ -135,9 +210,10 @@ Pedido explícito de finalizar fase1 executado em paralelo. BrokerP58 corrige te
 
 [Quadro de aceite atual](phase1-acceptance.md): ACCEPTANCE_BLOCKED. Ubuntu26 do operador está aberto e contém versões instaladas, mas não é acessível à conta lico\codexsandboxoffline desta sessão. O runner usa fontes/testes/estado temporários e pode ser executado no loginUbuntu, sem remover ou alterar instalações existentes. Lifecycle somente em container descartável. Aguarda evidência Unix/interop e pacotes; fase1 não foi artificialmente encerrada e fase2 não foi iniciada.
 
-## Checkpoint atual — aceite P61/C39, 2026-10-11
+## Checkpoint de aceite P61/C39, 2026-10-11
 
 Fase1 concluída no Ubuntu26/WSL: broker0.11.0/client0.7.0, configuração e
 quotas, limites de pacotes, integrações e pacote install/upgrade/rollback aceitos.
 Os BLOCKED anteriores desta página são históricos. Ver [aceite da fase1](phase1-acceptance.md).
-Fase2 (capacidade/RAM/latência) aguarda prompt próprio e não foi executada aqui.
+Naquele checkpoint, fase2 ainda não havia sido executada. Posteriormente, P62
+entregou a baseline inicial; a fase2 permanece em andamento, conforme checklist.
