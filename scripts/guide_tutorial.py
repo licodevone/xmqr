@@ -43,6 +43,22 @@ fn main() -> std::io::Result<()> {
 }
 '''
 
+# Checkpoints completos: o aluno os constrói por incrementos, sem copiar blocos.
+TYPING_STEPS = [
+    ('Função de entrada', 'fn main() {\n}\n', ''),
+    ('Primeira saída', 'fn main() {\n    println!("Curso MQTT");\n}\n', 'Curso MQTT\n'),
+    ('Guardar uma informação', 'fn main() {\n    let temperatura = 5;\n    println!("Temperatura: {}", temperatura);\n}\n', 'Temperatura: 5\n'),
+    ('Tomar uma decisão', '''fn main() {
+    let temperatura = 5;
+    if temperatura > 4 {
+        println!("Alerta: temperatura alta");
+    } else {
+        println!("Temperatura dentro do limite");
+    }
+}
+''', 'Alerta: temperatura alta\n'),
+]
+
 
 def code(value, language='text'):
     return '<pre data-language="' + language + '"><code>' + escape(value) + '</code></pre>'
@@ -70,9 +86,9 @@ def sections(root):
     def add(identifier, title, body):
         result.append((identifier, title, body))
 
-    add('curso', 'Comece aqui: construir desde o zero',
-        p('Este percurso ensina a criar dois programas separados e evoluí-los até a arquitetura do XMQR. Você pode começar sem saber Rust. Faça uma etapa por vez: digite o exemplo, execute, explique o resultado com suas palavras e só avance quando o critério de conclusão funcionar.') +
-        p('<strong>Dois caminhos:</strong> construir os exercícios abaixo em uma pasta nova; ou baixar a versão já pronta para estudar seu código. A sequência didática foi organizada para aprendizado. Ela não representa uma reconstrução comprovada de todos os commits antigos. Os prompts e seus registros históricos estão mais adiante.') +
+    add('curso', 'Da lógica ao Broker e Clientes MQTT — como estudar',
+        p('O objetivo do curso é você escrever o programa com suas próprias mãos e compreender o que está construindo. A digitação acompanha a lógica: primeiro defina o problema, depois escolha a instrução e entenda suas palavras e símbolos. O código completo serve para conferir seu trabalho depois da tentativa.') +
+        p('<strong>Caminho principal:</strong> construir os exercícios em uma pasta nova, digitando os trechos. O sistema pronto fica como referência posterior. A sequência didática foi organizada para aprendizado; não representa uma reconstrução comprovada de todos os commits antigos. Os prompts e seus registros históricos estão mais adiante.') +
         table(['Ordem', 'O que você construirá', 'Quando considerar concluído'], [
             ('1', 'Ambiente Linux/WSL e ferramentas Rust', 'rustc e cargo mostram suas versões dentro do Ubuntu.'),
             ('2', 'broker-escola e client-escola', 'Cada projeto imprime sua mensagem e compila sem dependências.'),
@@ -83,6 +99,59 @@ def sections(root):
             ('7', 'Persistência, TLS/mTLS e autenticação', 'Responsabilidade durável e acesso autorizado sobrevivem aos cenários previstos.'),
             ('8', 'Configuração, cliente CLI, operação e distribuição', 'Gates e artefatos verificáveis; release experimental com limites documentados.')]) +
         p('Não precisa criar uma biblioteca para cada conceito. O XMQR é um pacote com módulos, dois binários no broker e um pacote separado para o client. MQTT 5, WebSocket, bridge e cluster não estão implementados nesta baseline. A paridade integral com Mosquitto permanece um objetivo futuro.'))
+
+    add('metodo-digitacao', 'Seu método: digitar, compreender e verificar',
+        table(['Passo em cada aula', 'O que você faz', 'Como comprova compreensão'], [
+            ('1. Problema', 'Descreva o comportamento desejado sem código.', 'Diga qual informação entra, o que é feito e qual resultado sai.'),
+            ('2. Lógica', 'Escreva passos em português ou pseudocódigo.', 'Simule o resultado com valores pequenos.'),
+            ('3. Local', 'Abra o arquivo indicado e confira a pasta/projeto.', 'Saiba distinguir código Rust, manifest e comando no terminal.'),
+            ('4. Digitação', 'Digite uma instrução curta, observando maiúsculas, aspas e delimitadores.', 'Identifique palavras da linguagem, nomes escolhidos e dados.'),
+            ('5. Leitura', 'Explique a instrução antes de executar.', 'Responda: o que acontece, por que ela existe e qual tipo participa?'),
+            ('6. Checkpoint', 'Complete o bloco indicado, salve e execute.', 'Compare saída real com a previsão; registre a primeira divergência.'),
+            ('7. Variação', 'Mude apenas um dado ou operação proposta.', 'Preveja a diferença antes de rodar novamente.'),
+            ('8. Revisão', 'Explique o trecho em voz alta ou escreva uma frase.', 'Só avance quando conseguir justificar cada token relevante.')]) +
+        p('Uma letra pode pertencer a uma palavra reservada, a um identificador ou a um texto literal. Em fn, as letras juntas formam a palavra da linguagem. Em temperatura, o nome foi escolhido por nós: temp também seria possível se todas as referências mudassem. Dentro de uma string, as letras são dados exibidos. Não há uma função independente para cada letra desses nomes.') +
+        p('Pode haver erro enquanto uma linha ou bloco está incompleto. Execute nos checkpoints completos, em vez de compilar depois de cada tecla. Indentação facilita leitura; espaços entre tokens podem ser necessários para separá-los. Diferencie isso de espaços dentro de strings, que fazem parte da mensagem.') +
+        p('Se houver erro: confirme o arquivo e o diretório; leia a primeira mensagem; compare aspas, chaves, nome e tipo com o trecho da aula; corrija uma causa por vez. Não troque uma biblioteca ou desative validações apenas para fazer o erro desaparecer.') +
+        p('<strong>Estado deste material:</strong> as primeiras aulas abaixo têm checkpoints e explicações humanas. Os módulos avançados têm roteiro, critérios e fontes para consulta. Suas notas assistidas ainda precisam ser transformadas em aulas humanas próprias; elas não equivalem a um curso completo de digitação guiada de todas as linhas.'))
+
+    body = p('Faça estas aulas depois de instalar Rust e criar broker-escola na Etapa 2. Abra broker-escola/src/main.rs no editor. Os blocos mostram como o arquivo ficará em cada checkpoint; digite as alterações indicadas. No terminal Ubuntu, dentro de broker-escola, execute cargo +1.99.0 run depois de salvar.')
+    body += card('Aula 1 — onde o programa começa',
+        p('<strong>Lógica:</strong> iniciar e terminar, sem imprimir nada. Substitua o Hello inicial por uma função vazia. Digite fn, um espaço, main, os parênteses, um espaço e a chave de abertura. Pressione Enter e digite a chave de fechamento.') +
+        code(TYPING_STEPS[0][1], 'rust') +
+        table(['O que você digita', 'O que significa', 'Por que precisa estar aqui'], [
+            ('fn', 'Palavra reservada que declara função.', 'Informa ao compilador qual construção começa aqui.'),
+            ('main', 'Nome especial da entrada deste executável.', 'O programa inicia por essa função.'),
+            ('()', 'Lista de parâmetros vazia.', 'Esta entrada não recebe parâmetros na assinatura.'),
+            ('{', 'Início do corpo.', 'Delimita o conjunto de instruções da função.'),
+            ('Enter / indentação', 'Organização visual do texto.', 'Ajuda a enxergar estrutura; não substitui os delimitadores.'),
+            ('}', 'Fim do corpo.', 'Fecha o bloco iniciado pela chave anterior.')]) +
+        p('<strong>Checkpoint:</strong> execução termina sem mensagem do seu programa. Cargo ainda pode mostrar mensagens de compilação/execução. <strong>Explique:</strong> por que não apareceu texto? Porque ainda não há instrução que imprima.'))
+    body += card('Aula 2 — sua primeira instrução',
+        p('<strong>Lógica:</strong> iniciar → escrever Curso MQTT na tela → terminar. Dentro das chaves, digite quatro espaços e println!("Curso MQTT");. A mensagem é livre; a estrutura Rust precisa continuar válida.') +
+        code(TYPING_STEPS[1][1], 'rust') +
+        table(['Parte', 'O que faz'], [('println', 'Nome da macro de impressão com nova linha.'), ('!', 'Nesta posição indica invocação de macro.'), ('(', 'Abre os argumentos da macro.'), ('"', 'Abre o literal de texto.'), ('Curso MQTT', 'Conteúdo a exibir; o espaço também pertence ao texto.'), ('"', 'Fecha o literal.'), (')', 'Fecha os argumentos.'), (';', 'Termina esta instrução dentro do bloco.')]) +
+        p('<strong>Checkpoint:</strong> a saída do programa é Curso MQTT. <strong>Variação:</strong> mude apenas o texto para Meu broker e preveja a saída. <strong>Explique:</strong> por que uma palavra dentro de aspas pode mudar, mas remover a aspa de fechamento causa erro?'))
+    body += card('Aula 3 — guardar um valor',
+        p('<strong>Lógica:</strong> guardar temperatura 5 → mostrar valor guardado. Digite let temperatura = 5; antes da impressão. Depois altere a impressão para usar um marcador de formatação e a variável como segundo argumento.') +
+        code(TYPING_STEPS[2][1], 'rust') +
+        table(['Parte', 'Leitura'], [('let', 'Cria um binding: associa nome a valor.'), ('temperatura', 'Identificador escolhido por nós; não é palavra reservada.'), ('=', 'Inicializa o binding com o valor à direita.'), ('5', 'Literal numérico; neste exemplo o inteiro é inferido como i32.'), (';', 'Encerra a declaração.'), ('"Temperatura: {}"', 'Texto de formatação; {} reserva posição para o argumento.'), (', temperatura', 'Separa argumentos e fornece o valor que ocupa {}.')]) +
+        p('<strong>Checkpoint:</strong> Temperatura: 5. <strong>Variação:</strong> troque 5 por 2 e preveja a saída. <strong>Explique:</strong> por que "temperatura" imprimiria letras, enquanto temperatura sem aspas fornece o valor?'))
+    body += card('Aula 4 — tomar uma decisão',
+        p('<strong>Problema:</strong> avisar quando a temperatura ultrapassar 4. Primeiro escreva a lógica em português: guardar valor; se for maior que 4, mostrar alerta; caso contrário, mostrar que está dentro do limite. O número vem do código de estudo; ainda não existe sensor físico.') +
+        code(TYPING_STEPS[3][1], 'rust') +
+        table(['Parte', 'Leitura'], [('if', 'Inicia decisão condicional.'), ('temperatura > 4', 'Compara o valor guardado com 4; produz true ou false.'), ('{ … } depois do if', 'Bloco executado se a comparação for verdadeira.'), ('else', 'Escolhe o caso alternativo quando a condição é falsa.'), ('{ … } depois do else', 'Bloco executado no caso alternativo.'), ('Chave final', 'Fecha main; as outras duas duplas pertencem aos ramos da decisão.')]) +
+        p('<strong>Checkpoint:</strong> com 5, aparece Alerta: temperatura alta. <strong>Variações:</strong> preveja o resultado com 3 e com 4. Igual a 4 não satisfaz > 4. Depois compare a regra > com >=; só altere a regra depois de explicar o comportamento desejado.'))
+    body += card('Ponte para o broker e os clients',
+        p('Você já construiu entrada, saída, dado e decisão. No exercício TCP, o dado atravessa uma conexão. No MQTT, além de enviar bytes, identificamos sessão, tópico e confirmação. A regra de temperatura pertence à aplicação consumidora; o broker transporta e roteia mensagens sem precisar conhecer esse alarme.') +
+        p('Ao chegar à Etapa 3, mantenha o método: escreva imports; explique std, :: e os traits; complete a assinatura; construa bind e analise o Result; só depois acrescente atendimento e leitura. A tabela humana de cada linha do servidor/client mostra a função de cada instrução.') +
+        table(['Trecho de rede para destrinchar', 'Como ler seus tokens'], [
+            ('let listener = TcpListener::bind("127.0.0.1:18830")?;', 'let associa nome; TcpListener é tipo; :: acessa função associada; bind abre listener; literal contém endereço; ? propaga erro; ; encerra.'),
+            ('let mut buffer = [0_u8; 512];', 'let cria binding; mut permite alterar; [ ] forma array; 0_u8 é zero de tipo byte; ; interno separa valor e quantidade; ; final encerra declaração.'),
+            ('stream.read(&mut buffer)?', 'stream é conexão; . chama método; &mut empresta buffer com exclusividade de mutação; ? propaga erro da leitura.'),
+            ('&buffer[..count]', '& empresta fatia; [ ] seleciona trecho; ..count inclui início e exclui índice count.'),
+            ('for connection in listener.incoming()', 'for itera resultados; connection recebe cada item; in liga padrão e iterador; incoming produz conexões recebidas.')]))
+    add('aulas-digitadas', 'Primeiras aulas — escreva cada trecho e explique seus tokens', body)
 
     add('ambiente', 'Etapa 1 — instalar Rust e entender o ambiente',
         card('No Windows: entrar no Ubuntu do WSL',
