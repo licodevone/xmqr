@@ -35,3 +35,10 @@ PASS após ajuste: inventário MIT/dependências coincide e4 contratos do harnes
 Não criada versão vX.Y.Z por benchmark; o marco funcional client é independente.
 Checklists atualizados somente para entregas com aceite. Publicação/commit sob
 autorização do pedido atual; hashes de commits finais não são presumidos.
+
+## Publicação do marco
+
+Commit cf0c99c publicado em main: harness, relatório e checklist P71/P72.
+Sem nova tag de versãobroker: runtime permanece0.11.2. Client publicou
+[tag/prerelease0.8.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.8.0)
+no commit8cd0e1c, com gates e artefatos descritos no registroC41.
