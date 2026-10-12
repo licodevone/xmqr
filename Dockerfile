@@ -11,7 +11,7 @@ COPY src ./src
 RUN cargo build --locked --release --bins
 
 FROM debian:bookworm-slim AS runtime
-ARG VERSION=0.11.1
+ARG VERSION=0.11.2
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.title="XMQR Broker" \
       org.opencontainers.image.version="${VERSION}" \

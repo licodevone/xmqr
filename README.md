@@ -61,9 +61,9 @@ cd ~/xmqr-pacotes
 3. Baixe o pacote e seu checksum da release publicada:
 
 ```bash
-wget -O xmqr-broker_0.11.1-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.11.1/xmqr-broker_0.11.1-1_amd64.deb
-wget -O xmqr-broker_0.11.1-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.11.1/xmqr-broker_0.11.1-1_amd64.deb.sha256
-sha256sum -c xmqr-broker_0.11.1-1_amd64.deb.sha256
+wget -O xmqr-broker_0.11.2-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.11.2/xmqr-broker_0.11.2-1_amd64.deb
+wget -O xmqr-broker_0.11.2-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.11.2/xmqr-broker_0.11.2-1_amd64.deb.sha256
+sha256sum -c xmqr-broker_0.11.2-1_amd64.deb.sha256
 ```
 
 Prossiga somente se a verificação mostrar `OK`.
@@ -71,7 +71,7 @@ Prossiga somente se a verificação mostrar `OK`.
 4. Instale e confirme o pacote e a conta de serviço:
 
 ```bash
-sudo apt install ./xmqr-broker_0.11.1-1_amd64.deb
+sudo apt install ./xmqr-broker_0.11.2-1_amd64.deb
 dpkg-query -W -f='${Status}\n' xmqr-broker
 id xmqr
 ```
@@ -325,3 +325,18 @@ em [registro P58](prompts/registros/P58-pacote-completo.md).
 Imagem xmqr-broker:0.11.1 paraLinux/amd64 com imagem tar.gz eSHA-256 na release; também inclui
 .debUbuntu26amd64. [Build/load, configuração e execução](docs/docker.md).
 Sem chaves/estado na imagem; usuário10001, mTLS e volumes externos.
+
+## Consultar a versão — P64
+
+```sh
+mqtt-broker --version
+mqtt-broker -V
+docker run --rm xmqr-broker:0.11.2 --version
+```
+
+Saída: `mqtt-broker 0.11.2`, exit0. Funciona sem configuração, certificados,
+credenciais ou estado: os argumentos são tratados antes do runtimeTokio/logs.
+Sem argumentos, inicia normalmente conforme configuração. Argumentos não
+suportados/combinados retornamexit2 sem reproduzir seus valores. Não há --help
+nesta fatia. DockerHub: lepinheiro100 publica manualmente; use a imagem carregada
+da releaseGitHub até a nova tag estar disponível no registry.

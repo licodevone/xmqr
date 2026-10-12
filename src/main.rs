@@ -17,8 +17,23 @@ use mqtt_broker::{
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
+fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut arguments = env::args_os().skip(1);
+    match (arguments.next(), arguments.next()) {
+        (None, None) => run(),
+        (Some(argument), None) if argument == "--version" || argument == "-V" => {
+            println!("mqtt-broker {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        _ => {
+            eprintln!("Argumento inválido. Use mqtt-broker --version ou execute sem argumentos.");
+            std::process::exit(2);
+        }
+    }
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .with_target(false)

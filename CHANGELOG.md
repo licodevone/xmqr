@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 0.11.2 — consulta de versão
+
+- --version/-V como argumento único, antes de runtime/logs/configuração/estado.
+- Argumentos não suportados recusados exit2 sem echo; startup sem argumentos mantido.
+- Dockerarchive/hash e debUbuntu26amd64 porrelease; client permanece0.7.1.
+
+
 ## 0.11.1 — distribuição Docker
 
 - LabelsOCI/version/revision, SIGTERM e imagemLinux/amd64 exportada comchecksum.

@@ -7,8 +7,8 @@ O processo roda como UID/GID 10001. Nenhum certificado ou credencial é copiado
 para a imagem.
 
 ```sh
-docker build -t xmqr-broker:0.11.1 .
-docker image inspect xmqr-broker:0.11.1 --format '{{.Config.User}}'
+docker build -t xmqr-broker:0.11.2 .
+docker image inspect xmqr-broker:0.11.2 --format '{{.Config.User}}'
 ```
 
 O padrão é `secure-mtls` na porta 8883, vinculado a todas as interfaces do
@@ -28,7 +28,7 @@ docker run -d --name xmqr-broker \
   -e MQTT_SERVER_KEY=/run/secrets/server.key \
   -e MQTT_CLIENT_CA=/run/secrets/clients-ca.crt \
   -e MQTT_SECURITY_BUNDLE=/run/secrets/security.toml \
-  xmqr-broker:0.11.1
+  xmqr-broker:0.11.2
 ```
 
 O volume guarda WAL, snapshot e marcador do perfil. Não compartilhe o mesmo
@@ -50,7 +50,7 @@ backup. A imagem inclui o texto MIT e o inventário de dependências; ao redistr
 preserve também os avisos/licenças de terceiros aplicáveis aos componentes.
 
 ```sh
-docker run --rm --entrypoint /usr/local/bin/mqtt-admin xmqr-broker:0.11.1 --help
+docker run --rm --entrypoint /usr/local/bin/mqtt-admin xmqr-broker:0.11.2 --help
 ```
 
 Não há `HEALTHCHECK` nesta imagem: o endpoint `/ready` é opcional e loopback, e
@@ -71,8 +71,8 @@ todas as distribuições ou arm64. Não há publicação em registry nesta entre
 Após baixar arquivo e checksum na release, valide e carregue:
 
 ```sh
-sha256sum -c xmqr-broker-0.11.1-linux-amd64.tar.gz.sha256
-docker load -i xmqr-broker-0.11.1-linux-amd64.tar.gz
+sha256sum -c xmqr-broker-0.11.2-linux-amd64.tar.gz.sha256
+docker load -i xmqr-broker-0.11.2-linux-amd64.tar.gz
 ```
 
 Secrets são externos e devem ser legíveis por UID10001, com chave/bundle/senha
@@ -89,3 +89,14 @@ de qualquer formato futuro. Imagens desta etapa preservam o estado existente.
 Validação entre containers: mTLS/QoS1, retained após restart, shutdown0, CA e
 senha erradas recusadas. Versão/ID/labels/proveniência registrados. Rootfsread-only
 e caps removidas aprovados. Sem HEALTHCHECK superficial ou monitor externo.
+
+## Versão sem inicializar o broker
+
+```sh
+docker run --rm --read-only --cap-drop=ALL xmqr-broker:0.11.2 --version
+```
+
+Não requer volumes/env/certificados; saída `mqtt-broker 0.11.2`, exit0.
+Esse comando executa a consulta; `docker pull` baixa imagem publicada no
+registry. DockerHub permanece publicação manual do operador; os arquivos
+da releaseGitHub podem ser usados comdockerload. Client mantém0.7.1.
