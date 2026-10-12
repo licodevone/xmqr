@@ -60,3 +60,13 @@ Continue o curso usando docs/course-handoff.txt e registroP70 no repositório
 xmqr. Confira os arquivos/Git primeiro. Prepare o prompt da próxima alteração.
 Explique novos comandos e bibliotecas em detalhes antes do uso. Não invente
 autoria dos snapshots históricos nem recrie o HTML na pasta antiga.
+
+P75 — histórico completo por commit,2026-10-12:
+scripts/build_commit_versions_bundle.py exporta todos os commits alcançáveis
+dos dois repos, com README adicional por versão, fontes intactas, prompts
+relacionados, índices e pendências documentais. Artefato local:
+../docs/curso-udemy/versoes-github/todos-os-commits-broker-client.zip.
+Corte original: broker629b64b (50 commits),client6c54281 (28 commits).
+O commit da embalagem é posterior ao corte; pode reexportar quando solicitado.
+Ver prompt75 e registroP75. Não confundir associação documental/autoria,
+preparação/implementação ou aceite histórico com execução atual de testes.
