@@ -34,5 +34,8 @@ executada ao runtime dos snapshots históricos; somente artefatos/documentação
 P70 associa seu snapshot ao commit da própria entrega ao regenerar depois dele.
 História anterior sem marcos continua explícita, sem snapshots inventados.
 Resumo de continuidade emdocs/course-handoff.txt para novo chat.
+Na geração pós-commit, P71 novo de outro trabalho foi encontrado; catálogo
+atual91 ZIPs. Nenhuma execução P71 ou edição de evolution-plan.md realizada.
+Assert de contagem90 fixa foi revisto antes de repetir a verificação dinâmica.
 Sem alteração de runtime/manifest/versão/serviços e sem publicação Udemy.
 Commit/push autorizado; arquivos Docker preexistentes preservados/excluídos.

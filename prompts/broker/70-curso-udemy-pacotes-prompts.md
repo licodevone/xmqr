@@ -66,3 +66,12 @@ Geração por muitos processos git show é lenta para a quantidade de snapshots.
 Ler cada árvore por git archive em memória, sem extrair caminhos no filesystem,
 mantendo checagem de caminhos, conteúdo e exclusões. Interromper geração anterior
 se necessário e regerar os mesmos destinos; não apagar anexos preexistentes.
+
+## Rev6 — novo prompt encontrado durante a geração
+
+Outra alteração local acrescentou P71 e modificou evolution-plan.md durante
+esta entrega. Preservar ambos, sem editar/commitar esse trabalho. O catálogo
+passou de90 para91 prompts/ZIPs; P71 entra somente como documento com código
+herdado, sem execução declarada. Verificador falhou na contagem90 fixa;
+substituir por contagem dos arquivos atuais e repetir integridade, sem reduzir
+as verificações de fontes/ZIP/snapshots nem executar P71.
