@@ -80,3 +80,12 @@ Geradores: verify_commit_builds.py / report_commit_builds.py emscripts.
 ZIP local todos-os-commits-com-compilacao.zip e relatórios em
 ../docs/curso-udemy/versoes-github/compilacao/p76-20261012-01.
 Cada versão tem COMPILACAO.md; fontes/ZIPP75 originais preservados.
+
+P77 — do zero ao primeiro commitf7efe35:
+Roteiro/BIBLIOTECAS/promptsR01..R10 emcurso/reconstrucao-primeiro-commit.
+GuiaHTML e dezZIPs cumulativos em../docs/curso-udemy/primeiro-commit/index.html.
+R10 codigo/ =35 arquivos/6083 linhasRust originais; client ainda no pacotebroker.
+40build/checkPASS Windows/Ubuntu;52 testesLinuxPASS e pub/subQoS0loopbackPASS.
+Clippy1.99 históricoFAIL assert_is_empty; ajuste ensaiado em cópia separadaPASS,
+sem alterarR10. Primeiro Git ensaiado tem mesma árvore e outroSHA.
+Ver prompt/registroP77. Geradores build/render/verify_first_commit_course/guide.
