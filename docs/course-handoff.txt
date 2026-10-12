@@ -1,0 +1,54 @@
+CONTINUIDADE — Da lógica ao Broker e Clientes MQTT utilizando Rust
+Data: 2026-10-12
+
+Pastas:
+D:/projects/my-project/rapidez-projects/rapidez-broker-client/xmqr
+D:/projects/my-project/rapidez-projects/rapidez-broker-client/xmqr-client
+São repositórios Git independentes. O agregador rapidez-broker-client não tem Git.
+HTML local: ../docs/code-guide.html, relativo ao broker.
+Material local: ../docs/curso-udemy/pacotes; currículo em ../docs/curso-udemy/curriculo.json.
+
+Estado dos programas: broker0.11.2/client0.7.1, MQTT3.1.1 experimentais.
+WebSocket/WSS eMQTT5 não implementados. Este trabalho altera somente material
+didático e geradores, não runtime, certificados, serviços ou versões.
+
+Preferências:
+- Curso online Udemy: seções reais e aulas internas; texto direto ao participante.
+- Digitação guiada e explicação detalhada de palavras, símbolos e tipos.
+- Explicar todo novo comando/API/biblioteca antes de introduzir seu uso.
+- Sem analogias de escola e sem os blocos de orientação ao professor removidos.
+- Duas aulas iniciais: estrutura/impressão e variável/decisão, com4 checkpoints.
+- Criar prompt antes de editar; revisar prompt antes de corrigir erro observado.
+- Commit/push autorizados; tags/releases só para marcos apropriados e validados.
+- DockerHub é publicado manualmente pelo usuário; não publicar automaticamente.
+
+Geradores versionados:
+scripts/build_code_guide.py: monta HTML e fontes atuais.
+scripts/guide_tutorial.py: capítulos gerais e exemplos Rust.
+scripts/guide_udemy.py: revisão didática, dependências e grupos de seções.
+scripts/guide_navigation.py: sidebar/contêiner bidirecionais, âncoras e currículo.
+scripts/guide_line_notes.py: notas assistidas de sintaxe para fontes completas.
+scripts/build_prompt_packages.py: snapshots/diffs/ZIPs cumulativos e índice.
+
+P70 implementa revisão Udemy e pacotes. Ver prompt/registroP70 para resultados.
+P68 está preparado, mas o capítulo completo de configuraçãoIA/agentes/skills/MCP
+não foi implementado; não registrar como entrega concluída.
+
+Limites de histórico:
+P00/P01 e planos antigos não têm código produzido demonstrável por aquele ID.
+Não inventar snapshots nem reatribuir código importado como entrega P01.
+MarcosGit podem agrupar várias tarefas; IDs não são ordem cronológica exata.
+ZIPs mantêm último snapshot comprovável; código original difere da cópia anotada.
+Notas assistidas não são análise semântica humana integral de cada linha.
+
+Antes de continuar:
+Leia AGENTS.md do agregador e do repositório-alvo, prompt/registroP70 e Git status.
+Preserve os .tar.gz/.sha256 preexistentes e P68 preparado. Execute somente o
+escopo do novo pedido. Para docs, valide conteúdo, fontes, links e interação;
+não iniciar serviços/testes funcionais dos sistemas sem necessidade.
+
+Sugestão de mensagem para outro chat:
+Continue o curso usando docs/course-handoff.txt e registroP70 no repositório
+xmqr. Confira os arquivos/Git primeiro. Prepare o prompt da próxima alteração.
+Explique novos comandos e bibliotecas em detalhes antes do uso. Não invente
+autoria dos snapshots históricos nem recrie o HTML na pasta antiga.

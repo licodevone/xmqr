@@ -30,6 +30,27 @@ O HTML compartilhado está fora da raiz Git deste broker. Os capítulos e o
 gerador são versionados aqui; execute o gerador para produzir o curso local.
 Na sidebar, a seta de cada tópico e o painel principal abrem/fecham juntos.
 
+### Material do curso para Udemy — P70
+
+Seções e aulas organizadas no HTML local; programação inicial condensada em
+duas aulas com checkpoints detalhados. Bibliotecas têm problema resolvido,
+funcionamento, termos e limites explicados antes do uso.
+O currículo local está em `../docs/curso-udemy/curriculo.json`.
+
+Para gerar os ZIPs cumulativos de prompts e depois atualizar seus links:
+
+```sh
+python3 scripts/build_prompt_packages.py
+python3 scripts/build_code_guide.py
+```
+
+Pacotes em `../docs/curso-udemy/pacotes/`, com índice HTML/JSON e SHA-256.
+Cada ZIP inclui contrato, evidências, diff, snapshot acumulado quando há
+histórico comprovável e fonte original separada da cópia comentada de leitura.
+P00/P01 e outros planos não recebem código inventado; lacunas e marcos que
+agrupam tarefas são identificados. Os números dos prompts não são ordem Git.
+Material não publicado na Udemy; vídeos e cadastro da plataforma são separados.
+
 Broker MQTT3.1.1 experimental em Rust2024/Tokio, licença MIT. Pacote mqtt-broker;
 binários mqtt-broker e mqtt-admin. O client é o projeto independente ../xmqr-client.
 Não há declaração de conformidade completa ou prontidão para produção.

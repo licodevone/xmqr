@@ -1,6 +1,9 @@
 """Navegação P67: links acessíveis controlam seções e subtópicos do curso."""
 import html
 import re
+import json
+from pathlib import Path
+from guide_udemy import GROUPS
 
 
 def navigation(parts):
@@ -15,6 +18,8 @@ def navigation(parts):
 
         def subtopic(card):
             prefix, heading, content = card.groups()
+            if identifier=='prompts':
+                heading='Aula '+str(len(children)+1)+' — '+heading
             child_id = f'{identifier}-topic-{len(children) + 1}'
             children.append((child_id, heading))
             return f'{prefix}<details id="{child_id}" class="subtopic"><summary><h3>{heading}</h3></summary><div class="topic-body">{content}</div></details></article>'
@@ -24,27 +29,37 @@ def navigation(parts):
         updated.append(f'<section id="{identifier}"><details class="topic"{opened}><summary><h2>{title}</h2></summary><div class="topic-body">{body}</div></details></section>')
         topics.append((identifier, title, children))
 
-    groups = [
-        ('Começar e praticar', {'curso', 'metodo-digitacao', 'tutor-ia', 'aulas-digitadas', 'ambiente', 'primeiro', 'tcp-escola'}),
-        ('Construção e funcionamento', {'caracteres', 'comandos', 'bibliotecas', 'manifest-aula', 'construcao', 'ler-fluxos', 'referencia-pronta', 'fluxo', 'rust', 'manifest', 'detalhe'}),
-        ('Referências e evidências', {'apoio', 'leitura', 'prompts', 'arquivos', 'limites'}),
-    ]
+    groups = GROUPS
 
     def link(identifier, label):
         return f'<a class="nav-link" href="#{identifier}" aria-controls="{identifier}" aria-expanded="false">{label}</a>'
 
     sidebar = '<div class="sidebar-heading">Conteúdo do curso</div><p class="sidebar-hint">Abertura e fechamento sincronizados com o texto.</p><a class="action-link open-all" href="#course-topics">Abrir todos os tópicos</a>'
+    curriculum=[]
+    by_id={identifier:part for (identifier,_,_),part in zip(topics,updated)}
+    grouped=[]
     for index, (title, identifiers) in enumerate(groups):
         rows = []
-        for identifier, label, children in topics:
-            if identifier not in identifiers:
-                continue
+        section_parts=[]
+        lessons=[]
+        topic_map={identifier:(label,children) for identifier,label,children in topics}
+        for number,identifier in enumerate(identifiers,1):
+            label,children=topic_map[identifier]
+            label=f'Aula {index+1}.{number} — '+label
             rows.append(f'<details class="nav-topic" data-topic="{identifier}"><summary>{link(identifier, label)}</summary><div class="nav-children">' + ''.join(link(child, text) for child, text in children) + '</div></details>')
+            section_parts.append(by_id[identifier].replace('<h2>'+topic_map[identifier][0]+'</h2>','<h2>'+label+'</h2>',1))
+            lessons.append({'titulo':html.unescape(label),'ancora':identifier,'partes':[{'titulo':html.unescape(text),'ancora':child} for child,text in children]})
         sidebar += f'<div class="nav-group"><h3>{html.escape(title)}</h3>{"".join(rows)}</div>'
-    return updated, sidebar
+        grouped.append(f'<div class="course-section" id="secao-{index+1}"><h2>{html.escape(title)}</h2>'+''.join(section_parts)+'</div>')
+        curriculum.append({'secao':title,'aulas':lessons})
+    folder=Path(__file__).resolve().parents[2]/'docs/curso-udemy'
+    folder.mkdir(parents=True,exist_ok=True)
+    (folder/'curriculo.json').write_text(json.dumps(curriculum,ensure_ascii=False,indent=2),encoding='utf-8')
+    return grouped, sidebar
 
 
 STYLE = '''
+.course-section{margin:50px 0}.course-section>h2{padding-bottom:16px;border-bottom:2px solid #8de2b5}
 .layout{grid-template-columns:280px minmax(0,1fr);max-width:1440px}
 .sidebar{background:#111e30;border:1px solid #2a3c54;border-radius:12px;padding:18px;scrollbar-width:thin}
 .sidebar-heading{font-size:16px;font-weight:700;color:#8de2b5}.sidebar-hint{font-size:12px;color:#a3b8cc;margin:8px 0 16px}

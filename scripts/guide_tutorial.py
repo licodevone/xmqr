@@ -2,6 +2,7 @@
 from html import escape
 from pathlib import Path
 import tomllib
+from guide_udemy import revise
 
 
 HELLO = '''fn main() {
@@ -91,7 +92,7 @@ def sections(root):
         p('<strong>Caminho principal:</strong> construir os exercícios em uma pasta nova, digitando os trechos. O sistema pronto fica como referência posterior. A sequência didática foi organizada para aprendizado; não representa uma reconstrução comprovada de todos os commits antigos. Os prompts e seus registros históricos estão mais adiante.') +
         table(['Ordem', 'O que você construirá', 'Quando considerar concluído'], [
             ('1', 'Ambiente Linux/WSL e ferramentas Rust', 'rustc e cargo mostram suas versões dentro do Ubuntu.'),
-            ('2', 'broker-escola e client-escola', 'Cada projeto imprime sua mensagem e compila sem dependências.'),
+            ('2', 'broker-pratica e client-pratica', 'Cada projeto imprime sua mensagem e compila sem dependências.'),
             ('3', 'Servidor e cliente TCP de estudo', 'O client recebe ping de volta; você consegue explicar cada linha.'),
             ('4', 'Tipos, módulos e decodificador MQTT', 'Bytes válidos são interpretados e pacotes inválidos são recusados.'),
             ('5', 'CONNECT, assinaturas e publicação QoS 0', 'Um publicador entrega mensagem a um assinante e ACL negativa recusa acesso.'),
@@ -115,23 +116,9 @@ def sections(root):
         p('Se houver erro: confirme o arquivo e o diretório; leia a primeira mensagem; compare aspas, chaves, nome e tipo com o trecho da aula; corrija uma causa por vez. Não troque uma biblioteca ou desative validações apenas para fazer o erro desaparecer.') +
         p('<strong>Estado deste material:</strong> as primeiras aulas abaixo têm checkpoints e explicações humanas. Os módulos avançados têm roteiro, critérios e fontes para consulta. Suas notas assistidas ainda precisam ser transformadas em aulas humanas próprias; elas não equivalem a um curso completo de digitação guiada de todas as linhas.'))
 
-    add('tutor-ia', 'Como usar inteligência artificial durante a digitação',
-        p('A proposta deste curso é usar IA como tutor de uma etapa por vez. Você continua responsável por escrever, explicar e verificar o programa. Essa escolha acompanha a orientação geral de educação centrada na participação humana da <a href="https://www.unesco.org/en/articles/guidance-generative-ai-education-and-research">UNESCO sobre IA generativa na educação</a>; o roteiro abaixo é uma adaptação didática para este curso, não uma metodologia validada integralmente por essa fonte.') +
-        table(['Momento', 'Pedido ao tutor', 'Sua ação'], [
-            ('Antes de digitar', 'Explique o problema e faça uma pergunta sobre a lógica, sem escrever a solução inteira.', 'Responda com passos em português.'),
-            ('Ao escrever', 'Mostre uma instrução pequena e explique palavras, símbolos, tipos e propósito.', 'Digite manualmente; diga o que é palavra reservada, nome e dado.'),
-            ('Antes de executar', 'Pergunte qual saída eu espero.', 'Registre sua previsão antes de compilar.'),
-            ('Quando houver erro', 'Analise a primeira mensagem do compilador e ofereça uma pista antes da correção.', 'Tente corrigir a causa e compare a saída.'),
-            ('Depois de funcionar', 'Peça que eu explique a linha e proponha uma pequena variação.', 'Explique sem ler a resposta e execute a variação.'),
-            ('Ao revisar', 'Faça perguntas sem fornecer código e registre onde tive dificuldade.', 'Reconstrua um trecho de memória; avance após comprovar entendimento.')]) +
-        card('Prompt para iniciar uma aula',
-            code('Você é meu tutor no curso Da lógica ao Broker e Clientes MQTT utilizando Rust.\nEstou na aula [nome], usando Rust [versão] no Ubuntu/WSL.\nQuero digitar o código e entender cada passo.\nApresente um objetivo pequeno e pergunte como eu resolveria em português.\nDepois, trabalhe uma instrução por vez: explique palavras, símbolos e tipos.\nEspere minha resposta antes de avançar.\nAntes de executar, peça minha previsão do resultado.\nQuando eu mostrar um erro, dê primeiro uma pista para eu tentar corrigi-lo.\nNão entregue o programa completo nem afirme que testou sem executar.\nNo fim, peça minha explicação e uma variação curta.', 'text') +
-            p('Substitua nome e versão pelo contexto real. Use uma conversa por aula ou informe o checkpoint atual para o tutor não pular etapas. A IA pode explicar incorretamente uma API: confirme comportamento no compilador, nos testes e nas fontes oficiais já vinculadas ao curso.')) +
-        card('Preparação das aulas pelo professor',
-            p('Use IA para propor explicações alternativas, perguntas, erros didáticos e exercícios. Revise o conteúdo e execute o checkpoint antes de gravar a aula. Durante a demonstração, mostre seu raciocínio, a pergunta feita ao tutor e a verificação no terminal; a resposta da IA não é prova de correção.') +
-            p('Para avaliar, peça ao aluno que preveja uma saída, explique um token, corrija um erro e adapte uma regra. Digitar o mesmo texto é parte da prática; a explicação e a aplicação mostram se ele entendeu. Este HTML contém orientações e prompts, sem conexão automática com serviço de IA.')))
+    add('tutor-ia', 'IA durante a implementação', p('Aula de uso da IA na criação e depuração, ampliada pelo módulo guide_udemy.'))
 
-    body = p('Faça estas aulas depois de instalar Rust e criar broker-escola na Etapa 2. Abra broker-escola/src/main.rs no editor. Os blocos mostram como o arquivo ficará em cada checkpoint; digite as alterações indicadas. No terminal Ubuntu, dentro de broker-escola, execute cargo +1.99.0 run depois de salvar.')
+    body = p('Faça estas aulas depois de instalar Rust e criar broker-pratica na Etapa 2. Abra broker-pratica/src/main.rs no editor. Os blocos mostram como o arquivo ficará em cada checkpoint; digite as alterações indicadas. No terminal Ubuntu, dentro de broker-pratica, execute cargo +1.99.0 run depois de salvar.')
     body += card('Aula 1 — onde o programa começa',
         p('<strong>Lógica:</strong> iniciar e terminar, sem imprimir nada. Substitua o Hello inicial por uma função vazia. Digite fn, um espaço, main, os parênteses, um espaço e a chave de abertura. Pressione Enter e digite a chave de fechamento.') +
         code(TYPING_STEPS[0][1], 'rust') +
@@ -186,8 +173,8 @@ def sections(root):
             p('Pacotes .deb publicados foram validados para Ubuntu 26.04 amd64. Ubuntu 24.04, outras arquiteturas e broker nativo Windows exigem validação própria; compartilhar Linux ou Docker não garante compatibilidade do binário, da libc, dos scripts ou da configuração.')))
 
     add('primeiro', 'Etapa 2 — criar seus primeiros dois projetos',
-        p('Dentro do Ubuntu, use uma pasta nova de exercícios. Não execute cargo new sobre os repositórios existentes. Os nomes escola distinguem seus exercícios dos binários distribuídos.') +
-        code('mkdir -p "$HOME/xmqr-estudo"\ncd "$HOME/xmqr-estudo"\ncargo +1.99.0 new --bin broker-escola\ncargo +1.99.0 new --bin client-escola\ncd broker-escola\ncargo +1.99.0 run', 'bash') +
+        p('Dentro do Ubuntu, use uma pasta nova de exercícios. Não execute cargo new sobre os repositórios existentes. Os nomes pratica distinguem os exemplos dos binários distribuídos.') +
+        code('mkdir -p "$HOME/xmqr-estudo"\ncd "$HOME/xmqr-estudo"\ncargo +1.99.0 new --bin broker-pratica\ncargo +1.99.0 new --bin client-pratica\ncd broker-pratica\ncargo +1.99.0 run', 'bash') +
         p('Cargo cria Cargo.toml e src/main.rs. Abra src/main.rs, substitua seu conteúdo pelo exemplo abaixo e execute cargo run novamente. Cargo build gera o executável; cargo check verifica o código; cargo run compila e executa. Cargo.lock registra versões resolvidas e target guarda artefatos gerados. <a href="https://doc.rust-lang.org/book/ch01-03-hello-cargo.html">Rust Book: Hello Cargo</a>.') +
         code(HELLO, 'rust') + annotated(HELLO, [
             'fn declara função; main é a entrada do executável; () indica nenhum parâmetro; { abre seu corpo.',
@@ -195,11 +182,11 @@ def sections(root):
             '} fecha o corpo. Esta função não especifica retorno: seu resultado é a unidade ().']) +
         table(['Arquivo/pasta', 'Você escreve?', 'Responsabilidade'], [
             ('Cargo.toml', 'Sim', 'Manifest: metadados, edição, dependências e opções de compilação.'), ('src/main.rs', 'Sim', 'Entrada de cada executável.'), ('src/lib.rs', 'Quando extrair biblioteca interna', 'Exporta módulos reutilizados por binários e testes.'), ('Cargo.lock', 'Cargo gera', 'Resolução concreta das dependências; versionar nos aplicativos.'), ('target/', 'Não manualmente', 'Executáveis e intermediários; não é fonte do sistema.'), ('.gitignore', 'Sim quando necessário', 'Ignora builds e arquivos que não devem entrar no Git.')]) +
-        p('Agora entre em ../client-escola e repita o Hello. Só continue quando ambos compilarem. Se cargo não for encontrado, confirme o terminal e reabra-o após a instalação. Se faltar linker, volte às ferramentas de compilação; trocar o código Rust não resolve a ausência de ferramenta do sistema.'))
+        p('Agora entre em ../client-pratica e repita o Hello. Só continue quando ambos compilarem. Se cargo não for encontrado, confirme o terminal e reabra-o após a instalação. Se faltar linker, volte às ferramentas de compilação; trocar o código Rust não resolve a ausência de ferramenta do sistema.'))
 
-    add('tcp-escola', 'Etapa 3 — aprender rede com servidor e cliente TCP',
+    add('tcp-pratica', 'Etapa 3 — aprender rede com servidor e cliente TCP',
         p('<strong>Este exercício é um eco TCP, ainda não MQTT.</strong> Não tem autenticação, concorrência, timeout nem persistência. Escuta somente no loopback e usa porta 18830 para não disputar 1883/8883 com o broker real. Ele mostra como bytes atravessam a rede antes de acrescentarmos protocolo.') +
-        card('Servidor: substitua broker-escola/src/main.rs', code(BROKER, 'rust') + annotated(BROKER, [
+        card('Servidor: substitua broker-pratica/src/main.rs', code(BROKER, 'rust') + annotated(BROKER, [
             'Importa os traits Read e Write: disponibilizam métodos de leitura e escrita nos streams.',
             'Importa TcpListener da biblioteca padrão; std não requer dependência no Cargo.toml.',
             'Linha em branco separa imports e função para leitura.',
@@ -219,14 +206,14 @@ def sections(root):
             'Fecha o for; incoming costuma continuar enquanto o listener existir.',
             'Retorna sucesso quando a função alcançar este ponto.',
             'Fecha main.'])) +
-        card('Cliente: substitua client-escola/src/main.rs', code(CLIENT, 'rust') + annotated(CLIENT, [
+        card('Cliente: substitua client-pratica/src/main.rs', code(CLIENT, 'rust') + annotated(CLIENT, [
             'Importa traits para ler/escrever no socket.', 'Importa tipo da conexão TCP ativa.', 'Separação visual.',
             'Entrada com retorno de sucesso ou erro de I/O.', 'Conecta ao listener loopback; ? propaga falha de conexão.',
             'b"ping" é literal de bytes, não String; envia exatamente os quatro bytes do exercício.',
             'Reserva array de quatro bytes para resposta conhecida.', 'read_exact espera quatro bytes ou retorna erro; não pressupõe que um read baste.',
             'Converte bytes para exibição tolerante a UTF-8 inválido; {} é lugar do argumento na macro.',
             'Retorna Ok com valor unitário.', 'Fecha main.'])) +
-        code('# Terminal Ubuntu A\ncd "$HOME/xmqr-estudo/broker-escola"\ncargo +1.99.0 run\n\n# Terminal Ubuntu B\ncd "$HOME/xmqr-estudo/client-escola"\ncargo +1.99.0 run', 'bash') +
+        code('# Terminal Ubuntu A\ncd "$HOME/xmqr-estudo/broker-pratica"\ncargo +1.99.0 run\n\n# Terminal Ubuntu B\ncd "$HOME/xmqr-estudo/client-pratica"\ncargo +1.99.0 run', 'bash') +
         p('Resultado esperado no client: <code>Resposta: ping</code>. Pare o servidor com Ctrl+C no terminal A. Se a conexão for recusada, inicie A e confira a porta. Se bind falhar, outra aplicação pode ocupá-la. Não conclua que o firewall é responsável sem verificar listener e endereço.') +
         p('TCP é um fluxo: uma leitura pode conter metade de um pacote ou vários pacotes juntos. write_all não comprova processamento pelo peer. O futuro codec deve acumular bytes suficientes, respeitar tamanho máximo e preservar o restante para o próximo pacote. A passagem para Tokio acrescentará atendimento concorrente com limites; não basta trocar read por read.await.'))
 
@@ -331,9 +318,9 @@ def sections(root):
     add('bibliotecas', 'Cada biblioteca: motivo, feature e lugar no código', body)
 
     add('manifest-aula', 'Como escrever Cargo.toml e separar módulos',
-        code('[package]\nname = "broker-escola"\nversion = "0.1.0"\nedition = "2024"\n\n[dependencies]\n', 'toml') +
+        code('[package]\nname = "broker-pratica"\nversion = "0.1.0"\nedition = "2024"\n\n[dependencies]\n', 'toml') +
         table(['Parte', 'Interpretação'], [
-            ('[package]', 'Cabeçalho de tabela TOML com metadados do pacote.'), ('name = "broker-escola"', 'Chave, sinal = e string; a grafia do nome é escolha do projeto.'), ('version = "0.1.0"', 'Versão do aplicativo; não é versão MQTT.'), ('edition = "2024"', 'Conjunto de regras de linguagem; não obriga a usar o compilador de 2024.'), ('[dependencies]', 'Dependências normais; vazio é suficiente para os exemplos std.'), ('{ version = "…", features = ["…"] }', 'Tabela inline com restrição e array de recursos.'), ('[[bin]]', 'Array de tabelas: define um alvo executável por entrada.'), ('rust-version = "1.88"', 'Mínimo declarado da toolchain; precisa validação para promessa de compatibilidade.'), ('publish = false', 'Impede publicação desse pacote no crates.io; GitHub é outro canal.'), ('[profile.release]', 'Configura como o perfil release compila.'), ('panic = "unwind"', 'Permite desenrolamento da pilha utilizado no isolamento de panic.'), ('strip = "symbols" / lto = "thin"', 'Remove símbolos / otimiza entre unidades; não define comportamento MQTT.'), ('unsafe_code = "forbid"', 'Proíbe unsafe no código abrangido por essa regra; dependências têm regras próprias.'), ('all = "deny" / pedantic = "warn"', 'Configura níveis de lints Clippy; o gate -D warnings também eleva avisos.')]) +
+            ('[package]', 'Cabeçalho de tabela TOML com metadados do pacote.'), ('name = "broker-pratica"', 'Chave, sinal = e string; a grafia do nome é escolha do projeto.'), ('version = "0.1.0"', 'Versão do aplicativo; não é versão MQTT.'), ('edition = "2024"', 'Conjunto de regras de linguagem; não obriga a usar o compilador de 2024.'), ('[dependencies]', 'Dependências normais; vazio é suficiente para os exemplos std.'), ('{ version = "…", features = ["…"] }', 'Tabela inline com restrição e array de recursos.'), ('[[bin]]', 'Array de tabelas: define um alvo executável por entrada.'), ('rust-version = "1.88"', 'Mínimo declarado da toolchain; precisa validação para promessa de compatibilidade.'), ('publish = false', 'Impede publicação desse pacote no crates.io; GitHub é outro canal.'), ('[profile.release]', 'Configura como o perfil release compila.'), ('panic = "unwind"', 'Permite desenrolamento da pilha utilizado no isolamento de panic.'), ('strip = "symbols" / lto = "thin"', 'Remove símbolos / otimiza entre unidades; não define comportamento MQTT.'), ('unsafe_code = "forbid"', 'Proíbe unsafe no código abrangido por essa regra; dependências têm regras próprias.'), ('all = "deny" / pedantic = "warn"', 'Configura níveis de lints Clippy; o gate -D warnings também eleva avisos.')]) +
         p('Manifest descreve o pacote; campos extras não viram automaticamente configuração de runtime. <a href="https://doc.rust-lang.org/cargo/reference/manifest.html">Referência Cargo.toml</a>.') +
         code('src/\n  main.rs\n  lib.rs\n  mqtt/\n    mod.rs\n    codec.rs\n    topic.rs\n    router.rs\n    store.rs\n  transport/mod.rs\n  persistence/mod.rs\n  auth/mod.rs\n  configuration.rs', 'text') +
         p('Esta árvore é um recorte para aprendizado. O catálogo abaixo contém a árvore Rust efetiva completa. Em lib.rs, pub mod mqtt; declara e exporta módulo; em mqtt/mod.rs, mod codec; declara submódulo. use aproxima um nome já existente. mod, use e pub não são intercambiáveis: declarar, importar e tornar acessível são operações distintas.') +
@@ -426,4 +413,4 @@ def sections(root):
         code('python3 scripts/build_code_guide.py', 'bash') +
         p('Execute na raiz do broker, com Python 3.11+ e xmqr-client ao lado. build_code_guide.py monta catálogo e fontes; guide_tutorial.py contém capítulos humanos e exemplos; guide_line_notes.py produz notas assistidas de sintaxe. Regerar atualiza a fotografia dos arquivos e commits, mas não audita automaticamente a semântica de funcionalidades novas.') +
         p('Para cada nova fatia: prepare prompt → implemente → valide → registre → atualize explicação → revise diff → commit/push autorizados. Se um exemplo falhar, revise o prompt e a explicação junto da correção. O guia permite leitura offline; links oficiais são referências opcionais que exigem internet.'))
-    return result
+    return revise(result, root, p, code, table, card, TYPING_STEPS)
