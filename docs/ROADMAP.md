@@ -1,5 +1,9 @@
 # Roadmap do XMQR
 
+Fase2 iniciada porP62: [baseline](performance-baseline.md) de conexões ociosas
+e PUBACKQoS1/retained, medida em Ubuntu26/WSL. Próxima fatia: QoS/fan-out/TLS;
+nenhuma capacidade máxima ou otimização anunciada por esta medição.
+
 ## Plano atual P53 — broker e clients, referência Mosquitto
 
 Fase1 concluída emP61: broker0.11.0/client0.7.0, TOML/quotas/limites,

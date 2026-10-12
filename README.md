@@ -1,5 +1,8 @@
 # XMQR
 
+Veja a [baseline de RAM, CPU e latência P62](docs/performance-baseline.md),
+com parâmetros, três repetições, resultados e limites da medição Ubuntu/WSL.
+
 Veja o [guia HTML dos prompts, arquivos e código](docs/code-guide.html):
 entregas/evidências, arquitetura, configuração detalhada e fontes numeradas
 do broker e client, com notas explicativas ao lado de cada linha. Notas de
