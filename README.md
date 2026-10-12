@@ -3,7 +3,8 @@
 Veja a [baseline de RAM, CPU e latência P62](docs/performance-baseline.md),
 com parâmetros, três repetições, resultados e limites da medição Ubuntu/WSL.
 
-Veja o [curso Da lógica ao Broker e Clientes MQTT utilizando Rust](docs/code-guide.html):
+O curso **Da lógica ao Broker e Clientes MQTT utilizando Rust** fica no arquivo
+local `../docs/code-guide.html`, na pasta compartilhada `rapidez-broker-client/docs`:
 digitação guiada para escrever cada trecho compreendendo lógica, palavras e
 símbolos, com checkpoints e exercícios de previsão do resultado. As primeiras
 aulas ensinam entrada, impressão, variável e decisão; capítulos avançados
@@ -25,6 +26,9 @@ python3 scripts/build_code_guide.py
 
 Os capítulos humanos estão em `scripts/guide_tutorial.py`; novos recursos
 exigem revisão do texto, além de regenerar a fotografia das fontes.
+O HTML compartilhado está fora da raiz Git deste broker. Os capítulos e o
+gerador são versionados aqui; execute o gerador para produzir o curso local.
+Na sidebar, a seta de cada tópico e o painel principal abrem/fecham juntos.
 
 Broker MQTT3.1.1 experimental em Rust2024/Tokio, licença MIT. Pacote mqtt-broker;
 binários mqtt-broker e mqtt-admin. O client é o projeto independente ../xmqr-client.

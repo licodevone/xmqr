@@ -33,16 +33,14 @@ def navigation(parts):
     def link(identifier, label):
         return f'<a class="nav-link" href="#{identifier}" aria-controls="{identifier}" aria-expanded="false">{label}</a>'
 
-    sidebar = '<div class="sidebar-heading">Conteúdo do curso</div><p class="sidebar-hint">Clique para abrir ou fechar o tópico no texto.</p>'
+    sidebar = '<div class="sidebar-heading">Conteúdo do curso</div><p class="sidebar-hint">Abertura e fechamento sincronizados com o texto.</p><a class="action-link open-all" href="#course-topics">Abrir todos os tópicos</a>'
     for index, (title, identifiers) in enumerate(groups):
         rows = []
         for identifier, label, children in topics:
             if identifier not in identifiers:
                 continue
-            rows.append(link(identifier, label))
-            if children:
-                rows.append('<details class="nav-children"><summary>Subtópicos (' + str(len(children)) + ')</summary>' + ''.join(link(child, text) for child, text in children) + '</details>')
-        sidebar += f'<details class="nav-group"{" open" if index == 0 else ""}><summary>{html.escape(title)}</summary>{"".join(rows)}</details>'
+            rows.append(f'<details class="nav-topic" data-topic="{identifier}"><summary>{link(identifier, label)}</summary><div class="nav-children">' + ''.join(link(child, text) for child, text in children) + '</div></details>')
+        sidebar += f'<div class="nav-group"><h3>{html.escape(title)}</h3>{"".join(rows)}</div>'
     return updated, sidebar
 
 
@@ -57,6 +55,7 @@ STYLE = '''
 .sidebar .nav-link[aria-expanded=true]::before{content:'−'}
 .sidebar .nav-link[aria-current=location]{outline:1px solid #67afc4}
 .nav-children{margin:0 0 10px 18px}.nav-children>summary{font-size:12px;color:#a3b8cc}.nav-children .nav-link{font-size:12px}
+.nav-group>h3{font-size:14px;color:#90d9f4;margin:12px 0}.nav-topic{margin:4px 0}.nav-topic>summary{padding:0;list-style-position:inside}.nav-topic>summary>.nav-link{display:inline;padding:6px 2px;line-height:1.6;border:0}.nav-topic>summary>.nav-link::before{display:none}.action-link{display:inline-block;padding:10px;border:1px solid #5a8399;border-radius:6px;background:#213e55;color:#fff;text-decoration:none}.sidebar>.action-link{font-size:13px;margin-bottom:12px}
 .topic{border:1px solid #30435e;border-radius:10px;margin:0;overflow:hidden}
 .topic>summary{display:list-item;padding:20px 24px;background:#142338;list-style-position:inside}
 .topic>summary h2{display:inline;font-size:25px;margin:0}.topic-body{padding:10px 24px 24px}
@@ -75,21 +74,23 @@ const sidebar=document.querySelector('#course-nav');
 const menu=document.querySelector('#menu-toggle');
 const links=[...sidebar.querySelectorAll('.nav-link')];
 const topics=[...document.querySelectorAll('main .topic,main .subtopic')];
+const navigationTopics=[...sidebar.querySelectorAll('.nav-topic')];
 const input=document.querySelector('#search');
 function ancestors(element){const list=[];for(let node=element.parentElement;node;node=node.parentElement){if(node.tagName==='DETAILS')list.push(node);}return list;}
 function panel(target){return target.matches('section')?target.querySelector(':scope > details'):target.closest('details');}
 function isVisibleOpen(detail){return detail.open&&ancestors(detail).every(parent=>parent.open);}
-function sync(){links.forEach(link=>{const target=document.getElementById(link.hash.slice(1));link.setAttribute('aria-expanded',String(isVisibleOpen(panel(target))));if(link.hash===location.hash)link.setAttribute('aria-current','location');else link.removeAttribute('aria-current');});}
+function sync(){links.forEach(link=>{const target=document.getElementById(link.hash.slice(1));link.setAttribute('aria-expanded',String(isVisibleOpen(panel(target))));if(link.hash===location.hash)link.setAttribute('aria-current','location');else link.removeAttribute('aria-current');});navigationTopics.forEach(item=>{item.open=isVisibleOpen(panel(document.getElementById(item.dataset.topic)));});}
 function closeMenu(){sidebar.classList.remove('is-open');menu.setAttribute('aria-expanded','false');}
 function reveal(target){const detail=panel(target);ancestors(detail).reverse().forEach(parent=>parent.open=true);detail.open=true;return detail;}
 function visit(target,focus=true){const detail=reveal(target);sync();requestAnimationFrame(()=>{target.scrollIntoView({block:'start',behavior:'auto'});if(focus)detail.querySelector(':scope > summary').focus({preventScroll:true});});}
 links.forEach(link=>link.addEventListener('click',event=>{event.preventDefault();const target=document.getElementById(link.hash.slice(1));const detail=panel(target);if(isVisibleOpen(detail)){detail.open=false;sync();}else{reveal(target);if(location.hash!==link.hash)history.pushState(null,'',link.hash);visit(target);}closeMenu();}));
 topics.forEach(detail=>detail.addEventListener('toggle',sync));
-function fromHash(){const target=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(target&&target.closest('main'))visit(target,false);else sync();}
+navigationTopics.forEach(item=>item.addEventListener('toggle',()=>{const target=document.getElementById(item.dataset.topic);const detail=panel(target);if(item.open===isVisibleOpen(detail))return;if(item.open)reveal(target);else detail.open=false;sync();}));
+function fromHash(){const target=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(target&&target.closest('main')&&panel(target))visit(target,false);else sync();}
 addEventListener('hashchange',fromHash);addEventListener('popstate',fromHash);
 menu.addEventListener('click',()=>{const opened=sidebar.classList.toggle('is-open');menu.setAttribute('aria-expanded',String(opened));if(opened)sidebar.querySelector('summary').focus();});
 addEventListener('keydown',event=>{if(event.key==='Escape'&&sidebar.classList.contains('is-open')){closeMenu();menu.focus();}});
-document.querySelector('#open-topics').addEventListener('click',()=>{topics.forEach(detail=>detail.open=true);sync();});
+document.querySelectorAll('.open-all').forEach(control=>control.addEventListener('click',event=>{event.preventDefault();topics.forEach(detail=>detail.open=true);sync();}));
 document.querySelector('#close-topics').addEventListener('click',()=>{topics.forEach(detail=>detail.open=false);sync();});
 document.querySelector('#collapse').addEventListener('click',()=>{document.querySelectorAll('main details:not(.topic):not(.subtopic)').forEach(detail=>detail.open=false);});
 input.addEventListener('input',()=>{const q=input.value.toLocaleLowerCase('pt-BR').trim();document.querySelectorAll('main .filter').forEach(card=>{card.hidden=Boolean(q&&!card.textContent.toLocaleLowerCase('pt-BR').includes(q));if(q&&!card.hidden){const detail=card.querySelector(':scope > details');if(detail)detail.open=true;ancestors(card).forEach(parent=>parent.open=true);}});sync();});

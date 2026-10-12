@@ -56,7 +56,9 @@ prompt_summary.update({
 64:'Implementou --version/-V antes de runtime/configuração; broker0.11.2.',
 65:'Atualiza o guia e cria percurso didático desde instalaçãoRust até arquitetura/distribuição.',
 66:'Adota título Da lógica ao Broker e Clientes MQTT e inicia aulas de digitação guiada com lógica, tokens e checkpoints.',
-67:'Sidebar agrupada com âncoras que abrem/fecham conteúdo e estado sincronizado.'})
+67:'Sidebar agrupada com âncoras que abrem/fecham conteúdo e estado sincronizado.',
+68:'Preparado: capítulosIA/agentes/skills/MCP ainda não executados.',
+69:'Sincroniza expansão nativa da sidebar e do corpo e respeita o HTML no destino compartilhado.'})
 client_summary.update({36:'Organizou matriz de paridade do client com Mosquitto; planejamento documentado.',
 37:'Implementou parâmetros timeout/keepalive; consultar contrato e evidência original.',
 38:'Alinhou limites defensivos de recepção/framing do client.',
@@ -136,8 +138,10 @@ css='''*{box-sizing:border-box}html{scroll-behavior:smooth}body{overflow-wrap:an
 parts, nav = navigation(parts)
 css += STYLE
 script = SCRIPT
-out=f'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Da lógica ao Broker e Clientes MQTT utilizando Rust</title><style>{css}</style></head><body><header><div class="label">XMQR · curso com digitação guiada · P67</div><h1>Da lógica ao Broker e Clientes MQTT utilizando Rust</h1><p>Escreva cada trecho, compreenda a lógica, as palavras e os símbolos, execute e explique o resultado — da primeira função aos sistemas MQTT — com fontes completas numeradas e leitura detalhada dos caminhos de configuração e inicialização.</p></header><button id="menu-toggle" aria-controls="course-nav" aria-expanded="false">Conteúdo do curso</button><div class="layout"><nav id="course-nav" class="sidebar" aria-label="Tópicos do curso">{nav}</nav><main><label for="search">Buscar nos prompts e arquivos</label><input id="search" type="search" placeholder="Ex.: QoS2, configuration.rs, P54, TLS"><div class="toolbar"><button id="open-topics">Abrir todos os tópicos</button><button id="close-topics">Fechar todos os tópicos</button><button id="collapse">Recolher fontes e registros</button></div>{''.join(parts)}</main></div><footer>Documento local autossuficiente · Sem carregamento de recursos externos, analytics ou execução dos prompts · Baseline broker {git(root)}</footer><script>{script}</script></body></html>'''
-(root/'docs'/'code-guide.html').write_text(out,encoding='utf-8')
+out=f'''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Da lógica ao Broker e Clientes MQTT utilizando Rust</title><style>{css}</style></head><body><header><div class="label">XMQR · curso com digitação guiada · P67</div><h1>Da lógica ao Broker e Clientes MQTT utilizando Rust</h1><p>Escreva cada trecho, compreenda a lógica, as palavras e os símbolos, execute e explique o resultado — da primeira função aos sistemas MQTT — com fontes completas numeradas e leitura detalhada dos caminhos de configuração e inicialização.</p></header><button id="menu-toggle" aria-controls="course-nav" aria-expanded="false">Conteúdo do curso</button><div class="layout"><nav id="course-nav" class="sidebar" aria-label="Tópicos do curso">{nav}</nav><main id="course-topics"><label for="search">Buscar nos prompts e arquivos</label><input id="search" type="search" placeholder="Ex.: QoS2, configuration.rs, P54, TLS"><div class="toolbar"><a id="open-topics" class="action-link open-all" href="#course-topics">Abrir todos os tópicos</a><button id="close-topics">Fechar todos os tópicos</button><button id="collapse">Recolher fontes e registros</button></div>{''.join(parts)}</main></div><footer>Documento local autossuficiente · Sem carregamento de recursos externos, analytics ou execução dos prompts · Baseline broker {git(root)}</footer><script>{script}</script></body></html>'''
+destination=root.parent/'docs'/'code-guide.html'
+destination.parent.mkdir(parents=True,exist_ok=True)
+destination.write_text(out,encoding='utf-8')
 print(f'HTML criado: {len(out):,} caracteres; {len(cards)} prompts; {len(sources)} arquivos Rust; linhas {counts}')
 
 # Gerar notas somente após escrever fontes limpas evita duplicação em regenerações.

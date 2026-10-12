@@ -2,7 +2,7 @@ from pathlib import Path
 import html, re, collections
 
 root=Path(__file__).resolve().parents[1]
-path=root/'docs/code-guide.html'
+path=root.parent/'docs/code-guide.html'
 page=path.read_text(encoding='utf-8')
 calls={
 'load':'carrega e valida a configuração de entrada',
