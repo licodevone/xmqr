@@ -3,11 +3,22 @@
 Veja a [baseline de RAM, CPU e latência P62](docs/performance-baseline.md),
 com parâmetros, três repetições, resultados e limites da medição Ubuntu/WSL.
 
-Veja o [guia HTML dos prompts, arquivos e código](docs/code-guide.html):
-entregas/evidências, arquitetura, configuração detalhada e fontes numeradas
-do broker e client, com notas explicativas ao lado de cada linha. Notas de
-instrução/estrutura não substituem auditoria semântica integral. Retrato da
-baseline indicada no próprio documento.
+Veja o [curso HTML de construção do broker e client](docs/code-guide.html):
+instalação Rust no Ubuntu/WSL, primeiros projetos Cargo, exemplos TCP com cada
+linha explicada, sintaxe/caracteres, comandos, dependências/features e etapas
+para acrescentar MQTT, persistência, segurança, operação e distribuição.
+Inclui entregas/evidências e fontes atuais numeradas dos dois projetos.
+Notas assistidas de instrução/estrutura não substituem análise semântica humana.
+Exercícios iniciais são TCP de estudo; ainda não são um broker MQTT completo.
+
+Para regenerar, use Python 3.11+ na raiz do broker, com `xmqr-client` ao lado:
+
+```sh
+python3 scripts/build_code_guide.py
+```
+
+Os capítulos humanos estão em `scripts/guide_tutorial.py`; novos recursos
+exigem revisão do texto, além de regenerar a fotografia das fontes.
 
 Broker MQTT3.1.1 experimental em Rust2024/Tokio, licença MIT. Pacote mqtt-broker;
 binários mqtt-broker e mqtt-admin. O client é o projeto independente ../xmqr-client.
