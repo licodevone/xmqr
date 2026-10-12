@@ -29,6 +29,14 @@ scripts/guide_udemy.py: revisão didática, dependências e grupos de seções.
 scripts/guide_navigation.py: sidebar/contêiner bidirecionais, âncoras e currículo.
 scripts/guide_line_notes.py: notas assistidas de sintaxe para fontes completas.
 scripts/build_prompt_packages.py: snapshots/diffs/ZIPs cumulativos e índice.
+Série didática nova: curso/projeto-inicial (P00 contexto/P03 executáveis),
+curso/etapas/P04 (servidor de ecoTCP), curso/etapas/P05 (clientTCP).
+Build e execução verificados emWindows nativoRust1.98.1/MSVC, sem cratesexternas.
+Exportadores: scripts/build_initial_project.py ebuild_evolution_projects.py.
+Índice novo local: ../docs/curso-udemy/serie-didatica/index.html.
+Comentários [Pxx - NOVO/ALTERADO/MANTIDO], diffs eproveniência porarquivo.
+São implementações didáticas novas, não recuperação da saídaoriginalP03;
+P04/P05 ainda não implementam o protocoloMQTT. Próximas fases estão no curso/README.
 
 P70 implementa revisão Udemy e pacotes. Ver prompt/registroP70 para resultados.
 P68 está preparado, mas o capítulo completo de configuraçãoIA/agentes/skills/MCP

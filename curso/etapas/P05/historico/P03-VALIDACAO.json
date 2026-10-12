@@ -1,0 +1,28 @@
+{
+  "data": "2026-10-12",
+  "serie": "nova implementação didática; não recuperação histórica",
+  "contexto": "P00",
+  "criacao": "P03, primeiro recorte",
+  "sistema": "Windows nativo",
+  "rustc": "1.98.1",
+  "cargo": "1.98.1",
+  "toolchain": "stable-x86_64-pc-windows-msvc",
+  "broker": {
+    "fmt": "PASS",
+    "cargo_test": "PASS, zero testes definidos",
+    "clippy": "PASS",
+    "build_release": "PASS",
+    "execucao": "PASS, exit0",
+    "stdout": "Broker MQTT: projeto inicial em Rust."
+  },
+  "client": {
+    "fmt": "PASS",
+    "cargo_test": "PASS, zero testes definidos",
+    "clippy": "PASS",
+    "build_release": "PASS",
+    "execucao": "PASS, exit0",
+    "stdout": "Client MQTT: projeto inicial em Rust."
+  },
+  "rede_ou_protocolo_mqtt": "não implementado nesta etapa",
+  "dependencias_externas": []
+}

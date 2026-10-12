@@ -51,6 +51,25 @@ P00/P01 e outros planos não recebem código inventado; lacunas e marcos que
 agrupam tarefas são identificados. Os números dos prompts não são ordem Git.
 Material não publicado na Udemy; vídeos e cadastro da plataforma são separados.
 
+### Série nova e cumulativa — Rust nativo Windows
+
+Fonte em `curso/`: P00 define contexto; `projeto-inicial/` implementa o primeiro
+recorte P03; `etapas/P04/` acrescenta servidor TCP e `etapas/P05/` client TCP.
+Cada pasta contém todos os arquivos da etapa, com comentários de origem e uso.
+Não são reconstruções comprovadas dos snapshots antigos; são implementações
+didáticas novas. P04/P05 são eco TCP, ainda sem protocolo MQTT.
+
+```powershell
+cargo run --locked --offline --manifest-path .\curso\etapas\P05\broker\Cargo.toml
+# Em outra janela PowerShell, dentro deste mesmo repositório:
+cargo run --locked --offline --manifest-path .\curso\etapas\P05\client\Cargo.toml
+```
+
+Índice local em `../docs/curso-udemy/serie-didatica/index.html`, com ZIP por etapa,
+código comentado, hashes e diffs. Gerar com `scripts/build_evolution_projects.py`
+e `scripts/build_initial_project.py` usando Python3.11+. Os programas Rust
+extraídos usam somente sua toolchain, sem Python/WSL/Docker para execução.
+
 Broker MQTT3.1.1 experimental em Rust2024/Tokio, licença MIT. Pacote mqtt-broker;
 binários mqtt-broker e mqtt-admin. O client é o projeto independente ../xmqr-client.
 Não há declaração de conformidade completa ou prontidão para produção.

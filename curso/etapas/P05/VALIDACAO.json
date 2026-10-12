@@ -1,0 +1,13 @@
+{
+  "data": "2026-10-12",
+  "etapa": "P05 didático",
+  "ambiente": "Windows nativo, Rust/Cargo1.98.1 MSVC",
+  "fmt": "PASS",
+  "cargo_test": "PASS, zero testes unitários definidos",
+  "clippy": "PASS",
+  "build_release": "PASS",
+  "integracao_real": ["eco de ping fragmentado", "eco íntegro de 1024 bytes", "client real retorna Resposta: ping após conectar ao broker"],
+  "broker_anterior": "mesmos arquivos do P04",
+  "protocolo_mqtt": false,
+  "zip_extraido": "compilação offline e execução Windows PASS"
+}

@@ -170,6 +170,9 @@ def build():
     (OUTPUT/'indice.json').write_text(json.dumps(index,ensure_ascii=False,indent=2),encoding='utf-8')
     (OUTPUT/'SHA256SUMS.txt').write_text(''.join(item['sha256']+'  '+item['arquivo']+'\n' for item in index),encoding='utf-8')
     index_html='<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>ZIPs cumulativos</title><h1>Pacotes cumulativos por prompt</h1><p>Arquivos de código preservam o snapshot comprovável. Planos sem entrega própria não recebem código inventado. Consulte LEIA-PRIMEIRO.md em cada pacote.</p><table><tr><th>ID</th><th>Download</th><th>Arquivos de código</th><th>Estado</th></tr>'+''.join(f'<tr><td>{item["id"]}</td><td><a href="{item["arquivo"]}">{item["arquivo"]}</a></td><td>{item["arquivos_codigo"]}</td><td>{item["status"]}</td></tr>' for item in index)+'</table></html>'
+    for name,label in [('projeto-inicial','Base P00/P03 para Rust Windows'),('serie-didatica','Etapas novas P03/P04/P05 — código cumulativo comentado')]:
+        if (OUTPUT.parent/name/'index.html').exists():
+            index_html=index_html.replace('<table>','<p><a href="../'+name+'/index.html">'+label+'</a></p><table>',1)
     (OUTPUT/'index.html').write_text(index_html,encoding='utf-8')
     print(f'{len(index)} ZIPs verificados em {OUTPUT}; {sum(i["bytes"] for i in index):,} bytes.')
 

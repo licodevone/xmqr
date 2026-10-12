@@ -1,0 +1,10 @@
+# [P03 - MANTIDO] Pacote do client criado na base; versão alterada por P05.
+[package]
+name = "client-inicial"
+# [P05 - ALTERADO] A versão didática identifica o client com transporte TCP.
+version = "0.2.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+[dependencies]
