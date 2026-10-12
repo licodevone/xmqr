@@ -7,8 +7,8 @@ O processo roda como UID/GID 10001. Nenhum certificado ou credencial é copiado
 para a imagem.
 
 ```sh
-docker build -t xmqr-broker:0.10.0 .
-docker image inspect xmqr-broker:0.10.0 --format '{{.Config.User}}'
+docker build -t xmqr-broker:0.11.1 .
+docker image inspect xmqr-broker:0.11.1 --format '{{.Config.User}}'
 ```
 
 O padrão é `secure-mtls` na porta 8883, vinculado a todas as interfaces do
@@ -28,7 +28,7 @@ docker run -d --name xmqr-broker \
   -e MQTT_SERVER_KEY=/run/secrets/server.key \
   -e MQTT_CLIENT_CA=/run/secrets/clients-ca.crt \
   -e MQTT_SECURITY_BUNDLE=/run/secrets/security.toml \
-  xmqr-broker:0.10.0
+  xmqr-broker:0.11.1
 ```
 
 O volume guarda WAL, snapshot e marcador do perfil. Não compartilhe o mesmo
@@ -50,10 +50,39 @@ backup. A imagem inclui o texto MIT e o inventário de dependências; ao redistr
 preserve também os avisos/licenças de terceiros aplicáveis aos componentes.
 
 ```sh
-docker run --rm --entrypoint /usr/local/bin/mqtt-admin xmqr-broker:0.10.0 --help
+docker run --rm --entrypoint /usr/local/bin/mqtt-admin xmqr-broker:0.11.1 --help
 ```
 
 Não há `HEALTHCHECK` nesta imagem: o endpoint `/ready` é opcional e loopback, e
 um teste superficial do processo não demonstraria readiness MQTT ou durabilidade.
 As tags acima são nomes locais de imagem; esta tarefa não envia imagem a registry
 nem cria tags Git.
+
+## Distribuição P63/C40 — linux/amd64
+
+As releases0.11.1/0.7.1 incluem imagem exportada tar.gz, checksum e pacote
+.deb Ubuntu26amd64. A imagem DebianBookworm contém seu runtime; isso permite
+executar em hosts Linux com Docker e arquitetura compatíveis, sem homologar
+todas as distribuições ou arm64. Não há publicação em registry nesta entrega.
+
+Após baixar arquivo e checksum na release, valide e carregue:
+
+```sh
+sha256sum -c xmqr-broker-0.11.1-linux-amd64.tar.gz.sha256
+docker load -i xmqr-broker-0.11.1-linux-amd64.tar.gz
+```
+
+Secrets são externos e devem ser legíveis por UID10001, com chave/bundle/senha
+0600 e diretório acessível. SAN precisa corresponder ao nome usado para conectar.
+No teste a rede usa hostbroker com SAN DNS:broker. Não colocar chaves/estado
+na imagem. Configure arquivos próprios antes de iniciar; fixtures não são para uso.
+
+Use --read-only --cap-drop=ALL --security-opt no-new-privileges no run. O volume
+do broker precisa ser gravável por10001. SIGTERM faz shutdown coordenado; use
+`docker stop --time 20 xmqr-broker` antes de atualizar. Conserve volume/configuração
+e backup offline; rollback da imagem não equivale a garantia de compatibilidade
+de qualquer formato futuro. Imagens desta etapa preservam o estado existente.
+
+Validação entre containers: mTLS/QoS1, retained após restart, shutdown0, CA e
+senha erradas recusadas. Versão/ID/labels/proveniência registrados. Rootfsread-only
+e caps removidas aprovados. Sem HEALTHCHECK superficial ou monitor externo.

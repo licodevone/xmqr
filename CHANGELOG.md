@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 0.11.1 — distribuição Docker
+
+- LabelsOCI/version/revision, SIGTERM e imagemLinux/amd64 exportada comchecksum.
+- mTLS pub/sub, retained/restart e negativos em containers isolados aprovados.
+- Pacote.debUbuntu26 porrelease, com install/upgrade/rollback testado.
+- Sem alterações funcionais de protocolo, TLS ou quotas.
+
+
 ## 0.11.0 — fase1: configuração e quotas
 
 - P58: teto64KiB uniforme do pacote completo, incluindo cabeçalho; negativos

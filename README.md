@@ -61,9 +61,9 @@ cd ~/xmqr-pacotes
 3. Baixe o pacote e seu checksum da release publicada:
 
 ```bash
-wget -O xmqr-broker_0.11.0-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.11.0/xmqr-broker_0.11.0-1_amd64.deb
-wget -O xmqr-broker_0.11.0-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.11.0/xmqr-broker_0.11.0-1_amd64.deb.sha256
-sha256sum -c xmqr-broker_0.11.0-1_amd64.deb.sha256
+wget -O xmqr-broker_0.11.1-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.11.1/xmqr-broker_0.11.1-1_amd64.deb
+wget -O xmqr-broker_0.11.1-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.11.1/xmqr-broker_0.11.1-1_amd64.deb.sha256
+sha256sum -c xmqr-broker_0.11.1-1_amd64.deb.sha256
 ```
 
 Prossiga somente se a verificação mostrar `OK`.
@@ -71,7 +71,7 @@ Prossiga somente se a verificação mostrar `OK`.
 4. Instale e confirme o pacote e a conta de serviço:
 
 ```bash
-sudo apt install ./xmqr-broker_0.11.0-1_amd64.deb
+sudo apt install ./xmqr-broker_0.11.1-1_amd64.deb
 dpkg-query -W -f='${Status}\n' xmqr-broker
 id xmqr
 ```
@@ -319,3 +319,9 @@ completo, incluindo primeiro byte e Remaining Length. Payload PUBLISH/Will
 continua4096 bytes e tópico/filtro1024 UTF-8. Excesso declarado é recusado
 antes do corpo; quotas e formato durável preservados. Evidência e pendências
 em [registro P58](prompts/registros/P58-pacote-completo.md).
+
+## Docker — distribuição P63/C40
+
+Imagem xmqr-broker:0.11.1 paraLinux/amd64 com imagem tar.gz eSHA-256 na release; também inclui
+.debUbuntu26amd64. [Build/load, configuração e execução](docs/docker.md).
+Sem chaves/estado na imagem; usuário10001, mTLS e volumes externos.

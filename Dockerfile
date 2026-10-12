@@ -11,6 +11,13 @@ COPY src ./src
 RUN cargo build --locked --release --bins
 
 FROM debian:bookworm-slim AS runtime
+ARG VERSION=0.11.1
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.title="XMQR Broker" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.source="https://github.com/licodevone/xmqr" \
+      org.opencontainers.image.licenses="MIT"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libgcc-s1 \
     && rm -rf /var/lib/apt/lists/* \
@@ -27,4 +34,5 @@ ENV MQTT_MODE=secure-mtls \
 VOLUME ["/var/lib/xmqr"]
 EXPOSE 8883
 USER 10001:10001
+STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/local/bin/mqtt-broker"]
