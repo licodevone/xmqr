@@ -3,11 +3,13 @@
 Veja a [baseline de RAM, CPU e latência P62](docs/performance-baseline.md),
 com parâmetros, três repetições, resultados e limites da medição Ubuntu/WSL.
 
-Veja o [curso Da lógica ao Broker e Clientes MQTT](docs/code-guide.html):
+Veja o [curso Da lógica ao Broker e Clientes MQTT utilizando Rust](docs/code-guide.html):
 digitação guiada para escrever cada trecho compreendendo lógica, palavras e
 símbolos, com checkpoints e exercícios de previsão do resultado. As primeiras
 aulas ensinam entrada, impressão, variável e decisão; capítulos avançados
 mantêm roteiro e fontes de referência, ainda não aulas humanas de cada linha.
+Sidebar e texto têm abertura/fechamento sincronizados, com âncoras de tópicos
+e subtópicos. Inclui orientação para usar IA como tutor durante a digitação.
 O guia também inclui instalação Rust no Ubuntu/WSL, primeiros projetos Cargo, exemplos TCP com cada
 linha explicada, sintaxe/caracteres, comandos, dependências/features e etapas
 para acrescentar MQTT, persistência, segurança, operação e distribuição.

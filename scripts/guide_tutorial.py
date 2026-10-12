@@ -86,7 +86,7 @@ def sections(root):
     def add(identifier, title, body):
         result.append((identifier, title, body))
 
-    add('curso', 'Da lógica ao Broker e Clientes MQTT — como estudar',
+    add('curso', 'Da lógica ao Broker e Clientes MQTT utilizando Rust — como estudar',
         p('O objetivo do curso é você escrever o programa com suas próprias mãos e compreender o que está construindo. A digitação acompanha a lógica: primeiro defina o problema, depois escolha a instrução e entenda suas palavras e símbolos. O código completo serve para conferir seu trabalho depois da tentativa.') +
         p('<strong>Caminho principal:</strong> construir os exercícios em uma pasta nova, digitando os trechos. O sistema pronto fica como referência posterior. A sequência didática foi organizada para aprendizado; não representa uma reconstrução comprovada de todos os commits antigos. Os prompts e seus registros históricos estão mais adiante.') +
         table(['Ordem', 'O que você construirá', 'Quando considerar concluído'], [
@@ -114,6 +114,22 @@ def sections(root):
         p('Pode haver erro enquanto uma linha ou bloco está incompleto. Execute nos checkpoints completos, em vez de compilar depois de cada tecla. Indentação facilita leitura; espaços entre tokens podem ser necessários para separá-los. Diferencie isso de espaços dentro de strings, que fazem parte da mensagem.') +
         p('Se houver erro: confirme o arquivo e o diretório; leia a primeira mensagem; compare aspas, chaves, nome e tipo com o trecho da aula; corrija uma causa por vez. Não troque uma biblioteca ou desative validações apenas para fazer o erro desaparecer.') +
         p('<strong>Estado deste material:</strong> as primeiras aulas abaixo têm checkpoints e explicações humanas. Os módulos avançados têm roteiro, critérios e fontes para consulta. Suas notas assistidas ainda precisam ser transformadas em aulas humanas próprias; elas não equivalem a um curso completo de digitação guiada de todas as linhas.'))
+
+    add('tutor-ia', 'Como usar inteligência artificial durante a digitação',
+        p('A proposta deste curso é usar IA como tutor de uma etapa por vez. Você continua responsável por escrever, explicar e verificar o programa. Essa escolha acompanha a orientação geral de educação centrada na participação humana da <a href="https://www.unesco.org/en/articles/guidance-generative-ai-education-and-research">UNESCO sobre IA generativa na educação</a>; o roteiro abaixo é uma adaptação didática para este curso, não uma metodologia validada integralmente por essa fonte.') +
+        table(['Momento', 'Pedido ao tutor', 'Sua ação'], [
+            ('Antes de digitar', 'Explique o problema e faça uma pergunta sobre a lógica, sem escrever a solução inteira.', 'Responda com passos em português.'),
+            ('Ao escrever', 'Mostre uma instrução pequena e explique palavras, símbolos, tipos e propósito.', 'Digite manualmente; diga o que é palavra reservada, nome e dado.'),
+            ('Antes de executar', 'Pergunte qual saída eu espero.', 'Registre sua previsão antes de compilar.'),
+            ('Quando houver erro', 'Analise a primeira mensagem do compilador e ofereça uma pista antes da correção.', 'Tente corrigir a causa e compare a saída.'),
+            ('Depois de funcionar', 'Peça que eu explique a linha e proponha uma pequena variação.', 'Explique sem ler a resposta e execute a variação.'),
+            ('Ao revisar', 'Faça perguntas sem fornecer código e registre onde tive dificuldade.', 'Reconstrua um trecho de memória; avance após comprovar entendimento.')]) +
+        card('Prompt para iniciar uma aula',
+            code('Você é meu tutor no curso Da lógica ao Broker e Clientes MQTT utilizando Rust.\nEstou na aula [nome], usando Rust [versão] no Ubuntu/WSL.\nQuero digitar o código e entender cada passo.\nApresente um objetivo pequeno e pergunte como eu resolveria em português.\nDepois, trabalhe uma instrução por vez: explique palavras, símbolos e tipos.\nEspere minha resposta antes de avançar.\nAntes de executar, peça minha previsão do resultado.\nQuando eu mostrar um erro, dê primeiro uma pista para eu tentar corrigi-lo.\nNão entregue o programa completo nem afirme que testou sem executar.\nNo fim, peça minha explicação e uma variação curta.', 'text') +
+            p('Substitua nome e versão pelo contexto real. Use uma conversa por aula ou informe o checkpoint atual para o tutor não pular etapas. A IA pode explicar incorretamente uma API: confirme comportamento no compilador, nos testes e nas fontes oficiais já vinculadas ao curso.')) +
+        card('Preparação das aulas pelo professor',
+            p('Use IA para propor explicações alternativas, perguntas, erros didáticos e exercícios. Revise o conteúdo e execute o checkpoint antes de gravar a aula. Durante a demonstração, mostre seu raciocínio, a pergunta feita ao tutor e a verificação no terminal; a resposta da IA não é prova de correção.') +
+            p('Para avaliar, peça ao aluno que preveja uma saída, explique um token, corrija um erro e adapte uma regra. Digitar o mesmo texto é parte da prática; a explicação e a aplicação mostram se ele entendeu. Este HTML contém orientações e prompts, sem conexão automática com serviço de IA.')))
 
     body = p('Faça estas aulas depois de instalar Rust e criar broker-escola na Etapa 2. Abra broker-escola/src/main.rs no editor. Os blocos mostram como o arquivo ficará em cada checkpoint; digite as alterações indicadas. No terminal Ubuntu, dentro de broker-escola, execute cargo +1.99.0 run depois de salvar.')
     body += card('Aula 1 — onde o programa começa',
