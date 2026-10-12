@@ -58,6 +58,9 @@ um teste superficial do processo não demonstraria readiness MQTT ou durabilidad
 As tags acima são nomes locais de imagem; esta tarefa não envia imagem a registry
 nem cria tags Git.
 
+Esse texto descreve o comando de build local. A distribuição P63 publica
+arquivos nas releasesGitHub e tagsGit separadamente; não faz push emregistry.
+
 ## Distribuição P63/C40 — linux/amd64
 
 As releases0.11.1/0.7.1 incluem imagem exportada tar.gz, checksum e pacote
