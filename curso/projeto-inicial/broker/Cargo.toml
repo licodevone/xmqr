@@ -1,0 +1,9 @@
+# Pacote criado pelo P03 da série didática.
+[package]
+name = "broker-inicial"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+[dependencies]
