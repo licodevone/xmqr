@@ -1,0 +1,13 @@
+{
+  "data": "2026-10-12",
+  "etapa": "P04 didático",
+  "ambiente": "Windows nativo, Rust/Cargo1.98.1 MSVC",
+  "fmt": "PASS",
+  "cargo_test": "PASS, zero testes unitários definidos",
+  "clippy": "PASS",
+  "build_release": "PASS",
+  "integracao_real": ["eco de ping com escritas fragmentadas", "eco íntegro de 1024 bytes", "aceita próxima conexão após EOF"],
+  "client_anterior": "mesmos arquivos do P03",
+  "protocolo_mqtt": false,
+  "zip_extraido": "compilação offline e execução Windows PASS"
+}

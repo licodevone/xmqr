@@ -1,0 +1,10 @@
+# Pacote P03 preservado; versão didática alterada pelo P04.
+[package]
+name = "broker-inicial"
+# [P04 - ALTERADO] Versão didática do broker com transporte TCP.
+version = "0.2.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+[dependencies]
