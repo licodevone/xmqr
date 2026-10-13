@@ -68,6 +68,9 @@ apt-get install -y --no-install-recommends systemd "$old_broker" "$old_client"
 check_versions() {
     [ "$(dpkg-query -W -f='${Version}' xmqr-broker)" = "$1" ]
     [ "$(dpkg-query -W -f='${Version}' xmqr-client)" = "$2" ]
+    [ "$(/usr/bin/mqtt-broker --version)" = "mqtt-broker ${1%-*}" ]
+    [ "$(/usr/bin/mqtt-admin --version)" = "mqtt-admin ${1%-*}" ]
+    [ "$(/usr/bin/mqtt-client --version)" = "mqtt-client ${2%-*}" ]
     dpkg-query -W -f='${Package} ${Version} ${Status}\n' xmqr-broker xmqr-client
 }
 check_units() {

@@ -1,6 +1,6 @@
 # P92 — fechamento coordenado e distribuição da fase 3
 
-13 de outubro de 2026. Prompt P92 v1.5 preparado antes das mudanças e
+13 de outubro de 2026. Prompt P92 v1.6 preparado antes das mudanças e
 revisado antes de cada correção. Estado deste registro: **EM VALIDAÇÃO**;
 não anuncia fase concluída, tags ou publicação antes dos gates pendentes.
 
@@ -8,8 +8,8 @@ não anuncia fase concluída, tags ou publicação antes dos gates pendentes.
 
 - Broker e mqtt-admin legado 0.11.6: fonte de distribuição
   abbe38ca6c041f7328e85054506a4eed22c74c41, clonada limpa e detached pelo Git
-  Linux. P95 corrige CONNECT/teardown sem novo formato, dependência ou quota.
-  O fix CONNECT é P93; o encerramento TLS/drain é P95.
+  Linux. CONNECT é corrigido por P93 e TLS/drain por P95, sem novo formato,
+  dependência ou quota.
 - Client 0.9.0: fonte e688c75a3779803e8f1868792dcc5e7a36f2dd6e, clone
   limpo com oito gates PASS e pacote candidato gerado. C45/C46 são próprios.
 - Admin independente 0.1.0: versão, pin 3606ede844210997fa733408855099535145ac48
@@ -45,10 +45,32 @@ dedicada, não-root, ausência do broker, recusa de lock ativo, backup/verify/
 restore offline e recusa de destino existente. Recursos de teste removidos;
 nenhuma configuração, porta, serviço ou dado do operador foi alterado.
 
-O clone do broker passou 135 testes e Clippy; build/pacote exatos ainda estão
-em execução neste checkpoint. P91 campanha 3x600s e matriz 87 também estão
-em andamento, não aceitas por resultados parciais. QA completo dos cinco
-payloads, ciclo Ubuntu26 e publicação ainda são gates pendentes.
+O clone broker concluiu oito gates PASS em 786,159s: 135 testes, Clippy,
+fmt, release, inventário, seis contratos de distribuição, coleta 113/218 e
+.deb Ubuntu26. ELFs reconstruídos iguais aos hashes e57b1e2d/f40ecbb5,
+clean antes/depois. Pacote 2.400.116 bytes, SHA
+a2ce949b1d20c685835ae4eeac697d59c41306dc1deea8bd7375d8293eba4cb3.
+Esses resultados estão nos JSONs privados do clone (p92-native-final e
+p92-native-identity); igualdade neste build não promete reproducibilidade geral.
+
+QA completo dos cinco payloads PASS, 14 negativos PASS; report
+dist/p92-notices-final.json SHA
+60b392dec0593f8e8994573a5d25b9f8dfc64ff624e10ff8860efa4c1d32d0ae.
+113/218 no broker/legadoadmin e 81/158 no client, comparados a fontes externas
+aos próprios payloads. Primeiro localizador do manifest usou pasta errada;
+foi corrigido antes de executar QA, não foi falha de conteúdo do pacote.
+
+Ciclo Ubuntu26 completo PASS com os mesmos .deb: instalação 0.11.5/0.8.1,
+upgrade 0.11.6/0.9.0, rollback, remove/purge, conffile editado/dado/senha de
+fixture preservados conforme contrato, unidades válidas e sem autoenable.
+P92 v1.6 reforçou check_versions para executar os três ELFs instalados;
+sintaxe shell PASS e ciclo inteiro repetido PASS. Sem corrigir/ignorar ABI
+por inferência do aviso usr-merge. Containers efêmeros ausentes após cleanup.
+
+P91 campanha 3x600s e matriz 87 permanecem em andamento; duas repetições
+longas passaram, mas ainda não são o aceite integral. Falhas externas e
+seus diagnósticos estão preservados em P91, sem promovê-las por mero retry.
+Tags, exportação aceita e publicação ainda são gates pendentes.
 
 ## Licenças e falhas operacionais preservadas
 
@@ -61,8 +83,8 @@ CRLF para LF na comparação; textos estrangeiros exigem bytes estritos.
 
 Client candidato .deb e imagem passaram comparação dos 81 pacotes/158 textos;
 a primeira chamada de QA .deb usou caminho de manifest errado e falhou,
-a chamada corrigida passou sem alterar o artefato. O QA conjunto final ainda
-deve ser registrado após o .deb do broker estar pronto.
+a chamada corrigida passou sem alterar o artefato. O QA conjunto final acima
+passou após o .deb do broker estar pronto, com os mesmos bytes.
 
 O primeiro checkout do clone broker foi tentado enquanto a clonagem ainda
 copiava os packs; falhou por arquivo em crescimento e o Docker não iniciou

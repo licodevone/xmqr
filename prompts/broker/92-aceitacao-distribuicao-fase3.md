@@ -1,4 +1,4 @@
-# P92 v1.5 — gates finais e distribuição fase3
+# P92 v1.6 — gates finais e distribuição fase3
 
 Preparado 2026-10-13 antes de versões/embalagem. P89 exige B06+B07+B08+C07
 com evidência real. Broker patch0.11.6: recusas CONNECT corrigidas por P93,
@@ -88,3 +88,16 @@ sistemas, sem declarar aceite ou MQTT5. O relatório só passa a ACCEPTED após
 os resultados reais requeridos. Registrar fonte exata dos artefatos separada
 de commits documentais posteriores; não atribuir artefatos a outro commit
 sem gate de identidade/build. Imagens anteriores permanecem sem alteração.
+
+## Revisão 1.6 — executar os ELFs instalados no ciclo Ubuntu26
+
+Clone broker abbe38ca passou oito gates (135 Rust) e os ELFs coincidiram com
+e57b1e2d/f40ecbb5; .deb a2ce949b e client04eb2830. QA dos cinco payloads PASS
+com licenças originais; ciclo install/upgrade/rollback/remove/purge Ubuntu26
+passou. Inspeção do fixture mostra que check_versions consulta dpkg, mas não
+executa os ELFs instalados. Os avisos usr-merge de dpkg-shlibdeps não devem
+ser tratados como prova da execução. Antes de reforçar packaging/test_package.sh,
+acrescentar --version real de broker/legadoadmin/client em cada etapa instalada
+e comparar à versão Debian sem revisão. Repetir ciclo privado completo com
+os MESMOS artefatos. Não mudar builder, Cargo, binários, serviços do host ou
+tags. Não anunciar P91 concluído enquanto soak/matriz completa estiverem ativos.
