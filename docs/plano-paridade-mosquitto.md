@@ -94,10 +94,10 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | B14 | Broker: tópicos $SYS | Decisão | B13/A04; namespace explícito, ACL própria, frequência limitada e custo medido |
 | A01 | Admin: CRUD local de usuários e fingerprint/hash | Existente, Unix; novo CLI xmqr-admin0.1.0 compatível e legado preservado | Manter arquivo privado, lock, symlink negativo, arquivo temporário e atualização atômica |
 | A02 | Admin: gestão de grupos, papéis e ACL no bundle | Planejado; bundle manual existente | B08; validate/list/create/update/delete, referências inválidas recusadas e permissões mínimas |
-| A03 | Admin: habilitar/revogar identidade e aplicar bundle | Planejado, reload conservador existente | A02; efeito nas conexões/sessões definido, QoS2 durável e auditabilidade |
-| A04 | Admin: contrato do canal administrativo autenticado | Decisão | A02/A03; aprovar IPC/HTTPS/MQTT reservado em ADR com RBAC, quotas/idempotência; o ADR não comprova canal implementado |
-| A09 | Broker/admin: implementar e aceitar o canal escolhido | Planejado | A04 aprovado; executar pelo ator/fila limitada, autenticação/RBAC e concorrência testadas, sem abrir WAL por segundo writer |
-| A05 | Admin: auditoria sem segredos | Planejado | A02/A09 aceito; ator/revisão/resultado, retenção/rotação, integridade e acesso limitado |
+| A03 | Admin: habilitar/revogar identidade e aplicar bundle | Planejado, reload conservador existente | A02 e canal A09 aceito para operação online; efeito nas conexões/sessões definido, QoS2 durável e auditabilidade |
+| A04 | Admin: contrato do canal administrativo autenticado | Decisão | Contratos de política/revogação A02/A03, não sua execução online; aprovar IPC/HTTPS/MQTT reservado em ADR com RBAC, quotas/idempotência; o ADR não comprova canal implementado |
+| A09 | Broker/admin: implementar e aceitar o canal escolhido | Planejado | A04 aprovado; executar pelo ator/fila limitada, autenticação/RBAC, auditoria mínima desde a primeira mutação e concorrência testadas, sem abrir WAL por segundo writer |
+| A05 | Admin: consulta e evolução da auditoria sem segredos | Planejado | A02/A09 aceito com auditoria básica; ator/revisão/resultado, consulta, retenção/rotação, integridade e acesso limitado |
 | A06 | Admin: backup/verify/restore | Existente P45 | Preservar offline, lock exclusivo, checksums e destino novo; planejar exportação seletiva sem substituir estado ativo |
 | A07 | Admin: retenções e sessões administráveis | Planejado | A09 aceito/A06; listar com paginação/budget, excluir retained e desconectar via ator com ACL/admin explícita, sem vazar payload por padrão |
 | A08 | Admin: plano de recuperação e diagnóstico | Parcial | A06/B06; dry-run/validação, espaço livre, backup, versões e saídas redigidas |
