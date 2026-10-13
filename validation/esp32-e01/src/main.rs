@@ -4,15 +4,19 @@
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::peripherals::Peripherals,
+    sntp::{EspSntp, SyncStatus},
+    wifi::{ClientConfiguration, Configuration, EspWifi, WifiEvent},
+};
+#[cfg(not(e01_campaign))]
+use esp_idf_svc::{
     mqtt::client::{
         Details, EspMqttClient, EventPayload, MqttClientConfiguration, MqttProtocolVersion, QoS,
     },
-    sntp::{EspSntp, SyncStatus},
     tls::X509,
-    wifi::{ClientConfiguration, Configuration, EspWifi, WifiEvent},
 };
+#[cfg(not(e01_campaign))]
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     thread,
     time::{Duration, Instant},
 };
@@ -20,14 +24,25 @@ use std::{
 mod private {
     include!(concat!(env!("OUT_DIR"), "/private_config.rs"));
 }
-#[cfg(e01_retained)]
+#[cfg(e01_campaign)]
+mod campaign;
+#[cfg(e01_campaign)]
+mod memory_probe;
+#[cfg(all(e01_retained, not(e01_campaign)))]
 mod retained;
+#[cfg(not(e01_campaign))]
 const TOPIC: &str = "e01/board/bytes";
+#[cfg(not(e01_campaign))]
 static CONNECTED: AtomicBool = AtomicBool::new(false);
+#[cfg(not(e01_campaign))]
 static SUBSCRIBED: AtomicBool = AtomicBool::new(false);
+#[cfg(not(e01_campaign))]
 static RECEIVED: AtomicUsize = AtomicUsize::new(0);
+#[cfg(not(e01_campaign))]
 static EXPECTED: AtomicUsize = AtomicUsize::new(0);
+#[cfg(not(e01_campaign))]
 static PUBLISHED: AtomicUsize = AtomicUsize::new(usize::MAX);
+#[cfg(not(e01_campaign))]
 static INVALID: AtomicBool = AtomicBool::new(false);
 
 fn wait(seconds: u64, predicate: impl Fn() -> bool) -> bool {
@@ -83,6 +98,18 @@ fn run() -> Result<(), &'static str> {
         return Err("SNTP_TIMEOUT");
     }
     println!("E01_SNTP_SYNC");
+    #[cfg(e01_campaign)]
+    {
+        campaign::run(&mut wifi)
+    }
+    #[cfg(not(e01_campaign))]
+    {
+        initial_mqtt(&mut wifi)
+    }
+}
+
+#[cfg(not(e01_campaign))]
+fn initial_mqtt(wifi: &mut EspWifi<'_>) -> Result<(), &'static str> {
     let config = MqttClientConfiguration {
         protocol_version: Some(MqttProtocolVersion::V3_1_1),
         client_id: Some("e01-physical-board"),

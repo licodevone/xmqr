@@ -19,6 +19,14 @@ RETAINED_MILESTONES = (*MILESTONES[:-2],
     "E01_RETAINED_REPLAY_PASS version=2 bytes=1024",
     "E01_RETAINED_DELETED", "E01_RETAINED_DELETE_PASS", *MILESTONES[-2:])
 ALL_MILESTONES = frozenset((*MILESTONES, *RETAINED_MILESTONES))
+CAMPAIGN_MILESTONES = (*MILESTONES[:3], "P85_CONNECTED", "P85_WILL_READY",
+    "P85_WIFI_DOWN", "P85_WIFI_RECONNECT_PASS", "P85_RESTART_READY",
+    "P85_BROKER_RECONNECT_PASS", "P85_RESTART_DELETE", "P85_DUPLICATE_READY",
+    "P85_DUPLICATE_PASS", "P85_EXTERNAL_SUB_READY", "P85_EXTERNAL_PUB_READY",
+    "P85_EXTERNAL_PASS", "P85_NEGATIVE_CA_PASS", "P85_NEGATIVE_PASSWORD_PASS",
+    "P85_NEGATIVE_ACL_PASS", "P85_SAN_READY", "P85_SAN_ARMED",
+    "P85_NEGATIVE_SAN_PASS", "P85_SAN_RESTORED", "P85_FINAL_PASS", "E01_STOP")
+ALL_MILESTONES = frozenset((*ALL_MILESTONES, *CAMPAIGN_MILESTONES))
 FAIL_STAGES = frozenset((
     "PERIPHERALS", "EVENT_LOOP", "WIFI_OBSERVER", "WIFI_DRIVER", "SSID_LENGTH",
     "PASSWORD_LENGTH", "WIFI_CONFIG", "WIFI_START", "WIFI_START_TIMEOUT",
@@ -29,6 +37,12 @@ FAIL_STAGES = frozenset((
     "PUBLISH_ACK_TIMEOUT", "BYTES_OR_DELIVERY", "WIFI_STOP",
     "CONTROL_SUBSCRIBE", "CONTROL_SUBSCRIBE_TIMEOUT", "RETAINED_PUBLISH",
     "RETAINED_ACK_TIMEOUT", "OBSERVER_CONFIRM_TIMEOUT", "RETAINED_DELETE",
+    "P85_MQTT_CREATE", "P85_RECONNECT_LIMIT", "P85_SUBSCRIBE", "P85_SUBSCRIBE_TIMEOUT",
+    "P85_PUBLISH", "P85_ACK_TIMEOUT", "P85_CONFIRM_TIMEOUT", "P85_MEMORY_LOW",
+    "P85_NEGATIVE_NOT_REJECTED", "P85_WIFI_DISCONNECT", "P85_WIFI_DOWN_TIMEOUT",
+    "P85_WIFI_RECONNECT", "P85_WIFI_RECONNECT_LIMIT", "P85_RESTART_NOT_OBSERVED",
+    "P85_DUPLICATE_BYTES", "P85_EXTERNAL_BYTES", "P85_DENIED_SEND",
+    "P85_ACL_NOT_REJECTED", "P85_MEMORY_DRIFT",
 ))
 AUTH_METHODS = frozenset((
     "None", "WEP", "WPA", "WPA2Personal", "WPAWPA2Personal", "WPA2Enterprise",
@@ -46,6 +60,12 @@ def marker(raw):
         return None
     if line in ALL_MILESTONES or line == "E01_WIFI_ASSOCIATED":
         return line
+    metric = re.fullmatch(r"P85_MEMORY stage=(idle|wifi|restart|final) largest_probe=([0-9]{1,6})", line)
+    if metric and 0 <= int(metric[2]) <= 196608 and int(metric[2]) % 4096 == 0 and str(int(metric[2])) == metric[2]:
+        return line
+    metric = re.fullmatch(r"P85_TIME kind=(wifi|broker) milliseconds=([0-9]{1,5})", line)
+    if metric and 0 <= int(metric[2]) <= 60000 and str(int(metric[2])) == metric[2]:
+        return line
     if line.startswith("E01_FAIL stage=") and line[15:] in FAIL_STAGES:
         return line
     if line.startswith("E01_WIFI_AP_AUTH method=") and line[24:] in AUTH_METHODS:
@@ -61,7 +81,7 @@ def marker(raw):
 
 class Transcript:
     def __init__(self, milestones=MILESTONES):
-        if milestones not in (MILESTONES, RETAINED_MILESTONES):
+        if milestones not in (MILESTONES, RETAINED_MILESTONES, CAMPAIGN_MILESTONES):
             raise ValueError("unknown campaign")
         self.milestones = milestones
         self.markers = []
@@ -82,7 +102,7 @@ class Transcript:
         line = marker(raw)
         if line is None:
             self.discarded_lines += 1
-            if raw.startswith(b"E01_"):
+            if raw.startswith((b"E01_", b"P85_")):
                 self.violations.add("INVALID_MARKER")
             return None
         if len(self.markers) >= MAX_MARKERS:
@@ -116,6 +136,8 @@ class Transcript:
         if self.failed:
             return "FAIL_INITIAL_SLICE"
         if self.stopped and self.progress == len(self.milestones):
+            if self.milestones == CAMPAIGN_MILESTONES:
+                return "PASS_PHYSICAL_CAMPAIGN"
             return "PASS_RETAINED_SLICE" if self.milestones == RETAINED_MILESTONES else "PASS_INITIAL_SLICE"
         return "FAIL_INCOMPLETE"
 

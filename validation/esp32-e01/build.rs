@@ -2,6 +2,16 @@
 use std::{env, fs, path::PathBuf};
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(e01_campaign)");
+    println!("cargo:rerun-if-env-changed=XMQR_E01_CAMPAIGN");
+    let campaign = match env::var("XMQR_E01_CAMPAIGN").as_deref() {
+        Ok("1") => {
+            println!("cargo:rustc-cfg=e01_campaign");
+            true
+        }
+        Ok("0") | Err(_) => false,
+        _ => panic!("invalid physical campaign mode"),
+    };
     println!("cargo:rustc-check-cfg=cfg(e01_retained)");
     println!("cargo:rerun-if-env-changed=XMQR_E01_RETAINED");
     match env::var("XMQR_E01_RETAINED").as_deref() {
@@ -59,6 +69,33 @@ fn main() {
         assert!(!value.contains(&0), "invalid PEM");
         value.push(0);
         generated.push_str(&format!("pub const {name}: &[u8] = &{value:?};\n"));
+    }
+    if campaign {
+        let case_config = root.join("p85-case.json");
+        println!("cargo:rerun-if-changed={}", case_config.display());
+        let case: serde_json::Value =
+            serde_json::from_slice(&fs::read(case_config).expect("private case unavailable"))
+                .expect("private case invalid");
+        let case_root = root
+            .join(
+                case["case_directory"]
+                    .as_str()
+                    .expect("private case directory required"),
+            )
+            .canonicalize()
+            .expect("private case directory unavailable");
+        assert!(
+            case_root.parent() == Some(root.as_path()),
+            "private case escaped"
+        );
+        let ca_path = case_root.join("bad-ca.crt");
+        println!("cargo:rerun-if-changed={}", ca_path.display());
+        let mut bad_ca = fs::read(ca_path).expect("negative CA unavailable");
+        assert!(!bad_ca.contains(&0), "invalid negative CA");
+        bad_ca.push(0);
+        generated.push_str(&format!(
+            "#[cfg(e01_campaign)] pub const BAD_CA: &[u8] = &{bad_ca:?};\n"
+        ));
     }
     fs::write(out.join("private_config.rs"), generated).expect("private output unavailable");
     embuild::espidf::sysenv::output();

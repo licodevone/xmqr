@@ -1,8 +1,9 @@
 # Fase 2 — aceite separado por componente
 
-Atualizado2026-10-13, P80/C43/P81/P82/P83/P84. Broker/admin0.11.4 publicado,
-clientruntime0.8.1. **Software validado; fase2 global PARTIAL por cenários E01 restantes.**
-Não avançar fase3 ou riscar ESP32 sem evidência física.
+Atualizado2026-10-13, P80/C43/P81/P82/P83/P84/P85 e C44.
+Broker/admin0.11.4 e clientruntime0.8.1 preservados. **Fase2 ACCEPTED no escopo
+definido: softwareP80/C43 + campanha física E01/P83/P84/P85.**
+Não significa conformidade integral, produção ou fases seguintes executadas.
 
 | Responsável | Entrega | Estado |
 | --- | --- | --- |
@@ -21,7 +22,11 @@ Não avançar fase3 ou riscar ESP32 sem evidência física.
 | ESP32 DevKitV1 | Wi-Fi/IP/SNTP/mTLS e loopback1024bytes/QoS0/1/2 | PASS primeira fatia P83, placa real; positivos, não todos os gates |
 | ESP32 DevKitV1 | Retained create/update/replay/delete, observer próprio wire independente | PASS P84;1024bytes/replay RETAIN1/QoS1, zero byte delete/janela2s+PING vivo |
 | ESP32/host | Novos negativos e compatibilidade do fixture | P84:82PASS/1SKIP Windows;64PASS subset WSL; build/fmt/Clippy em ambos os modos |
-| ESP32 DevKitV1 | Will/reconexão/negativos/heap/retained restart/cliente terceiro | NOT_RUN; E01 e fase2 permanecem PARTIAL |
+| ESP32 DevKitV1 | Will, reconexãoWi-Fi/broker, retained restart/live/delete, duplicataQoS1 | PASS P85, provas físicas/wire |
+| ESP32 DevKitV1 | Mosquitto2.0.22/QoS2 nas duas direções,1024bytes | PASS P85, cliente terceiro por digest/IDs próprios |
+| ESP32 DevKitV1 | CA/senha/ACL/SAN errados + caminho válido recuperado | PASS P85, rejeição observada e serviço vivo |
+| ESP32 DevKitV1 | Memória e recuperação limitadas | Probe110592bytes estável;Wi-Fi9048ms/broker7869ms; não heap total/vazamento longo |
+| ESP32/host | Gates do fixture e cleanup |94testesWindows/1SKIP;94WSL/0SKIP;2Rustprobe;fmt/build/Clippy/inventário PASS;0erros cleanup |
 
 [CapacidadeP80](performance-pressure.md) · [Dados](results/p80-pressure-2026-10-13.json) ·
 [ADR](architecture/adr-0006-identity-quotas.md) · [ChecklistE01](esp32-phase2-checklist.md) ·
@@ -37,6 +42,20 @@ runtime, tag ou artefatos existentes.
 
 SomenteE01real + software aceito permitem ACCEPTEDfase2. Uma release de correção
 pode ser aceita antes da placa, sem representar encerramento da fase ou produção.
+
+P85 forneceu esse gate físico e fechou o aceite combinado. Runtimes/manifests/
+lock/src dos dois projetos foram comparados às tags0.11.4/0.8.1: idênticos.
+Artefatos .deb existentes conferidos nas releases; três digests do Hub remoto
+mantidos. Sem novos executáveis ou retag. [P85](../prompts/registros/P85-e01-campanha.md),
+[dados](results/p85-e01-campanha-2026-10-13.json). Cliente alinhado por C44.
+
+A memória é capacidade contígua aproximada por Vec.try_reserve_exact (passos4096/
+teto196608), não estatísticas exatas do heap. NegativosSDK são callbacks genéricos,
+sem inventar códigoTLS específico. Recusa exige falha observada, baseline válida
+e serviço vivo; timeout sozinho não aprova. Restam campanhas longas/fuzzing/
+energia e demais itens da fase3+, não pendências do gate curto aqui aprovado.
+
+## Histórico — os bloqueios abaixo retratam os checkpoints anteriores
 
 P81 elimina o bloqueio histórico da porta, não o gate completo. Fixture
 independente compilado/Clippy/fmt,8testes de segurança do runner e inventário

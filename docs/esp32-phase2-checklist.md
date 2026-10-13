@@ -1,6 +1,16 @@
 # E01 — aceite físico ESP32 DevKit V1
 
-Status atual2026-10-13/P84: retained create/update/replay/delete com observer
+Status atual2026-10-13/P85: **E01 ACCEPTED no escopo da campanha curta da fase2**.
+Will/quebra do link da placa, reconexãoWi-Fi/broker, retained após restart,
+delete/live, duplicataQoS1, Mosquitto2.0.22/QoS2 e negativosCA/senha/ACL/SAN PASS.
+RecuperaçãoWi-Fi9048ms/broker7869ms; probe de alocação Rust110592bytes nos
+quatro checkpoints. Não é heap livre total/largest estatístico exato, teste
+de vazamento longo, energia, pcapTLS ou produção. Coleta+14provas externas,
+0violações/cleanup. Serviços temporários removidos; firmware diagnóstico na placa.
+[RegistroP85](../prompts/registros/P85-e01-campanha.md) e
+[dados sanitizados](results/p85-e01-campanha-2026-10-13.json).
+
+Checkpoint2026-10-13/P84: retained create/update/replay/delete com observer
 wire próprio independente do codec Rust PASS na COM4. Bytes dos loopbacks
 também conferidos no host (entregas0/1/1 por assinaturaQoS1). Sem captura do
 handshakeQoS2 da placa ou libmosquitto neste ensaio. Novos assinantes observaram
@@ -52,11 +62,18 @@ pinagem/LED da placa; não presumirGPIO2 universal.
 - [x] Confirmação de bytes/flags por fixture wire Python independente do codec/SDK P84;
       não é cliente terceiro completo nem atestado ELF↔Git/handshakeQoS2 MCU.
 - [x] Retained create/replay/update/delete na placa e assinantes novos P84.
-- [ ] Retained após restart do broker e campanha física com cliente terceiro.
-- [ ] Will por reset/quebra real de link.
-- [ ] QuedaWi-Fi/restartbroker, retry/backoff e duplicatasQoS1 observados.
-- [ ] Negativos CA/SAN/senha/ACL recusados na placa.
-- [ ] Heap/tempo de reconexão, ausência de loop ilimitado e evidência sanitizada.
+- [x] Retained após restart do broker e Mosquitto2.0.22 como cliente terceiro P85.
+- [x] Will1024bytes por quebra do link Wi-Fi da placa sem MQTT DISCONNECT P85;
+      não equivale a corte de energia/reset elétrico.
+- [x] QuedaWi-Fi/restartbroker, até3tentativas/backoff e duplicataQoS1 induzida P85.
+- [x] Negativos CA/SAN/senha/ACL recusados; baseline/reconexão válida e serviço vivo P85.
+- [x] Memória/probe seguro quantizado e tempo de reconexão registrados; outbox0,
+      loops finitos e evidência sanitizada P85. Não mede heap total/min livre.
+
+Captura descriptografada de TLS/attestation ELF↔Git não era requisito do gate
+original. Mosquitto completa trocasQoS2 reais, sem prometer pcap da placa.
+Campanhas longas/energia/estatísticas exatas de heap são ampliações posteriores,
+não motivos para reabrir o aceite curto aprovado. Fase3 não executada por P85.
 
 ClientIDs devem ser distintos da CLI de diagnóstico. ACK não comprova negócio;
 sessão no broker não comprova persistência no firmware. Nenhum log deve conter

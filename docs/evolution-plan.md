@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; acompanhamento atualizado em 2026-10-13
-por P80/C43/P81/P82/P83/P84. Versões nos manifests atuais: broker/admin 0.11.4 e client independente 0.8.1.
+por P80/C43/P81/P82/P83/P84/P85/C44. Versões nos manifests atuais: broker/admin 0.11.4 e client independente 0.8.1.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
@@ -46,7 +46,7 @@ Evidências: [aceite da fase 1](phase1-acceptance.md),
 [P61](../prompts/registros/P61-aceite-final-fase1.md) e
 [C39](../../xmqr-client/prompts/registros/C39-release-fase1.md).
 
-### Fase 2 — software validado; aceite físico ESP32 pendente
+### Fase 2 — concluída no escopo validado
 
 - [x] ~~Harness separado da CLI e baseline de RAM/CPU, conexões ociosas e latência PUBACK QoS1 com retained (P62).~~
 - [x] ~~Medições QoS0/1/2, fan-out 1/8 e mTLS: 36 cenários com entregas conferidas (P72).~~
@@ -57,14 +57,15 @@ Evidências: [aceite da fase 1](phase1-acceptance.md),
 - [x] ~~Todos/software: relatório de capacidade e critérios de saída (P80/C43).~~
 - [x] ~~ESP32: associação/IP/SNTP/mTLS e loopback1024bytes/QoS0/1/2 na COM4, primeira fatia P83.~~
 - [x] ~~ESP32: retained create/update/replay/delete e bytes/flags por fixture wire independente do Rust/SDK na COM4 (P84).~~
-- [ ] ESP32: Will/reconexão/negativos/heap, retained restart e cliente terceiro/handshakeQoS2 na DevKitV1 real; E01 completo pendente.
+- [x] ~~ESP32: Will/quebra de link, reconexão/backoff, negativos, memória/probe, retained restart e Mosquitto/QoS2 na DevKitV1 real (P85).~~
 
 Evidências da parte concluída: [baseline P62](performance-baseline.md) e
 [campanha P72](performance-fanout.md).
 A medição não comprova throughput máximo nem capacidade de produção.
 Veja [P80](performance-pressure.md), [aceite por componente](phase2-acceptance.md)
-e [checklist ESP32](esp32-phase2-checklist.md). Fase2 global PARTIAL
-até E01 físico; não avançar fase3.
+e [checklist ESP32](esp32-phase2-checklist.md). Fase2 global ACCEPTED apósP85.
+MemóriaMCU é probe quantizado, não heap total; sem conformidade/produção
+inferida. P85 não iniciou fase3; próxima fatia requer prompt próprio.
 
 ### Fases 3–5 — entregas restantes
 
@@ -126,7 +127,7 @@ para igualar um broker Mosquitto isolado.
 | Fase | Janela estimada | Broker | Client/consumidores | Critério de saída |
 | --- | --- | --- | --- | --- |
 | ~~1 — concluída~~ | ~~Semanas1–2~~ | ~~Quotas via TOML; redução validada; P52 empacotado~~ | ~~Diagnósticos de limites, testes de payload/pacote/fila e conexão~~ | ~~Defaults, negativos, estado preservado e install/upgrade/rollback aceitos P61/C39~~ |
-| 2 — em andamento | Semanas3–4 | ~~Harness, baseline P62 e campanha QoS/fan-out/mTLS P72~~; medir saturação e avaliar limites por identidade | ~~Gerador separado da CLI~~; ampliar matriz Mosquitto e ESP32 | Relatório reproduzível em hardware identificado, TLS/QoS/fan-out; sem estimativas de RAM sem medição |
+| ~~2 — concluída~~ | Semanas3–4 (estimativa histórica) | ~~P62/P72/P80, saturação/quotas avaliadas~~ | ~~C43/Mosquitto e P85/ESP32 físico~~ | ~~Aceite combinado phase2-acceptance.md; métricas/método/limites registrados~~ |
 | 3 | Semanas5–7 | Falhas de disco, fuzzing, pressão de filas e fechamento da matriz MQTT3.1.1 | Reconexão/backoff, cancelamento, diagnóstico e testes contra Mosquitto | Recuperação comprovada nos cenários; negativos; interop automatizada; pendências normativas listadas |
 | 4 | Semanas8–10 | Listeners com políticas por endpoint, modos TLS e reload de certificados definido | Perfis de conexão, rotação e erros de certificado/credenciais | Isolamento de ACL; TLS/mTLS; rotação/rollback; nenhum laboratório remoto implicitamente habilitado |
 | 5 | Semanas11–12 | Administração de bundle, auditoria, métricas e ciclo de release | Paridade prioritária pub/sub e documentação sincronizada | Operação sem editar segredos manualmente em casos cobertos; release com anexos/checksums e rollback |
@@ -162,9 +163,9 @@ Pode ser antecipado sem bloquear MQTT5 quando houver disponibilidade.
 6. Commit/push após aceite. Tag imutável e prerelease apenas com binários/pacotes
    testados, notas, hashes e procedimento de upgrade/rollback. Versões independentes.
 
-Próximo gate para encerrar fase2: E01 físico, conforme
-[checklist de placa](esp32-phase2-checklist.md). Software aceito P80/C43
-não substitui hardware nem autoriza avançar fase3 por esse bloqueio.
+Fase2 encerrada por P85/C44, conforme [checklist de placa](esp32-phase2-checklist.md).
+Próxima etapa: preparar uma fatia da fase3 (robustez); não foi executada nesta
+campanha. SoftwareP80/C43 e placaP85 aceitos têm escopos/limitações próprios.
 ~~P55 — quotas do estado~~ foi aceito em P61; não é mais a próxima entrega.
 Não iniciar MQTT5, WebSocket e bridge juntos. Reavaliar este cronograma
 ao encerrar cada fase e registrar desvios nos prompts correspondentes.

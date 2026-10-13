@@ -4,6 +4,13 @@ Pacote Rust independente, código próprio MIT. Não faz parte do crate do broke
 não instala XMQR na placa e não substitui o aplicativo consumidor mqtt-broker.
 Alvo observado: ESP32 DevKitV1/ESP32-D0WD-V3/4MiB/COM4.
 
+AtualP85/2026-10-13: campanha curta E01 ACCEPTED junto a softwareP80/C43.
+Will/quebra de link, reconexãoWi-Fi/broker, retained após restart/live/delete,
+duplicataQoS1, Mosquitto2.0.22/QoS2 e negativosCA/senha/ACL/SAN PASS.
+Probe contíguo Rust110592bytes estável em quatro checkpoints; Wi-Fi9048ms/
+broker7869ms. Não são estatísticas exatas do heap, prova de vazamento longo,
+energia, pcapTLS ou produção. [RegistroP85](../../prompts/registros/P85-e01-campanha.md).
+
 P84 amplia o ensaio com retained e observador wire Python independente do
 codec Rust/SDK, certificado e usuário próprios. Não é libmosquitto nem prova
 integral de protocolo: a assinaturaQoS1 observa os loopbacks como0/1/1 no
@@ -165,6 +172,54 @@ PASS_RETAINED_SLICE; isso não conclui fase2/negativos TLS/Will/reconexão/heap.
 Confirmação é evidência de ensaio, não sucesso de negócio ou attestation ELF↔Git.
 Os dois participantes se encerram, container/volume próprios são removidos e
 firmware diagnóstico fica na placa; não há broker permanente do teste.
+
+## Campanha dos gates restantes — P85
+
+Requer laboratórioP84 privado válido e imagens existentes pinadas. Prepare
+uma vez o novo caso, sem sobrescrever os anteriores:
+
+```text
+python prepare_phase2.py --private-dir DIRETORIO_BUILD_PRIVADO
+```
+
+Cria servidor com SANIP+DNSdo laboratório, perfil SAN errado separado, CA
+desconhecida e identidadeMosquitto exclusiva. Board/observer/CA originais
+preservados; nenhuma chave de dispositivo/CA vai para mount do broker.
+ConfigsMosquitto ficam privados, lidos por XDG_CONFIG_HOME; não há senha em argv.
+
+No PowerShell do build, processo local:
+
+```powershell
+$env:XMQR_E01_CAMPAIGN = '1'
+$env:XMQR_E01_RETAINED = '0'
+./build-windows.ps1 -PrivateDirectory DIRETORIO_BUILD_PRIVADO
+```
+
+Após gates e confirmação dos dois backups/chip/COM:
+
+```text
+python run_phase2.py --private-dir DIRETORIO_BUILD_PRIVADO --backup-dir DIRETORIO_BACKUP_PRIVADO --serial-port COM4 --flash
+```
+
+Grava firmware diagnóstico e provoca desconexão somente da própria placa;
+reinicia/substitui somente broker temporário e seus perfis/certificados de
+teste. Recurso existente é recusado, não removido. Sem firewall/roteador/GPIO,
+efuse/erase geral ou NVS. Mosquitto é cliente terceiro real, não simulador de ESP.
+Ctrl8/31 retidos coordenam assinaturas após restart/restauração; Ctrl30/ARMED
+coordena SAN, com prazo de troca verificado. Loops de reconexão têm3tentativas
+e backoff1/2/4s. Negativos exigem erro/desconexão observados + baseline/caminho
+válido recuperado; callbackSDK não expõe códigoTLS exato, não o inventar.
+
+Memória: uma Vec.try_reserve_exact por vez, passos4096/teto196608, sem unsafe.
+SDKabort-on-allocation-fail desabilitado/conferido. Mede capacidade contígua
+aproximada, não total/min livre. Gate curto: probe≥8192, quedaidle→final≤32768,
+outbox0, recuperação≤60000ms. Não promete SLA nem ausência de vazamento longo.
+
+Parser fechado/180s/64KiB/128markers e14provas externas + métricas necessários
+para PASS_PHYSICAL_CAMPAIGN. Runner isolado sempre mantém phase2_closed=false:
+o aceite global é decisão documental que combina esses gates com P80/C43,
+não apenas o console. JSON único/privado, cleanup de jobs/container/volume/rede
+somente próprios. Firmware diagnóstico fica instalado e se encerra no STOP.
 
 Os certificados temporários duram5dias; regenere em nova pasta para repetir.
 ELF/bin/target e `firmware-config.json` contêm senha/chave: não publicar, mesmo
