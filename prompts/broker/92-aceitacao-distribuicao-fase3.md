@@ -1,4 +1,4 @@
-# P92 v1.7 — gates finais e distribuição fase3
+# P92 v1.8 — gates finais e distribuição fase3
 
 Preparado 2026-10-13 antes de versões/embalagem. P89 exige B06+B07+B08+C07
 com evidência real. Broker patch0.11.6: recusas CONNECT corrigidas por P93,
@@ -126,3 +126,12 @@ prereleases, Hub numerado sem latest, verificação real dos digests/assets.
 Commits documentais posteriores não alteram a fonte atribuída aos artefatos.
 Só marcar distribuição publicada depois das verificações remotas; falha de
 publicação deve permanecer informada sem desfazer/mascarar os gates técnicos.
+
+## Revisão 1.8 — checksum documental antes da publicação
+
+Get-FileHash calculou SHA real da matriz87 final:
+809719cd60c24e8a97c53506b813719125470c3b1494275e164c06e3aaabddaf.
+O registro coordenado recém-criado contém um 'd' extra (65 caracteres), erro
+de transcrição do resumo, não alteração do JSON. Corrigir somente esse texto;
+copiar evidências originais sem editar e gerar sidecars a partir dos bytes reais.
+Validar cada asset e manifest, sem anexar logs, credenciais ou estado bruto.

@@ -110,7 +110,7 @@ quiescente15s. Report p91-soak-candidate-6.json SHA
 
 Matriz final p91-interop-candidate-4.json passou87/87 (59C43+28extensões),
 346,063s, cleanup202containers/2volumes PASS. SHA
-809719cd60c24e8a97c53506b813719125470c3b1494275e164c06e3aaabdddaf.
+809719cd60c24e8a97c53506b813719125470c3b1494275e164c06e3aaabddaf.
 Will isolado6/6 e contratos do harness21/21 reforçam o diagnóstico sem ampliar
 W8. As causas exatas dos dois FAIL anteriores de readiness não foram recuperadas
 e seguem explícitas em P91. Não trocar falhas antigas por PASS ou culpar ambiente
