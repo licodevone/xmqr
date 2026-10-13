@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "mqtt-broker"
-version = "0.11.3"
+version = "0.11.4"
 dependencies = [
  "argon2",
  "crc32fast",

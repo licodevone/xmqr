@@ -26,7 +26,7 @@ use rustls::{
 };
 use thiserror::Error;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::Semaphore,
     time::{sleep, timeout},
@@ -41,6 +41,7 @@ const MAX_INITIAL_MQTT_READ_LIMIT: u64 = 4 * 1024;
 
 /// Maximum time allowed for the TLS handshake and for the first MQTT bytes.
 pub const INITIAL_IO_TIMEOUT: Duration = Duration::from_secs(3);
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Paths needed to build a mutually authenticated TLS server configuration.
 #[derive(Debug, Clone)]
@@ -153,17 +154,33 @@ impl BrokerConnection {
             .map_err(ConnectionIoError::Io)
     }
 
-    /// Close the underlying stream.
+    /// Close the underlying stream with a bounded TLS close/flush.
     ///
     /// # Errors
     ///
-    /// Returns the underlying socket error when shutdown fails.
+    /// Returns the socket error or `TimedOut` when a nonreading peer pins close.
     pub async fn shutdown(&mut self) -> io::Result<()> {
         match &mut self.stream {
-            ConnectionStream::Mtls(stream) => stream.shutdown().await,
-            ConnectionStream::OpenLab(stream) => stream.shutdown().await,
+            ConnectionStream::Mtls(stream) => {
+                shutdown_with_deadline(stream, SHUTDOWN_TIMEOUT).await
+            }
+            ConnectionStream::OpenLab(stream) => {
+                shutdown_with_deadline(stream, SHUTDOWN_TIMEOUT).await
+            }
         }
     }
+}
+
+async fn shutdown_with_deadline<S: AsyncWrite + Unpin>(
+    stream: &mut S,
+    deadline: Duration,
+) -> io::Result<()> {
+    timeout(deadline, stream.shutdown()).await.map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::TimedOut,
+            "transport shutdown deadline exceeded",
+        )
+    })?
 }
 
 #[derive(Debug, Error)]
@@ -656,6 +673,46 @@ fn load_crls(path: &Path) -> Result<Vec<CertificateRevocationListDer<'static>>, 
 #[cfg(test)]
 mod tests {
     use super::{OpenLabTransport, TransportLimits};
+    use std::{
+        io,
+        pin::Pin,
+        task::{Context, Poll},
+        time::Duration,
+    };
+    use tokio::io::AsyncWrite;
+
+    struct NeverCloses;
+    impl AsyncWrite for NeverCloses {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            bytes: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            Poll::Ready(Ok(bytes.len()))
+        }
+        fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+        fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Pending
+        }
+    }
+
+    #[tokio::test]
+    async fn nonreading_peer_cannot_pin_transport_shutdown() {
+        let error = super::shutdown_with_deadline(&mut NeverCloses, Duration::from_millis(5))
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(super::SHUTDOWN_TIMEOUT, Duration::from_secs(3));
+    }
+
+    #[tokio::test]
+    async fn writable_transport_shutdown_succeeds() {
+        super::shutdown_with_deadline(&mut tokio::io::sink(), Duration::from_millis(5))
+            .await
+            .unwrap();
+    }
 
     #[tokio::test]
     async fn open_lab_transport_rejects_non_loopback_bind() {

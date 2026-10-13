@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 0.11.4 — encerramento limitado de cliente TLS lento
+
+- Shutdown/flush de transporte tem deadline3s, liberando tarefa e admissão
+  quando um cliente mTLS deixa de ler e impede o fechamento da conexão.
+- Regressões de fila limitada, recusa sem fan-out/retained parcial e timeout.
+- Campanha de saturação e matriz externa por P80/C43; placa ESP32 permanece
+  gate físico independente, sem declarar fase2 concluída por estes testes.
+- Quotas, MQTT3.1.1, perfis de segurança, dependências/MIT e WAL preservados.
+
 ## 0.11.3 — admin e distribuição Docker Hub
 
 - Admin --version/-V consulta a versão sem configuração, rede ou estado.

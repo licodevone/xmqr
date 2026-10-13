@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; acompanhamento atualizado em 2026-10-12
-por P71/P72/C41. Versões nos manifests atuais: broker/admin 0.11.3 e client independente 0.8.1.
+por P80/C43. Versões nos manifests atuais: broker/admin 0.11.4 e client independente 0.8.1.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
@@ -46,18 +46,23 @@ Evidências: [aceite da fase 1](phase1-acceptance.md),
 [P61](../prompts/registros/P61-aceite-final-fase1.md) e
 [C39](../../xmqr-client/prompts/registros/C39-release-fase1.md).
 
-### Fase 2 — em andamento
+### Fase 2 — software validado; aceite físico ESP32 pendente
 
 - [x] ~~Harness separado da CLI e baseline de RAM/CPU, conexões ociosas e latência PUBACK QoS1 com retained (P62).~~
 - [x] ~~Medições QoS0/1/2, fan-out 1/8 e mTLS: 36 cenários com entregas conferidas (P72).~~
-- [ ] Medir conexões simultâneas, assinantes lentos, pressão de filas e saturação.
-- [ ] Ampliar matriz Mosquitto e validar ESP32 como consumidor.
-- [ ] Avaliar limites por identidade conforme necessidade medida.
-- [ ] Consolidar relatório de capacidade e critérios de saída da fase 2.
+- [x] ~~Broker: conexões simultâneas, assinantes lentos, filas e saturação (60 cenários P80).~~
+- [x] ~~Broker: corrigir shutdown TLS que retinha vaga do cliente não leitor; liberação comprovada (0.11.4).~~
+- [x] ~~Client e broker: matriz Mosquitto2.0.22 mTLS/QoS/retained/Will/sessão e negativos (59 cenários C43).~~
+- [x] ~~Broker: avaliar quotas por identidade; mantidas, com risco de isolamento explícito (ADR0006).~~
+- [x] ~~Todos/software: relatório de capacidade e critérios de saída (P80/C43).~~
+- [ ] ESP32: Wi-Fi/SNTP/mTLS/pubsub/reconexão e negativos na DevKitV1 real (E01 BLOCKED: nenhuma porta acessível).
 
 Evidências da parte concluída: [baseline P62](performance-baseline.md) e
 [campanha P72](performance-fanout.md).
-A medição inicial não comprova throughput máximo nem capacidade de produção.
+A medição não comprova throughput máximo nem capacidade de produção.
+Veja [P80](performance-pressure.md), [aceite por componente](phase2-acceptance.md)
+e [checklist ESP32](esp32-phase2-checklist.md). Fase2 global PARTIAL/BLOCKED
+até E01 físico; não avançar fase3.
 
 ### Fases 3–5 — entregas restantes
 
@@ -155,8 +160,9 @@ Pode ser antecipado sem bloquear MQTT5 quando houver disponibilidade.
 6. Commit/push após aceite. Tag imutável e prerelease apenas com binários/pacotes
    testados, notas, hashes e procedimento de upgrade/rollback. Versões independentes.
 
-Próxima execução recomendada: saturação, assinantes lentos e conexões simultâneas,
-com prompt próprio, após a [campanha QoS/fan-out/mTLS P72](performance-fanout.md).
+Próximo gate para encerrar fase2: E01 físico, conforme
+[checklist de placa](esp32-phase2-checklist.md). Software aceito P80/C43
+não substitui hardware nem autoriza avançar fase3 por esse bloqueio.
 ~~P55 — quotas do estado~~ foi aceito em P61; não é mais a próxima entrega.
 Não iniciar MQTT5, WebSocket e bridge juntos. Reavaliar este cronograma
 ao encerrar cada fase e registrar desvios nos prompts correspondentes.

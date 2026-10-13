@@ -1428,6 +1428,131 @@ mod tests {
     use std::{fmt::Write as _, fs, sync::Arc};
     use tempfile::TempDir;
 
+    #[tokio::test]
+    async fn full_delivery_channel_closes_only_slow_session_and_keeps_actor_progress() {
+        let (_directory, mut actor) = actor().await;
+        let slow = actor
+            .register("slow".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut fast = actor
+            .register("fast".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("publisher".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for session in [&slow, &fast] {
+            actor
+                .subscribe(
+                    &session.client_id,
+                    session.generation,
+                    vec![(filter("test/state"), Some(0))],
+                )
+                .await
+                .unwrap();
+        }
+        // QoS0 has no acknowledgment; a full bounded delivery channel must
+        // close the slow connection, not block the shared actor or fast peer.
+        for index in 0..=DELIVERY_CAPACITY {
+            actor
+                .publish(
+                    "publisher",
+                    publisher.generation,
+                    message("test/state", 0, false, &index.to_be_bytes()),
+                    None,
+                )
+                .await
+                .unwrap();
+            let delivery = fast.outbound.try_recv().unwrap();
+            assert!(
+                matches!(delivery, Delivery::Publish { message, packet_id: None, .. }
+                if message.payload == index.to_be_bytes())
+            );
+        }
+        assert_eq!(slow.outbound.len(), DELIVERY_CAPACITY);
+        assert!(*slow.closed.borrow());
+        assert!(!*fast.closed.borrow());
+        assert!(actor.probe().await);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn slow_session_quota_refusal_does_not_commit_partial_fanout_or_retained() {
+        let (directory, mut actor) = actor().await;
+        actor.limits = StateLimits::new(64, 256, 256, 1, 1).unwrap();
+        actor.store.shutdown().await.unwrap();
+        let (store, state) = MqttStore::open_with_limits(directory.path(), actor.limits)
+            .await
+            .unwrap();
+        actor.store = store;
+        actor.state = state;
+        let slow = actor
+            .register("slow".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let mut fast = actor
+            .register("fast".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("publisher".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for session in [&slow, &fast] {
+            actor
+                .subscribe(
+                    &session.client_id,
+                    session.generation,
+                    vec![(filter("test/state"), Some(1))],
+                )
+                .await
+                .unwrap();
+        }
+        for index in 1..=2u8 {
+            actor
+                .publish(
+                    "publisher",
+                    publisher.generation,
+                    message("test/state", 1, true, &[index]),
+                    Some(u16::from(index)),
+                )
+                .await
+                .unwrap();
+            let delivery = fast.outbound.try_recv().unwrap();
+            let Delivery::Publish {
+                packet_id: Some(id),
+                ..
+            } = delivery
+            else {
+                panic!("expected QoS1");
+            };
+            actor
+                .ack("fast", fast.generation, AckKind::Ack, id)
+                .await
+                .unwrap();
+        }
+        let before = actor.state.clone();
+        assert!(matches!(
+            actor
+                .publish(
+                    "publisher",
+                    publisher.generation,
+                    message("test/state", 1, true, b"refused"),
+                    Some(3)
+                )
+                .await,
+            Err(RouterError::Store(StateError::Limit(_)))
+        ));
+        assert_eq!(actor.state, before);
+        assert!(fast.outbound.try_recv().is_err());
+        assert_eq!(actor.state.sessions["slow"].outbound.len(), 1);
+        assert_eq!(actor.state.sessions["slow"].offline.len(), 1);
+        assert!(actor.probe().await);
+        actor.store.shutdown().await.unwrap();
+    }
+
     async fn actor() -> (TempDir, Actor) {
         let directory = tempfile::tempdir().unwrap();
         let (store, state) = MqttStore::open(directory.path()).await.unwrap();

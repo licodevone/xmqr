@@ -1,6 +1,6 @@
 # Plano de paridade funcional do XMQR com Mosquitto
 
-Atualizado em 2026-10-13. Broker/admin 0.11.3 e client 0.8.1 são o marco de
+Atualizado em 2026-10-13. Broker/admin 0.11.4 e client 0.8.1 são o marco de
 distribuição desta revisão. O planejamento abaixo está completo como backlog
 executável; as funcionalidades pendentes não estão implementadas por isso.
 O propósito é evoluir um broker MQTT e seus utilitários com contratos próprios,
@@ -68,12 +68,12 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | --- | --- | --- | --- |
 | B01 | Broker: configuração TOML e quotas globais | Existente P52/P54/P55/P61 | Manter regressões de precedência, N/N+1, redução e recuperação sem truncar |
 | B02 | Broker: QoS0/1/2, retained, sessões, Will e filtros | Existente P42/P61; matriz 3.1.1 ainda parcial | Vetores independentes e evidência por cláusula; não anunciar conformidade completa |
-| B03 | Broker: conexões simultâneas e admissão sob saturação | Parcial P62/P72 | Após campanha P72; medir N/N+1, liberação e RAM/CPU em mTLS e TCP local |
-| B04 | Broker: assinantes lentos, filas e fan-out sob pressão | Planejado | B03; budgets por conexão, prazos, recusa observável, progressão dos demais clientes e zero ACK prematuro |
-| B05 | Broker: rate limits e quotas por identidade | Decisão | B03/B04 medidos; contrato de cobrança, prioridades, limites e fairness antes de código |
+| B03 | Broker: conexões simultâneas e admissão sob saturação | P80 PASS até teto configurado64; sem SLA | N/N+1/vaga/RSS/CPU/percentis TCP/mTLS; performance-pressure.md |
+| B04 | Broker: assinantes lentos, filas e fan-out sob pressão | P80 PASS limitado; shutdown corrigido0.11.4 | Filas4/8 e32/64, restart/QoS1/2, peer e vaga; não é ensaio prolongado |
+| B05 | Broker: rate limits e quotas por identidade | Avaliação ADR0006 concluída; runtime adiado | Quotas mantidas; isolamento/fairness multitenant não implementados |
 | B06 | Broker: erros de disco, ENOSPC, escrita curta e corrupção | Parcial recuperação existente | B04; injeção em cópia temporária, fechamento seguro e reabertura sem commit fictício |
 | B07 | Broker: fuzzing de codec, estado e filtros | Planejado | B02/B06; corpus limitado, watchdog, sanitização de crash e regressões determinísticas |
-| B08 | Broker/client: matriz externa 3.1.1 | Parcial open-lab/fixtures | B02; direções XMQR↔Mosquitto, QoS/Will/sessões, TLS/ACL e redes interrompidas |
+| B08 | Broker/client: matriz externa 3.1.1 | Parcial ampliadoC43:59cenários mTLS/bytes/QoS/retained/Will/sessões/negativos | Interrupções de rede e matriz exaustiva continuam fase3; não é conformidade completa |
 | B09 | Broker: múltiplos listeners | Planejado | B04/B08; políticas por endpoint, identidade isolada, sem duplicar roteadores/estado |
 | B10 | Broker/client: TLS com senha sem certificado cliente | Planejado, mTLS existente | B09; opt-in, CA/SAN obrigatório, senha/ACL e negativos, mTLS padrão inalterado |
 | B11 | Broker: rotação de certificado/CA/CRL | Parcial CRL/startup | B09/B10; contrato para conexões ativas, validação antes de swap, rollback e CA expirada |
@@ -117,7 +117,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | D03 | Todos: APT assinado | Decisão | D02; hospedagem/domínio, chave sob custódia, rotação, índices assinados e política de atualização |
 | D04 | Broker/admin: Windows nativo | Planejado | B06/A01/D01; abstrações de locks/fsync/rename/sinais, serviço Windows, ACL de arquivos e instalador homologado |
 | D05 | Client: Windows e instaladores | Parcial CLI portátil | C05/D01; credenciais/TTY/encoding/Ctrl+C, instalação e upgrade/reversão sem segredos |
-| E01 | ESP32 DevKit V1 como consumidor, campanha base | Planejado teste físico | Cenários base mTLS de B08, que podem começar na fase 2; pinagem real, Rust/ESP-IDF, Wi-Fi/SNTP/SAN/QoS/reconexão; não depende de rotação B11 |
+| E01 | ESP32 DevKit V1 como consumidor, campanha base | BLOCKED/NOT_RUN P80: nenhuma porta física acessível | Checklist esp32-phase2-checklist.md; Wi-Fi/SNTP/SAN/QoS/reconexão em placa; não dependeB11 |
 | E02 | ESP32: campanha de rotação e revogação | Planejado teste físico | E01/B11 na fase 4; mudança de CA/certificado/CRL, erro e recuperação observados na placa |
 
 Cluster/alta disponibilidade distribuída, dashboard web, app móvel e broker
@@ -225,9 +225,9 @@ ou desempenho prometido; estimar cada marco após medir a fatia anterior.
 
 ## Próxima execução e decisões abertas
 
-Próxima funcionalidade: B03/B04 (saturação e cliente lento), com novo prompt,
-após distribuir P78/C42. O client de uso normal não vira gerador de carga.
-Usar o harness separado existente e conservar os contratos de C41.
+P80/C43 completaram o aceite de software nos cenários da fase2. Próximo gate:
+E01 físico; phase2-acceptance.md. Fase global PARTIAL/BLOCKED, sem avançar
+fase3. CLI não virou gerador de carga.
 
 Decisões a resolver nos respectivos prompts: metas e hardware da campanha;
 quotas por identidade; canal administrativo; política de $SYS; expiração e

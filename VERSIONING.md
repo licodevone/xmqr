@@ -1,5 +1,12 @@
 # Versionamento
 
+## P80/C43 — correção0.11.4 e evidência fase2
+
+Broker/admin0.11.4 limita shutdownTLS demonstrado por não leitor.
+Clientruntime0.8.1 mantido; C43 só acrescenta testes/documentação.
+Tagv0.11.4/prerelease/.deb/Hub após gates do commit exato.
+Release da correção não encerra fase2: E01 físico permanece pendente.
+
 ## Marco P78/C42 — 2026-10-13
 
 Broker/admin 0.11.3 e client 0.8.1 são patches de distribuição, com consulta

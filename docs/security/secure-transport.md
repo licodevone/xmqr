@@ -26,6 +26,10 @@ O listener aceita somente TLS com certificado de cliente obrigatório. A cadeia 
 - Limite de conexões concorrentes antes da criação de estado caro.
 - Um `tokio::spawn` por cliente e captura de panic na fronteira da tarefa.
 - Deadlines explícitos disponíveis para leituras e escritas posteriores.
+- Desde0.11.4, shutdown/flushTLS tem deadline3s. Um peer não leitor não
+  prende indefinidamente tarefa/vaga após remoção da sessão. Expirar fecha
+  a conexão sem prometer flush completo; obrigaçõesQoS duráveis permanecem.
+  Veja [P80](../performance-pressure.md).
 
 O certificado do servidor deve incluir `IP:192.168.0.100` no Subject Alternative Name. O Common Name sozinho não é suficiente para clientes TLS modernos. Em containers, confirme se esse IP existe no namespace de rede ou sobrescreva `MQTT_BIND`.
 

@@ -1,6 +1,9 @@
 # Imagem Docker do XMQR broker
 
-## Marco 0.11.3 — broker e admin no Docker Hub
+## Marco 0.11.4 — broker e admin no Docker Hub
+
+PatchP80 limita shutdownTLS3s após peer lento; quotas/MQTT/estado preservados.
+Client permanece0.8.1; fase2 integral depende do teste físicoE01.
 
 Distribuição P78/C42: imagens Linux/amd64 versionadas no namespace autorizado
 lepinheiro100; admin acompanha a versão do broker. O .deb Ubuntu26 contém os
@@ -9,10 +12,10 @@ binário mqtt-broker. Comandos deste marco pressupõem publicação aceita; conf
 a tag/digest no Hub e o manifesto da release antes de usar.
 
 ```sh
-docker pull lepinheiro100/xmqr-broker:0.11.3
-docker pull lepinheiro100/xmqr-admin:0.11.3
-docker run --rm --network none --read-only --cap-drop=ALL lepinheiro100/xmqr-broker:0.11.3 --version
-docker run --rm --network none --read-only --cap-drop=ALL lepinheiro100/xmqr-admin:0.11.3 --version
+docker pull lepinheiro100/xmqr-broker:0.11.4
+docker pull lepinheiro100/xmqr-admin:0.11.4
+docker run --rm --network none --read-only --cap-drop=ALL lepinheiro100/xmqr-broker:0.11.4 --version
+docker run --rm --network none --read-only --cap-drop=ALL lepinheiro100/xmqr-admin:0.11.4 --version
 ```
 
 Para construir, passe a versão do manifest e o commit limpo aceito. O último
@@ -23,8 +26,8 @@ estado ou certificados. Tags Git/Hub antigas não serão alteradas; latest não
 é atualizado por inferência.
 
 ```sh
-docker build --platform linux/amd64 --build-arg VERSION=0.11.3 --build-arg VCS_REF="$(git rev-parse HEAD)" --target runtime -t lepinheiro100/xmqr-broker:0.11.3 .
-docker build --platform linux/amd64 --build-arg VERSION=0.11.3 --build-arg VCS_REF="$(git rev-parse HEAD)" --target admin -t lepinheiro100/xmqr-admin:0.11.3 .
+docker build --platform linux/amd64 --build-arg VERSION=0.11.4 --build-arg VCS_REF="$(git rev-parse HEAD)" --target runtime -t lepinheiro100/xmqr-broker:0.11.4 .
+docker build --platform linux/amd64 --build-arg VERSION=0.11.4 --build-arg VCS_REF="$(git rev-parse HEAD)" --target admin -t lepinheiro100/xmqr-admin:0.11.4 .
 ```
 
 O runtime das imagens é DebianBookworm, compilado para suas bibliotecas; o
@@ -42,7 +45,7 @@ insuficiente é erro, não sucesso parcial. O rootfs permanece read-only.
 Para a conexão normal use mTLS, SAN correto e o procedimento de volumes
 abaixo, substituindo a imagem local pelo nome completo do Hub.
 
-Artefatos .deb, imagens tar.gz e hashes ficam na prerelease v0.11.3.
+Artefatos .deb, imagens tar.gz e hashes ficam na prerelease v0.11.4.
 scripts/release_assets.py exporta somente imagens esperadas com usuário,
 entrypoint, versão e revision corretos, sem publicar automaticamente.
 O manifesto identifica o commit Git e cada SHA-256. Digest remoto e resultados
