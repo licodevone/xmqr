@@ -1,5 +1,13 @@
 # Da lógica ao Broker e Clientes MQTT utilizando Rust
 
+## Aula inicial — Rust, C e o caminho até o executável
+
+Antes da Seção 1, estude a **Seção 0** no [guia da aula inicial](AULA-INICIAL.md).
+Ela apresenta Graydon Hoare, OCaml, o apoio da Mozilla, o compilador rustc,
+LLVM e o fluxo de compilação C. Compara vantagens, desafios e limites das
+garantias de memória. As 16 aulas práticas abaixo mantêm sua numeração.
+No HTML, abra “Seção 0 — Aula inicial: Rust, C e compiladores”.
+
 ## Reconstruir o primeiro commit do XMQR
 
 O destino é o conteúdo do commit `f7efe357cdcd4a05e922a5fb205bd8757cdc5625`:

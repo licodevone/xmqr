@@ -1,0 +1,38 @@
+{
+  "prompt": "P79 rev5",
+  "data": "2026-10-13",
+  "slides": 35,
+  "aulas_praticas": 16,
+  "aula_inicial": true,
+  "secoes_praticas": 5,
+  "historico_preservado": true,
+  "linhas_rust_guia": 6098,
+  "pptx_professor_estrutura_layout": "PASS",
+  "pptx_alunos_estrutura_layout": "PASS",
+  "slides_visuais_iguais_entre_versoes": true,
+  "notas_professor_completas": 35,
+  "notas_privadas_alunos": 0,
+  "renderizacao_final_pixel_identico": 35,
+  "browser": {
+    "titulo": true,
+    "sidebar_corpo_sincronizados": true,
+    "abrir_fechar_global": true,
+    "ancora": true,
+    "busca_linha": true,
+    "mobile": true,
+    "diagramas": 3,
+    "erros_js": []
+  },
+  "arquivos": {
+    "index.html": "6c913f832aac27cc4008dd72a816a96458cc0195f6466c66ab93a363a5137fb8",
+    "apresentacao/curso-professor.pptx": "9fc23dcf35b26183637715b45189082c6207fbc15fe6c456e6f5631009ef9b02",
+    "apresentacao/curso-alunos.pptx": "d996cee95b0278eb92209302c59a316827b8764e25b3025231580556f1d0e7ad",
+    "apresentacao/roteiro-professor.html": "51218d71cbb505ff1c4f7652993319791073fb7ac41839343d7c0ee34a0d4633",
+    "primeiro-commit-curso-completo.zip": "44ca1367012eba53a0474829724d94799bc99703d2675e8effb64906a8be075a"
+  },
+  "limites": [
+    "Não abriu PowerPoint nativo. Validação estrutural, reimportação e renderização Artifact Tool.",
+    "Não recompilou Rust: fonte histórica inalterada.",
+    "P78 e alterações de distribuição concorrentes preservados fora do escopo."
+  ]
+}
