@@ -76,6 +76,11 @@ Não há declaração de conformidade completa ou prontidão para produção.
 
 ## Versões
 
+Marco de distribuição atual: **broker/admin 0.11.3**. Consulta de versão do
+admin, imagem admin separada e contexto Docker seguro. O [plano detalhado de
+paridade com Mosquitto](docs/plano-paridade-mosquitto.md) está concluído como
+planejamento; fases pendentes continuam sem implementação nesta entrega.
+
 Veja o [plano de evolução do broker e dos clients](docs/evolution-plan.md),
 com lacunas frente ao Mosquitto, ordem de implementação e cronograma estimado.
 
@@ -122,9 +127,9 @@ cd ~/xmqr-pacotes
 3. Baixe o pacote e seu checksum da release publicada:
 
 ```bash
-wget -O xmqr-broker_0.11.2-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.11.2/xmqr-broker_0.11.2-1_amd64.deb
-wget -O xmqr-broker_0.11.2-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.11.2/xmqr-broker_0.11.2-1_amd64.deb.sha256
-sha256sum -c xmqr-broker_0.11.2-1_amd64.deb.sha256
+wget -O xmqr-broker_0.11.3-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.11.3/xmqr-broker_0.11.3-1_amd64.deb
+wget -O xmqr-broker_0.11.3-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.11.3/xmqr-broker_0.11.3-1_amd64.deb.sha256
+sha256sum -c xmqr-broker_0.11.3-1_amd64.deb.sha256
 ```
 
 Prossiga somente se a verificação mostrar `OK`.
@@ -132,7 +137,7 @@ Prossiga somente se a verificação mostrar `OK`.
 4. Instale e confirme o pacote e a conta de serviço:
 
 ```bash
-sudo apt install ./xmqr-broker_0.11.2-1_amd64.deb
+sudo apt install ./xmqr-broker_0.11.3-1_amd64.deb
 dpkg-query -W -f='${Status}\n' xmqr-broker
 id xmqr
 ```
@@ -383,7 +388,8 @@ em [registro P58](prompts/registros/P58-pacote-completo.md).
 
 ## Docker — distribuição P63/C40
 
-Imagem xmqr-broker:0.11.1 paraLinux/amd64 com imagem tar.gz eSHA-256 na release; também inclui
+Imagens lepinheiro100/xmqr-broker:0.11.3 e lepinheiro100/xmqr-admin:0.11.3 para Linux/amd64,
+com tar.gz/SHA-256/proveniência na prerelease. O pacote do broker também inclui
 .debUbuntu26amd64. [Build/load, configuração e execução](docs/docker.md).
 Sem chaves/estado na imagem; usuário10001, mTLS e volumes externos.
 
@@ -392,12 +398,15 @@ Sem chaves/estado na imagem; usuário10001, mTLS e volumes externos.
 ```sh
 mqtt-broker --version
 mqtt-broker -V
-docker run --rm xmqr-broker:0.11.2 --version
+docker run --rm lepinheiro100/xmqr-broker:0.11.3 --version
+mqtt-admin --version
+docker run --rm lepinheiro100/xmqr-admin:0.11.3 --version
 ```
 
-Saída: `mqtt-broker 0.11.2`, exit0. Funciona sem configuração, certificados,
+Saída: `mqtt-broker 0.11.3` ou `mqtt-admin 0.11.3`, exit0. Funciona sem configuração, certificados,
 credenciais ou estado: os argumentos são tratados antes do runtimeTokio/logs.
 Sem argumentos, inicia normalmente conforme configuração. Argumentos não
 suportados/combinados retornamexit2 sem reproduzir seus valores. Não há --help
-nesta fatia. DockerHub: lepinheiro100 publica manualmente; use a imagem carregada
-da releaseGitHub até a nova tag estar disponível no registry.
+nesta fatia. A distribuição P78/C42 inclui publicação versionada no Docker Hub
+lepinheiro100, mantendo tags antigas/latest. Confira os digests e o manifesto
+dos artefatos na prerelease antes de atualizar.

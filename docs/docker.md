@@ -1,5 +1,57 @@
 # Imagem Docker do XMQR broker
 
+## Marco 0.11.3 — broker e admin no Docker Hub
+
+Distribuição P78/C42: imagens Linux/amd64 versionadas no namespace autorizado
+lepinheiro100; admin acompanha a versão do broker. O .deb Ubuntu26 contém os
+dois executáveis. A imagem admin é própria, não inicia broker e não contém o
+binário mqtt-broker. Comandos deste marco pressupõem publicação aceita; confira
+a tag/digest no Hub e o manifesto da release antes de usar.
+
+```sh
+docker pull lepinheiro100/xmqr-broker:0.11.3
+docker pull lepinheiro100/xmqr-admin:0.11.3
+docker run --rm --network none --read-only --cap-drop=ALL lepinheiro100/xmqr-broker:0.11.3 --version
+docker run --rm --network none --read-only --cap-drop=ALL lepinheiro100/xmqr-admin:0.11.3 --version
+```
+
+Para construir, passe a versão do manifest e o commit limpo aceito. O último
+alvo continua sendo o broker; --target admin seleciona o utilitário. O build
+falha se VERSION não corresponder à saída do binário. O contexto contém somente
+Cargo.toml/lock, fontes, licença e inventário de licenças, sem arquivos do curso,
+estado ou certificados. Tags Git/Hub antigas não serão alteradas; latest não
+é atualizado por inferência.
+
+```sh
+docker build --platform linux/amd64 --build-arg VERSION=0.11.3 --build-arg VCS_REF="$(git rev-parse HEAD)" --target runtime -t lepinheiro100/xmqr-broker:0.11.3 .
+docker build --platform linux/amd64 --build-arg VERSION=0.11.3 --build-arg VCS_REF="$(git rev-parse HEAD)" --target admin -t lepinheiro100/xmqr-admin:0.11.3 .
+```
+
+O runtime das imagens é DebianBookworm, compilado para suas bibliotecas; o
+.deb nativo é Ubuntu26 amd64. Não instale o .deb Ubuntu na imagem Bookworm.
+Não há homologação nova de Ubuntu24, arm64 ou Windows nativo.
+
+Backup/restore do admin exige broker parado e volume com dono10001, além de
+destino novo. Monte o estado e o destino em volumes apropriados; não use
+dados reais num teste. O arquivo de senha/bundle permanece externo e privado.
+Para admin verify/restore com --read-only, monte também um tmpfs limitado:
+`--tmpfs /tmp:rw,noexec,nosuid,size=128m,mode=1777`. A verificação abre uma
+cópia temporária para validar recuperação, sem modificar o backup original.
+Ajuste a capacidade do tmpfs ao backup e ao orçamento de memória; espaço
+insuficiente é erro, não sucesso parcial. O rootfs permanece read-only.
+Para a conexão normal use mTLS, SAN correto e o procedimento de volumes
+abaixo, substituindo a imagem local pelo nome completo do Hub.
+
+Artefatos .deb, imagens tar.gz e hashes ficam na prerelease v0.11.3.
+scripts/release_assets.py exporta somente imagens esperadas com usuário,
+entrypoint, versão e revision corretos, sem publicar automaticamente.
+O manifesto identifica o commit Git e cada SHA-256. Digest remoto e resultados
+de validação acompanham os anexos; comparar com a release antes do deploy.
+O [plano de paridade](plano-paridade-mosquitto.md) distingue funções existentes
+das planejadas. As seções P63 abaixo descrevem o histórico, não a publicação atual.
+
+## Histórico de distribuição local P63/P64
+
 A imagem é construída localmente a partir do código e do `Cargo.lock`. O build
 usa Rust 1.99.0 para corresponder à validação Linux atual; a etapa final Debian
 slim contém apenas os dois binários, dependências de runtime e avisos de licença.

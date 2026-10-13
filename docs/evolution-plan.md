@@ -1,7 +1,10 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; acompanhamento atualizado em 2026-10-12
-por P71/P72/C41. Versões nos manifests atuais: broker 0.11.2 e client independente 0.8.0.
+por P71/P72/C41. Versões nos manifests atuais: broker/admin 0.11.3 e client independente 0.8.1.
+O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
+2026-10-13 por P78/C42, fecha o planejamento de funções, dependências e gates
+para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
 Estimativas para uma sequência de desenvolvimento
 com dedicação regular, contadas do início da execução, não datas prometidas.
 Cada fase depende do aceite anterior; recalcular prazo após medições e falhas.

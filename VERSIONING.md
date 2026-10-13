@@ -1,5 +1,15 @@
 # Versionamento
 
+## Marco P78/C42 — 2026-10-13
+
+Broker/admin 0.11.3 e client 0.8.1 são patches de distribuição, com consulta
+de versão do admin. O admin permanece no crate do broker; não tem ciclo
+independente. Publicar v0.11.3/v0.8.1 somente depois dos gates e artefatos
+desse commit. Docker Hub autorizado: lepinheiro100/xmqr-broker,
+lepinheiro100/xmqr-admin e lepinheiro100/xmqr-client, tags numéricas novas.
+Não alterar tags existentes nem latest. Prereleases preservam limitações
+experimentais. Planejamento completo não significa fases implementadas.
+
 Broker e client têm versões independentes. Tags publicadas não são alteradas.
 A base do broker é v0.9.0 (688fa4f); P47 cria o marco0.10.0 para systemd/deb.
 A base do client é v0.4.0 (3e7c16a); C31 cria o marco0.5.0.

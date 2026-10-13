@@ -10,11 +10,10 @@ COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 RUN cargo build --locked --release --bins
 
-FROM debian:bookworm-slim AS runtime
-ARG VERSION=0.11.2
+FROM debian:bookworm-slim AS runtime-base
+ARG VERSION=0.11.3
 ARG VCS_REF=unknown
-LABEL org.opencontainers.image.title="XMQR Broker" \
-      org.opencontainers.image.version="${VERSION}" \
+LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.source="https://github.com/licodevone/xmqr" \
       org.opencontainers.image.licenses="MIT"
@@ -24,15 +23,27 @@ RUN apt-get update \
     && groupadd --gid 10001 xmqr \
     && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin xmqr \
     && install -d -o 10001 -g 10001 -m 0750 /var/lib/xmqr
-COPY --from=build --chown=10001:10001 /src/target/release/mqtt-broker /usr/local/bin/mqtt-broker
-COPY --from=build --chown=10001:10001 /src/target/release/mqtt-admin /usr/local/bin/mqtt-admin
 COPY --chown=10001:10001 LICENSE /usr/share/licenses/xmqr/LICENSE
 COPY --chown=10001:10001 docs/third-party-licenses.md /usr/share/licenses/xmqr/third-party-licenses.md
+USER 10001:10001
+STOPSIGNAL SIGTERM
+
+FROM runtime-base AS admin
+LABEL org.opencontainers.image.title="XMQR Admin"
+COPY --from=build --chown=10001:10001 /src/target/release/mqtt-admin /usr/local/bin/mqtt-admin
+RUN test "$(/usr/local/bin/mqtt-admin --version)" = "mqtt-admin ${VERSION}"
+ENTRYPOINT ["/usr/local/bin/mqtt-admin"]
+
+# Keep the broker as the final/default stage for existing docker build users.
+FROM runtime-base AS runtime
+LABEL org.opencontainers.image.title="XMQR Broker"
+COPY --from=build --chown=10001:10001 /src/target/release/mqtt-broker /usr/local/bin/mqtt-broker
+COPY --from=build --chown=10001:10001 /src/target/release/mqtt-admin /usr/local/bin/mqtt-admin
+RUN test "$(/usr/local/bin/mqtt-broker --version)" = "mqtt-broker ${VERSION}" \
+    && test "$(/usr/local/bin/mqtt-admin --version)" = "mqtt-admin ${VERSION}"
 ENV MQTT_MODE=secure-mtls \
     MQTT_BIND=0.0.0.0:8883 \
     MQTT_STATE_DIR=/var/lib/xmqr
 VOLUME ["/var/lib/xmqr"]
 EXPOSE 8883
-USER 10001:10001
-STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/local/bin/mqtt-broker"]

@@ -20,6 +20,10 @@ use zeroize::Zeroizing;
 fn main() -> Result<(), Box<dyn Error>> {
     let arguments: Vec<_> = env::args_os().collect();
     match arguments.as_slice() {
+        [_, command] if command == "--version" || command == "-V" => {
+            println!("mqtt-admin {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
         [_, command] if command == "hash-password" => hash_password(),
         [_, command, certificate] if command == "fingerprint" => {
             fingerprint(Path::new(certificate))
@@ -150,6 +154,7 @@ fn required_utf8<'a>(value: &'a std::ffi::OsStr, kind: &str) -> Result<&'a str, 
 }
 
 fn usage() -> Result<(), Box<dyn Error>> {
+    eprintln!("Versao: mqtt-admin --version ou -V");
     eprintln!(
         "Uso:\n  mqtt-admin user create --users-file ARQUIVO --username USUARIO\n  mqtt-admin user list --users-file ARQUIVO\n  mqtt-admin user update-password --users-file ARQUIVO --username USUARIO\n  mqtt-admin user delete --users-file ARQUIVO --username USUARIO\n  mqtt-admin state backup --state-dir DIR --destination NOVO_DIR\n  mqtt-admin state verify --backup DIR\n  mqtt-admin state restore --backup DIR --state-dir NOVO_DIR\n  mqtt-admin hash-password\n  mqtt-admin fingerprint <client.crt>"
     );

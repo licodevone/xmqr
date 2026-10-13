@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 0.11.3 — admin e distribuição Docker Hub
+
+- Admin --version/-V consulta a versão sem configuração, rede ou estado.
+- Alvo Docker admin separado; broker continua como alvo padrão com ambos os binários.
+- Contexto Docker allowlist; conferência da versão real na construção.
+- .deb Ubuntu26 amd64 inclui broker/admin; imagens Bookworm amd64 são distintas.
+- Exportação/checksums/manifesto de commit e plano detalhado de paridade concluído.
+- Sem alterações de MQTT, quotas, segurança ou formato de persistência.
+
 ## 0.11.2 — consulta de versão
 
 - --version/-V como argumento único, antes de runtime/logs/configuração/estado.
