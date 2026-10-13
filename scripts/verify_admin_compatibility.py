@@ -30,7 +30,7 @@ def main():
     # Reuse the accepted A03 fixture without changing the admin repository/pin.
     # Its historical version fields are not evidence; versions above are observed.
     fixture = root.parent / 'xmqr-admin/scripts/integration.py'
-    with tempfile.TemporaryDirectory(prefix='xmqr-p92-admin-', dir='/tmp') as temporary:
+    with tempfile.TemporaryDirectory(prefix='xmqr-p92-admin-') as temporary:
         raw = Path(temporary) / 'integration.json'
         subprocess.run([sys.executable, '-B', str(fixture), '--broker', str(broker),
                         '--admin', str(admin), '--report', str(raw)], check=True,

@@ -19,6 +19,12 @@ ESP32 é consumidor externo, não o alvo do broker atual. Firmware, banco, web e
 regras de negócio ficam fora do núcleo. MIT própria preservada; dependências
 e arquivos de terceiros conservam suas respectivas licenças.
 
+O [planejamento integrado de broker, client e admin](../../xmqr-admin/docs/planejamento-tres-sistemas.md)
+detalha a trilha administrativa U01–U11 inspirada em Dynamic Security e
+`mosquitto_ctrl`. Separa o painel de leitura atual da gestão futura de bundle,
+revogação, canal autenticado e auditoria. A04 documental do repositório admin
+não encerra os IDs A02–A09 desta matriz nem os testes pendentes da fase 3.
+
 Referência de interoperabilidade reproduzível inicial: Mosquitto **2.0.22**,
 imagem disponível no ambiente. A documentação online de Mosquitto também
 descreve opções 2.1; essas capacidades estão assinaladas como extensões e

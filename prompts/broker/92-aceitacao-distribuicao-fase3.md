@@ -1,4 +1,4 @@
-# P92 v1.3 — gates finais e distribuição fase3
+# P92 v1.4 — gates finais e distribuição fase3
 
 Preparado 2026-10-13 antes de versões/embalagem. P89 exige B06+B07+B08+C07
 com evidência real. Broker patch0.11.6: recusas CONNECT corrigidas por P93,
@@ -69,3 +69,12 @@ Não apagar/tmp ou dados/serviços alheios nem reiniciar WSL/Docker. Todo novo
 cache/estado durável/teste deve usar /var/tmp nativo, TMPDIR=/var/tmp e budgets;
 gate sourceexato com -j1 evita competição desnecessária. ReexecutarP91>=3x600s
 inteiros; repetirP80/B06/P90 no filesystemfinal e preservarfalhas anteriores.
+
+## Revisão 1.4 — antes de corrigir fixture de compatibilidade
+
+O wrapper verify_admin_compatibility.py ainda força dir=/tmp apesar do TMPDIR
+do processo. Retirar apenas esse override; o wrapper e o fixture independente
+passam a respeitar TMPDIR=/var/tmp. Sem mudar admin, pin ou seus 18 cenários.
+P94 full P80 final-v3 passou 60/60, mas P95 provou ragged EOF no SIGTERM mTLS:
+6/6 sinais falharam com TLS1.2/1.3, 2/2 DISCONNECTs foram controles positivos.
+Repetir os gates pertinentes no ELF corrigido, não anunciar fase 3 encerrada.
