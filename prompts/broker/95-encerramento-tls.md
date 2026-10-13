@@ -1,4 +1,4 @@
-# P95 v1 — encerramento TLS e espera das conexões no SIGTERM
+# P95 v1.1 — encerramento TLS e espera das conexões no SIGTERM
 
 13 de outubro de 2026, antes de reprodução/correção. P91 matriz candidata:
 59 casos C43 PASS, extensão FAIL no SIGTERM do XMQR com mosquitto_sub,
@@ -34,3 +34,25 @@ e admin0.1.0 não recebem bump por fix de broker. Novos SHAs devem substituir
 artefatos candidatos antigos nos gates, sem apagar registros das falhas.
 Rastrear fontes/hashes/imagens por commit exato; novas tags só após aceites.
 Código próprio MIT e notices originais mantidos. Registro P95 após execução.
+
+## Revisão v1.1 — prova antes do fix e fronteiras precisas
+
+Prova direta lida em `.artifacts/p91-tls-eof-baseline-1.json` da pasta
+agrupadora: broker SHA d371d2834bc8f0d0f0bbd02ecd76393e4b8a88fb78465f5ed85fa7cad6b88903,
+dois DISCONNECT normais PASS e seis SIGTERM FAIL (3 em TLS1.2,3 emTLS1.3),
+exit0 mas SSLEOFError/UNEXPECTED_EOF_WHILE_READING. Nenhuma alteração runtime
+P95 antes dessa prova. Cabeçalho/codec/QoS0 já revisados em outros prompts;
+P95 não altera esses contratos. HEAD atualizado ad7d79b pelo coordenador.
+
+Fix mínimo: wrapper de serve_connection sempre executa shutdown limitado,
+inclusive recusas e cleanup-error, mantendo erro do actor prioritário; contador
+de conexão engloba o fechamento. Handle de drain captura o semáforo de
+admissão antes do move para serve, incluindo handshakes e panics. Bind recusa
+capacidade0/acima de min(u32MAX,SemaphoreMAX_PERMITS), com erro em vez de
+panic; configuração do broker segue1..64/default64, sem ampliar quotas.
+Após drop do listener, main aguarda shutdown actor e drain no MESMO timeout
+15s e tenta drain mesmo se actor falhar, propagando erro. Nenhum sleep cego.
+Tests novos precedem código e verificam RAII/drop/panic/drain pendente,
+deadline/error ator e não leitor limitado; matriz strictTLS independente
+antes/depois acompanha o fix. TMPDIR=/var/tmp e CARGO_BUILD_JOBS=1; nenhum
+reset/limpeza global de WSL, serviço ou cache. Não publicar candidatos velhos.

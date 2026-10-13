@@ -1,4 +1,4 @@
-# P91 v1.14 — B08: campanhas limitadas de robustez e interoperabilidade
+# P91 v1.16 — B08: campanhas limitadas de robustez e interoperabilidade
 
 Preparado em 2026-10-13 antes de editar os harnesses. Pedido: finalizar fase 3,
 mantendo prompts antes do código e publicação somente após aceite coordenado.
@@ -186,3 +186,28 @@ Só depois da evidência/promptnovo definir recuperação saudável por prazo fi
 Não relaxar ACKs/bytes/QoS/erros persistência. Corrigir também oráculoQoS0:
 DUP deve ser0 nas entregas, não mascarado pelo matcher de header; negativo
 determinístico do harness antes de próximo gate prolongado.
+
+## Diagnóstico v1.15 — fila controlada e recuperação por prazo
+
+Smokeext4diagnóstico300s PASS emambostransportes sem reproduzir unready;
+isso não prova que candidate4 foi falsoalarme. Criar `test_phase3_health.py`:
+64publicadoresTCP válidos (limiteexistente), umQoS1retained/payload1024 cada,
+amostrar monitor durante fila; conferir64PUBACKs/IDs/counter recebido, fechar
+clientes e registrar probesquiescentes até15s comready1 eerrors0. Nenhuma
+alteração do broker, timeoutACK ou fsync. Criar helperdeadline com negativos
+determinísticos para neverready,errors>0,falsohealthy e respostas além prazo.
+O diagnóstico podePASS seu método, mas não encerra600x3. Somente após trace
+ready0→1/zeroerrors uma nova revisão adotará helper no ensaio prolongado.
+
+## Revisão v1.16 — reproduzir encerramento TLS diretamente
+
+Candidateexterno1:59C43PASS, depois SIGTERM XMQR causaMosquitto_subexit7,
+timed_out=false/logicalevents1; namespaceestável/W40,cleanup128containers/
+2volumesPASS. ReferênciaMosquitto reinicia e reconecta no mesmo harness.
+Inspeção: `mqtt::serve_connection` retorna errode unregister antes de TLSshutdown
+se ator já encerrou; transporttasks detached/main aguarda apenas routershutdown.
+Criar `test_phase3_tls_shutdown.py` antes de corrigir core: PythonSSL strict
+`suppress_ragged_eofs=False`, CA/SAN/cert/senhafixture válidos, TLS1.2/1.3,
+controleDISCONNECTnormal e3SIGTERM/cada. Conferir EOF limpo vsSSLEOFError,
+exit0do processo e tempos; sem logs/certs/senhas. Se demonstrar raggedEOF,
+enviar ao coordenadorP94, mantendo FAIL e sem editar Rust nesta ownership.

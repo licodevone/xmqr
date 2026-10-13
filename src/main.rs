@@ -451,6 +451,35 @@ fn required_path(
 mod tests {
     use super::{BrokerMode, ensure_state_profile, validate_open_lab_bind};
 
+    #[tokio::test]
+    async fn actor_shutdown_error_is_preserved_after_connections_are_drained() {
+        let drained = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = drained.clone();
+        let error = super::finish_shutdown(
+            async { Err("synthetic actor storage failure".into()) },
+            async move { flag.store(true, std::sync::atomic::Ordering::SeqCst); Ok(()) },
+            std::time::Duration::from_secs(1),
+        ).await.unwrap_err();
+        assert!(drained.load(std::sync::atomic::Ordering::SeqCst));
+        assert_eq!(error.to_string(), "synthetic actor storage failure");
+    }
+
+    #[tokio::test]
+    async fn actor_and_connection_drain_share_one_deadline() {
+        let entered_drain = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = entered_drain.clone();
+        let error = super::finish_shutdown(
+            async { tokio::time::sleep(std::time::Duration::from_millis(5)).await; Ok(()) },
+            async move {
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                std::future::pending::<std::io::Result<()>>().await
+            },
+            std::time::Duration::from_millis(15),
+        ).await.unwrap_err();
+        assert!(entered_drain.load(std::sync::atomic::Ordering::SeqCst));
+        assert_eq!(error.downcast_ref::<std::io::Error>().unwrap().kind(), std::io::ErrorKind::TimedOut);
+    }
+
     #[test]
     fn secure_mode_is_default_and_unknown_values_fail_closed() {
         assert_eq!(BrokerMode::parse(None).unwrap(), BrokerMode::SecureMtls);

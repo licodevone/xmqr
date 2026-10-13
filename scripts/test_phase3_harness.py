@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import patch
 
 import phase3_soak as soak
+from test_phase3_health import wait_healthy
 import verify_phase3_interop as external
 
 
@@ -88,6 +89,30 @@ class HarnessContracts(unittest.TestCase):
                 return 0x38, soak.f.text('benchmark/value') + soak.payload(0)
         with self.assertRaisesRegex(AssertionError, 'must not set DUP'):
             soak.receive(Peer(), 0, 0)
+
+    def test_health_deadline_rejects_never_ready(self):
+        class Broker:
+            def metrics(self):
+                return dict(xmqr_ready=0, xmqr_persistence_errors_total=0)
+        with self.assertRaises(TimeoutError):
+            wait_healthy(Broker(), seconds=.01, interval=.001)
+
+    def test_health_never_accepts_persistence_error_even_if_ready(self):
+        class Broker:
+            def metrics(self):
+                return dict(xmqr_ready=1, xmqr_persistence_errors_total=1)
+        with self.assertRaisesRegex(AssertionError, 'never accepted'):
+            wait_healthy(Broker(), seconds=.01)
+
+    def test_health_bounded_transient_is_recorded_not_hidden(self):
+        class Broker:
+            calls = 0
+            def metrics(self):
+                self.calls += 1
+                return dict(xmqr_ready=int(self.calls == 2), xmqr_persistence_errors_total=0)
+        values, probes = wait_healthy(Broker(), seconds=.1, interval=.001)
+        self.assertEqual(values['xmqr_ready'], 1)
+        self.assertEqual([item['metrics']['xmqr_ready'] for item in probes], [0, 1])
 
 
 if __name__ == '__main__':

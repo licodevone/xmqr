@@ -721,6 +721,62 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn connection_drain_waits_for_every_owned_permit_and_does_not_change_capacity() {
+        let transport = OpenLabTransport::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            TransportLimits { max_concurrent_connections: 2 },
+        ).await.unwrap();
+        let slots = transport.connection_slots.clone();
+        let first = slots.clone().acquire_owned().await.unwrap();
+        let second = slots.clone().acquire_owned().await.unwrap();
+        let drain = transport.drain_handle();
+        drop(transport); // no accepts after drain begins
+        let waiting = tokio::spawn(drain.wait());
+        tokio::task::yield_now().await;
+        assert!(!waiting.is_finished());
+        drop(first);
+        tokio::task::yield_now().await;
+        assert!(!waiting.is_finished());
+        drop(second);
+        tokio::time::timeout(Duration::from_secs(1), waiting).await.unwrap().unwrap().unwrap();
+        assert_eq!(slots.available_permits(), 2);
+    }
+
+    #[tokio::test]
+    async fn connection_drain_releases_after_task_panic_and_drop() {
+        let transport = OpenLabTransport::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            TransportLimits { max_concurrent_connections: 1 },
+        ).await.unwrap();
+        let permit = transport.connection_slots.clone().acquire_owned().await.unwrap();
+        let drain = transport.drain_handle();
+        drop(transport);
+        let task = tokio::spawn(async move {
+            let _held = permit;
+            panic!("synthetic isolated connection panic");
+        });
+        assert!(task.await.unwrap_err().is_panic());
+        tokio::time::timeout(Duration::from_secs(1), drain.wait()).await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn cancelled_drain_does_not_leak_permits_or_report_completion() {
+        let transport = OpenLabTransport::bind(
+            "127.0.0.1:0".parse().unwrap(),
+            TransportLimits { max_concurrent_connections: 1 },
+        ).await.unwrap();
+        let slots = transport.connection_slots.clone();
+        let held = slots.clone().acquire_owned().await.unwrap();
+        let drain = transport.drain_handle();
+        drop(transport);
+        assert!(tokio::time::timeout(Duration::from_millis(5), drain.clone().wait()).await.is_err());
+        assert_eq!(slots.available_permits(), 0);
+        drop(held);
+        drain.wait().await.unwrap();
+        assert_eq!(slots.available_permits(), 1);
+    }
+
+    #[tokio::test]
     async fn open_lab_transport_rejects_non_loopback_bind() {
         let error = OpenLabTransport::bind(
             "0.0.0.0:1883".parse().unwrap(),
