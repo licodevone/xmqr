@@ -20,6 +20,7 @@ import time
 
 sys.dont_write_bytecode = True
 import benchmark_pressure as pressure
+from test_phase3_health import wait_healthy
 
 ROOT = Path(__file__).resolve().parents[1]
 f = pressure.f
@@ -266,6 +267,8 @@ class Laboratory:
 
 def scenario(args, binary, security, context, transport, repetition, cancelled, failures):
     samples = []
+    health_probes = []
+    health_wait_seconds = 0
     counts = dict(live_messages=0, fanout_deliveries=0, offline_batches=0, retained_restarts=0,
                   inbound_outbound_crash_pairs=0, qos1_replay_crashes=0)
     with tempfile.TemporaryDirectory(prefix='xmqr-p91-soak-', dir=args.state_root) as temporary:
@@ -301,20 +304,25 @@ def scenario(args, binary, security, context, transport, repetition, cancelled, 
                     counts['inbound_outbound_crash_pairs'] += 1
                     counts['qos1_replay_crashes'] += 1
                     last_recovery = time.monotonic() - began
+                # live/recovery have closed all peers. Cleanup commits may still be in flight.
+                observed_probes = []
+                waiting = time.monotonic()
+                try:
+                    metrics, _ = wait_healthy(lab.broker, seconds=15, probes=observed_probes)
+                finally:
+                    health_wait_seconds += time.monotonic() - waiting
+                    lab.health_diagnostic = observed_probes
+                    health_probes.extend(dict(cycle=cycles, process_generation=lab.crashes + lab.restarts,
+                                              **probe) for probe in observed_probes)
+                if len(health_probes) > 4000:
+                    raise AssertionError('health observation count exceeds finite safety budget')
                 sample = pressure.fanout.baseline.process_sample(lab.broker.process.pid)
                 elapsed = time.monotonic() - began
-                metrics = lab.broker.metrics()
-                if metrics['xmqr_ready'] != 1 or metrics['xmqr_persistence_errors_total'] != 0:
-                    initial = time.monotonic()
-                    lab.health_diagnostic = [dict(seconds=0, metrics=metrics)]
-                    for _ in range(3):
-                        time.sleep(.1)
-                        observed = lab.broker.metrics()
-                        lab.health_diagnostic.append(dict(seconds=round(time.monotonic() - initial, 3), metrics=observed))
-                    raise AssertionError('writer/actor is not healthy after load/recovery')
                 if not (metrics['xmqr_connections_active'] <= 5 and metrics['xmqr_sessions'] <= 5
                         and metrics['xmqr_offline_messages'] <= 64 and metrics['xmqr_inflight_messages'] <= 32
-                        and metrics['xmqr_retained_messages'] <= 1):
+                        and metrics['xmqr_retained_messages'] <= 1
+                        and metrics['xmqr_delivery_messages_queued'] <= 320
+                        and metrics['xmqr_router_commands_queued'] <= 256):
                     raise AssertionError('logical state exceeds declared finite budgets')
                 if sample['rss_kib'] > 262144:
                     raise AssertionError('RSS exceeds test safety budget 256MiB')
@@ -331,8 +339,32 @@ def scenario(args, binary, security, context, transport, repetition, cancelled, 
                                           seconds=round(elapsed, 3), cycles=cycles, rss_kib=sample['rss_kib'],
                                           crashes=lab.crashes, **counts)), flush=True)
                     last_progress = elapsed
+            observed_probes = []
+            waiting = time.monotonic()
+            try:
+                final, _ = wait_healthy(lab.broker, seconds=15, probes=observed_probes)
+            finally:
+                health_wait_seconds += time.monotonic() - waiting
+                lab.health_diagnostic = observed_probes
+                health_probes.extend(dict(cycle=cycles, final=True,
+                                          process_generation=lab.crashes + lab.restarts,
+                                          **probe) for probe in observed_probes)
             elapsed = time.monotonic() - began
-            final = lab.broker.metrics()
+            if elapsed > args.seconds + 45 or len(health_probes) > 4000:
+                raise TimeoutError('bounded final scenario deadline or observation budget exceeded')
+            if not (final['xmqr_connections_active'] <= 5 and final['xmqr_sessions'] <= 5
+                    and final['xmqr_offline_messages'] <= 64 and final['xmqr_inflight_messages'] <= 32
+                    and final['xmqr_retained_messages'] <= 1
+                    and final['xmqr_delivery_messages_queued'] <= 320
+                    and final['xmqr_router_commands_queued'] <= 256):
+                raise AssertionError('final logical state exceeds declared finite budgets')
+            sample = pressure.fanout.baseline.process_sample(lab.broker.process.pid)
+            disk = sum(path.stat().st_size for path in lab.broker.state.iterdir() if path.is_file())
+            if sample['rss_kib'] > 262144 or disk > 134217728:
+                raise AssertionError('final RSS or durable files exceed finite safety budgets')
+            if len(samples) < 2000:
+                samples.append(dict(seconds=round(elapsed, 3), rss_kib=sample['rss_kib'],
+                                    disk_bytes=disk, metrics=final, process_generation=lab.crashes + lab.restarts))
             generations = []
             for generation in sorted(set(item['process_generation'] for item in samples)):
                 selected = [item for item in samples if item['process_generation'] == generation]
@@ -345,9 +377,11 @@ def scenario(args, binary, security, context, transport, repetition, cancelled, 
                           **counts, crashes=lab.crashes, graceful_restarts=lab.restarts,
                           rss_initial_kib=first_rss, rss_final_kib=sample['rss_kib'],
                           rss_growth_final_kib=sample['rss_kib'] - first_rss,
-                          rss_peak_sampled_kib=max(item['rss_kib'] for item in samples),
-                          metrics_final=final, memory_process_generations=generations, samples=samples)
-            print(json.dumps({k: v for k, v in result.items() if k != 'samples'}), flush=True)
+                          rss_peak_sampled_kib=max(sample['rss_kib'], max(item['rss_kib'] for item in samples)),
+                          metrics_final=final, health_probes=health_probes,
+                          health_wait_seconds=round(health_wait_seconds, 3),
+                          memory_process_generations=generations, samples=samples)
+            print(json.dumps({k: v for k, v in result.items() if k not in ('samples', 'health_probes')}), flush=True)
             return result
         except Exception as failure:
             if not cancelled.is_set():
@@ -365,6 +399,9 @@ def scenario(args, binary, security, context, transport, repetition, cancelled, 
                                   panic_marker=b'panicked' in log)
                 if lab.health_diagnostic:
                     diagnostic['health_probes'] = lab.health_diagnostic
+                if health_probes:
+                    diagnostic['health_probes_all'] = health_probes
+                    diagnostic['health_wait_seconds'] = round(health_wait_seconds, 3)
                 try:
                     failures.put_nowait(diagnostic)
                 except queue.Full:
@@ -405,16 +442,25 @@ def main():
     report = dict(schema_version=1, label=args.label, status='RUNNING', scenarios=[],
                   kernel=platform.release(), machine=platform.machine(), python=platform.python_version(),
                   source_head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+                  source_tree_dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT)),
+                  source_file_sha256={str(path.relative_to(ROOT)).replace('\\', '/'):
+                                      hashlib.sha256(path.read_bytes()).hexdigest()
+                                      for path in sorted([ROOT / 'Cargo.toml', ROOT / 'Cargo.lock',
+                                                          *(ROOT / 'src').rglob('*.rs')])},
                   broker_binary_sha256=hashlib.sha256(args.broker.read_bytes()).hexdigest(),
                   admin_binary_sha256=hashlib.sha256(args.admin.read_bytes()).hexdigest(),
                   harness_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                   dependency_sha256={name: hashlib.sha256((ROOT / 'scripts' / name).read_bytes()).hexdigest()
                                      for name in ('benchmark_pressure.py', 'benchmark_fanout.py',
-                                                  'benchmark_baseline.py', 'verify_interop.py')},
+                                                  'benchmark_baseline.py', 'verify_interop.py',
+                                                  'test_phase3_health.py')},
                   parameters=dict(repetitions=args.repetitions, requested_seconds=args.seconds,
                                   recovery_interval_seconds=args.recovery_interval,
                                   fanout=4, batch_per_qos=args.batch, payload_bytes=1024,
-                                  rss_limit_kib=262144, durable_file_limit_bytes=134217728),
+                                  rss_limit_kib=262144, durable_file_limit_bytes=134217728,
+                                  quiescent_health_deadline_seconds=15, health_probe_limit=4000,
+                                  total_scenario_deadline_extra_seconds=45,
+                                  delivery_queue_limit=320, router_command_queue_limit=256),
                   filesystem=filesystem, filesystem_free_bytes_start=shutil.disk_usage(args.state_root).free,
                   limitations=['not a production SLA or throughput maximum', 'process crash is not power-loss',
                                '30min wall/60 process-minutes minimum; not days of stability',
@@ -428,7 +474,12 @@ def main():
             binary = root / 'mqtt-broker'
             shutil.copyfile(args.broker, binary)
             binary.chmod(0o700)  # immutable test-owned copy across restarts
-            context = pressure.fanout.security(root, args.admin)
+            admin = root / 'mqtt-admin'
+            shutil.copyfile(args.admin, admin)
+            admin.chmod(0o700)
+            report['broker_binary_sha256'] = hashlib.sha256(binary.read_bytes()).hexdigest()
+            report['admin_binary_sha256'] = hashlib.sha256(admin.read_bytes()).hexdigest()
+            context = pressure.fanout.security(root, admin)
             for repetition in range(1, args.repetitions + 1):
                 cancelled = threading.Event()
                 failures = queue.Queue(maxsize=1)

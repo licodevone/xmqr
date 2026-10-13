@@ -42,13 +42,18 @@ de retry, evitando aceitar timeout disfarçado por reconexão automática.
 `scripts/test_phase3_wire.py`:19cenários wire independentes vinculados às
 cláusulas: ClientID vazio, flags, UTF-8, IDs zero, QoS0/DUP, QoS reservado,
 filtro inválido, keepalive1s, CONNECT fragmentado e PING concatenado.
-`scripts/test_phase3_harness.py`:13testes determinísticos da contabilidade,
+`scripts/test_phase3_harness.py`:16testes determinísticos da contabilidade,
 incluindo DUP permitido emQoS1, falta lógica e duplicação proibida emQoS2,
 e preservação do primeiro erro quando outro cenário é cancelado em paralelo.
 Incluem QoS0/DUP e negativos do helper diagnóstico: nunca ready, erro persistente
-mesmo ready1 e resposta ready1 posterior ao prazo. O helper não substitui o
-oráculo strict de saúde do ensaio prolongado; três reprobes após ready0 servem
-apenas para registrar diagnóstico, não para transformar FAIL em PASS.
+mesmo ready1, resposta ready1 posterior ao prazo, processo morto antes/durante
+probe e troca de PID. P91v1.22 adotou recuperação saudável em até15s somente
+após tráfego quiescente, depois de comprovar ready0→1/.103s/zeroerrors com
+conclusão do último disconnect/commit. Mesmo processo deve estar vivo antes e
+depois de cada probe, ready1 dentro do deadline absoluto, zero erros persistentes
+em todos os probes. Todos os probes/tempos/counters são registrados (cap4000,
+exceder é FAIL), também na leitura final; tempo de espera integra a duração real
+e o deadline total solicitado+45s. As tentativas strict anteriores seguem FAIL.
 
 `scripts/test_phase3_tls_shutdown.py`:10casos de EOF TLS estrito em TLS1.2/1.3,
 com `suppress_ragged_eofs=False`:2controles DISCONNECT normal,6SIGTERM e2SIGTERM
@@ -58,6 +63,11 @@ Conferir exit0 e budget compartilhado15s (+.5s tolerância de observação).
 O relatório usa SHA da cópia privada realmente executada, não de arquivo que
 possa ter sido recompilado durante o ensaio. Certificados/estado só sintéticos.
 
+`scripts/test_phase3_tls_no_connect.py`:2casos TLS1.2/1.3, handshake completo
+validado por CA/SAN, sem enviar qualquer byte MQTT, depois SIGTERM. A conexão
+TLS estabelecida ainda não é uma sessão MQTT autenticada. Exige igualmente EOF
+limpo/exit0/prazo15.5s, cobrindo o caminho anterior ao primeiro CONNECT.
+
 ## Reprodução
 
 Executar na raiz deste broker Linux/WSL com os binários aceitos:
@@ -66,6 +76,7 @@ Executar na raiz deste broker Linux/WSL com os binários aceitos:
 python3 scripts/test_phase3_harness.py
 python3 scripts/test_phase3_wire.py --broker target/release/mqtt-broker --label candidate --report CAMINHO-NOVO/wire.json
 python3 scripts/test_phase3_tls_shutdown.py --broker target/release/mqtt-broker --admin target/release/mqtt-admin --state-root /var/tmp --label candidate --report CAMINHO-NOVO/tls-shutdown.json
+python3 scripts/test_phase3_tls_no_connect.py --broker target/release/mqtt-broker --admin target/release/mqtt-admin --state-root /var/tmp --label candidate --report CAMINHO-NOVO/tls-no-connect.json
 python3 scripts/phase3_soak.py --broker target/release/mqtt-broker --admin target/release/mqtt-admin --state-root /var/tmp --label candidate --seconds 600 --repetitions 3 --report CAMINHO-NOVO/soak.json
 ```
 
@@ -92,6 +103,13 @@ apesar do brokerexit0. Esses FAIL ficam preservados e motivaram correção P95
 no core, por outro agente. A campanha600x3 completa e a matriz87casos continuam
 pendentes no binário/imagem posteriores a essa correção; resultados antigos
 não aceitam o código corrigido.
+
+O primeiro candidato P95(69ec47dc) passou10EOF TLS e19wire, mas a revisão
+posterior demonstrou EOF truncado em2/2TLS estabelecidos sem CONNECT. Correção
+adicional pertence ao P95; todos os gates finais devem usar o próximo SHA.
+Seu soak strict também falhou268.599s e registrou o transiente de saúde citado
+acima, sem erro de persistência e com filas vazias depois da recuperação. Essa
+evidência fundamenta o contrato quiescente limitado, não uma alegação de SLA.
 
 ## Limites e fonte
 

@@ -1,4 +1,4 @@
-# P91 v1.19 — B08: campanhas limitadas de robustez e interoperabilidade
+# P91 v1.23 — B08: campanhas limitadas de robustez e interoperabilidade
 
 Preparado em 2026-10-13 antes de editar os harnesses. Pedido: finalizar fase 3,
 mantendo prompts antes do código e publicação somente após aceite coordenado.
@@ -240,3 +240,50 @@ não zero ou falha de cleanup também sejam casos FAIL sanitizados no JSON, não
 exceções sem report. Preservar causa primária e registrar cleanup separadamente;
 não permitir que cleanup FAIL mantenha status PASS. Nenhuma alteração nos
 requisitos EOF limpo, exit0, handshake ativo ou prazo15.5s.
+
+## Complemento v1.20 — TLS estabelecido sem primeiro pacote MQTT
+
+Revisão P95 encontrou caminho anterior à criação de BrokerConnection: TLS já
+estabelecido, mas nenhum byte MQTT enviado. Antes de corrigir core, criar teste
+separado `test_phase3_tls_no_connect.py`, mantendo fontes do soak em execução
+intactas. Dois casos TLS1.2/1.3 com peerSSLstrict, fixture sintética, binários
+privados imutáveis, handshake completo/nenhum CONNECT, SIGTERM, EOF limpo/exit0
+e shutdown<=15.5s. Registro sanitizado inclusive FAIL. Se demonstrado, enviar
+ao owner P95; runtime só ele altera. Uma nova versão do core exige repetir
+gates finais completos; não reutilizar30min do executável anterior como aceite.
+
+## Correção v1.21 — SAN da fixture no cenário sem CONNECT
+
+Primeira tentativa do novo teste falhou antes do handshake: usou localhost,
+mas certificado da fixture tem SAN IP127.0.0.1, como os clients existentes.
+Antes de retry, corrigir somente server_hostname para127.0.0.1, mantendo CA/SAN
+verification e SSLstrict; nunca desligar check_hostname ou validar certificado
+por exceção. A tentativa CERTIFICATE_VERIFY_FAILED não prova defeito de runtime.
+
+## Revisão v1.22 — recuperação quiescente comprovada, não SLA instantâneo
+
+Soakcandidate5 strict FAIL268.599s preservado: mTLS/liveQoS2/pingbarrier,
+ready0/active1/commits305/errors0; após.103s ready1/active0/commits306, mantém
+ready1 em.208/.314s, filas/inflight0, processo vivo. Isso demonstra conclusão
+do disconnect/commit depois de fechar clients, sem falha durável. Coordenador
+autorizou antes do fix: adotar helper15s somente depois de tráfego quiescente,
+mesmo processo/PID vivo e zeroerrors em todos probes; ready1 deve chegar dentro
+do deadline absoluto, nunca aceitar resposta tardia. Registrar TODOS os probes,
+counter/active/fila/tempo, com budget4000probes/cenário; budget excedido é FAIL.
+Tempo de espera conta na duração observada e deadline total segundos+45s.
+O helper se aplica também à leitura FINAL, que deve exigir ready1/errors0/PID
+vivo dentro do prazo; repetir quotas/RSS/arquivos duráveis após essa espera.
+Negativos determinísticos neverready, errorsEvenReady, readyAfterDeadline,
+deadProcess antes/durante probe e trocaPID; trace0→1 não é escondido.
+Sem relaxar bytes, ACKs, QoS, IDs, inflight, quotas, RSS ou arquivos duráveis.
+Não converter candidate5FAIL nem alegar SLA500ms. Só depois de binário P95
+sem-CONNECT final repetir3x600 e matriz87 completos.
+
+## Refinamento v1.23 — distinguir HEAD de fonte ainda não commitada
+
+Antes do gate congelado, incluir source_tree_dirty e SHA por arquivo Rust,
+Cargo.toml e Cargo.lock no report prolongado, além de HEAD/binary/harnessSHA.
+HEAD durante gates pode anteceder o commit coordenado; não afirmar que ele
+contém sozinho o candidato compilado. Capturar SHA da cópia privada executada
+broker/admin depois da cópia; fixture usa admin privado. Sem alterar runtime,
+critérios ou duração. Coordenador mapeará esses hashes ao commit de publicação.

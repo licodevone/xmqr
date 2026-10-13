@@ -19,13 +19,14 @@ nenhum firmwareESP32, senhaWi-Fi ou certificado privado real lido. Código MIT.
 
 ## Resultados intermediários realmente executados
 
-- `python scripts/test_phase3_harness.py`:13testes PASS, exit0, repetidos após
+- `python scripts/test_phase3_harness.py`:16testes PASS, exit0, repetidos após
   alterações do harness. Negativos de falta/bytes/QoS/retain/duplicaçãoQoS2;
   retransmissõesQoS1 legítimas não causam falsa falha. O oitavo teste forçaEOF
   primário seguido de cancelamento paralelo e comprova que diagnóstico primário
   não é substituído pela falha secundária. Posteriores negativosQoS0/DUP e saúde:
   neverready, erro persistente mesmo ready1, transiente registrado e ready1
-  posterior ao deadline rejeitado. O helper diagnóstico não é adotado pelo soak.
+  posterior ao deadline rejeitado, processo morto antes/durante probe e troca de
+  PID. O helper foi adotado somente após a prova real e autorização P91v1.22.
 - Smoke nativebaseline0.11.5,8s/TCP+mTLS:primeiroFAIL na rotina offlineQoS2.
   Diagnóstico revelou pressuposto inválido de PUBREL imediatamente depois de
   cada PUBREC quando outros PUBLISH do lote estavam enfileirados. P91v1.2
@@ -106,6 +107,51 @@ P91v1.18 captura SHA do executável privado/harness antes do ensaio para impedir
 proveniência falsa se target/release for recompilado depois. GateTLS10, wire19,
 soak600x3 e matriz87 serão repetidos no SHA/imagem finais P95. Não há aceite
 parcial ou conversão dos FAIL anteriores em PASS.
+
+## Checkpoint P95: gates curtos GREEN, prolongado em execução
+
+Runtime P95 congelado informado pelo owner: brokerSHA
+`69ec47dcd3c74af8f2396b31e0c3e4ad58851b44391894ec6434cd101ca16cf4`,
+adminSHA`f40ecbb5e1641565bbf6ec2cb0e14a7d58973709270bc89c64070ae32b6f9083`.
+P91v1.19 antes de ajustar o harness TLS para sempre registrar FAIL sanitizado
+também quando shutdown/timeout/cleanup falham, mantendo causa primária.
+
+- `p91-tls-eof-candidate-1.json`:10/10PASS. NormalSIGTERM.032s; com socket
+  incompleto ativo3.023s(TLS1.2)/3.037s(TLS1.3), EOF limpo e exit0. HarnessSHA
+  `da878f079c8824165e48e087da59dbd05d0c43d7b8982cb207fb006af5716538`;
+  cenário TLS estrito corrigido no core P95, não por tolerar raggedEOF.
+- `p91-wire-candidate-2.json`:19/19PASS, keepalive1.503s; harnessSHA
+  `98fb06b4013df0d4b808eb78baf9aeeb73193cc461f412817b36ddce310774fd`.
+- Harness13/13PASS novamente após gates; parseAST dos6scripts PASS.
+- `p91-soak-candidate-5.json` em execução600x3 strict, fontes harness congeladas.
+  Matriz87 aguardando imagem P95 reconstruída. B08 ainda não aceito neste ponto.
+
+## Revisão adicional e nova fronteira saudável
+
+- Soakcandidate5 encerrouFAIL268.599s: mTLS/liveQoS2/pingbarrier sequence3432,
+  processo vivo, errors0 e espaço disponível. Os reprobes registram ready0 /
+  active1 / commits305, seguido de ready1 / active0 / commits306 em.103s,
+  pronto novamente em.208/.314s, filas e inflight0. Evidência real da conclusão
+  do último disconnect/commit após fechar clients. Report FAIL não reescrito.
+- Novo `test_phase3_tls_no_connect.py` após P91v1.20: primeira tentativa
+  FAILCERTIFICATE_VERIFY_FAILED antes do handshake, pois hostname localhost
+  não corresponde ao SAN IP da fixture; não prova defeito. P91v1.21 corrige
+  apenas hostname127.0.0.1, mantendo CA/SAN e SSLstrict.
+- `p91-tls-no-connect-baseline-2.json`:2/2FAIL no69ec47dc. Handshake completo
+  TLS1.2/1.3 e zero bytes MQTT, SIGTERMexit0/3.037–3.026s, mas SSLEOFError /
+  UNEXPECTED_EOF_WHILE_READING. Report/harnessSHA
+  `437c66614807fbfc321ee508df3796f12d0ffa513d7664c9c26516c8ee4c21b7`.
+  Prova enviada ao P95; core somente esse agente. Próximo SHA precisa repetir
+  TLS12/wire19/soak600x3/matriz87; os10PASS anteriores não aceitam esse caminho.
+- P91v1.22 preparado antes de adotar helper no soak, com autorização do
+  coordenador baseada no transiente comprovado. Deadline absoluto15s somente
+  pós-quiescência, mesmo processo/PID vivo antes/depois, errors0 sempre, ready1
+  dentro prazo; nunca aceitar resposta tardia nem processo morto. Registra todos
+  probes/counters/tempos, cap4000 FAIL, inclui espera no tempo real/total+45s.
+  Aplica também FINAL e revalida quotas/RSS/arquivos/filas após espera.
+- Unit16/16PASS: neverready, errorsEvenReady, readyAfterDeadline, deadProcess
+  antes/durante probe, trocaPID e transiente0→1, além da contabilidadeQoS.
+  Nenhum prazo de ACK, bytes/QoS/IDs ou orçamento durável foi relaxado.
 
 Reports intermediários ficam em`../.artifacts/p91-*.json` fora deste Git;
 somente reports finais sanitizados serão anexados/versionados pelo coordenador.

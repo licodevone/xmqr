@@ -14,16 +14,23 @@ sys.dont_write_bytecode = True
 import benchmark_pressure as pressure
 
 
-def wait_healthy(broker, seconds=15, interval=.05):
+def wait_healthy(broker, seconds=15, interval=.05, probes=None):
     deadline = time.monotonic() + seconds
     began = time.monotonic()
-    probes = []
+    probes = [] if probes is None else probes
+    process = broker.process
+    pid = process.pid
     while time.monotonic() < deadline:
+        if broker.process is not process or broker.process.pid != pid or process.poll() is not None:
+            raise AssertionError('broker process died or changed during quiescent recovery')
         values = broker.metrics()
         elapsed = time.monotonic() - began
-        probes.append(dict(seconds=round(elapsed, 3), metrics=values))
+        alive = broker.process is process and broker.process.pid == pid and process.poll() is None
+        probes.append(dict(seconds=round(elapsed, 3), pid=pid, process_alive=alive, metrics=values))
         if values['xmqr_persistence_errors_total'] != 0:
             raise AssertionError('persistence errors are never accepted as transient readiness')
+        if not alive:
+            raise AssertionError('broker process died or changed during quiescent recovery')
         if values['xmqr_ready'] == 1 and time.monotonic() <= deadline:
             return values, probes
         time.sleep(min(interval, max(0, deadline - time.monotonic())))

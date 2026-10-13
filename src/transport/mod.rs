@@ -561,34 +561,44 @@ async fn establish_secure_connection(
         .map_err(|_| ClientError::HandshakeTimeout)?
         .map_err(ClientError::Handshake)?;
 
-    let peer_certificates = stream
-        .get_ref()
-        .1
-        .peer_certificates()
-        .filter(|certificates| !certificates.is_empty())
-        .ok_or(ClientError::MissingPeerCertificate)?
-        .to_vec();
+    let prepared = async {
+        let peer_certificates = stream
+            .get_ref()
+            .1
+            .peer_certificates()
+            .filter(|certificates| !certificates.is_empty())
+            .ok_or(ClientError::MissingPeerCertificate)?
+            .to_vec();
 
-    // The 4 KiB cap applies to decrypted MQTT bytes, not to the TLS handshake;
-    // certificate chains can legitimately make the handshake larger than 4 KiB.
-    let mut initial_buffer = [0_u8; MAX_INITIAL_MQTT_BYTES];
-    let mut limited_reader = (&mut stream).take(MAX_INITIAL_MQTT_READ_LIMIT);
-    let bytes_read = timeout(INITIAL_IO_TIMEOUT, limited_reader.read(&mut initial_buffer))
-        .await
-        .map_err(|_| ClientError::InitialReadTimeout)?
-        .map_err(ClientError::InitialRead)?;
-
-    if bytes_read == 0 {
-        return Err(ClientError::ClosedBeforeMqtt);
+        // Cap decrypted MQTT bytes, not the potentially larger TLS handshake.
+        let mut initial_buffer = [0_u8; MAX_INITIAL_MQTT_BYTES];
+        let mut limited_reader = (&mut stream).take(MAX_INITIAL_MQTT_READ_LIMIT);
+        let bytes_read = timeout(INITIAL_IO_TIMEOUT, limited_reader.read(&mut initial_buffer))
+            .await
+            .map_err(|_| ClientError::InitialReadTimeout)?
+            .map_err(ClientError::InitialRead)?;
+        if bytes_read == 0 {
+            return Err(ClientError::ClosedBeforeMqtt);
+        }
+        Ok((peer_certificates, initial_buffer[..bytes_read].to_vec()))
     }
-    drop(limited_reader);
+    .await;
+    let (peer_certificates, initial_mqtt_bytes) = match prepared {
+        Ok(initial) => initial,
+        Err(error) => {
+            // TLS is already established even if no MQTT bytes ever arrived.
+            // Attempt close_notify within the existing bound; retain setup error.
+            let _ = shutdown_with_deadline(&mut stream, SHUTDOWN_TIMEOUT).await;
+            return Err(error);
+        }
+    };
 
     info!(id, %peer_addr, "mutually authenticated MQTT transport established");
     Ok(BrokerConnection {
         id,
         peer_addr,
         peer_certificates,
-        initial_mqtt_bytes: initial_buffer[..bytes_read].to_vec(),
+        initial_mqtt_bytes,
         stream: ConnectionStream::Mtls(Box::new(stream)),
     })
 }

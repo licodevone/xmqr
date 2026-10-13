@@ -92,6 +92,7 @@ class HarnessContracts(unittest.TestCase):
 
     def test_health_deadline_rejects_never_ready(self):
         class Broker:
+            process = SimpleNamespace(pid=1, poll=lambda: None)
             def metrics(self):
                 return dict(xmqr_ready=0, xmqr_persistence_errors_total=0)
         with self.assertRaises(TimeoutError):
@@ -99,6 +100,7 @@ class HarnessContracts(unittest.TestCase):
 
     def test_health_never_accepts_persistence_error_even_if_ready(self):
         class Broker:
+            process = SimpleNamespace(pid=1, poll=lambda: None)
             def metrics(self):
                 return dict(xmqr_ready=1, xmqr_persistence_errors_total=1)
         with self.assertRaisesRegex(AssertionError, 'never accepted'):
@@ -106,6 +108,7 @@ class HarnessContracts(unittest.TestCase):
 
     def test_health_bounded_transient_is_recorded_not_hidden(self):
         class Broker:
+            process = SimpleNamespace(pid=1, poll=lambda: None)
             calls = 0
             def metrics(self):
                 self.calls += 1
@@ -116,11 +119,38 @@ class HarnessContracts(unittest.TestCase):
 
     def test_health_ready_response_after_deadline_is_rejected(self):
         class Broker:
+            process = SimpleNamespace(pid=1, poll=lambda: None)
             def metrics(self):
                 return dict(xmqr_ready=1, xmqr_persistence_errors_total=0)
         with patch('test_phase3_health.time.monotonic', side_effect=[0, 0, 0, 2, 2, 2, 2]):
             with self.assertRaises(TimeoutError):
                 wait_healthy(Broker(), seconds=1, interval=0)
+
+    def test_health_dead_process_is_never_treated_as_ready(self):
+        class Broker:
+            process = SimpleNamespace(pid=1, poll=lambda: 1)
+            def metrics(self):
+                return dict(xmqr_ready=1, xmqr_persistence_errors_total=0)
+        with self.assertRaisesRegex(AssertionError, 'process died'):
+            wait_healthy(Broker(), seconds=.1)
+
+    def test_health_process_death_during_probe_rejects_ready_response(self):
+        outcomes = iter([None, 1])
+        class Broker:
+            process = SimpleNamespace(pid=1, poll=lambda: next(outcomes))
+            def metrics(self):
+                return dict(xmqr_ready=1, xmqr_persistence_errors_total=0)
+        with self.assertRaisesRegex(AssertionError, 'process died'):
+            wait_healthy(Broker(), seconds=.1)
+
+    def test_health_replaced_pid_rejects_ready_response(self):
+        class Broker:
+            process = SimpleNamespace(pid=1, poll=lambda: None)
+            def metrics(self):
+                self.process = SimpleNamespace(pid=2, poll=lambda: None)
+                return dict(xmqr_ready=1, xmqr_persistence_errors_total=0)
+        with self.assertRaisesRegex(AssertionError, 'process died or changed'):
+            wait_healthy(Broker(), seconds=.1)
 
 
 if __name__ == '__main__':

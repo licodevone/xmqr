@@ -1,4 +1,4 @@
-# P95 v1.3 — encerramento TLS e espera das conexões no SIGTERM
+# P95 v1.4 — encerramento TLS e espera das conexões no SIGTERM
 
 13 de outubro de 2026, antes de reprodução/correção. P91 matriz candidata:
 59 casos C43 PASS, extensão FAIL no SIGTERM do XMQR com mosquitto_sub,
@@ -76,3 +76,35 @@ e FAIL conforme a borda: retornou "broker shutdown timed out", esperado
 timeout_at conformev1.2; reforçar teste de deadline com dois períodos que,
 individualmente, caberiam no budget mas conjuntamente não cabem. Sem sleeps
 arbitrários em runtime ou novo prazo apósactor.
+
+## Revisão v1.4 — prova de TLS completo sem bytes MQTT
+
+Revisão independente identificou retorno antes de BrokerConnection em
+establish_secure_connection: TLS já estabelecido, mas timeout/EOF/erro na
+primeira leitura MQTT impede o wrapper de fechar TLS. Prova antes de fix em
+`.artifacts/p91-tls-no-connect-baseline-2.json` da pasta agrupadora:
+broker SHA69ec47dcd3c74af8f2396b31e0c3e4ad58851b44391894ec6434cd101ca16cf4,
+TLS1.2 e TLS1.3 negociados, zero bytes MQTT enviados, SIGTERM exit0 após
+3.037/3.026s, 2/2FAIL SSLEOFError/UNEXPECTED_EOF_WHILE_READING. CA/SAN
+continuaram verificados; primeira fixture de hostname incorreto permanece
+registrada como falha de fixture, não como evidência do defeito.
+
+Antes da mutação: agrupar somente a preparação após handshake bem-sucedido
+em resultado próprio. Em erro de certificado ausente ou leitura inicial
+(timeout/I/O/EOF), tentar shutdown_with_deadline no TlsStream estabelecido
+antes de propagar o erro original. Prazo de fechamento existente3s, admission
+permit mantido até concluir o fechamento, mesmo prazo global15s já adotado.
+Não prometer close_notify se o próprio handshake falhar, nem ignorar erro
+de handshake ou transformar erro de preparação em sucesso MQTT. Sem alterar
+CA/SAN/mTLS, leitura inicial4096, quotas, formato, dependências ou perfis.
+
+Fundamento: [RFC8446 seção6.1](https://www.rfc-editor.org/rfc/rfc8446.html#section-6.1)
+exige notificação de fechamento antes de encerrar escrita salvo alerta de
+erro já enviado; falta de mensagem MQTT após TLS completo não é, por si,
+alerta fatal TLS. Parafraseado, sem copiar implementação de terceiros.
+
+Gate: repetir negativos independentes com handshake completo sem CONNECT
+nas duas versões, além dos10 casos de conexão ativa/handshake parcial e
+19wire/P91soak3x600s. Resultados anteriores do SHA69ec47dc são intermediários,
+não aceites de novo ELF. fmt/test/clippy/release/inventory e B06/P90/P80
+novamente na fonte final congelada. Falhas anteriores ficam preservadas.
