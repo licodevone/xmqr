@@ -1,7 +1,7 @@
 # Plano de paridade funcional do XMQR com Mosquitto
 
 Atualizado em 2026-10-13. Broker/admin0.11.5 corrige recuperação porP86;
-distribuição governada porP87, client0.8.1 mantido. O planejamento está completo como backlog
+publicado porP87 com .deb/Docker, client0.8.1 mantido. O planejamento está completo como backlog
 executável; as funcionalidades pendentes não estão implementadas por isso.
 O propósito é evoluir um broker MQTT e seus utilitários com contratos próprios,
 não reproduzir cada detalhe interno, arquivo ou opção de todas as versões Mosquitto.

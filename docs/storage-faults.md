@@ -70,3 +70,8 @@ todos os filesystems, MSRV1.88 exato ou brokerWindows nativo.
 Fuzzing/B07, ensaios prolongados, matrizB08 e melhoriasC07 continuam pendentes.
 Gates e falhas intermediárias reais estão no [registroP86](../prompts/registros/P86-falhas-disco.md).
 Distribuição do commit aceito é tarefa [P87](../prompts/broker/87-release-0.11.5.md).
+
+Distribuição concluída: [v0.11.5](https://github.com/licodevone/xmqr/releases/tag/v0.11.5),
+com18anexos cujo tamanho/SHA256 remoto foi conferido, .debUbuntu26amd64 e
+Hubbroker/admin0.11.5. [Registro de publicação](../prompts/registros/P87-release-0.11.5.md).
+[Resumo verificável emJSON](results/p87-aceite-publicacao-2026-10-13.json).

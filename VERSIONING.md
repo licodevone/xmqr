@@ -9,6 +9,10 @@ mantido; formatos e dependências preservados. P87 governa commit exato,
 tag/prerelease/.deb e Hubbroker/admin0.11.5 após gates, sem latest/overwrite.
 Esse marco B06 não encerra a fase3 nem equivale a homologação de produção.
 
+PublicaçãoP87 concluída: tagv0.11.5 no commit3606ede844210997fa733408855099535145ac48,
+prerelease, .debUbuntu26amd64 e duas imagensHub numéricas com digests remotos
+conferidos. Client0.8.1/tags antigas/latest não alterados. Ver registroP87.
+
 ## P80/C43 — correção0.11.4 e evidência fase2
 
 Broker/admin0.11.4 limita shutdownTLS demonstrado por não leitor.
