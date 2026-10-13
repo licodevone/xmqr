@@ -11,6 +11,12 @@ na placa; backup e credenciais são privados, serviços de teste removidos.
 Veja [registroP81](../prompts/registros/P81-esp32-e01.md) e
 [fixture Rust/ESP-IDF](../validation/esp32-e01/README.md).
 
+RetomadaP82:40testes do coletor/guards PASS e observação real monitor-only na
+COM4 confirmou novamente boot/WIFI_TARGET_NOT_FOUND_24GHZ/STOP. Nenhuma nova
+gravação; firmware/NVS/backup preservados. Evidência restrita/sanitizada,
+limites e veto a resultados contraditórios implementados. Isso não conclui
+SNTP/MQTT nem substitui os gates abaixo. [RegistroP82](../prompts/registros/P82-e01-coleta.md).
+
 ESP32 é consumidor, não alvo do broker. Não alterar firewall, Wi-Fi,
 serviços instalados ou certificados reais por este guia. Conferir chip,
 pinagem/LED da placa; não presumirGPIO2 universal.

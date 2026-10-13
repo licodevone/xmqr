@@ -1,6 +1,6 @@
 # Fase 2 — aceite separado por componente
 
-Atualizado2026-10-13, P80/C43/P81. Broker/admin0.11.4 publicado,
+Atualizado2026-10-13, P80/C43/P81/P82. Broker/admin0.11.4 publicado,
 clientruntime0.8.1. **Software validado; fase2 global PARTIAL/BLOCKED por E01.**
 Não avançar fase3 ou riscar ESP32 sem evidência física.
 
@@ -17,6 +17,7 @@ Não avançar fase3 ou riscar ESP32 sem evidência física.
 | Client | Regressões de runtime | PASS54testesRust; sem mudança de CLI/versão |
 | Todos/software | Método, RAM/CPU/p50/p95/p99, limitações | P80 e JSON sanitizado |
 | ESP32 DevKitV1 | COM4/chip/backup/firmware/boot reais | PASS parcial P81; firmware diagnóstico na placa |
+| ESP32/host | Coleta restrita, tetos, ordem, veto a FAIL e relatórios preservados | PASS P82,40testes; não comprova MQTT físico |
 | ESP32 DevKitV1 | Wi-Fi/SNTP/mTLS/pubsub/reconexão em placa | BLOCKED: alvo Wi-Fi não encontrado em2,4GHz; MQTT físico NOT_RUN |
 
 [CapacidadeP80](performance-pressure.md) · [Dados](results/p80-pressure-2026-10-13.json) ·
@@ -40,3 +41,9 @@ de licenças PASS. Pré-check host mTLS PASS; não equivale a MQTT na placa.
 Rede configurada ausente no scan ESP32 e na consulta Windows; não alterar
 roteador/firewall nem tentar outra rede automaticamente. Evidência em
 [P81](../prompts/registros/P81-esp32-e01.md). Sem avanço para fase3 ou nova tag.
+
+P82 repetiu observação serial sem gravar firmware ou iniciar containers.
+O alvo Wi-Fi continuou ausente; MQTT físico NOT_RUN. Códigos de erro e parser
+fechado não substituem observador wire independente, heap ou demais cenáriosE01.
+As versões/releases/pacotes permanecem0.11.4/0.8.1; não há novo binário a publicar.
+[RegistroP82](../prompts/registros/P82-e01-coleta.md).

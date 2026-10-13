@@ -6,14 +6,15 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
-import re
 import socket
 import ssl
 import subprocess
 import sys
 import time
+import uuid
 
 import serial
+from evidence import collect
 
 REPO = Path(__file__).resolve().parents[2]
 BROKER_IMAGE = "lepinheiro100/xmqr-broker:0.11.4@sha256:379439bd82f03c6c237d1e1f2f9a452e20fa62e24538200b97a06af6dae394bd"
@@ -48,8 +49,69 @@ def source_digest():
     return digest.hexdigest()
 
 
+def save_report(root, report):
+    name = f"e01-result-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex}.json"
+    with (root / name).open("x", encoding="utf-8") as output:
+        json.dump(report, output, indent=2)
+    return name
+
+
+def finish_lab(root, report, container_created, volume_created):
+    errors = []
+    operations = []
+    if container_created:
+        operations.extend([
+            ("CONTAINER_STOP", ["docker", "stop", "--time", "10", NAME], 25),
+            ("CONTAINER_REMOVE", ["docker", "rm", NAME], 60),
+        ])
+    if volume_created:
+        operations.append(("VOLUME_REMOVE", ["docker", "volume", "rm", VOLUME], 60))
+    for code, arguments, timeout in operations:
+        try:
+            command(arguments, timeout=timeout)
+        except Exception:
+            errors.append(code)
+    report["cleanup_errors"] = errors
+    if errors:
+        report["result"] = "FAIL_CLEANUP"
+    save_report(root, report)
+    if errors:
+        raise RuntimeError("test-owned cleanup incomplete")
+
+
+def monitor(args):
+    root = args.private_dir.resolve(strict=True)
+    if root.is_relative_to(REPO):
+        raise ValueError("private directory must stay outside Git")
+    report = dict(schema=2, prompt="P82", mode="monitor-only", port=args.serial_port,
+                  source_sha256=None, firmware_identity_verified=False, flashed=False,
+                  started_utc=datetime.now(timezone.utc).isoformat(), phase2_closed=False)
+    try:
+        with serial.Serial(args.serial_port, 115200, timeout=.2) as uart:
+            uart.reset_input_buffer()
+            uart.dtr = False
+            uart.rts = True
+            time.sleep(.1)
+            uart.rts = False
+            transcript = collect(uart, seconds=args.seconds,
+                                 emit=lambda line: print(line, flush=True))
+        report.update(transcript.summary())
+        if report["result"] == "PASS_INITIAL_SLICE":
+            # Console text alone cannot attest an already-installed firmware.
+            report["result"] = "OBSERVED_MARKERS_ONLY"
+        return report
+    except Exception:
+        report["result"] = "FAIL_MONITOR_OPERATION"
+        raise
+    finally:
+        report["ended_utc"] = datetime.now(timezone.utc).isoformat()
+        save_report(root, report)
+
+
 def exercise(args):
     root = args.private_dir.resolve(strict=True)
+    if args.backup_dir is None:
+        raise ValueError("backup directory required outside monitor-only mode")
     backup_dir = args.backup_dir.resolve(strict=True)
     if root.is_relative_to(REPO) or backup_dir.is_relative_to(REPO):
         raise ValueError("private directories must stay outside Git")
@@ -71,7 +133,7 @@ def exercise(args):
         if exists.returncode == 0:
             raise ValueError("refusing existing lab resource")
     certs = root / "certs"
-    report = {"schema": 1, "prompt": "P81", "started_utc": datetime.now(timezone.utc).isoformat(),
+    report = {"schema": 2, "prompt": "P82", "started_utc": datetime.now(timezone.utc).isoformat(),
               "broker": "0.11.4", "fixture": "0.1.0", "port": args.serial_port,
               "source_sha256": source_digest(), "backup_sha256": backup_sha,
               "backup_bytes": 4194304, "markers": [], "phase2_closed": False,
@@ -141,38 +203,28 @@ def exercise(args):
             uart.rts = True
             time.sleep(.1)
             uart.rts = False
-            until = time.monotonic() + 180
-            while time.monotonic() < until:
-                line = uart.readline(512).decode("ascii", errors="ignore").strip()
-                if re.fullmatch(r"E01_[A-Z_]+(?: [A-Za-z0-9_= .-]+)?", line):
-                    report["markers"].append(line)
-                    print(line, flush=True)
-                    if line == "E01_STOP":
-                        break
-        required = ["E01_WIFI_UP", "E01_SNTP_SYNC", "E01_MTLS_CONNECTED",
-                    *(f"E01_LOOPBACK_PASS qos={q} bytes=1024" for q in range(3)),
-                    "E01_INITIAL_SLICE_PASS", "E01_STOP"]
-        report["result"] = "PASS_INITIAL_SLICE" if all(x in report["markers"] for x in required) else "FAIL_INITIAL_SLICE"
+            transcript = collect(uart, seconds=args.seconds,
+                                 emit=lambda line: print(line, flush=True))
+        report.update(transcript.summary())
         return report
     finally:
         report["ended_utc"] = datetime.now(timezone.utc).isoformat()
-        (root / "initial-result.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-        if container_created:
-            command(["docker", "stop", "--time", "10", NAME], timeout=25)
-            command(["docker", "rm", NAME])
-        if volume_created:
-            command(["docker", "volume", "rm", VOLUME])
+        finish_lab(root, report, container_created, volume_created)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--private-dir", type=Path, required=True)
-    parser.add_argument("--backup-dir", type=Path, required=True)
+    parser.add_argument("--backup-dir", type=Path)
     parser.add_argument("--serial-port", default="COM4")
     parser.add_argument("--flash", action="store_true", help="explicitly replace the backed-up firmware")
+    parser.add_argument("--monitor-only", action="store_true", help="observe existing firmware; no Docker or flash")
+    parser.add_argument("--seconds", type=int, choices=range(1, 181), default=180)
     args = parser.parse_args()
+    if args.monitor_only and args.flash:
+        parser.error("monitor-only and flash are mutually exclusive")
     try:
-        result = exercise(args)
+        result = monitor(args) if args.monitor_only else exercise(args)
         print("E01_RESULT " + result["result"], flush=True)
         sys.exit(0 if result["result"] in ("PASS_INITIAL_SLICE", "HOST_PRECHECK_ONLY") else 1)
     except Exception:

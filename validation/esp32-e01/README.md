@@ -4,7 +4,11 @@ Pacote Rust independente, código próprio MIT. Não faz parte do crate do broke
 não instala XMQR na placa e não substitui o aplicativo consumidor mqtt-broker.
 Alvo observado: ESP32 DevKitV1/ESP32-D0WD-V3/4MiB/COM4.
 
-Resultado2026-10-13: build/fmt/Clippy, inventário e8testes dos guards PASS;
+P82/2026-10-13: coletor fechado e40testes do host PASS; monitor-only real
+confirmou boot/erro de alvo Wi-Fi2,4GHz ausente/STOP, sem nova gravação.
+MQTT físico continua NOT_RUN. [RegistroP82](../../prompts/registros/P82-e01-coleta.md).
+
+CheckpointP81: build/fmt/Clippy, inventário e8testes dos guards PASS;
 duas leituras do backup iguais; duas gravações verificadas e boots reais.
 Wi-Fi falhou: scan do alvo em2,4GHz não o encontrou. Windows também não
 apresentou correspondência. SNTP/MQTT da placa NOT_RUN; senha não avaliada.
@@ -49,6 +53,35 @@ bootloader/tabela reais do SDK e verificação da gravação. Não apaga NVS;
 o firmware não inicializa NVS/calibração persistente. Container/volume de teste
 são removidos no fim; firmware diagnóstico fica na placa. Não há broker
 permanente ativo depois do runner. Não execute --flash por mera leitura.
+
+## Observar sem regravar — P82
+
+Execute no ambiente Python existente com pyserial:
+
+```text
+python run_initial.py --private-dir DIRETORIO_PRIVADO --serial-port COM4 --monitor-only --seconds 40
+```
+
+Esse modo abre a serial e faz reset normal para observar o firmware existente;
+não grava flash, cria Docker, gera credenciais ou altera rede/firewall.
+`--monitor-only` e `--flash` são mutuamente exclusivos. Confirme o alvo antes
+de executar; reset pode interromper um aplicativo em uso.
+
+Somente formatos conhecidos podem ser exibidos/guardados. ASCII estrito,
+newline completo e ordem de milestones são obrigatórios. Erro, reboot,
+duplicata de milestone, timeout ou limite excedido impedem aprovação. Tetos:
+512bytes/linha,64KiB lidos,128markers, prazo1..180s e cauda pós-STOP até1s,
+sempre dentro do prazo global. Linhas desconhecidas não são copiadas para logs.
+
+Relatórios schema2 são salvos em novos `e01-result-DATA-UUID.json` privados,
+sem sobrescrever `initial-result.json` ou relatóriosP81. Erro de gravação do
+relatório não impede tentativas de limpeza dos recursos de laboratório criados
+pelo runner; falha de cleanup é FAIL_CLEANUP, com códigos fixos, sem stderr bruto.
+
+Mesmo uma sequência aparentemente positiva no monitor-only resulta em
+OBSERVED_MARKERS_ONLY, não PASS: console não atesta identidade/fonte do firmware
+instalado nem wire MQTT. Testes sintéticos do coletor não são MQTT físico.
+O modo --flash preserva os requisitos de backup e apenas usa o novo coletor.
 
 Os certificados temporários duram5dias; regenere em nova pasta para repetir.
 ELF/bin/target e `firmware-config.json` contêm senha/chave: não publicar, mesmo
