@@ -243,6 +243,8 @@ class Campaign(c43.Campaign):
                     time.sleep(4.3)  # exceeds --timeout-seconds3, bounded actual wait
                     if self.state(subscriber)['Status'] != 'running':
                         raise AssertionError('idle subscriber incorrectly expired protocol timeout')
+                    if sub_kind == 'xmqr' and b'Reconexao' in fixture.logs(subscriber):
+                        raise AssertionError('idle protocol deadline was hidden by subscriber retry')
                     if self.job(server, volume, pub_kind, 'pub', 1).returncode:
                         raise AssertionError('idle resume publication failed')
                     (c43.validate_xmqr if sub_kind == 'xmqr' else c43.validate_mosquitto)(self.finished(subscriber), 1)

@@ -1,4 +1,4 @@
-# P92 v1.2 — gates finais e distribuição fase3
+# P92 v1.3 — gates finais e distribuição fase3
 
 Preparado 2026-10-13 antes de versões/embalagem. P89 exige B06+B07+B08+C07
 com evidência real. Broker patch0.11.6: recusas CONNECT corrigidas por P93,
@@ -56,3 +56,16 @@ não são relicenciados; rumqttc conserva Apache2.0. Novo commit distribuição,
 mesmo runtime0.9.0 ainda sem tag/release, clone exato atualizado e gate rerun.
 OwnMIT EOL CRLF/LF é Gitcheckout: QA compara termos/copyright canônicos e
 registra hashesraw; terceiros permanecem byte estrito, valuable -text preservado.
+
+## Revisão1.3 — ambiente ENOSPC antes de remediação própria
+
+Diagnóstico P91/C46 confirmou /tmp tmpfs3.9GiB100%/0livre; cacheCargo privado
+copiado em/tmp encheu memória/filesystem, jobsRPCintermitentes e build falhou
+ENOSPC. P91 teve2campanhasFAIL(795s/136s), não30minPASS; /var/tmp ext4/dev/sdf
+tem946GiBlivres. Nenhuma modificação runtime por esse diagnóstico. Validar
+PIDs/args e paths absolutos APENAS jobs/cacheC46 próprios antes de encerrar/
+mover cache para destino próprio/var/tmp (recuperável, Linuxshell único).
+Não apagar/tmp ou dados/serviços alheios nem reiniciar WSL/Docker. Todo novo
+cache/estado durável/teste deve usar /var/tmp nativo, TMPDIR=/var/tmp e budgets;
+gate sourceexato com -j1 evita competição desnecessária. ReexecutarP91>=3x600s
+inteiros; repetirP80/B06/P90 no filesystemfinal e preservarfalhas anteriores.

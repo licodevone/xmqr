@@ -10,7 +10,9 @@ imutável do broker, estado em filesystem Linux privado e monitor loopback.
 Três repetições de >=600s; TCP e mTLS simultâneos em instâncias distintas dentro
 de cada repetição. Mínimo 30 minutos de parede e 60 processo-minutos, não dias.
 Fan-out4, QoS0/1/2, payload1024 com sequência/hash, sessões offline, retained,
-SIGTERM/restart, SIGKILL após PUBREC inbound e após PUBREL outbound. O tráfego
+SIGTERM/restart, SIGKILL após PUBREC inbound e após PUBREL outbound.
+OutboundQoS1 também interrompe antes de PUBACK e exige mesmoID/bytes/DUP ao
+reconectar, sem confundir duas observações com duas mensagens lógicas. O tráfego
 é contínuo entre conjuntos de recuperação separados por120s. Cada conjunto
 de entregas verifica sequência, bytes, QoS, identificadores e flags; QoS2 offline
 em lote admite múltiplos PUBLISH antes de PUBREL, conforme protocolo.
@@ -32,12 +34,17 @@ exatamente uma entrega. Mosquitto tem contrato de persistence diferente:
 retained-crash espera autosave explícito, não interpreta PUBACK como fsync.
 Containers/volumes com nonce, nonroot, filesystem readonly, caps-none,
 namespace loopback compartilhado e nenhuma porta publicada no host.
+Na extensão, namespaceholder independente permanece ativo durante restart de
+broker; compara namespaceantes/depois. O-W40doMosquitto é lifetime total
+somente da extensão; C43mantém-W8. O gateidle do XMQR também proíbe marcador
+de retry, evitando aceitar timeout disfarçado por reconexão automática.
 
 `scripts/test_phase3_wire.py`:19cenários wire independentes vinculados às
 cláusulas: ClientID vazio, flags, UTF-8, IDs zero, QoS0/DUP, QoS reservado,
 filtro inválido, keepalive1s, CONNECT fragmentado e PING concatenado.
-`scripts/test_phase3_harness.py`:7negativos determinísticos da contabilidade,
-incluindo DUP permitido emQoS1, falta lógica e duplicação proibida emQoS2.
+`scripts/test_phase3_harness.py`:8negativos determinísticos da contabilidade,
+incluindo DUP permitido emQoS1, falta lógica e duplicação proibida emQoS2,
+e preservação do primeiro erro quando outro cenário é cancelado em paralelo.
 
 ## Reprodução
 
@@ -46,7 +53,7 @@ Executar na raiz deste broker Linux/WSL com os binários aceitos:
 ```text
 python3 scripts/test_phase3_harness.py
 python3 scripts/test_phase3_wire.py --broker target/release/mqtt-broker --label candidate --report CAMINHO-NOVO/wire.json
-python3 scripts/phase3_soak.py --broker target/release/mqtt-broker --admin target/release/mqtt-admin --label candidate --seconds 600 --repetitions 3 --report CAMINHO-NOVO/soak.json
+python3 scripts/phase3_soak.py --broker target/release/mqtt-broker --admin target/release/mqtt-admin --state-root /var/tmp --label candidate --seconds 600 --repetitions 3 --report CAMINHO-NOVO/soak.json
 ```
 
 O teste externo usa Docker Desktop CLI no Windows e OpenSSL disponível:
@@ -59,6 +66,9 @@ O hash é da senha pública `fixture-pass`, nunca de credencial real. Os
 certificados/chaves/credenciais/estado temporários não são anexos de release.
 Reports exclusivos incluem SHA256, tempos, cenários, status e cleanup. Baseline
 da versão anterior é identificada como baseline, não aceita código futuro.
+O state-root deve ser Linux disk-backed, não tmpfs/DrvFS, com>=512MiB livres.
+Nesta sessão `/tmp` estava tmpfs100% e abortou ensaios; usar `/var/tmp`ext4
+comprovado. Nenhum arquivo de outros processos foi apagado para liberar espaço.
 
 ## Limites e fonte
 

@@ -1,4 +1,4 @@
-# P91 v1.11 — B08: campanhas limitadas de robustez e interoperabilidade
+# P91 v1.13 — B08: campanhas limitadas de robustez e interoperabilidade
 
 Preparado em 2026-10-13 antes de editar os harnesses. Pedido: finalizar fase 3,
 mantendo prompts antes do código e publicação somente após aceite coordenado.
@@ -154,3 +154,23 @@ do cleanup. Antes de retry, registrar primeira falha em fila atômica antes do
 cancelamento, com etapa/operação/sequence e tipo sanitizados; manter resultados
 parciais. Não mudar timeout/asserções nem declarar causa ou30minaceitos. Depois
 reexecutar todas3repetições600s e reportar a causa se repetir.
+
+## Critério v1.12 — espera ociosa não pode ser mascarada por retry
+
+ReferênciaMosquitto2.0.22focada com-W40:12extensõesPASS,397.339s,
+cleanup36containers/1volumePASS. Isso não é aceite de candidate/bothbrokers.
+No gatecandidate de esperaociosa4.3s, exigir também ausência de marcador
+`Reconexao` no XMQRclient antes de publicar; um processo ainda vivo porque
+reiniciou a sessão após timeout não comprova separação de deadline/idle.
+
+## Revisão v1.13 — filesystem e ENOSPC ambiental
+
+Candidate2 FAIL136.107s: fila capturou TCP/liveQoS0/receive_fanout EOF, depois
+brokerexit1. Diagnóstico readonly: `/tmp` é tmpfs3.9GiB100%/0free; `/var/tmp`
+é ext4 `/dev/sdf`,946GiBfree. Não apagar arquivos externos/compilação de outros
+agentes para liberar espaço. Usar `--state-root /var/tmp` existente e privado;
+validar filesystemLinux nontmpfs/nonDrvFS/free>=512MiB antes de iniciar e
+registrar FS/free/logmarkers/exitcode sanitizados em falhas. O ENOSPC do root
+foi observado, mas não atribuir erro do processo sem marcador. Reexecutar
+600x3 completos; não contar o ensaio abortado como30minPASS. FS/método mudou,
+não o binário, os deadlines ou as asserções de protocolo.

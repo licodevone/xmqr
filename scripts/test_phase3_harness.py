@@ -2,7 +2,13 @@
 # SPDX-License-Identifier: MIT
 """Deterministic parser/assertion contracts for P91, with no broker/Docker."""
 import json
+from pathlib import Path
+import queue
+import tempfile
+import threading
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import phase3_soak as soak
 import verify_phase3_interop as external
@@ -43,6 +49,37 @@ class HarnessContracts(unittest.TestCase):
     def test_unknown_bytes_are_not_silently_filtered(self):
         with self.assertRaises(AssertionError):
             external.validate_logical(self.output([b'wrong']), 'xmqr', [b'a'], 1)
+
+    def test_primary_failure_survives_parallel_secondary_cancellation(self):
+        class Laboratory:
+            def __init__(self, *_):
+                self.stage = 'synthetic_failure'
+                self.operation = 'receive_fanout'
+                self.broker = SimpleNamespace(start=lambda: None,
+                                              process=SimpleNamespace(pid=1, poll=lambda: None))
+
+            def live(self, *_):
+                raise EOFError()
+
+            def close(self):
+                pass
+
+        failures = queue.Queue(maxsize=1)
+        cancelled = threading.Event()
+        with tempfile.TemporaryDirectory(prefix='p91-unit-') as temporary:
+            args = SimpleNamespace(state_root=Path(temporary), seconds=5, recovery_interval=120, batch=1)
+            with patch.object(soak, 'Laboratory', Laboratory), patch.object(
+                    soak.pressure.fanout.baseline, 'process_sample', return_value={'rss_kib': 1}):
+                with self.assertRaises(EOFError):
+                    soak.scenario(args, None, None, None, 'mtls', 1, cancelled, failures)
+                self.assertTrue(cancelled.is_set())
+                with self.assertRaises(AssertionError):
+                    soak.scenario(args, None, None, None, 'tcp', 1, cancelled, failures)
+        first = failures.get_nowait()
+        self.assertEqual(first['transport'], 'mtls')
+        self.assertEqual(first['error_type'], 'EOFError')
+        self.assertEqual(first['operation'], 'receive_fanout')
+        self.assertTrue(failures.empty())
 
 
 if __name__ == '__main__':

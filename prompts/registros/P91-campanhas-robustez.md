@@ -10,16 +10,20 @@ independente, estados temporários, mTLS/ACL e distinção entre evidências.
 
 ## Ambiente e proteção
 
-Ubuntu26.04/WSL2 kernel6.18.33.2, Python3.14.4, filesystemLinux `/tmp` privado.
+Ubuntu26.04/WSL2 kernel6.18.33.2, Python3.14.4. Smoke inicial em `/tmp` privado;
+diagnóstico posterior confirmou tmpfs100%: candidato prolongado final passa
+a exigir filesystemLinux disk-backed `/var/tmp`ext4,>=512MiB livres.
 DockerDesktop Linuxamd64 controlado pelo CLI Windows; Python3.13 Windows e
 OpenSSL Git existente. Nenhuma instalação ou instância do operador alterada,
 nenhum firmwareESP32, senhaWi-Fi ou certificado privado real lido. Código MIT.
 
 ## Resultados intermediários realmente executados
 
-- `python scripts/test_phase3_harness.py`:7testes PASS, exit0, repetidos após
+- `python scripts/test_phase3_harness.py`:8testes PASS, exit0, repetidos após
   alterações do harness. Negativos de falta/bytes/QoS/retain/duplicaçãoQoS2;
-  retransmissõesQoS1 legítimas não causam falsa falha.
+  retransmissõesQoS1 legítimas não causam falsa falha. O oitavo teste forçaEOF
+  primário seguido de cancelamento paralelo e comprova que diagnóstico primário
+  não é substituído pela falha secundária.
 - Smoke nativebaseline0.11.5,8s/TCP+mTLS:primeiroFAIL na rotina offlineQoS2.
   Diagnóstico revelou pressuposto inválido de PUBREL imediatamente depois de
   cada PUBREC quando outros PUBLISH do lote estavam enfileirados. P91v1.2
@@ -43,6 +47,14 @@ nenhum firmwareESP32, senhaWi-Fi ou certificado privado real lido. Código MIT.
   cleanup4containers/1volumePASS. P91v1.9 corrigiu ambiente: namespaceholder
   estável em vez de namespace do broker recriado após Dockerrestart. A próxima
   execução exige comparação do namespaceantes/depois; não relaxa reconexão.
+- Baselinefocado4 manteve namespaceestável, mas aindaFAILapósSIGTERM:
+  Mosquitto_subexited7,65.534s,cleanup5containers/1volumePASS. Não atribuir
+  a namespace sozinho nem ao C45. P91v1.10 elevou-W8(lifetime total inadequado)
+  para-W40apenas na extensão; C43mantém-W8.
+- ReferênciaMosquittofocada após ajuste:12/12cenáriosPASS,397.339s,
+  cleanup36containers/1volumePASS; ambosclients/sentidos de pub/sub,
+  persistentQoS1/2SIGTERM,retainedcrash/explicitautosave e negativosACLpub/sub.
+  É baseline/onlyMosquitto, não aceite de candidate/bothbrokers.
 
 ## Candidato final em validação
 
@@ -54,10 +66,18 @@ O harness copia broker para arquivo privadoimutável antes de iniciar/reiniciar.
 - Wirecandidate `test_phase3_wire.py --broker target/release/mqtt-broker
   --label candidate`:19/19PASS, exit0; vaziosCS0/1CONNACK2 antesclose;
   keepalive1s fechou em1.503s; flags/UTF8/idzero/filtros/framingPASS.
-- `phase3_soak.py --seconds600 --repetitions3 --labelcandidate`: iniciado,
-  resultado final ainda pendente. Primeiroheartbeat60s:TCP8712pub/34848fanout,
-  RSS7092KiB; mTLS4560pub/18240fanout,RSS28968KiB; retomadas/probes sem erro.
-  RUNNINGnãoequivale a aceite; aguardar3repetições>=600s em ambos transportes.
+- Soakcandidate1: rep1TCP600.215s/61368pub/245472fanout e mTLS601.222s/
+  22608pub/90432fanoutPASS. Cada15crashes+5SIGTERM,readiness1 eerrors0.
+  Campanha completaFAIL795.000sna rep2; report preserva2cenáriosPASS, mas
+  cancelamento secundário ocultou erro primário. P91v1.11 corrigiu diagnóstico.
+- Soakcandidate2:FAIL136.107s; primárioTCP/liveQoS0/receive_fanoutEOF,
+  sequence14008; cleanupbrokerexit1. Readonlydf confirmou/tmp3.9GiBtmpfs100%,
+  0free; `/var/tmp`ext4/dev/sdf946GiBfree. SemmarcadorprocessonãoprovarENOSPC
+  como causa exata, mas ambiente inadequado observado; P91v1.13 mudaFS/check.
+  Nenhum arquivo externo apagado ou deadline reduzido. AmbosFAIL preservados.
+- Terceiro launchWSLfalhou0x8007274c antesPython, semreport/resources;
+  retryviaWSL--execPython absoluto comstate-root/var/tmp preparado. Resultado
+  prolongado final continua pendente; 3repetições>=600s/TCP+mTLS são obrigatórias.
 - Interopcandidate com imagens finais: ainda pendente neste checkpoint.
 
 Reports intermediários ficam em`../.artifacts/p91-*.json` fora deste Git;

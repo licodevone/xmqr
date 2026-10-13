@@ -265,7 +265,7 @@ def scenario(args, binary, security, context, transport, repetition, cancelled, 
     samples = []
     counts = dict(live_messages=0, fanout_deliveries=0, offline_batches=0, retained_restarts=0,
                   inbound_outbound_crash_pairs=0, qos1_replay_crashes=0)
-    with tempfile.TemporaryDirectory(prefix='xmqr-p91-soak-', dir='/tmp') as temporary:
+    with tempfile.TemporaryDirectory(prefix='xmqr-p91-soak-', dir=args.state_root) as temporary:
         root = Path(temporary)
         root.chmod(0o700)
         lab = Laboratory(root, binary, security if transport == 'mtls' else None,
@@ -347,6 +347,13 @@ def scenario(args, binary, security, context, transport, repetition, cancelled, 
                                   error_type=type(failure).__name__,
                                   error=str(failure) if isinstance(failure, (AssertionError, TimeoutError))
                                   else 'bounded test operation failed')
+                log = (root / 'broker.log').read_bytes().lower() if (root / 'broker.log').exists() else b''
+                diagnostic.update(broker_exit_code=lab.broker.process.poll() if lab.broker.process else None,
+                                  filesystem_free_bytes=shutil.disk_usage(args.state_root).free,
+                                  enospc_marker=b'no space left on device' in log or b'os error 28' in log,
+                                  eio_marker=b'input/output error' in log or b'os error 5' in log,
+                                  persistence_marker=b'persistence' in log or b'durable' in log,
+                                  panic_marker=b'panicked' in log)
                 try:
                     failures.put_nowait(diagnostic)
                 except queue.Full:
@@ -366,6 +373,7 @@ def main():
     parser.add_argument('--repetitions', type=int, default=3)
     parser.add_argument('--batch', type=int, default=8)
     parser.add_argument('--recovery-interval', type=int, default=120)
+    parser.add_argument('--state-root', type=Path, default=Path('/var/tmp'))
     parser.add_argument('--label', choices=['baseline', 'candidate'], required=True)
     args = parser.parse_args()
     if sys.platform != 'linux' or not (5 <= args.seconds <= 3600 and 1 <= args.repetitions <= 5
@@ -377,6 +385,12 @@ def main():
         parser.error('candidate acceptance requires three repetitions >=600s')
     args.broker = args.broker.resolve(strict=True)
     args.admin = args.admin.resolve(strict=True)
+    args.state_root = args.state_root.resolve(strict=True)
+    filesystem = subprocess.check_output(['stat', '-f', '-c', '%T', str(args.state_root)], text=True).strip()
+    if (not args.state_root.is_dir() or not os.access(args.state_root, os.W_OK)
+            or filesystem not in ('ext2/ext3', 'ext4', 'xfs', 'btrfs', 'zfs')
+            or shutil.disk_usage(args.state_root).free < 536870912):
+        parser.error('native disk-backed Linux filesystem and >=512MiB free required; no tmpfs/DrvFS')
     report = dict(schema_version=1, label=args.label, status='RUNNING', scenarios=[],
                   kernel=platform.release(), machine=platform.machine(), python=platform.python_version(),
                   source_head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
@@ -390,13 +404,14 @@ def main():
                                   recovery_interval_seconds=args.recovery_interval,
                                   fanout=4, batch_per_qos=args.batch, payload_bytes=1024,
                                   rss_limit_kib=262144, durable_file_limit_bytes=134217728),
+                  filesystem=filesystem, filesystem_free_bytes_start=shutil.disk_usage(args.state_root).free,
                   limitations=['not a production SLA or throughput maximum', 'process crash is not power-loss',
                                '30min wall/60 process-minutes minimum; not days of stability',
                                'no new physical ESP32, native Windows, arm64 or exact MSRV acceptance'])
     began = time.monotonic()
     error = None
     try:
-        with tempfile.TemporaryDirectory(prefix='xmqr-p91-fixtures-', dir='/tmp') as temporary:
+        with tempfile.TemporaryDirectory(prefix='xmqr-p91-fixtures-', dir=args.state_root) as temporary:
             root = Path(temporary)
             root.chmod(0o700)
             binary = root / 'mqtt-broker'

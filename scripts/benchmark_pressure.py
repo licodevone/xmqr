@@ -310,6 +310,15 @@ def pressure(args, security_root, context, qos, inflight, offline):
             broker.shutdown()
 
 
+def nonreader_batch(sent, now, until):
+    """Packet budget exhaustion pauses sending; only wall deadline fails."""
+    if now >= until:
+        raise TimeoutError('nonreader was not closed within bounded campaign')
+    if not 0 <= sent <= 5000:
+        raise AssertionError('nonreader packet budget exceeded')
+    return min(32, 5000 - sent)
+
+
 def nonreader(args, security_root, context):
     clients = []
     with tempfile.TemporaryDirectory(prefix='xmqr-p80-nonreader-', dir=args.state_root) as temporary:
@@ -322,15 +331,22 @@ def nonreader(args, security_root, context):
             clients += [slow, publisher, healthy]
             assert slow.subscribe([('benchmark/value', 0)]) == (0x90, b'\0\1\0')
             sent = 0
+            waited_at_budget = False
             peer_latency = []
             until = time.monotonic()+60
             with fanout.baseline.Sampler(broker.process.pid) as sampler:
                 while broker.metrics()['xmqr_connections_active'] == 3:
-                    if sent >= 5000 or time.monotonic() > until:
+                    try:
+                        batch = nonreader_batch(sent, time.monotonic(), until)
+                    except (AssertionError, TimeoutError):
                         print(json.dumps(dict(status='FAIL', scenario='socket_nonreader_qos0',
                                               attempted_messages=sent, metrics=broker.metrics())), flush=True)
-                        raise TimeoutError('nonreader was not closed within bounded campaign')
-                    for _ in range(32):
+                        raise
+                    if batch == 0:
+                        waited_at_budget = True
+                        time.sleep(.02)
+                        continue
+                    for _ in range(batch):
                         publish(publisher, 0, sent, size=4096)
                         sent += 1
                     publisher.ping()
@@ -341,6 +357,7 @@ def nonreader(args, security_root, context):
                     replacement.ping()
                     replacement.send(0xe0)
             return dict(scenario='socket_nonreader_qos0', attempted_messages=sent,
+                        waited_at_packet_budget=waited_at_budget,
                         payload_bytes=4096, effective_receive_buffer=slow.socket.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF),
                         slow_peer_closed=True, released_slot_reused=True, independent_puback_ms=latency(peer_latency),
                         metrics=broker.metrics(), **sampler.result())

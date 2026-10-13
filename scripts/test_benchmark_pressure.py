@@ -12,6 +12,19 @@ from test_benchmark_fanout import Peer
 
 
 class Contracts(unittest.TestCase):
+    def test_packet_budget_pauses_before_wall_deadline_without_overrun(self):
+        self.assertEqual(b.nonreader_batch(4990, 1, 60), 10)
+        self.assertEqual(b.nonreader_batch(4999, 1, 60), 1)
+        self.assertEqual(b.nonreader_batch(5000, 1, 60), 0)
+
+    def test_wall_deadline_and_illegal_budget_still_fail(self):
+        for sent in (0, 4999, 5000):
+            with self.assertRaises(TimeoutError):
+                b.nonreader_batch(sent, 60, 60)
+        for sent in (-1, 5001):
+            with self.assertRaises(AssertionError):
+                b.nonreader_batch(sent, 1, 60)
+
     def test_wrong_ack_does_not_count_as_publish(self):
         with self.assertRaisesRegex(AssertionError, 'identifier'):
             b.publish(Peer([(0x40, b'\0\7')]), 1, 0)
