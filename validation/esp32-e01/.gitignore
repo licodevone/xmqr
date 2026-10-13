@@ -1,0 +1,11 @@
+/target/
+/.embuild/
+/sdkconfig
+/sdkconfig.*
+!/sdkconfig.defaults
+/firmware-config.json
+/wifi-config.json
+/wifi-password.txt
+/certs/
+*.bin
+*.elf

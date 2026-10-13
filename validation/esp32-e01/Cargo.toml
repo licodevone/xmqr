@@ -1,0 +1,26 @@
+[package]
+name = "xmqr-esp32-e01"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+
+[dependencies]
+esp-idf-svc = "=0.53.0"
+
+[build-dependencies]
+embuild = { version = "=0.33.5", features = ["espidf"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+debug = 1
+
+[package.metadata.esp-idf-sys]
+esp_idf_tools_install_dir = "fromenv"
+esp_idf_version = "v5.5.5"
+esp_idf_components = ["main", "driver", "esp_wifi", "esp_event", "esp_netif", "nvs_flash", "mqtt", "lwip", "fatfs", "spiffs", "wear_levelling"]
+
+[lints.rust]
+unsafe_code = "forbid"

@@ -1,6 +1,6 @@
 # Fase 2 — aceite separado por componente
 
-Atualizado2026-10-13, P80/C43. Broker/admin0.11.4 candidato,
+Atualizado2026-10-13, P80/C43/P81. Broker/admin0.11.4 publicado,
 clientruntime0.8.1. **Software validado; fase2 global PARTIAL/BLOCKED por E01.**
 Não avançar fase3 ou riscar ESP32 sem evidência física.
 
@@ -16,7 +16,8 @@ Não avançar fase3 ou riscar ESP32 sem evidência física.
 | Client/broker | Mosquitto2.0.22 externo mTLS/bytes/QoS/retained/Will/sessão/negativos | PASS C43,59cenários |
 | Client | Regressões de runtime | PASS54testesRust; sem mudança de CLI/versão |
 | Todos/software | Método, RAM/CPU/p50/p95/p99, limitações | P80 e JSON sanitizado |
-| ESP32 DevKitV1 | Wi-Fi/SNTP/mTLS/pubsub/reconexão em placa | BLOCKED: porta inacessível; NOT_RUN físico |
+| ESP32 DevKitV1 | COM4/chip/backup/firmware/boot reais | PASS parcial P81; firmware diagnóstico na placa |
+| ESP32 DevKitV1 | Wi-Fi/SNTP/mTLS/pubsub/reconexão em placa | BLOCKED: alvo Wi-Fi não encontrado em2,4GHz; MQTT físico NOT_RUN |
 
 [CapacidadeP80](performance-pressure.md) · [Dados](results/p80-pressure-2026-10-13.json) ·
 [ADR](architecture/adr-0006-identity-quotas.md) · [ChecklistE01](esp32-phase2-checklist.md) ·
@@ -24,9 +25,18 @@ Não avançar fase3 ou riscar ESP32 sem evidência física.
 
 Os relatórios versionados foram gerados antes do commit, com HEAD de entrada,
 hashes do harness/binários e imagesIDs. Não são prova de commit futuro.
-Artefatos de correção0.11.4 exigem clone limpo, repetição dos gates pertinentes,
+Artefatos de correção0.11.4 exigiram clone limpo, repetição dos gates pertinentes,
 .debUbuntu26amd64/lifecycle e imagens broker/adminBookwormamd64, checksums,
-tag e digests nos anexos. Este registro anterior ao commit não alega publicação.
+tag e digests nos anexos. As evidências P80 anteriores ao commit não provam
+publicação por si mesmas; v0.11.4 foi publicada posteriormente. P81 não muda
+runtime, tag ou artefatos existentes.
 
 SomenteE01real + software aceito permitem ACCEPTEDfase2. Uma release de correção
 pode ser aceita antes da placa, sem representar encerramento da fase ou produção.
+
+P81 elimina o bloqueio histórico da porta, não o gate completo. Fixture
+independente compilado/Clippy/fmt,8testes de segurança do runner e inventário
+de licenças PASS. Pré-check host mTLS PASS; não equivale a MQTT na placa.
+Rede configurada ausente no scan ESP32 e na consulta Windows; não alterar
+roteador/firewall nem tentar outra rede automaticamente. Evidência em
+[P81](../prompts/registros/P81-esp32-e01.md). Sem avanço para fase3 ou nova tag.

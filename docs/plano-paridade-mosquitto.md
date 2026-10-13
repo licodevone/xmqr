@@ -117,7 +117,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | D03 | Todos: APT assinado | Decisão | D02; hospedagem/domínio, chave sob custódia, rotação, índices assinados e política de atualização |
 | D04 | Broker/admin: Windows nativo | Planejado | B06/A01/D01; abstrações de locks/fsync/rename/sinais, serviço Windows, ACL de arquivos e instalador homologado |
 | D05 | Client: Windows e instaladores | Parcial CLI portátil | C05/D01; credenciais/TTY/encoding/Ctrl+C, instalação e upgrade/reversão sem segredos |
-| E01 | ESP32 DevKit V1 como consumidor, campanha base | BLOCKED/NOT_RUN P80: nenhuma porta física acessível | Checklist esp32-phase2-checklist.md; Wi-Fi/SNTP/SAN/QoS/reconexão em placa; não dependeB11 |
+| E01 | ESP32 DevKit V1 como consumidor, campanha base | PARTIAL P81: COM4/backup/flash/boot PASS; Wi-Fi2,4GHz alvo não encontrado | Checklist esp32-phase2-checklist.md; SNTP/SAN/QoS/reconexão físicos NOT_RUN; não dependeB11 |
 | E02 | ESP32: campanha de rotação e revogação | Planejado teste físico | E01/B11 na fase 4; mudança de CA/certificado/CRL, erro e recuperação observados na placa |
 
 Cluster/alta disponibilidade distribuída, dashboard web, app móvel e broker
@@ -227,7 +227,8 @@ ou desempenho prometido; estimar cada marco após medir a fatia anterior.
 
 P80/C43 completaram o aceite de software nos cenários da fase2. Próximo gate:
 E01 físico; phase2-acceptance.md. Fase global PARTIAL/BLOCKED, sem avançar
-fase3. CLI não virou gerador de carga.
+fase3. CLI não virou gerador de carga. P81 comprovou COM4/backup/boot;
+o bloqueio atual é a rede configurada ausente no scan, não a porta serial.
 
 Decisões a resolver nos respectivos prompts: metas e hardware da campanha;
 quotas por identidade; canal administrativo; política de $SYS; expiração e

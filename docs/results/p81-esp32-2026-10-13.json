@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "prompt": "P81-v1.11",
+  "date": "2026-10-13",
+  "broker_version": "0.11.4",
+  "broker_base_commit": "d2928f03e157aeb44adb01801d0a459a6a940103",
+  "client_unchanged": true,
+  "hardware": {
+    "serial_port": "COM4",
+    "usb_bridge": "CH340",
+    "chip": "ESP32-D0WD-V3",
+    "revision": "3.0",
+    "flash_bytes": 4194304,
+    "crystal_mhz": 40
+  },
+  "tools": {
+    "rust_esp": "1.97.0-nightly",
+    "esp_idf": "5.5.5",
+    "python": "3.13.15",
+    "esptool": "4.12.0",
+    "espflash": "4.5.0",
+    "eim_selection_changed": false,
+    "tools_installed": false
+  },
+  "backup": {
+    "independent_full_reads": 2,
+    "bytes_per_read": 4194304,
+    "seconds": [381.1, 379.3],
+    "matching_sha256": "9be3e3e9cb27c3ecd289a0dc8eea2abbacf592c28a0c88386d6b74583d84d782",
+    "result": "PASS",
+    "binary_published": false
+  },
+  "fixture_gates": {
+    "fmt": "PASS",
+    "release_build_locked": "PASS",
+    "clippy_release_deny_warnings": "PASS",
+    "python_guard_tests_passed": 8,
+    "cargo_test_on_device": "NOT_RUN",
+    "license_declarations_packages": 146,
+    "license_declarations_check": "PASS"
+  },
+  "attempts": [
+    {
+      "started_utc": "2026-10-13T06:59:29.164256+00:00",
+      "ended_utc": "2026-10-13T07:01:03.947108+00:00",
+      "source_sha256": "28285488848c543fd35e07c676c5a78c62ecd80936a4473928840b0511612f94",
+      "flash_verification": "PASS",
+      "host_mtls_precheck": "PASS",
+      "markers": ["E01_BOOT fixture=0.1.0 payload=1024", "E01_FAIL stage=WIFI_IP_TIMEOUT", "E01_STOP"],
+      "result": "FAIL_INITIAL_SLICE"
+    },
+    {
+      "started_utc": "2026-10-13T07:05:43.580876+00:00",
+      "ended_utc": "2026-10-13T07:06:54.236097+00:00",
+      "source_sha256": "395802d1d39dde728850ecaf7c76eda063832070da1174cfd27a52fc2bd054dc",
+      "flash_verification": "PASS",
+      "host_mtls_precheck": "PASS",
+      "markers": ["E01_BOOT fixture=0.1.0 payload=1024", "E01_FAIL stage=WIFI_TARGET_NOT_FOUND_24GHZ", "E01_STOP"],
+      "result": "FAIL_INITIAL_SLICE"
+    }
+  ],
+  "windows_wifi_query": {"exit_code": 0, "target_exact_matches": 0, "target_casefold_matches": 0},
+  "ssid_transfer_matches": true,
+  "password_transfer_matches": true,
+  "wifi_password_evaluated": false,
+  "physical_sntp": "NOT_RUN",
+  "physical_mqtt": "NOT_RUN",
+  "physical_retained_will_reconnection_negatives_heap": "NOT_RUN",
+  "firmware_on_board": "diagnostic fixture 0.1.0",
+  "test_containers_remaining": 0,
+  "test_volumes_remaining": 0,
+  "firewall_changed": false,
+  "phase2_closed": false,
+  "status": "PARTIAL_BLOCKED_WIFI_TARGET_UNAVAILABLE"
+}
