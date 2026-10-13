@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; acompanhamento atualizado em 2026-10-13
-por P80/C43/P81/P82/P83. Versões nos manifests atuais: broker/admin 0.11.4 e client independente 0.8.1.
+por P80/C43/P81/P82/P83/P84. Versões nos manifests atuais: broker/admin 0.11.4 e client independente 0.8.1.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
@@ -56,7 +56,8 @@ Evidências: [aceite da fase 1](phase1-acceptance.md),
 - [x] ~~Broker: avaliar quotas por identidade; mantidas, com risco de isolamento explícito (ADR0006).~~
 - [x] ~~Todos/software: relatório de capacidade e critérios de saída (P80/C43).~~
 - [x] ~~ESP32: associação/IP/SNTP/mTLS e loopback1024bytes/QoS0/1/2 na COM4, primeira fatia P83.~~
-- [ ] ESP32: retained/Will/reconexão/negativos/heap e observador independente na DevKitV1 real; E01 completo pendente.
+- [x] ~~ESP32: retained create/update/replay/delete e bytes/flags por fixture wire independente do Rust/SDK na COM4 (P84).~~
+- [ ] ESP32: Will/reconexão/negativos/heap, retained restart e cliente terceiro/handshakeQoS2 na DevKitV1 real; E01 completo pendente.
 
 Evidências da parte concluída: [baseline P62](performance-baseline.md) e
 [campanha P72](performance-fanout.md).

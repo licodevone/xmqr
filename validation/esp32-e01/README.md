@@ -4,7 +4,13 @@ Pacote Rust independente, código próprio MIT. Não faz parte do crate do broke
 não instala XMQR na placa e não substitui o aplicativo consumidor mqtt-broker.
 Alvo observado: ESP32 DevKitV1/ESP32-D0WD-V3/4MiB/COM4.
 
-AtualP83/2026-10-13: primeira fatia física PASS: Wi-Fi/IP, SNTP, conexão
+P84 amplia o ensaio com retained e observador wire Python independente do
+codec Rust/SDK, certificado e usuário próprios. Não é libmosquitto nem prova
+integral de protocolo: a assinaturaQoS1 observa os loopbacks como0/1/1 no
+wire e não captura o handshakeQoS2 da placa. Interop MosquittoC43 é separada.
+Veja [registroP84](../../prompts/registros/P84-e01-retained.md).
+
+CheckpointP83/2026-10-13: primeira fatia física PASS: Wi-Fi/IP, SNTP, conexão
 MQTT3.1.1 mTLS e loopback sintético1024bytes/QoS0/1/2. Senha corrigida aplicada
 privadamente, firmware regravado com backup conferido. Scan diagnóstico não
 é mais pré-condição; ESP-IDF conecta somente ao AP configurado. Sem rede
@@ -110,6 +116,55 @@ Depois recompile, repita fmt/Clippy e confira os backups completos antes de
 executar `run_initial.py --flash`. O build observa mudanças do JSON e dos três
 PEMs privados para não reutilizar constantes antigas em cache. O helper não
 grava a placa nem inicia serviços. Testes do host usam dados sintéticos.
+
+## Retained com confirmação externa — P84
+
+Sobre laboratório privado já preparado, crie uma vez a identidade separada:
+
+```text
+python prepare_retained.py --private-dir DIRETORIO_BUILD_PRIVADO
+```
+
+Recusa config já existente/Git; cria pasta privada nova, sem alterar originais.
+CA/servidor/board do lab são preservados. Observer ganha certificado válido3dias,
+usuário/senha e fingerprint próprios; broker recebe só certificados públicos,
+sua própria chave e políticas, não chaves de CA/dispositivo/observer.
+Os certificados ainda precisam estar dentro da validade da CA do laboratório.
+
+No PowerShell do build (ambiente local ao processo; não usar setx):
+
+```powershell
+$env:XMQR_E01_RETAINED = '1'
+./build-windows.ps1 -PrivateDirectory DIRETORIO_BUILD_PRIVADO
+```
+
+Após testes/fmt/Clippy/backups/chip/COM conferidos, o ensaio explicitamente
+autorizado usa o Python existente com esptool/pyserial:
+
+```text
+python run_initial.py --private-dir DIRETORIO_BUILD_PRIVADO --backup-dir DIRETORIO_BACKUP_PRIVADO --serial-port COM4 --retained --flash
+```
+
+Isso substitui firmware diagnóstico: não executar por mera leitura. Sem flag
+--flash, faz só pré-check host; --monitor-only observa/reset sem gravar e não
+aprova wire/identidade. Para o modo inicial anterior, compile com variável0 e
+rode sem --retained. Não misture modo do firmware/coletor: sequência incompleta
+ou modo errado veta PASS. Produtos compilados continuam privados, não publicáveis.
+
+Após loopbacks, a placa publica retainedQoS1 com1024bytes seq3/4. A cada etapa,
+observer abre sessão nova e exige RETAIN=1/QoS1/bytes do último valor, antes de
+confirmar pelo tópico de controle exclusivo. Placa espera essa confirmação15s.
+Publicação retained vazia apaga o valor; novo subscriber não recebe replay por
+janela2s e responde a PING antes de confirmar exclusão. EOF/falhaTLS/ACK incorreto
+não contam como ausência. Não é prova de retenção após restart ou longa duração.
+
+Observer limita pacote4096,32frames/ACK, fila32, IDs/deadlines e usa CA/SAN.
+Console tem parser fechado/tetos anteriores e sequência adicional obrigatória.
+Somente console completo E seis resultados wire completos permitem
+PASS_RETAINED_SLICE; isso não conclui fase2/negativos TLS/Will/reconexão/heap.
+Confirmação é evidência de ensaio, não sucesso de negócio ou attestation ELF↔Git.
+Os dois participantes se encerram, container/volume próprios são removidos e
+firmware diagnóstico fica na placa; não há broker permanente do teste.
 
 Os certificados temporários duram5dias; regenere em nova pasta para repetir.
 ELF/bin/target e `firmware-config.json` contêm senha/chave: não publicar, mesmo

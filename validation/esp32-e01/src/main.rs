@@ -20,6 +20,8 @@ use std::{
 mod private {
     include!(concat!(env!("OUT_DIR"), "/private_config.rs"));
 }
+#[cfg(e01_retained)]
+mod retained;
 const TOPIC: &str = "e01/board/bytes";
 static CONNECTED: AtomicBool = AtomicBool::new(false);
 static SUBSCRIBED: AtomicBool = AtomicBool::new(false);
@@ -119,6 +121,10 @@ fn run() -> Result<(), &'static str> {
                 details,
                 ..
             } => {
+                #[cfg(e01_retained)]
+                if retained::observe(topic, data, details) {
+                    return;
+                }
                 let valid = topic == Some(TOPIC)
                     && matches!(details, Details::Complete)
                     && data.len() == 1024
@@ -173,6 +179,8 @@ fn run() -> Result<(), &'static str> {
         }
         println!("E01_LOOPBACK_PASS qos={index} bytes=1024");
     }
+    #[cfg(e01_retained)]
+    retained::run(&mut client, &mut payload)?;
     // Dropping the client cancels retries; no infinite application reconnect loop.
     drop(client);
     wifi.stop().map_err(|_| "WIFI_STOP")?;

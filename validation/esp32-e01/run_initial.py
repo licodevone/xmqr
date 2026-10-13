@@ -14,7 +14,7 @@ import time
 import uuid
 
 import serial
-from evidence import collect
+from evidence import MILESTONES, RETAINED_MILESTONES, collect
 
 REPO = Path(__file__).resolve().parents[2]
 BROKER_IMAGE = "lepinheiro100/xmqr-broker:0.11.4@sha256:379439bd82f03c6c237d1e1f2f9a452e20fa62e24538200b97a06af6dae394bd"
@@ -43,7 +43,7 @@ def verified_backups(directory):
 def source_digest():
     digest = hashlib.sha256()
     root = Path(__file__).resolve().parent
-    for relative in ["Cargo.toml", "Cargo.lock", "build.rs", "src/main.rs", "sdkconfig.defaults", ".cargo/config.toml"]:
+    for relative in ["Cargo.toml", "Cargo.lock", "build.rs", "src/main.rs", "src/retained.rs", "sdkconfig.defaults", ".cargo/config.toml"]:
         digest.update(relative.encode())
         digest.update((root / relative).read_bytes())
     return digest.hexdigest()
@@ -94,9 +94,10 @@ def monitor(args):
             time.sleep(.1)
             uart.rts = False
             transcript = collect(uart, seconds=args.seconds,
+                                 milestones=RETAINED_MILESTONES if getattr(args, "retained", False) else MILESTONES,
                                  emit=lambda line: print(line, flush=True))
         report.update(transcript.summary())
-        if report["result"] == "PASS_INITIAL_SLICE":
+        if report["result"] in ("PASS_INITIAL_SLICE", "PASS_RETAINED_SLICE"):
             # Console text alone cannot attest an already-installed firmware.
             report["result"] = "OBSERVED_MARKERS_ONLY"
         return report
@@ -106,6 +107,16 @@ def monitor(args):
     finally:
         report["ended_utc"] = datetime.now(timezone.utc).isoformat()
         save_report(root, report)
+
+
+def apply_evidence(report, transcript, observer):
+    report.update(transcript.summary())
+    if report.get("retained_mode") and report["result"] == "PASS_RETAINED_SLICE":
+        if observer is None or not observer.complete():
+            report["result"] = "FAIL_OBSERVER"
+        else:
+            report["remaining"] = ["retained across broker restart", "Will", "reconnection",
+                                   "physical negatives", "heap", "third-party MCU observer / QoS2 handshake"]
 
 
 def exercise(args):
@@ -132,13 +143,25 @@ def exercise(args):
         exists = subprocess.run(["docker", kind, "inspect", resource], capture_output=True)
         if exists.returncode == 0:
             raise ValueError("refusing existing lab resource")
+    retained = bool(getattr(args, "retained", False))
     certs = root / "certs"
+    case = None
+    observer_config = None
+    if retained:
+        from prepare_retained import load
+        case, observer_config = load(root)
+        certs = case / "broker"
     report = {"schema": 2, "prompt": "P82", "started_utc": datetime.now(timezone.utc).isoformat(),
               "broker": "0.11.4", "fixture": "0.1.0", "port": args.serial_port,
               "source_sha256": source_digest(), "backup_sha256": backup_sha,
               "backup_bytes": 4194304, "markers": [], "phase2_closed": False,
               "result": "FAIL_PRECHECK", "flashed": False,
               "remaining": ["retained", "Will", "reconnection", "physical negatives", "heap", "independent observer"]}
+    report["retained_mode"] = retained
+    if retained:
+        report["prompt"] = "P84"
+    report["observer_results"] = []
+    observer = None
     volume_created = False
     container_created = False
     try:
@@ -161,7 +184,7 @@ def exercise(args):
         container_created = True
         command(["docker", "start", NAME])
         context = ssl.create_default_context(cafile=str(certs / "ca.crt"))
-        context.load_cert_chain(certs / "board.crt", certs / "board.key")
+        context.load_cert_chain(root / "certs/board.crt", root / "certs/board.key")
         until = time.monotonic() + 15
         ready = False
         while time.monotonic() < until:
@@ -197,6 +220,18 @@ def exercise(args):
                  "0x10000", str(app_bin)], timeout=240)
         report["flashed"] = True
         print("E01_FLASH_VERIFIED", flush=True)
+        report["result"] = "FAIL_OBSERVER" if retained else "FAIL_INITIAL_SLICE"
+        if retained:
+            from retained_observer import Observer
+            observer = Observer(host, port, case / "observer", observer_config)
+        def emit(line):
+            print(line, flush=True)
+            report["markers"].append(line)
+            if observer is not None:
+                observer.event(line)
+        if observer is not None:
+            observer.deadline = time.monotonic() + args.seconds
+            observer.base.deadline = observer.deadline
         with serial.Serial(args.serial_port, 115200, timeout=.2) as uart:
             # Reset normally after opening; do not leave the board in ROM download mode.
             uart.dtr = False
@@ -204,10 +239,17 @@ def exercise(args):
             time.sleep(.1)
             uart.rts = False
             transcript = collect(uart, seconds=args.seconds,
-                                 emit=lambda line: print(line, flush=True))
-        report.update(transcript.summary())
+                                 milestones=RETAINED_MILESTONES if retained else MILESTONES,
+                                 emit=emit)
+        apply_evidence(report, transcript, observer)
         return report
     finally:
+        if observer is not None:
+            report["observer_results"] = list(observer.results)
+            try:
+                observer.close()
+            except Exception:
+                report["result"] = "FAIL_OBSERVER_CLOSE"
         report["ended_utc"] = datetime.now(timezone.utc).isoformat()
         finish_lab(root, report, container_created, volume_created)
 
@@ -219,6 +261,7 @@ if __name__ == "__main__":
     parser.add_argument("--serial-port", default="COM4")
     parser.add_argument("--flash", action="store_true", help="explicitly replace the backed-up firmware")
     parser.add_argument("--monitor-only", action="store_true", help="observe existing firmware; no Docker or flash")
+    parser.add_argument("--retained", action="store_true", help="require extended physical retained campaign and distinct observer")
     parser.add_argument("--seconds", type=int, choices=range(1, 181), default=180)
     args = parser.parse_args()
     if args.monitor_only and args.flash:
@@ -226,7 +269,7 @@ if __name__ == "__main__":
     try:
         result = monitor(args) if args.monitor_only else exercise(args)
         print("E01_RESULT " + result["result"], flush=True)
-        sys.exit(0 if result["result"] in ("PASS_INITIAL_SLICE", "HOST_PRECHECK_ONLY") else 1)
+        sys.exit(0 if result["result"] in ("PASS_INITIAL_SLICE", "PASS_RETAINED_SLICE", "HOST_PRECHECK_ONLY") else 1)
     except Exception:
         print("E01_RUN_FAILED (private diagnostics suppressed)", file=sys.stderr)
         sys.exit(1)

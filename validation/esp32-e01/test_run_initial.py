@@ -4,9 +4,40 @@ import tempfile
 import unittest
 from argparse import Namespace
 import json
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from run_initial import NAME, VOLUME, finish_lab, monitor, save_report, verified_backups
+from run_initial import NAME, VOLUME, apply_evidence, finish_lab, monitor, save_report, verified_backups
+
+
+class CampaignEvidence(unittest.TestCase):
+    def complete_transcript(self):
+        from evidence import RETAINED_MILESTONES, Transcript
+        transcript = Transcript(RETAINED_MILESTONES)
+        for line in RETAINED_MILESTONES:
+            transcript.accept((line + "\n").encode())
+        return transcript
+
+    def test_console_alone_never_approves_wire(self):
+        for observer in (None, Mock(complete=Mock(return_value=False))):
+            report = {"retained_mode": True, "remaining": ["retained"]}
+            apply_evidence(report, self.complete_transcript(), observer)
+            self.assertEqual(report["result"], "FAIL_OBSERVER")
+            self.assertEqual(report["remaining"], ["retained"])
+
+    def test_wire_alone_never_approves_incomplete_console(self):
+        from evidence import RETAINED_MILESTONES, Transcript
+        report = {"retained_mode": True, "remaining": ["retained"]}
+        apply_evidence(report, Transcript(RETAINED_MILESTONES), Mock(complete=Mock(return_value=True)))
+        self.assertEqual(report["result"], "FAIL_INCOMPLETE")
+        self.assertEqual(report["remaining"], ["retained"])
+
+    def test_both_proofs_update_only_completed_scope(self):
+        report = {"retained_mode": True, "remaining": ["retained"]}
+        apply_evidence(report, self.complete_transcript(), Mock(complete=Mock(return_value=True)))
+        self.assertEqual(report["result"], "PASS_RETAINED_SLICE")
+        self.assertIn("retained across broker restart", report["remaining"])
+        self.assertIn("physical negatives", report["remaining"])
+        self.assertFalse(report["phase2_closed"])
 
 
 class BackupGate(unittest.TestCase):

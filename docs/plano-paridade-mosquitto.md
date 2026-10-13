@@ -117,7 +117,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | D03 | Todos: APT assinado | Decisão | D02; hospedagem/domínio, chave sob custódia, rotação, índices assinados e política de atualização |
 | D04 | Broker/admin: Windows nativo | Planejado | B06/A01/D01; abstrações de locks/fsync/rename/sinais, serviço Windows, ACL de arquivos e instalador homologado |
 | D05 | Client: Windows e instaladores | Parcial CLI portátil | C05/D01; credenciais/TTY/encoding/Ctrl+C, instalação e upgrade/reversão sem segredos |
-| E01 | ESP32 DevKit V1 como consumidor, campanha base | PARTIAL P83: COM4/backup/flash/boot/Wi-Fi/IP/SNTP/mTLS/1024bytesQoS0/1/2 PASS na primeira fatia | Checklist esp32-phase2-checklist.md; retained/Will/reconexão/negativos/heap/observador independente NOT_RUN; não dependeB11 |
+| E01 | ESP32 DevKit V1 como consumidor, campanha base | PARTIAL P84: P83 + retained create/update/replay/delete e fixture wire independente PASS | Checklist esp32-phase2-checklist.md; Will/reconexão/negativos/heap/retained restart/cliente terceiro e handshakeQoS2 MCU NOT_RUN; não dependeB11 |
 | E02 | ESP32: campanha de rotação e revogação | Planejado teste físico | E01/B11 na fase 4; mudança de CA/certificado/CRL, erro e recuperação observados na placa |
 
 Cluster/alta disponibilidade distribuída, dashboard web, app móvel e broker
@@ -229,8 +229,10 @@ P80/C43 completaram o aceite de software nos cenários da fase2. Próximo gate:
 E01 físico completo; phase2-acceptance.md. Fase global PARTIAL, sem avançar
 fase3. CLI não virou gerador de carga. P83 confirmou primeira associação,
 SNTP/mTLS e loopback1024bytesQoS0/1/2 na COM4 após senha corrigida e remoção
-do scan isolado como pré-gate. Restam retained/Will/reconexão/negativos/heap
-e observador independente. [RegistroP83](../prompts/registros/P83-e01-wifi.md).
+do scan isolado como pré-gate. P84 acrescenta retained create/update/replay/
+delete e conferência de bytes/flags no wire por fixture própria independente.
+Restam Will/reconexão/negativos/heap, retained restart e cliente terceiro/
+handshakeQoS2 MCU. [RegistroP84](../prompts/registros/P84-e01-retained.md).
 
 Decisões a resolver nos respectivos prompts: metas e hardware da campanha;
 quotas por identidade; canal administrativo; política de $SYS; expiração e

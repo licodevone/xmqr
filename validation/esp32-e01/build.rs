@@ -2,6 +2,13 @@
 use std::{env, fs, path::PathBuf};
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(e01_retained)");
+    println!("cargo:rerun-if-env-changed=XMQR_E01_RETAINED");
+    match env::var("XMQR_E01_RETAINED").as_deref() {
+        Ok("1") => println!("cargo:rustc-cfg=e01_retained"),
+        Ok("0") | Err(_) => {}
+        _ => panic!("invalid retained fixture mode"),
+    }
     println!("cargo:rerun-if-env-changed=XMQR_E01_PRIVATE_DIR");
     let root =
         PathBuf::from(env::var_os("XMQR_E01_PRIVATE_DIR").expect("private directory required"))

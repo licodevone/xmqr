@@ -12,6 +12,13 @@ MILESTONES = (
     *(f"E01_LOOPBACK_PASS qos={q} bytes=1024" for q in range(3)),
     "E01_INITIAL_SLICE_PASS", "E01_STOP",
 )
+RETAINED_MILESTONES = (*MILESTONES[:-2],
+    "E01_RETAINED_STORED version=1 bytes=1024",
+    "E01_RETAINED_REPLAY_PASS version=1 bytes=1024",
+    "E01_RETAINED_STORED version=2 bytes=1024",
+    "E01_RETAINED_REPLAY_PASS version=2 bytes=1024",
+    "E01_RETAINED_DELETED", "E01_RETAINED_DELETE_PASS", *MILESTONES[-2:])
+ALL_MILESTONES = frozenset((*MILESTONES, *RETAINED_MILESTONES))
 FAIL_STAGES = frozenset((
     "PERIPHERALS", "EVENT_LOOP", "WIFI_OBSERVER", "WIFI_DRIVER", "SSID_LENGTH",
     "PASSWORD_LENGTH", "WIFI_CONFIG", "WIFI_START", "WIFI_START_TIMEOUT",
@@ -20,6 +27,8 @@ FAIL_STAGES = frozenset((
     "WIFI_IP_TIMEOUT", "SNTP_START", "SNTP_TIMEOUT", "MQTT_CREATE",
     "MQTT_CONNECT_TIMEOUT", "SUBSCRIBE", "SUBSCRIBE_TIMEOUT", "PUBLISH",
     "PUBLISH_ACK_TIMEOUT", "BYTES_OR_DELIVERY", "WIFI_STOP",
+    "CONTROL_SUBSCRIBE", "CONTROL_SUBSCRIBE_TIMEOUT", "RETAINED_PUBLISH",
+    "RETAINED_ACK_TIMEOUT", "OBSERVER_CONFIRM_TIMEOUT", "RETAINED_DELETE",
 ))
 AUTH_METHODS = frozenset((
     "None", "WEP", "WPA", "WPA2Personal", "WPAWPA2Personal", "WPA2Enterprise",
@@ -35,7 +44,7 @@ def marker(raw):
         line = raw[:-1].removesuffix(b"\r").decode("ascii")
     except UnicodeDecodeError:
         return None
-    if line in MILESTONES or line == "E01_WIFI_ASSOCIATED":
+    if line in ALL_MILESTONES or line == "E01_WIFI_ASSOCIATED":
         return line
     if line.startswith("E01_FAIL stage=") and line[15:] in FAIL_STAGES:
         return line
@@ -51,7 +60,10 @@ def marker(raw):
 
 
 class Transcript:
-    def __init__(self):
+    def __init__(self, milestones=MILESTONES):
+        if milestones not in (MILESTONES, RETAINED_MILESTONES):
+            raise ValueError("unknown campaign")
+        self.milestones = milestones
         self.markers = []
         self.violations = set()
         self.discarded_lines = 0
@@ -85,12 +97,12 @@ class Transcript:
             self.failed = True
             if not self.progress:
                 self.violations.add("FAIL_BEFORE_BOOT")
-        elif line in MILESTONES:
+        elif line in ALL_MILESTONES:
             if line == "E01_STOP":
                 self.stopped = True
                 if self.failed:
                     return line
-            if self.progress >= len(MILESTONES) or line != MILESTONES[self.progress]:
+            if self.progress >= len(self.milestones) or line != self.milestones[self.progress]:
                 self.violations.add("MILESTONE_ORDER")
             else:
                 self.progress += 1
@@ -103,8 +115,8 @@ class Transcript:
             return "FAIL_TRANSCRIPT"
         if self.failed:
             return "FAIL_INITIAL_SLICE"
-        if self.stopped and self.progress == len(MILESTONES):
-            return "PASS_INITIAL_SLICE"
+        if self.stopped and self.progress == len(self.milestones):
+            return "PASS_RETAINED_SLICE" if self.milestones == RETAINED_MILESTONES else "PASS_INITIAL_SLICE"
         return "FAIL_INCOMPLETE"
 
     def summary(self):
@@ -113,10 +125,10 @@ class Transcript:
                     total_bytes=self.total_bytes, phase2_closed=False)
 
 
-def collect(stream, seconds=180, clock=time.monotonic, emit=None):
+def collect(stream, seconds=180, clock=time.monotonic, emit=None, milestones=MILESTONES):
     if type(seconds) is not int or not 1 <= seconds <= 180:
         raise ValueError("serial deadline must be 1..180 seconds")
-    transcript = Transcript()
+    transcript = Transcript(milestones)
     buffer = bytearray()
     dropping = False
     stopped_at = None

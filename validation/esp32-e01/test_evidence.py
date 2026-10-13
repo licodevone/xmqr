@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 import unittest
 
-from evidence import BOOT, MAX_MARKERS, MAX_TOTAL_BYTES, MILESTONES, Transcript, collect, marker
+from evidence import BOOT, MAX_MARKERS, MAX_TOTAL_BYTES, MILESTONES, RETAINED_MILESTONES, Transcript, collect, marker
 
 
 class Clock:
@@ -32,6 +32,33 @@ def transcript(lines):
 
 
 class Evidence(unittest.TestCase):
+    def test_retained_sequence_is_required_in_retained_mode(self):
+        state = collect(Stream(("\n".join(RETAINED_MILESTONES) + "\n").encode()), clock=Clock(),
+                        milestones=RETAINED_MILESTONES)
+        self.assertEqual(state.result(), "PASS_RETAINED_SLICE")
+        self.assertFalse(state.summary()["phase2_closed"])
+
+    def test_old_sequence_cannot_pass_retained_mode(self):
+        state = Transcript(RETAINED_MILESTONES)
+        for line in MILESTONES:
+            state.accept((line + "\n").encode())
+        self.assertEqual(state.result(), "FAIL_TRANSCRIPT")
+
+    def test_each_missing_retained_marker_and_wrong_mode_veto(self):
+        for index in range(len(RETAINED_MILESTONES)):
+            state = Transcript(RETAINED_MILESTONES)
+            for line in RETAINED_MILESTONES[:index] + RETAINED_MILESTONES[index + 1:]:
+                state.accept((line + "\n").encode())
+            self.assertNotEqual(state.result(), "PASS_RETAINED_SLICE")
+        self.assertEqual(transcript(RETAINED_MILESTONES).result(), "FAIL_TRANSCRIPT")
+
+    def test_retained_fail_and_unknown_fields_veto(self):
+        state = Transcript(RETAINED_MILESTONES)
+        for line in (*RETAINED_MILESTONES[:-1], "E01_FAIL stage=OBSERVER_CONFIRM_TIMEOUT", "E01_STOP"):
+            state.accept((line + "\n").encode())
+        self.assertEqual(state.result(), "FAIL_INITIAL_SLICE")
+        self.assertIsNone(marker(b"E01_RETAINED_STORED version=1 bytes=1024 password=SYNTHETIC\n"))
+
     def test_complete_ordered_sequence_passes_initial_slice_only(self):
         state = transcript(MILESTONES)
         self.assertEqual(state.result(), "PASS_INITIAL_SLICE")

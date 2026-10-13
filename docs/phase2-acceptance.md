@@ -1,6 +1,6 @@
 # Fase 2 — aceite separado por componente
 
-Atualizado2026-10-13, P80/C43/P81/P82/P83. Broker/admin0.11.4 publicado,
+Atualizado2026-10-13, P80/C43/P81/P82/P83/P84. Broker/admin0.11.4 publicado,
 clientruntime0.8.1. **Software validado; fase2 global PARTIAL por cenários E01 restantes.**
 Não avançar fase3 ou riscar ESP32 sem evidência física.
 
@@ -19,7 +19,9 @@ Não avançar fase3 ou riscar ESP32 sem evidência física.
 | ESP32 DevKitV1 | COM4/chip/backup/firmware/boot reais | PASS parcial P81; firmware diagnóstico na placa |
 | ESP32/host | Coleta restrita e atualização privada/atômica da senha | P83:54PASS/1SKIP Windows;15PASS sync WSL, incluindo symlink real |
 | ESP32 DevKitV1 | Wi-Fi/IP/SNTP/mTLS e loopback1024bytes/QoS0/1/2 | PASS primeira fatia P83, placa real; positivos, não todos os gates |
-| ESP32 DevKitV1 | Retained/Will/reconexão/negativos/heap/observador independente | NOT_RUN; E01 e fase2 permanecem PARTIAL |
+| ESP32 DevKitV1 | Retained create/update/replay/delete, observer próprio wire independente | PASS P84;1024bytes/replay RETAIN1/QoS1, zero byte delete/janela2s+PING vivo |
+| ESP32/host | Novos negativos e compatibilidade do fixture | P84:82PASS/1SKIP Windows;64PASS subset WSL; build/fmt/Clippy em ambos os modos |
+| ESP32 DevKitV1 | Will/reconexão/negativos/heap/retained restart/cliente terceiro | NOT_RUN; E01 e fase2 permanecem PARTIAL |
 
 [CapacidadeP80](performance-pressure.md) · [Dados](results/p80-pressure-2026-10-13.json) ·
 [ADR](architecture/adr-0006-identity-quotas.md) · [ChecklistE01](esp32-phase2-checklist.md) ·
@@ -61,3 +63,13 @@ Container/volume próprios removidos, backup preservado e firmware diagnóstico
 permanece na placa. Sem broker de laboratório permanente. Não avançar fase3.
 [RegistroP83](../prompts/registros/P83-e01-wifi.md) e
 [dados sanitizados](results/p83-e01-wifi-2026-10-13.json). Bloqueios P81/P82 acima são históricos.
+
+P84: placa criou/substituiu/apagou retained; assinantes novos com certificado/
+usuário distintos verificaram flag, QoS e bytes do último valor. Observer
+wire Python não usa codecRust/ESP-IDF, mas é fixture própria, não libmosquitto.
+Entregas dos três loopbacks foram0/1/1 por assinaturaQoS1; não atestar handshake
+QoS2 MCU↔broker a partir delas. Console sozinho ou wire sozinho não aprovam.
+Certificados/políticas de laboratório separados, mounts sem chave de dispositivo/
+observer/CA, recursos próprios removidos. Sem alteração de runtime/versões.
+[RegistroP84](../prompts/registros/P84-e01-retained.md),
+[dados](results/p84-e01-retained-2026-10-13.json). Não avançar fase3.
