@@ -100,7 +100,34 @@ Não afirmar que limpamos/movemos aquele cache: o helper recusou qualquer
 mutação quando a origem já estava ausente. Novos builds usam cache privado
 ext4 /var/tmp, -j1, sem cópia ampla ou restart de WSL/Docker.
 
-## Pendências e limites
+## Fechamento técnico coordenado — 2026-10-13
+
+P91 terminou integralmente: soak6/6 em1808,946s, três repetições TCP/mTLS,
+todas>=600s, 40512publicações/162048entregas,90SIGKILL/30SIGTERM. Os1698probes
+incluem quatro ready0 transitórios e recuperação máxima1,659s dentro do budget
+quiescente15s. Report p91-soak-candidate-6.json SHA
+6bdc2c71c276723a0c4ad782643752aad243816e5d8283a386d63678951826c1.
+
+Matriz final p91-interop-candidate-4.json passou87/87 (59C43+28extensões),
+346,063s, cleanup202containers/2volumes PASS. SHA
+809719cd60c24e8a97c53506b813719125470c3b1494275e164c06e3aaabdddaf.
+Will isolado6/6 e contratos do harness21/21 reforçam o diagnóstico sem ampliar
+W8. As causas exatas dos dois FAIL anteriores de readiness não foram recuperadas
+e seguem explícitas em P91. Não trocar falhas antigas por PASS ou culpar ambiente
+sem prova. Wire19 e TLS12 no ELF final, todos os demais gates acima, passaram.
+
+O report do soak conserva HEAD3a5e29d dirty=true do início. As26entradas src/Cargo
+ficaram estáveis, e o ELF e57b1e2d coincidiu com o rebuild clean abbe38ca. Interop
+usou IDs Docker576de5dd/e1c56183 e revisionsabbe/e688. Não relabelar essa evidência
+como checkout clean; a identidade foi estabelecida separadamente.
+
+docs/phase3-acceptance.md passou a ACCEPTED no escopo experimental validado,
+com checklist/matriz/documentação alinhados. Exportação a partir dos clones
+exatos passou; .deb e exports Docker tar.gz têm checksums/manifests. Ainda não
+é publicação remota. Os tar.gz são imagens para docker load, não arquivos de
+ELFs nativos para instalação direta. MQTT3.1.1 permanece o protocolo entregue.
+
+## Pendências de publicação e limites
 
 Somente após P91 e os demais gates: concluir o registro de aceite, tags
 imutáveis v0.11.6/v0.9.0, prereleases com .deb/tars/checksums/provenance,

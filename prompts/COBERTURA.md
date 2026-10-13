@@ -112,6 +112,30 @@ prompts/registros/P44-0.8.0.md (caminhos relativos Ã  raiz do repositÃ³rio).
 ReferÃªncias anteriores a P44 apenas preparado descrevem checkpoints histÃ³ricos.
 
 
+## P89–P95 — fase 3 aceita no recorte experimental, 2026-10-13
+
+P89 preparou o fechamento; P90/P91 executaram campanhas finitas e P93/P94/P95
+corrigiram contratos reproduzidos antes do aceite. O checkpoint de código do
+broker é abbe38ca6c041f7328e85054506a4eed22c74c41, versão 0.11.6. Não atribuir
+artefatos a commits documentais posteriores. Client 0.9.0 e admin independente
+0.1.0 mantêm repositórios e ciclos próprios.
+
+135 testes Rust, fuzzing limitado 18/18, wire 19/19, TLS 12/12, pressão 60/60,
+compatibilidade admin 18/18, shutdown 3/3 e interop XMQR/Mosquitto 87/87 PASS.
+O ensaio prolongado passou seis cenários TCP/mTLS, cada um >=600s, em 1808,946s
+de parede; preserva quatro transientes ready0 e o HEAD dirty originalmente
+capturado, com identidade do ELF e fontes comparadas ao rebuild clean.
+Clones exatos, licenças originais (QA5/5 e14 negativos), inventário e ciclo
+Ubuntu26 com execução dos ELFs instalados passaram. Publicação é gate separado
+em P92; não inferir Docker Hub ou release apenas desses resultados locais.
+
+Veja [aceite](../docs/phase3-acceptance.md) e
+[P92](registros/P92-aceitacao-distribuicao-fase3.md). Relatórios históricos FAIL
+não foram apagados/promovidos. Não afirmar produção, SLA, ausência de leaks,
+conformidade integral, perda de energia ou nova homologação física ESP32.
+MQTT 5 continua planejado na fase 6, não implementado. O planejamento de admin
+dos três sistemas está no repositório independente, sem canal online entregue.
+
 ## P55 — implementação local em validação
 
 Quotas de sessões/retained/assinaturas/offline/inflight propagadas ao parser,
