@@ -94,13 +94,14 @@ P80 corrige shutdownTLS do cliente não leitor; [fase2 por componente](docs/phas
 tem software e ESP32 físico validados após P85/C44: fase2 concluída no escopo
 definido, sem conformidade integral ou produção inferida.
 
-Marco de distribuição atual: **broker/admin 0.11.5**. [B06/P86](docs/storage-faults.md)
-corrige recuperação e cobre falhas de armazenamento; fase 3 segue parcial.
-[Release experimental](https://github.com/licodevone/xmqr/releases/tag/v0.11.5)
-com .deb Ubuntu26 amd64, imagens e evidências publicadas porP87. Client0.8.1 mantido.
+Marco de distribuição atual: **broker/admin legado 0.11.6**, fase3 aceita no
+[recorte experimental](docs/phase3-acceptance.md).
+[Prerelease](https://github.com/licodevone/xmqr/releases/tag/v0.11.6)
+com .deb Ubuntu26amd64, exports de imagens Docker, checksums e evidências.
+Client0.9.0 publicado independentemente; versões anteriores preservadas.
 Admin independente0.1.0: [release experimental](https://github.com/licodevone/xmqr-admin/releases/tag/v0.1.0)
 com pacote `xmqr-admin` e imagem `lepinheiro100/xmqr-admin-ui:0.1.0`, sem
-conflito com o utilitário legado0.11.5. Painel não controla ACL/sessões ao vivo.
+conflito com o utilitário legado0.11.6. Painel não controla ACL/sessões ao vivo.
 Consulta de versão do
 admin, imagem admin separada e contexto Docker seguro. O [plano detalhado de
 paridade com Mosquitto](docs/plano-paridade-mosquitto.md) está concluído como
@@ -152,9 +153,9 @@ cd ~/xmqr-pacotes
 3. Baixe o pacote e seu checksum da release publicada:
 
 ```bash
-wget -O xmqr-broker_0.11.5-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.11.5/xmqr-broker_0.11.5-1_amd64.deb
-wget -O xmqr-broker_0.11.5-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.11.5/xmqr-broker_0.11.5-1_amd64.deb.sha256
-sha256sum -c xmqr-broker_0.11.5-1_amd64.deb.sha256
+wget -O xmqr-broker_0.11.6-1_amd64.deb https://github.com/licodevone/xmqr/releases/download/v0.11.6/xmqr-broker_0.11.6-1_amd64.deb
+wget -O xmqr-broker_0.11.6-1_amd64.deb.sha256 https://github.com/licodevone/xmqr/releases/download/v0.11.6/xmqr-broker_0.11.6-1_amd64.deb.sha256
+sha256sum -c xmqr-broker_0.11.6-1_amd64.deb.sha256
 ```
 
 Prossiga somente se a verificação mostrar `OK`.
@@ -162,7 +163,7 @@ Prossiga somente se a verificação mostrar `OK`.
 4. Instale e confirme o pacote e a conta de serviço:
 
 ```bash
-sudo apt install ./xmqr-broker_0.11.5-1_amd64.deb
+sudo apt install ./xmqr-broker_0.11.6-1_amd64.deb
 dpkg-query -W -f='${Status}\n' xmqr-broker
 id xmqr
 ```
@@ -413,7 +414,7 @@ em [registro P58](prompts/registros/P58-pacote-completo.md).
 
 ## Docker — distribuição P63/C40
 
-Imagens lepinheiro100/xmqr-broker:0.11.5 e lepinheiro100/xmqr-admin:0.11.5 para Linux/amd64,
+Imagens lepinheiro100/xmqr-broker:0.11.6 e lepinheiro100/xmqr-admin:0.11.6 para Linux/amd64,
 com tar.gz/SHA-256/proveniência na prerelease. O pacote do broker também inclui
 .debUbuntu26amd64. [Build/load, configuração e execução](docs/docker.md).
 Sem chaves/estado na imagem; usuário10001, mTLS e volumes externos.
@@ -423,12 +424,12 @@ Sem chaves/estado na imagem; usuário10001, mTLS e volumes externos.
 ```sh
 mqtt-broker --version
 mqtt-broker -V
-docker run --rm lepinheiro100/xmqr-broker:0.11.5 --version
+docker run --rm lepinheiro100/xmqr-broker:0.11.6 --version
 mqtt-admin --version
-docker run --rm lepinheiro100/xmqr-admin:0.11.5 --version
+docker run --rm lepinheiro100/xmqr-admin:0.11.6 --version
 ```
 
-Saída: `mqtt-broker 0.11.5` ou `mqtt-admin 0.11.5`, exit0. Funciona sem configuração, certificados,
+Saída: `mqtt-broker 0.11.6` ou `mqtt-admin 0.11.6`, exit0. Funciona sem configuração, certificados,
 credenciais ou estado: os argumentos são tratados antes do runtimeTokio/logs.
 Sem argumentos, inicia normalmente conforme configuração. Argumentos não
 suportados/combinados retornamexit2 sem reproduzir seus valores. Não há --help

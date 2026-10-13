@@ -1,4 +1,4 @@
-# P92 v1.8 — gates finais e distribuição fase3
+# P92 v1.9 — gates finais e distribuição fase3
 
 Preparado 2026-10-13 antes de versões/embalagem. P89 exige B06+B07+B08+C07
 com evidência real. Broker patch0.11.6: recusas CONNECT corrigidas por P93,
@@ -135,3 +135,19 @@ O registro coordenado recém-criado contém um 'd' extra (65 caracteres), erro
 de transcrição do resumo, não alteração do JSON. Corrigir somente esse texto;
 copiar evidências originais sem editar e gerar sidecars a partir dos bytes reais.
 Validar cada asset e manifest, sem anexar logs, credenciais ou estado bruto.
+
+## Revisão 1.9 — documentação após verificação da publicação
+
+Tags novas apontam abbe/e688; prereleases publicadas2026-10-13T22:23:52Z,
+42assetsbroker e18client, todos com nome/tamanho/SHA remoto conferidos antes
+de retirar draft. Downloads de .deb/manifest e seus sidecars (4porrelease)
+coincidiram byte a byte. Hub3imagens numeradas confirmou digests originais,
+pull/run por digest, versão real e revision. Só agora registrar publicação.
+
+Além dos arquivos de fechamento já previstos, alinhar docs/docker.md e
+docs/ubuntu-systemd.md de broker/client às versões distribuídas, preservando
+checkpoints anteriores como históricos. Exemplos de rebuild devem usar tag
+local nova, nunca sobrepor uma tag publicada; versõesUbuntu/Bookworm distintas.
+Admin A04 rev1.4 atualizará apenas estado factual do planejamento, sem runtime.
+Verificar links locais, diff e metadados remotos finais; não repetir Rust por
+mudança apenas documental. Sem iniciar fase4/5/6 ou modificar serviço do host.

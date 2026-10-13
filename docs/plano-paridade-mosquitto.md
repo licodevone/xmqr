@@ -1,7 +1,8 @@
 # Plano de paridade funcional do XMQR com Mosquitto
 
 Atualizado em 2026-10-13. Fase3 aceita no recorte finito: broker/legadoadmin
-0.11.6 eclient0.9.0, distribuição coordenada em P92. Releases anteriores
+0.11.6 eclient0.9.0, prereleases/.deb/Docker publicados e conferidos em P92.
+Releases anteriores
 0.11.5/0.8.1 preservadas; admin independente0.1.0 publicado e sem repin.
 Evidências/limites: [aceite da fase3](phase3-acceptance.md).
 O planejamento está completo como backlog

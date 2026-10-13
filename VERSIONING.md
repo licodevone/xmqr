@@ -12,6 +12,11 @@ Gates/PROMPTS e limites em phase3-acceptance; versões candidatas não anunciam
 por si só publicação ou homologação. Artefatos dos checkpoints abbe38ca/e688c75,
 mesmo com registros posteriores; MQTT3.1.1/MIT/formatos/quotas preservados.
 
+Publicação P92 concluída: tagsv0.11.6/v0.9.0 nesses checkpoints, prereleases
+com42/18assets e checksums remotos conferidos. .deb/manifests baixados iguais;
+Hub numerado e execução por digest aprovados. Docs posteriores não exigem bump
+ou retag, nem alteram os manifests de fonte dos artefatos.
+
 ## P88 — terceiro projeto, sem bump do broker
 
 xmqr-admin independente0.1.0 tem tag/release e pacote próprios. mqtt-admin

@@ -1,6 +1,44 @@
 # Imagem Docker do XMQR broker
 
-## Marco 0.11.4 — broker e admin no Docker Hub
+## Distribuição atual 0.11.6 — fase3 experimental
+
+Broker e mqtt-admin legado0.11.6 publicados no Hub; fonte dos artefatos
+abbe38ca6c041f7328e85054506a4eed22c74c41. Client0.9.0 tem imagem independente.
+O novo xmqr-admin continua0.1.0, no repositório/imagem admin-ui próprios;
+não é a imagem xmqr-admin abaixo. MQTT3.1.1, sem MQTT5 nesta entrega.
+
+```sh
+docker pull lepinheiro100/xmqr-broker:0.11.6
+docker pull lepinheiro100/xmqr-admin:0.11.6
+docker run --rm --network none --read-only --cap-drop=ALL lepinheiro100/xmqr-broker:0.11.6 --version
+docker run --rm --network none --read-only --cap-drop=ALL lepinheiro100/xmqr-admin:0.11.6 --version
+```
+
+Digests de índice OCI conferidos após push e usados em pull/run de versão:
+
+- broker: `sha256:576de5ddc2dc2f74cbb2f243126d8c36668784f110ed0da03a05df8435352f97`;
+- admin legado: `sha256:8893fae7624336bd150eb7ae8fc4933752673c2f00e7bab509c6416985307c72`.
+
+A [prerelease0.11.6](https://github.com/licodevone/xmqr/releases/tag/v0.11.6)
+contém .debUbuntu26amd64, dois exports Docker tar.gz, manifests/checksums e
+relatórios finitos. Confira SHA antes de `docker load -i ARQUIVO.tar.gz`.
+Esses tar.gz não são executáveis nativos. Bookworm é o alvo das imagens;
+não instalar o .debUbuntu nelas. Certificados, credenciais e estado são externos.
+
+Para reconstruir o código atual, use uma tag LOCAL ainda inexistente; nunca
+substitua uma versão publicada. Commit documental atual terá revision própria,
+não deve ser apresentado como fonte do artefato já publicado de abbe.
+
+```sh
+docker build --platform linux/amd64 --build-arg VERSION=0.11.6 --build-arg VCS_REF="$(git rev-parse HEAD)" --target runtime -t xmqr-broker:0.11.6-local .
+docker build --platform linux/amd64 --build-arg VERSION=0.11.6 --build-arg VCS_REF="$(git rev-parse HEAD)" --target admin -t xmqr-admin-legacy:0.11.6-local .
+```
+
+Seções anteriores abaixo são históricas; seus comandos de build não devem
+ser executados no HEAD atual nem usados para sobrepor imagens publicadas.
+Para recursos aceitos/limites, consulte [fase3](phase3-acceptance.md).
+
+## Histórico do marco 0.11.4 — broker e admin no Docker Hub
 
 PatchP80 limita shutdownTLS3s após peer lento; quotas/MQTT/estado preservados.
 Client permanece0.8.1; fase2 integral depende do teste físicoE01.

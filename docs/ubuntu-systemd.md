@@ -10,7 +10,7 @@ Com Rust, Python3, dpkg-dev e ferramentas nativas de build disponíveis:
 
 ```sh
 python3 scripts/build_deb.py
-sudo apt install ./dist/xmqr-broker_0.10.0-1_amd64.deb
+sudo apt install ./dist/xmqr-broker_0.11.6-1_amd64.deb
 ```
 
 O pacote contém `/usr/bin/mqtt-broker`, `/usr/bin/mqtt-admin`, unit systemd,

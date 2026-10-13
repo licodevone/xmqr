@@ -2,7 +2,7 @@
 
 **ACCEPTED no recorte finito validado**, em 13 de outubro de 2026. Broker e
 mqtt-admin legado 0.11.6, client 0.9.0; admin independente mantém 0.1.0,
-pin e distribuição anteriores. Publicação nova em preparação neste checkpoint.
+pin e distribuição anteriores. Publicação nova concluída e conferida em P92.
 Não equivale a produção, SLA ou conformidade MQTT completa.
 
 ## Critérios cumpridos
@@ -72,7 +72,14 @@ perda física de energia, estabilidade de dias ou throughput máximo.
 [P93](../prompts/registros/P93-contrato-connect.md), [P94](../prompts/registros/P94-orcamento-nao-leitor.md),
 [P95](../prompts/registros/P95-encerramento-tls.md) e
 [C46](../../xmqr-client/prompts/registros/C46-release-fase3.md).
-Reports finais sanitizados serão anexados à distribuição; intermediários são
+Reports finais sanitizados estão anexados às
+[prerelease broker0.11.6](https://github.com/licodevone/xmqr/releases/tag/v0.11.6)
+e [client0.9.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.9.0),
+com .debUbuntu26amd64, exports Docker, manifests e sidecarsSHA-256. São42/18assets;
+nome/tamanho/hash remoto conferidos e .deb/manifests baixados byte a byte.
+Hub numerado conferido por manifest, pull/run por digest, versão e revision.
+Tags identificam abbe/e688; latest, tags anteriores e admin-ui0.1.0 não mudaram.
+Intermediários são
 evidência local e histórico explícito. As fases4/5 têm o
 [planejamento integrado do admin](../../xmqr-admin/docs/planejamento-tres-sistemas.md).
 Próximo código exige novo prompt, não iniciou por encerrar a fase3.

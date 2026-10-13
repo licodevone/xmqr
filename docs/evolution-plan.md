@@ -1,8 +1,10 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; acompanhamento atualizado em 2026-10-13
-por P80/C43/P81/P82/P83/P84/P85/C44/P86/P87/P88. Versões atuais: broker e
-admin legado0.11.5; client independente0.8.1; novo xmqr-admin independente0.1.0.
+por P80/C43/P81/P82/P83/P84/P85/C44/P86/P87/P88 e fechamentoP89–P95/C45–C46.
+Versões publicadas atuais: broker/admin legado0.11.6; client independente0.9.0;
+xmqr-admin independente0.1.0, com pin preservado. Fase3 aceita no recorte finito;
+[aceite e distribuição](phase3-acceptance.md). MQTT5 continua fase6 futura.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42/P86/P88, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.

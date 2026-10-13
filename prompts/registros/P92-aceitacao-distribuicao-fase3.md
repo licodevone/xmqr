@@ -127,12 +127,56 @@ exatos passou; .deb e exports Docker tar.gz têm checksums/manifests. Ainda não
 é publicação remota. Os tar.gz são imagens para docker load, não arquivos de
 ELFs nativos para instalação direta. MQTT3.1.1 permanece o protocolo entregue.
 
-## Pendências de publicação e limites
+## Publicação concluída e verificada — 2026-10-13
 
-Somente após P91 e os demais gates: concluir o registro de aceite, tags
-imutáveis v0.11.6/v0.9.0, prereleases com .deb/tars/checksums/provenance,
-push de imagens numeradas para lepinheiro100 e verificação remota dos digests.
-O admin independente não recebe uma versão documental artificial.
+Prompt P92v1.9 antes da documentação final. Commit aceito brokerabbe38ca,
+tag anotada v0.11.6 peeled para esse commit; clientv0.9.0 peeled e688c75.
+Ambas novas, sem force ou retag. As prereleases foram criadas como drafts,
+todos os assets verificados por nome/estado/tamanho/SHA da API antes da
+publicação simultânea em2026-10-13T22:23:52Z:
+
+- [Broker0.11.6](https://github.com/licodevone/xmqr/releases/tag/v0.11.6):
+  42assets, inclui .deb, dois exports Docker, manifest, relatórios e sidecars.
+- [Client0.9.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.9.0):
+  18assets, inclui .deb, export Docker, manifest, relatórios e sidecars.
+
+.deb+manifest e seus sidecars baixados de cada release (4assets cada) e
+comparados byte a byte aos locais, todos PASS. Todos60digests de assets da API
+coincidiram com SHA real. Brokers e client .deb conservam SHAa2ce949b/04eb2830.
+Índices de evidência preservam status históricos dos runners; não reescrever
+JSON original como publicação. Registro package-lifecycle é resumo manual
+dos gates observados, explicitamente não log bruto.
+
+Hub publicou somente tags novas numeradas, com manifest remoto conferido:
+
+- `lepinheiro100/xmqr-broker:0.11.6`:
+  `sha256:576de5ddc2dc2f74cbb2f243126d8c36668784f110ed0da03a05df8435352f97`.
+- `lepinheiro100/xmqr-admin:0.11.6` (mqtt-admin legado):
+  `sha256:8893fae7624336bd150eb7ae8fc4933752673c2f00e7bab509c6416985307c72`.
+- `lepinheiro100/xmqr-client:0.9.0`:
+  `sha256:e1c56183bd98fbe33c9fade58f81d61b2f60eb960c3704747528ec7f471a11ed`.
+
+Cada imagem foi puxada por digest remoto emlinux/amd64 e executou --version
+com networknone/readonly/caps-none/no-new-privileges; retornou versão correta
+e labelrevisionabbe/e688. Não apenas conferir label ou cache de tag mutável.
+Nenhum latest/tag antigo ou admin-ui0.1.0 publicado por esta execução.
+Admin independente continua0.1.0, pin/distribuição anteriores,18compat PASS.
+
+Guias atuais README/Docker/systemd alinhados às versões publicadas; exemplos
+rebuild usam tags locais, sem sobrepor Hub. Só documentação posterior aos
+checkpoints de fonte, não mudança da proveniência/tag dos artefatos.
+Verificação independente confirmou payloads/manifests,40blobsOCI e18JSONs
+originais seguros. Sem logs, chaves, credenciais ou estado bruto nos anexos.
+P92rev1.8 corrigiu uma transcrição SHA com'd'extra, não alterou JSON original.
+
+Verificação final documental:117links locais nos15arquivos alterados resolvem,
+diffcheck PASS. Os21contratos do harness foram repetidos PASS após o commit
+de consolidação. Digests remotos anteriores broker0.11.5,client0.8.1 e
+admin-ui0.1.0 coincidem com os baselines registrados. Nenhum runtime/dependência
+foi modificado nos commits documentais de publicação; novos testes funcionais
+não foram alegados só por editar os guias. Gitstatus/remotes conferidos ao final.
+
+## Limites preservados
 
 Sem MQTT5, fases 4/5 implementadas, Windows broker nativo, arm64, MSRV1.88
 exato, novo teste físico ESP32, SLA, throughput máximo, dias de estabilidade
