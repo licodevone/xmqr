@@ -4,7 +4,7 @@
 broker/admin0.11.4, client0.8.1 independente, tarballs preexistentes intocados.
 Pedido direto: executar os testes pendentes da fase2; autorização anterior de
 backup/gravaçãoCOM4, prompts/MIT/testes/commit/push/distribuição mantida.
-[P85v1.2](../broker/85-e01-campanha-pendencias.md) apresentado antes de fontes;
+[P85v1.3](../broker/85-e01-campanha-pendencias.md), iniciado em v1.0 antes de fontes;
 revisões antes das correções/novo escopo documental/publicação de evidência.
 
 Skills xmqr-rust-mqtt/tests/security-review aplicadas pelo agente principal;
@@ -93,8 +93,16 @@ Sem firewall/router/GPIO/efuse/NVS/erase geral, serviços reais ou worktrees ext
 alterados. Casos anteriores/backup/credenciais privados preservados. SDKalteração
 somente configuração de falha de alocação; nenhum patch em SDK/libvendor.
 
-Commit/push do broker e docsclientC44 após auditoria. EvidênciaJSONsanitizada
-será anexada às releases existentes com adendo após confirmação, sem
-clobber de asset diferente. Pacotes/digests/tags0.11.4/0.8.1 imutáveis, sem
-novo runtime fabricado para teste. SHAreal do commit/asset confirmado na entrega,
-não previsto aqui. Próxima fase apenas planejada, não iniciada nesta campanha.
+Fonte/dados do broker publicados em c16766a558c4d7c2d5e98b919a9c62458b0192d1;
+C44client em d9d97d51b88832044c8d2de3786ce4262ee77ec1. JSONsanitizado anexado
+às duas releases existentes e adendo de notas verificado. SHA256 do novoasset:
+70d99e20619af9912b30d5b69a6d2cb0caaf3d553af74771502fc60e33422924.
+Sem clobber de asset diferente. Pacotes/digests/tags0.11.4/0.8.1 imutáveis,
+sem runtime fabricado para teste. Links das evidências:
+[broker](https://github.com/licodevone/xmqr/releases/download/v0.11.4/p85-e01-campanha-2026-10-13.json),
+[client](https://github.com/licodevone/xmqr-client/releases/download/v0.8.1/p85-e01-campanha-2026-10-13.json).
+
+V1.3 corrige aviso antigo de ESP32pendente no README da raiz e registra essa
+publicação real; somente texto, sem novos testes de runtime por esse ajuste.
+Commit/push suplementar após diff/links/auditoria, SHAreal na entrega. Próxima
+fase apenas planejada, não iniciada nesta campanha.

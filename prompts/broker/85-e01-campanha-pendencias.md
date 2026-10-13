@@ -1,4 +1,4 @@
-# P85 v1.2 — executar os testes físicos pendentes da fase2
+# P85 v1.3 — executar os testes físicos pendentes da fase2
 
 Base0e42ee832029daf39e602c81218faa871d792100/main limpa, broker/admin0.11.4,
 client0.8.1 intocado/tarballs preservados. P83/P84 positivos físicos aceitos
@@ -96,3 +96,13 @@ Após auditoria/commit/push, anexar SOMENTE JSONsanitizado P85 às releases
 existentes0.11.4/0.8.1 e atualizar notas com adendo do aceite + link do commit.
 Não clobber arquivo existente diferente; não mudar tags/pacotes/digests/latest
 ou fabricar versão nova sem mudança de runtime. Verificar novos assets remotos.
+
+## Revisão v1.3 — fechamento documental após publicação
+
+P85fontes/dados publicados em c16766a e C44 em d9d97d5. EvidênciaJSON anexada
+às duas releases, notas com adendo verificadas; SHA256 remoto70d99e20619af991
+2b30d5b69a6d2cb0caaf3d553af74771502fc60e33422924. Nada de runtime mudou.
+Busca final achou aviso antigo de ESP32pendente no README.md da raiz; acrescentar
+esse arquivo ao escopo e corrigir só as duas linhas do aviso. RegistroP85 deve
+referir a publicação realmente concluída; testes funcionais não repetidos por
+essa correção de texto. Novo commit/push após diff/links/auditoria.

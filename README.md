@@ -77,7 +77,8 @@ Não há declaração de conformidade completa ou prontidão para produção.
 ## Versões
 
 P80 corrige shutdownTLS do cliente não leitor; [fase2 por componente](docs/phase2-acceptance.md)
-tem software validado e ESP32 físico pendente.
+tem software e ESP32 físico validados após P85/C44: fase2 concluída no escopo
+definido, sem conformidade integral ou produção inferida.
 
 Marco de distribuição atual: **broker/admin 0.11.4**. Consulta de versão do
 admin, imagem admin separada e contexto Docker seguro. O [plano detalhado de
