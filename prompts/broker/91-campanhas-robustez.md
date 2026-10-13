@@ -1,4 +1,4 @@
-# P91 v1.13 — B08: campanhas limitadas de robustez e interoperabilidade
+# P91 v1.14 — B08: campanhas limitadas de robustez e interoperabilidade
 
 Preparado em 2026-10-13 antes de editar os harnesses. Pedido: finalizar fase 3,
 mantendo prompts antes do código e publicação somente após aceite coordenado.
@@ -174,3 +174,15 @@ registrar FS/free/logmarkers/exitcode sanitizados em falhas. O ENOSPC do root
 foi observado, mas não atribuir erro do processo sem marcador. Reexecutar
 600x3 completos; não contar o ensaio abortado como30minPASS. FS/método mudou,
 não o binário, os deadlines ou as asserções de protocolo.
+
+## Revisão v1.14 — diagnóstico do probe sob carga
+
+Candidate4ext4 FAIL255.679s: unhealthysingleprobe apósload, processo vivo,
+946GiB livres, semmarcadoresENOSPC/EIO/panic/persistence. Monitoring usa probe
+500ms (`src/monitoring.rs`), portanto um único0pode indicar atraso de ator/writer
+durante pressão; isso ainda não é causa comprovada. Instrumentar métricas e
+3reprobesquiescentes de diagnóstico, mantendo FAIL mesmo se recuperar.
+Só depois da evidência/promptnovo definir recuperação saudável por prazo finito.
+Não relaxar ACKs/bytes/QoS/erros persistência. Corrigir também oráculoQoS0:
+DUP deve ser0 nas entregas, não mascarado pelo matcher de header; negativo
+determinístico do harness antes de próximo gate prolongado.

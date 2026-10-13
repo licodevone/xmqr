@@ -59,6 +59,8 @@ def receive(client, expected, qos, retained=False, acknowledge=True):
             or (qos and identifier == b'\0\0')):
         raise AssertionError('logical sequence, bytes, flags or QoS mismatch')
     duplicate = bool(header & 8)
+    if qos == 0 and duplicate:
+        raise AssertionError('QoS0 delivery must not set DUP')
     if acknowledge and qos == 1:
         client.send(0x40, identifier)
     elif acknowledge and qos == 2:
@@ -77,6 +79,7 @@ class Laboratory:
         self.crashes = 0
         self.stage = 'start'
         self.operation = 'start'
+        self.health_diagnostic = None
 
     def client(self, identifier, clean=True):
         self.operation = 'connect_' + identifier
@@ -302,6 +305,12 @@ def scenario(args, binary, security, context, transport, repetition, cancelled, 
                 elapsed = time.monotonic() - began
                 metrics = lab.broker.metrics()
                 if metrics['xmqr_ready'] != 1 or metrics['xmqr_persistence_errors_total'] != 0:
+                    initial = time.monotonic()
+                    lab.health_diagnostic = [dict(seconds=0, metrics=metrics)]
+                    for _ in range(3):
+                        time.sleep(.1)
+                        observed = lab.broker.metrics()
+                        lab.health_diagnostic.append(dict(seconds=round(time.monotonic() - initial, 3), metrics=observed))
                     raise AssertionError('writer/actor is not healthy after load/recovery')
                 if not (metrics['xmqr_connections_active'] <= 5 and metrics['xmqr_sessions'] <= 5
                         and metrics['xmqr_offline_messages'] <= 64 and metrics['xmqr_inflight_messages'] <= 32
@@ -354,6 +363,8 @@ def scenario(args, binary, security, context, transport, repetition, cancelled, 
                                   eio_marker=b'input/output error' in log or b'os error 5' in log,
                                   persistence_marker=b'persistence' in log or b'durable' in log,
                                   panic_marker=b'panicked' in log)
+                if lab.health_diagnostic:
+                    diagnostic['health_probes'] = lab.health_diagnostic
                 try:
                     failures.put_nowait(diagnostic)
                 except queue.Full:

@@ -55,6 +55,7 @@ class HarnessContracts(unittest.TestCase):
             def __init__(self, *_):
                 self.stage = 'synthetic_failure'
                 self.operation = 'receive_fanout'
+                self.health_diagnostic = None
                 self.broker = SimpleNamespace(start=lambda: None,
                                               process=SimpleNamespace(pid=1, poll=lambda: None))
 
@@ -80,6 +81,13 @@ class HarnessContracts(unittest.TestCase):
         self.assertEqual(first['error_type'], 'EOFError')
         self.assertEqual(first['operation'], 'receive_fanout')
         self.assertTrue(failures.empty())
+
+    def test_qos0_delivery_duplicate_flag_is_not_masked(self):
+        class Peer:
+            def receive(self):
+                return 0x38, soak.f.text('benchmark/value') + soak.payload(0)
+        with self.assertRaisesRegex(AssertionError, 'must not set DUP'):
+            soak.receive(Peer(), 0, 0)
 
 
 if __name__ == '__main__':
