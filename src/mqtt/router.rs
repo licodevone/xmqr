@@ -79,6 +79,11 @@ struct Actor {
 }
 
 enum Command {
+    #[cfg(test)]
+    Inject {
+        fault: crate::persistence::faults::Fault,
+        reply: oneshot::Sender<Result<(), RouterError>>,
+    },
     Shutdown {
         reply: oneshot::Sender<Result<(), RouterError>>,
     },
@@ -311,6 +316,12 @@ impl Router {
                 commits_since_snapshot: 0,
             };
             while let Some(command) = receiver.recv().await {
+                #[cfg(test)]
+                if let Command::Inject { fault, reply } = command {
+                    let result = actor.store.inject_for_test(fault).await.map_err(Into::into);
+                    let _ = reply.send(result);
+                    continue;
+                }
                 if let Command::Shutdown { reply } = command {
                     receiver.close();
                     let result = actor.shutdown().await;
@@ -360,6 +371,16 @@ impl Router {
     pub(crate) async fn stop_for_test(&self) {
         let _ = self.sender.send(Command::Stop).await;
         self.sender.closed().await;
+    }
+
+    #[cfg(test)]
+    pub(super) async fn inject_for_test(
+        &self,
+        fault: crate::persistence::faults::Fault,
+    ) -> Result<(), RouterError> {
+        let (reply, result) = oneshot::channel();
+        self.send(Command::Inject { fault, reply }).await?;
+        result.await.map_err(|_| RouterError::Unavailable)?
     }
 
     #[cfg(test)]
@@ -605,7 +626,7 @@ impl Actor {
         match command {
             Command::Shutdown { .. } => unreachable!("shutdown handled by actor loop"),
             #[cfg(test)]
-            Command::Stop => self.fail_closed(),
+            Command::Stop | Command::Inject { .. } => self.fail_closed(),
             Command::Probe { reply } => {
                 let ready = self.probe().await;
                 let _ = reply.send(ready);
@@ -1292,6 +1313,131 @@ fn allocate_packet_id(session: &mut DurableSession) -> Result<u16, RouterError> 
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn storage_failure_closes_all_live_sessions_and_preserves_offline_candidate() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (directory, mut actor) = actor().await;
+        let publisher = actor
+            .register("pub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let mut online = actor
+            .register("online".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let offline = actor
+            .register("offline".into(), "user".into(), false)
+            .await
+            .unwrap();
+        for session in [&online, &offline] {
+            actor
+                .subscribe(
+                    &session.client_id,
+                    session.generation,
+                    vec![(filter("test/state"), Some(1))],
+                )
+                .await
+                .unwrap();
+        }
+        actor
+            .unregister_with_reason("offline", offline.generation, true)
+            .await
+            .unwrap();
+        let before = actor.state.clone();
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(
+            actor
+                .publish(
+                    "pub",
+                    publisher.generation,
+                    message("test/state", 1, true, b"candidate"),
+                    Some(7)
+                )
+                .await
+                .is_err()
+        );
+        assert_eq!(actor.state, before);
+        assert!(actor.fatal);
+        assert!(*publisher.closed.borrow());
+        assert!(*online.closed.borrow());
+        assert!(online.outbound.try_recv().is_err());
+        assert!(!actor.metrics.actor_alive.load(Ordering::Relaxed));
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, before);
+        store.shutdown().await.unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn snapshot_failure_after_durable_commit_refuses_reply_and_fanout_but_recovers_commit() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        for point in [
+            Point::SnapshotWrite,
+            Point::DirectorySync,
+            Point::WalCompactSync,
+        ] {
+            let (directory, mut actor) = actor().await;
+            let publisher = actor
+                .register("pub".into(), "user".into(), false)
+                .await
+                .unwrap();
+            let mut subscriber = actor
+                .register("sub".into(), "user".into(), false)
+                .await
+                .unwrap();
+            actor
+                .subscribe(
+                    "sub",
+                    subscriber.generation,
+                    vec![(filter("test/state"), Some(1))],
+                )
+                .await
+                .unwrap();
+            actor.commits_since_snapshot = 127;
+            actor
+                .store
+                .inject_for_test(Fault {
+                    point,
+                    action: Action::Error(5),
+                })
+                .await
+                .unwrap();
+            assert!(
+                actor
+                    .publish(
+                        "pub",
+                        publisher.generation,
+                        message("test/state", 1, true, b"committed-no-ack"),
+                        Some(7)
+                    )
+                    .await
+                    .is_err()
+            );
+            assert!(actor.fatal);
+            assert!(*publisher.closed.borrow());
+            assert!(*subscriber.closed.borrow());
+            assert!(subscriber.outbound.try_recv().is_err());
+            assert_eq!(
+                actor.state.retained["test/state"].payload,
+                b"committed-no-ack"
+            );
+            actor.store.shutdown().await.unwrap();
+            let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+            assert_eq!(recovered, actor.state);
+            assert_eq!(recovered.sessions["sub"].outbound.len(), 1);
+            store.shutdown().await.unwrap();
+        }
+    }
+
     #[cfg_attr(not(unix), ignore = "requires Unix directory fsync")]
     #[tokio::test]
     async fn saturated_will_closes_actor_and_preserves_obligation_until_compatible_restart() {

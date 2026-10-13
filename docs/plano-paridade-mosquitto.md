@@ -1,7 +1,7 @@
 # Plano de paridade funcional do XMQR com Mosquitto
 
-Atualizado em 2026-10-13. Broker/admin 0.11.4 e client 0.8.1 são o marco de
-distribuição desta revisão. O planejamento abaixo está completo como backlog
+Atualizado em 2026-10-13. Broker/admin0.11.5 corrige recuperação porP86;
+distribuição governada porP87, client0.8.1 mantido. O planejamento está completo como backlog
 executável; as funcionalidades pendentes não estão implementadas por isso.
 O propósito é evoluir um broker MQTT e seus utilitários com contratos próprios,
 não reproduzir cada detalhe interno, arquivo ou opção de todas as versões Mosquitto.
@@ -71,7 +71,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | B03 | Broker: conexões simultâneas e admissão sob saturação | P80 PASS até teto configurado64; sem SLA | N/N+1/vaga/RSS/CPU/percentis TCP/mTLS; performance-pressure.md |
 | B04 | Broker: assinantes lentos, filas e fan-out sob pressão | P80 PASS limitado; shutdown corrigido0.11.4 | Filas4/8 e32/64, restart/QoS1/2, peer e vaga; não é ensaio prolongado |
 | B05 | Broker: rate limits e quotas por identidade | Avaliação ADR0006 concluída; runtime adiado | Quotas mantidas; isolamento/fairness multitenant não implementados |
-| B06 | Broker: erros de disco, ENOSPC, escrita curta e corrupção | Parcial recuperação existente | B04; injeção em cópia temporária, fechamento seguro e reabertura sem commit fictício |
+| B06 | Broker: erros de disco, ENOSPC, escrita curta e corrupção | Aceito recorte determinístico P86:54casos; patch0.11.5 | storage-faults.md; sem ACK/fan-out indevido, poison/reopen e WAL inválido preservado; não prova falhas físicas/energia |
 | B07 | Broker: fuzzing de codec, estado e filtros | Planejado | B02/B06; corpus limitado, watchdog, sanitização de crash e regressões determinísticas |
 | B08 | Broker/client: matriz externa 3.1.1 | Parcial ampliadoC43:59cenários mTLS/bytes/QoS/retained/Will/sessões/negativos | Interrupções de rede e matriz exaustiva continuam fase3; não é conformidade completa |
 | B09 | Broker: múltiplos listeners | Planejado | B04/B08; políticas por endpoint, identidade isolada, sem duplicar roteadores/estado |

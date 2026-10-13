@@ -1,5 +1,14 @@
 # Versionamento
 
+## P86/P87 — patch0.11.5, início da fase3
+
+P86 corrige a distinção entre erro de leitura e cauda WAL incompleta. Somente
+UnexpectedEof autoriza truncamento; EIO preserva o arquivo e falha a abertura.
+Injetores são exclusivos de testes, sem configuração pública. Client0.8.1
+mantido; formatos e dependências preservados. P87 governa commit exato,
+tag/prerelease/.deb e Hubbroker/admin0.11.5 após gates, sem latest/overwrite.
+Esse marco B06 não encerra a fase3 nem equivale a homologação de produção.
+
 ## P80/C43 — correção0.11.4 e evidência fase2
 
 Broker/admin0.11.4 limita shutdownTLS demonstrado por não leitor.

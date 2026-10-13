@@ -71,4 +71,11 @@ Linux/WSL; a implementação de persistência retorna `Unsupported` em Windows.
 
 ## Verificação
 
+P86/B06 (0.11.5) corrige uma distinção na recuperação: erro real ao completar
+o tamanho do registro não é UnexpectedEof e não autoriza truncar a cauda.
+[Campanha determinística](../storage-faults.md) cobre ENOSPC/EIO, escrita curta,
+zero/Interrupted, oito fronteiras de snapshot/compactação, poison/reopen,
+corrupção e falta de ACK/fan-out no fluxo MQTT real. Injeção somente cfg(test),
+sem feature/ambiente público. Não simula disco físico cheio ou perda de energia.
+
 `cargo test --all-targets` cobre round trip, substituição/deleção, bloqueio de segundo escritor, cauda truncada, checksums e versões inválidos, WAL ausente após snapshot, transições QoS/retained e interrupções forçadas do processo. Os testes de interrupção usam `process::exit`; validam recuperação após queda do processo, **não simulam perda de energia ou cache volátil de disco**. Uma prova local com clientes Rust validou QoS 1/2, retained e fila offline após reinício em porta de teste separada.

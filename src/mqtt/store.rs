@@ -188,6 +188,15 @@ impl MqttStore {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub(super) async fn inject_for_test(
+        &self,
+        fault: crate::persistence::faults::Fault,
+    ) -> Result<(), StateError> {
+        self.writer.inject_for_test(fault).await?;
+        Ok(())
+    }
+
     /// Commit the whole candidate. Success is an fsync durability barrier.
     /// The caller must not expose the candidate or ACK `QoS` until this returns.
     pub async fn commit(&self, state: &DurableState) -> Result<(), StateError> {

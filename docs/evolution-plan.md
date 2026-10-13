@@ -67,10 +67,18 @@ e [checklist ESP32](esp32-phase2-checklist.md). Fase2 global ACCEPTED apósP85.
 MemóriaMCU é probe quantizado, não heap total; sem conformidade/produção
 inferida. P85 não iniciou fase3; próxima fatia requer prompt próprio.
 
-### Fases 3–5 — entregas restantes
+### Fase 3 — em andamento
 
-- [ ] Fase 3: falhas de disco/escrita, fuzzing, pressão de filas e matriz MQTT3.1.1 ampliada.
+- [x] ~~B06: erros de leitura/gravação, ENOSPC/EIO, escrita curta, snapshot e corrupção; 54 casos determinísticos e patch0.11.5 (P86).~~
+- [ ] B07: fuzzing com corpus limitado e regressões determinísticas.
+- [ ] Fase 3: ensaios prolongados de pressão/recuperação e matriz MQTT3.1.1 ampliada (B08).
 - [ ] Fase 3: reconexão/backoff, cancelamento e interoperabilidade externa ampliada, incluindo TLS/mTLS e ACL.
+
+EvidênciaB06: [falhas de armazenamento](storage-faults.md) e
+[registroP86](../prompts/registros/P86-falhas-disco.md). Falhas injetadas não
+equivalem a disco físico cheio/energia. Fase3 global permanece parcial.
+
+### Fases 4–5 — entregas restantes
 - [ ] Fase 4: múltiplos listeners, políticas por endpoint, TLS sem certificado cliente quando configurado e rotação de certificados.
 - [ ] Fase 4: perfis reutilizáveis do client e testes de rotação/erros de credenciais.
 - [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.

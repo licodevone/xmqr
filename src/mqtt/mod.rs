@@ -5,6 +5,8 @@
 mod codec;
 mod limits;
 mod router;
+#[cfg(all(test, unix))]
+mod storage_fault_tests;
 mod store;
 pub(crate) mod topic;
 

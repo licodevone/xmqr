@@ -9,6 +9,11 @@ use super::{StorageError, Store};
 const MAILBOX_CAPACITY: usize = 256;
 
 enum Command {
+    #[cfg(test)]
+    Inject {
+        fault: super::faults::Fault,
+        reply: oneshot::Sender<()>,
+    },
     Probe {
         reply: oneshot::Sender<Result<(), StorageError>>,
     },
@@ -57,6 +62,11 @@ impl PersistenceHandle {
             .spawn(move || {
                 while let Some(command) = receiver.blocking_recv() {
                     match command {
+                        #[cfg(test)]
+                        Command::Inject { fault, reply } => {
+                            store.faults.arm(fault);
+                            let _ = reply.send(());
+                        }
                         Command::Probe { reply } => {
                             let _ = reply.send(store.ensure_writable());
                         }
@@ -154,6 +164,16 @@ impl PersistenceHandle {
     async fn send(&self, command: Command) -> Result<(), StorageError> {
         self.sender.send(command).await.map_err(|_| closed())
     }
+
+    #[cfg(test)]
+    pub(crate) async fn inject_for_test(
+        &self,
+        fault: super::faults::Fault,
+    ) -> Result<(), StorageError> {
+        let (reply, result) = oneshot::channel();
+        self.send(Command::Inject { fault, reply }).await?;
+        result.await.map_err(|_| closed())
+    }
 }
 
 fn closed() -> StorageError {
@@ -166,6 +186,49 @@ fn closed() -> StorageError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn failed_writer_refuses_reads_probes_and_mutations_until_reopen() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let directory = tempfile::tempdir().unwrap();
+        let writer = PersistenceHandle::start(directory.path()).unwrap();
+        writer
+            .put(b"key".to_vec(), b"committed".to_vec())
+            .await
+            .unwrap();
+        writer
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::Error(28),
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            writer.put(b"key".to_vec(), b"candidate".to_vec()).await,
+            Err(StorageError::Io(_))
+        ));
+        assert!(matches!(writer.probe().await, Err(StorageError::Poisoned)));
+        assert!(matches!(
+            writer.get(b"key".to_vec()).await,
+            Err(StorageError::Poisoned)
+        ));
+        assert!(matches!(
+            writer.delete(b"key".to_vec()).await,
+            Err(StorageError::Poisoned)
+        ));
+        assert!(matches!(
+            writer.snapshot().await,
+            Err(StorageError::Poisoned)
+        ));
+        writer.shutdown().await.unwrap();
+        let recovered = PersistenceHandle::start(directory.path()).unwrap();
+        assert_eq!(
+            recovered.get(b"key".to_vec()).await.unwrap(),
+            Some(b"committed".to_vec())
+        );
+        recovered.probe().await.unwrap();
+        recovered.shutdown().await.unwrap();
+    }
     #[tokio::test]
     async fn probe_detects_writer_shutdown_without_copying_or_writing_state() {
         let directory = tempfile::tempdir().unwrap();

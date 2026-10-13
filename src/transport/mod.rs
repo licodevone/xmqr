@@ -83,6 +83,12 @@ pub struct BrokerConnection {
 }
 
 impl BrokerConnection {
+    #[cfg(all(test, unix))]
+    pub(crate) async fn open_lab_for_test(stream: TcpStream) -> Result<Self, HandlerError> {
+        let peer = stream.peer_addr()?;
+        assert!(peer.ip().is_loopback());
+        Ok(establish_open_lab_connection(1, peer, stream).await?)
+    }
     #[must_use]
     pub const fn id(&self) -> u64 {
         self.id

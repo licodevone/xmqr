@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 0.11.5 — recuperação: erro de leitura não é cauda incompleta
+
+- Erro ao completar o tamanho de um registro WAL agora é propagado; somente
+  UnexpectedEof permite truncar uma cauda interrompida. Evita perda de evidência
+  por confundir EIO com fim de arquivo durante recuperação.
+- P86/B06: falhas por instância apenas em cfg(test), ENOSPC/EIO/write-zero,
+  escrita curta/Interrupted, snapshot/compactação e corrupção; frames TCP
+  independentes verificam ausência de PUBACK/PUBREC/PUBCOMP após falha.
+- MQTT3.1.1, perfis/ACL, quotas, dependências/MIT e formatos duráveis mantidos.
+- Fase3 em andamento: fuzzing, testes prolongados e matriz externa ampliada
+  continuam pendentes; injeção não prova disco físico cheio ou perda de energia.
+
 ## 0.11.4 — encerramento limitado de cliente TLS lento
 
 - Shutdown/flush de transporte tem deadline3s, liberando tarefa e admissão

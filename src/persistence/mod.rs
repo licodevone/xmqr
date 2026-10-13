@@ -6,6 +6,12 @@
 pub mod actor;
 pub mod backup;
 
+#[cfg(test)]
+pub(crate) mod faults;
+
+#[cfg(all(test, unix))]
+mod fault_tests;
+
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
@@ -71,6 +77,8 @@ pub struct Store {
     state_bytes: usize,
     sequence: u64,
     poisoned: bool,
+    #[cfg(test)]
+    faults: faults::Faults,
 }
 
 impl Store {
@@ -156,6 +164,8 @@ impl Store {
             state_bytes,
             sequence,
             poisoned: false,
+            #[cfg(test)]
+            faults: faults::Faults::default(),
         })
     }
 
@@ -261,8 +271,14 @@ impl Store {
             .ok_or(StorageError::SequenceOverflow)?;
         let record = encode_record(sequence, operation, key, value)?;
         self.poisoned = true;
+        #[cfg(test)]
+        self.faults
+            .write_all(faults::Point::WalAppend, &mut self.wal, &record)?;
+        #[cfg(not(test))]
         self.wal.write_all(&record)?;
         crash_at("after_wal_append_before_fsync");
+        #[cfg(test)]
+        self.faults.check(faults::Point::WalSync)?;
         self.wal.sync_data()?;
         crash_at("after_wal_fsync");
         self.sequence = sequence;
@@ -274,23 +290,43 @@ impl Store {
         let temporary_path = self.directory.join(SNAPSHOT_TEMP_NAME);
         let final_path = self.directory.join(SNAPSHOT_NAME);
         let snapshot = encode_snapshot(&self.state, self.sequence)?;
+        #[cfg(test)]
+        self.faults.check(faults::Point::SnapshotCreate)?;
         let mut temporary_file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&temporary_path)?;
+        #[cfg(test)]
+        self.faults
+            .write_all(faults::Point::SnapshotWrite, &mut temporary_file, &snapshot)?;
+        #[cfg(not(test))]
         temporary_file.write_all(&snapshot)?;
+        #[cfg(test)]
+        self.faults.check(faults::Point::SnapshotSync)?;
         temporary_file.sync_all()?;
         crash_at("after_snapshot_temp_fsync");
         drop(temporary_file);
+        #[cfg(test)]
+        self.faults.check(faults::Point::SnapshotRename)?;
         fs::rename(&temporary_path, &final_path)?;
         crash_at("after_snapshot_rename");
+        #[cfg(test)]
+        self.faults.check(faults::Point::DirectorySync)?;
         sync_directory(&self.directory)?;
         crash_at("after_snapshot_dir_fsync");
 
+        #[cfg(test)]
+        self.faults.check(faults::Point::WalTruncate)?;
         self.wal.set_len(WAL_HEADER.len() as u64)?;
         crash_at("after_wal_truncate");
         self.wal.seek(SeekFrom::Start(0))?;
+        #[cfg(test)]
+        self.faults
+            .write_all(faults::Point::WalHeaderWrite, &mut self.wal, WAL_HEADER)?;
+        #[cfg(not(test))]
         self.wal.write_all(WAL_HEADER)?;
+        #[cfg(test)]
+        self.faults.check(faults::Point::WalCompactSync)?;
         self.wal.sync_all()?;
         self.wal.seek(SeekFrom::End(0))?;
         Ok(())
@@ -356,18 +392,15 @@ fn replay_wal(
     let mut durable_sequence = snapshot_sequence;
     loop {
         let record_start = wal.stream_position()?;
-        let mut length_bytes = [0_u8; 4];
-        match wal.read(&mut length_bytes) {
-            Ok(0) => break,
-            Ok(4) => {}
-            Ok(read) => {
-                if wal.read_exact(&mut length_bytes[read..]).is_err() {
-                    truncate_torn_tail(wal, record_start)?;
-                    break;
-                }
+        let length_bytes = match read_record_length(wal) {
+            Ok(None) => break,
+            Ok(Some(bytes)) => bytes,
+            Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => {
+                truncate_torn_tail(wal, record_start)?;
+                break;
             }
             Err(error) => return Err(error.into()),
-        }
+        };
         let length = u32::from_le_bytes(length_bytes) as usize;
         if !(RECORD_FIXED_LEN..=MAX_RECORD_BYTES).contains(&length) {
             return Err(corrupt("WAL", "invalid record length"));
@@ -399,6 +432,20 @@ fn replay_wal(
         }
     }
     Ok(durable_sequence)
+}
+
+fn read_record_length(reader: &mut impl Read) -> io::Result<Option<[u8; 4]>> {
+    let mut bytes = [0_u8; 4];
+    match reader.read(&mut bytes)? {
+        0 => return Ok(None),
+        4 => {}
+        read => {
+            // Only UnexpectedEof permits truncating a torn record. EIO and
+            // other read failures must leave the WAL untouched and fail closed.
+            reader.read_exact(&mut bytes[read..])?;
+        }
+    }
+    Ok(Some(bytes))
 }
 
 #[cfg(test)]

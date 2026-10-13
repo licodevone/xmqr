@@ -1,5 +1,12 @@
 # Estado de implementação MQTT 3.1.1
 
+Checkpoint atualP86:broker/admin0.11.5/client0.8.1, fase2 aceita e fase3parcial.
+Falhas de armazenamento determinísticas:54casos/12testes novos, incluindo nove
+fluxos TCP sem PUBACK/PUBREC/PUBCOMP após falha de commit, vinculados a
+MQTT-4.3.2-2/4.3.3-2 e ao contrato fsync local. [Evidência](../storage-faults.md).
+Esse gate não é conformidade integral, fuzzing nem prova de perda de energia.
+Os checkpoints e pendências históricas abaixo não substituem o checklist atual.
+
 Estado atual: broker0.10.0/client0.5.0, experimentais. A tabela abaixo é a
 rastreabilidade histórica da base0.5/0.6, não uma declaração de conformidade
 completa. Mosquitto foi usado em open-lab; TLS/mTLS e ACL externos ainda precisam

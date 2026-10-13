@@ -80,7 +80,10 @@ P80 corrige shutdownTLS do cliente não leitor; [fase2 por componente](docs/phas
 tem software e ESP32 físico validados após P85/C44: fase2 concluída no escopo
 definido, sem conformidade integral ou produção inferida.
 
-Marco de distribuição atual: **broker/admin 0.11.4**. Consulta de versão do
+Próximo patch aceito: **broker/admin0.11.5**, distribuição porP87 após gates
+do commit exato. [B06/P86](docs/storage-faults.md) corrige recuperação e cobre
+falhas de armazenamento; fase3 segue parcial. Client0.8.1 mantido.
+Marco publicado de entrada: **broker/admin 0.11.4**. Consulta de versão do
 admin, imagem admin separada e contexto Docker seguro. O [plano detalhado de
 paridade com Mosquitto](docs/plano-paridade-mosquitto.md) está concluído como
 planejamento; fases pendentes continuam sem implementação nesta entrega.
