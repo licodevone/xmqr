@@ -20,10 +20,11 @@ fn main() {
         !root.starts_with(&repo) && out.starts_with(&root),
         "build must stay private"
     );
-    let config: serde_json::Value = serde_json::from_slice(
-        &fs::read(root.join("firmware-config.json")).expect("private config unavailable"),
-    )
-    .expect("private config invalid");
+    let config_path = root.join("firmware-config.json");
+    println!("cargo:rerun-if-changed={}", config_path.display());
+    let config: serde_json::Value =
+        serde_json::from_slice(&fs::read(config_path).expect("private config unavailable"))
+            .expect("private config invalid");
     let mut generated = String::new();
     for name in [
         "ssid",
@@ -45,7 +46,9 @@ fn main() {
         ("CERT", "board.crt"),
         ("KEY", "board.key"),
     ] {
-        let mut value = fs::read(root.join("certs").join(file)).expect("private PEM unavailable");
+        let pem_path = root.join("certs").join(file);
+        println!("cargo:rerun-if-changed={}", pem_path.display());
+        let mut value = fs::read(pem_path).expect("private PEM unavailable");
         assert!(!value.contains(&0), "invalid PEM");
         value.push(0);
         generated.push_str(&format!("pub const {name}: &[u8] = &{value:?};\n"));

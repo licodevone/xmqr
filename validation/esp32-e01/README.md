@@ -4,6 +4,14 @@ Pacote Rust independente, código próprio MIT. Não faz parte do crate do broke
 não instala XMQR na placa e não substitui o aplicativo consumidor mqtt-broker.
 Alvo observado: ESP32 DevKitV1/ESP32-D0WD-V3/4MiB/COM4.
 
+AtualP83/2026-10-13: primeira fatia física PASS: Wi-Fi/IP, SNTP, conexão
+MQTT3.1.1 mTLS e loopback sintético1024bytes/QoS0/1/2. Senha corrigida aplicada
+privadamente, firmware regravado com backup conferido. Scan diagnóstico não
+é mais pré-condição; ESP-IDF conecta somente ao AP configurado. Sem rede
+alternativa, insegurança TLS ou retry ilimitado. Container/volume de teste
+removidos; firmware diagnóstico fica na placa. E01 completo ainda PARTIAL.
+[RegistroP83](../../prompts/registros/P83-e01-wifi.md). Checkpoints abaixo são históricos.
+
 P82/2026-10-13: coletor fechado e40testes do host PASS; monitor-only real
 confirmou boot/erro de alvo Wi-Fi2,4GHz ausente/STOP, sem nova gravação.
 MQTT físico continua NOT_RUN. [RegistroP82](../../prompts/registros/P82-e01-coleta.md).
@@ -82,6 +90,26 @@ Mesmo uma sequência aparentemente positiva no monitor-only resulta em
 OBSERVED_MARKERS_ONLY, não PASS: console não atesta identidade/fonte do firmware
 instalado nem wire MQTT. Testes sintéticos do coletor não são MQTT físico.
 O modo --flash preserva os requisitos de backup e apenas usa o novo coletor.
+
+## Corrigir a senha já preparada — P83
+
+Alterar `wifi-password.txt` não muda o firmware instalado. Para sincronizar
+somente SSID/senha no diretório privado de build existente:
+
+```text
+python sync_wifi.py --source-dir DIRETORIO_WIFI_PRIVADO --private-dir DIRETORIO_BUILD_PRIVADO
+```
+
+O helper não imprime credenciais. Recusa caminhos externos/Git e senha WPA2
+inválida; preserva espaços legítimos e remove somente CR/LF finais. Antes da
+troca atômica, salva backup privado exclusivo da configuração anterior. MQTT,
+CA, certificado da placa, chave e ACL não são regenerados. Não publique os
+backups JSON: também contêm segredos. Sem alteração, não reescreve arquivos.
+
+Depois recompile, repita fmt/Clippy e confira os backups completos antes de
+executar `run_initial.py --flash`. O build observa mudanças do JSON e dos três
+PEMs privados para não reutilizar constantes antigas em cache. O helper não
+grava a placa nem inicia serviços. Testes do host usam dados sintéticos.
 
 Os certificados temporários duram5dias; regenere em nova pasta para repetir.
 ELF/bin/target e `firmware-config.json` contêm senha/chave: não publicar, mesmo

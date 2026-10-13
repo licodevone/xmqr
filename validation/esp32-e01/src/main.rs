@@ -9,7 +9,7 @@ use esp_idf_svc::{
     },
     sntp::{EspSntp, SyncStatus},
     tls::X509,
-    wifi::{ClientConfiguration, Configuration, EspWifi, WifiEvent, config::ScanConfig},
+    wifi::{ClientConfiguration, Configuration, EspWifi, WifiEvent},
 };
 use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -66,35 +66,8 @@ fn run() -> Result<(), &'static str> {
     if !wait(15, || wifi.is_started().unwrap_or(false)) {
         return Err("WIFI_START_TIMEOUT");
     }
-    wifi.start_scan(
-        &ScanConfig {
-            ssid: Some(private::SSID.try_into().map_err(|_| "SSID_LENGTH")?),
-            show_hidden: true,
-            ..Default::default()
-        },
-        false,
-    )
-    .map_err(|_| "WIFI_SCAN_START")?;
-    if !wait(15, || wifi.is_scan_done().unwrap_or(false)) {
-        return Err("WIFI_SCAN_TIMEOUT");
-    }
-    let (access_points, _) = wifi
-        .get_scan_result_n::<4>()
-        .map_err(|_| "WIFI_SCAN_RESULTS")?;
-    if let Some(ap) = access_points
-        .iter()
-        .find(|ap| ap.ssid.as_str() == private::SSID)
-    {
-        println!(
-            "E01_WIFI_AP_FOUND channel={} rssi={}",
-            ap.channel, ap.signal_strength
-        );
-        if let Some(auth) = ap.auth_method {
-            println!("E01_WIFI_AP_AUTH method={auth:?}");
-        }
-    } else {
-        return Err("WIFI_TARGET_NOT_FOUND_24GHZ");
-    }
+    // ESP-IDF connect scans the configured AP itself. A separate diagnostic
+    // scan must not veto an authentication attempt to that same private SSID.
     wifi.connect().map_err(|_| "WIFI_CONNECT")?;
     if !wait(30, || wifi.is_connected().unwrap_or(false)) {
         return Err("WIFI_ASSOCIATION_TIMEOUT");

@@ -1,6 +1,15 @@
 # E01 — aceite físico ESP32 DevKit V1
 
-Status2026-10-13/P81: PARTIAL físico, BLOCKED por rede Wi-Fi não encontrada.
+Status atual2026-10-13/P83: primeira fatia física PASS na COM4. Senha corrigida
+aplicada e recompilada; Wi-Fi/IP/SNTP/mTLS e loopback1024bytes/QoS0/1/2
+confirmados. Scan isolado não é mais pré-condição; SDK tenta apenas AP
+configurado com prazo limitado. Broker/volume de teste removidos. Firmware
+diagnóstico permanece na placa; não existe broker permanente desse ensaio.
+E01 global PARTIAL pelos cenários ainda pendentes, não pela senha/rede.
+[RegistroP83](../prompts/registros/P83-e01-wifi.md) e
+[dados sanitizados](results/p83-e01-wifi-2026-10-13.json).
+
+Checkpoint histórico2026-10-13/P81: PARTIAL físico, BLOCKED por scan Wi-Fi sem alvo.
 COM4/CH340 acessível, ESP32-D0WD-V3/rev3.0/4MiB confirmado. Duas leituras
 completas do backup têm SHA256 idêntico; duas gravações/boots verificados.
 Primeiro ensaio expirou Wi-Fi/IP; segundo scan direcionado não encontrou
@@ -25,12 +34,12 @@ pinagem/LED da placa; não presumirGPIO2 universal.
 
 - [x] Registrar placa/revisão/chip, porta, hash das fontes do firmware,
       RustESP1.97nightly/ESP-IDF5.5.5 e ambiente existente. EIM não alterado.
-- [ ] Boot/serial/reset PASS; medição de heap ainda NOT_RUN.
-- [ ] Wi-Fi de laboratório, reconexão limitada e SNTP antes de TLS.
-- [ ] CA/validade/SAN validados, sem insecure/fallback.
-- [ ] Certificado exclusivo da placa, senha e ACL mínima aceitos.
-- [ ] Pub/sub com sequência e bytes conferidos; QoS0/1/2 somente conforme
-      suporte comprovado do firmware/SDK. Registrar limites reais de memória.
+- [x] Boot/serial/reset reais PASS; backup completo consistente preservado.
+- [x] Wi-Fi/IP de laboratório e SNTP antes do TLS, primeira associação P83.
+- [x] Caminho positivo mTLS com CA/validade/SAN habilitados, sem insecure/fallback.
+- [x] Certificado exclusivo da placa, usuário/senha MQTT e ACL mínima aceitos no ensaio.
+- [x] Pub/sub com sequência e bytes sintéticos conferidos:1024bytes/QoS0/1/2 P83.
+- [ ] Confirmação por observador independente; console não é atestado wire/ELF↔Git.
 - [ ] Retained replay/update/delete; Will por reset/quebra real de link.
 - [ ] QuedaWi-Fi/restartbroker, retry/backoff e duplicatasQoS1 observados.
 - [ ] Negativos CA/SAN/senha/ACL recusados na placa.

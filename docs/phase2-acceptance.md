@@ -1,7 +1,7 @@
 # Fase 2 — aceite separado por componente
 
-Atualizado2026-10-13, P80/C43/P81/P82. Broker/admin0.11.4 publicado,
-clientruntime0.8.1. **Software validado; fase2 global PARTIAL/BLOCKED por E01.**
+Atualizado2026-10-13, P80/C43/P81/P82/P83. Broker/admin0.11.4 publicado,
+clientruntime0.8.1. **Software validado; fase2 global PARTIAL por cenários E01 restantes.**
 Não avançar fase3 ou riscar ESP32 sem evidência física.
 
 | Responsável | Entrega | Estado |
@@ -17,8 +17,9 @@ Não avançar fase3 ou riscar ESP32 sem evidência física.
 | Client | Regressões de runtime | PASS54testesRust; sem mudança de CLI/versão |
 | Todos/software | Método, RAM/CPU/p50/p95/p99, limitações | P80 e JSON sanitizado |
 | ESP32 DevKitV1 | COM4/chip/backup/firmware/boot reais | PASS parcial P81; firmware diagnóstico na placa |
-| ESP32/host | Coleta restrita, tetos, ordem, veto a FAIL e relatórios preservados | PASS P82,40testes; não comprova MQTT físico |
-| ESP32 DevKitV1 | Wi-Fi/SNTP/mTLS/pubsub/reconexão em placa | BLOCKED: alvo Wi-Fi não encontrado em2,4GHz; MQTT físico NOT_RUN |
+| ESP32/host | Coleta restrita e atualização privada/atômica da senha | P83:54PASS/1SKIP Windows;15PASS sync WSL, incluindo symlink real |
+| ESP32 DevKitV1 | Wi-Fi/IP/SNTP/mTLS e loopback1024bytes/QoS0/1/2 | PASS primeira fatia P83, placa real; positivos, não todos os gates |
+| ESP32 DevKitV1 | Retained/Will/reconexão/negativos/heap/observador independente | NOT_RUN; E01 e fase2 permanecem PARTIAL |
 
 [CapacidadeP80](performance-pressure.md) · [Dados](results/p80-pressure-2026-10-13.json) ·
 [ADR](architecture/adr-0006-identity-quotas.md) · [ChecklistE01](esp32-phase2-checklist.md) ·
@@ -47,3 +48,16 @@ O alvo Wi-Fi continuou ausente; MQTT físico NOT_RUN. Códigos de erro e parser
 fechado não substituem observador wire independente, heap ou demais cenáriosE01.
 As versões/releases/pacotes permanecem0.11.4/0.8.1; não há novo binário a publicar.
 [RegistroP82](../prompts/registros/P82-e01-coleta.md).
+
+P83 resolve a associação inicial: senha corrigida sincronizada sem mudar MQTT,
+certificados ou ACL; build observa config/PEMs privados. Primeiro run ainda
+parou no scan separado, apesar de alvo visível no Windows. Após promptv1.1,
+retirou-se esse pré-gate: `wifi.connect()` faz sua própria busca do AP configurado.
+Segundo run PASS_INITIAL_SLICE: Wi-Fi/IP, horário, mTLS e1024bytes/QoS0/1/2.
+O scan anterior não prova ausência real da rede; causa exata não demonstrada.
+
+Sem scan externo, mudança de rede/firewall, certificado novo, NVS ou erase geral.
+Container/volume próprios removidos, backup preservado e firmware diagnóstico
+permanece na placa. Sem broker de laboratório permanente. Não avançar fase3.
+[RegistroP83](../prompts/registros/P83-e01-wifi.md) e
+[dados sanitizados](results/p83-e01-wifi-2026-10-13.json). Bloqueios P81/P82 acima são históricos.
