@@ -1,4 +1,4 @@
-# P91 v1.23 — B08: campanhas limitadas de robustez e interoperabilidade
+# P91 v1.28 — B08: campanhas limitadas de robustez e interoperabilidade
 
 Preparado em 2026-10-13 antes de editar os harnesses. Pedido: finalizar fase 3,
 mantendo prompts antes do código e publicação somente após aceite coordenado.
@@ -287,3 +287,63 @@ HEAD durante gates pode anteceder o commit coordenado; não afirmar que ele
 contém sozinho o candidato compilado. Capturar SHA da cópia privada executada
 broker/admin depois da cópia; fixture usa admin privado. Sem alterar runtime,
 critérios ou duração. Coordenador mapeará esses hashes ao commit de publicação.
+
+## Diagnóstico v1.24 — último negativo SUB ACL externo
+
+Interopcandidate2 no image576de5dd passou59C43+13extensões XMQR, incluindo
+SIGTERM/reconnect corrigido P95, retained crash e idle nos dois sentidos.
+FAIL72/456.390s no último negativo SUB ACL: readiness de Mosquitto_sub em XMQR.
+Cleanup162containers/2volumesPASS. last_subscriber/context eram do caso anterior,
+logo não demonstram estado real desse assinante. Antes de retry, instrumentar
+nome próprio exato/contexto de cada negativo SUB, flags sanitizadas de conexão,
+SUBACK/recusa/timeouts/TLS/erro; sem rawlogs ou credenciais. Permitir reprodução
+baseline focada nesse negativo antes de repetir87final; seleção focada nunca
+aceita candidato. Não alterar soak/dependências enquanto ele está em execução.
+
+## Diagnóstico v1.25 — prova da recusa, não qualquer exit
+
+Subsetbaseline2SUB ACL no XMQR passou22.945s/cleanup6containers1volume;
+isso não explica readinessFAIL anterior. Oráculo antigo aceitava qualquer
+processo exited, o que poderia confundir TLS/CA/SAN/timeout com recusa de SUB.
+Antes de fortalecer, registrar nos casos bem-sucedidos flags sanitizadas e
+exitcode real: receivedSUBACK, granted128, allSubscriptionsDenied, erroSUBACK
+XMQR, conexão/TLS/timeouts. Reproduzir2casos novamente como baseline focado.
+Só após evidência, nova revisão adicionará negativos determinísticos e oráculo
+estrito; candidatos precisam executar87completo. Não alterar core/imagens/soak.
+
+## Correção v1.26 — recusa ACL demonstrada e negativos do oráculo
+
+Diagnóstico2focadoPASS17.569s comprova: XMQRexit1 +erro explícito SUBACKrecusou;
+Mosquittoexit0 +receivedSUBACK +granted128 +allSubscriptionsDenied. SemTLS,
+timeout ou CONN_LOST, writer independente autorizado e nenhum DATA. O FAIL72
+anterior permanece com causa não comprovada, não é convertido por esse subset.
+Antes de full87, substituir qualquer exited por prova explícita: essas duas
+combinações concretas para recusa; assinatura ativa/SUBACKconcedido e processo
+vivo para delivery_filter, sem erro de transporte/retry, stop finalexit0.
+Readiness pode reconhecer SUBACKrecusa, não exige assinatura bem-sucedida.
+Criar negativos determinísticos para exitsemSUBACK/TLS/timeout/CONN_LOST,
+exitinesperado, SUBACKpositivo sem recusa e evidências contraditórias.
+Não alterar core, imagens, bytes/ACL ou scripts/dependências do soak ativo.
+
+## Diagnóstico v1.27 — subscriber específico nas regressões C43
+
+Fullcandidate3FAIL após18C43/109.766s, externalSubscriberFailed; próximo caso
+é Will/crash. Cleanup45containers1volumePASS. C43.finished não vinculava o
+container falho ao diagnóstico P91; não atribuir timeout/CONN_LOST sem estado.
+Antes de retry, override somente de telemetria job/finished: container próprio
+exato, tipo de client, QoS, idade/readiness e timestamps de processo/exitcode,
+flags sanitizadas. Preservar C43-W8, bytes, ACKs e comportamento; não fazer
+exceção para exit nãozero. Repetir full87 nos mesmos IDs finais, mantendoFAIL
+anterior. Soak rep3 em curso sem alteração de fontes/dependências.
+
+## Diagnóstico v1.28 — Will/crash isolado e linha temporal real
+
+Coordenador pediu reproduzir especificamente Will/crash, não repetir full87
+sem causa conhecida. Criar harness separado `test_phase3_will_diagnostic.py`,
+baseline somente, fixture C43 idêntica (mTLS/política/persistencefalse), dois
+brokers/dois sentidos, até3repetições. Não aumentar-W8 nem aceitarexit7/27.
+Registrar tempos reais ready do recipient/ready da willSource/SIGKILL/entrega,
+timestamps/exitcode/flags sanitizadas e payloadWill exato; sem rawlogs/segredos.
+Containers/volume próprios e cleanup completo. Baseline isolado não aceita
+candidato nem explica sozinho FAIL109.766s anterior; contrato só muda após
+prova concreta de timeout/lifetime ou defeito. Soak permanece intocado.

@@ -7,6 +7,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 import ssl
 import subprocess
 import sys
@@ -20,6 +21,39 @@ spec = importlib.util.spec_from_file_location('c43', ROOT.parent / 'xmqr-client/
 c43 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(c43)
 invoke, fixture = c43.invoke, c43.fixture
+
+
+def subscription_evidence(output):
+    output = output.lower()
+    return dict(received_suback=b'received suback' in output,
+                granted_128=bool(re.search(rb'subscribed \(mid: \d+\):\s*128(?:\s|$)', output)),
+                granted_positive=bool(re.search(rb'subscribed \(mid: \d+\):\s*[012](?:\s|$)', output)),
+                all_subscriptions_denied=b'all subscription requests were denied' in output,
+                xmqr_suback_rejected=b'suback recusou ou alterou qos solicitado' in output,
+                xmqr_subscription_active=b'assinatura ativa' in output,
+                connection_lost=b'connection was lost' in output,
+                timed_out=b'timed out' in output or b'timeout' in output,
+                certificate_error=b'certificate' in output,
+                protocol_error=b'protocol error' in output,
+                retry=b'reconexao' in output)
+
+
+def validate_subscription_policy(output, kind, state):
+    evidence = subscription_evidence(output)
+    if any(evidence[key] for key in ('connection_lost', 'timed_out', 'certificate_error', 'protocol_error', 'retry')):
+        raise AssertionError('ACL negative must not be accepted as a transport or retry failure')
+    if state['Status'] == 'exited':
+        refused = (state['ExitCode'] == 1 and evidence['xmqr_suback_rejected']) if kind == 'xmqr' else (
+            state['ExitCode'] == 0 and evidence['received_suback'] and evidence['granted_128']
+            and evidence['all_subscriptions_denied'])
+        if not refused:
+            raise AssertionError('exited ACL subscriber did not prove the expected SUBACK refusal')
+        return 'immediate_refusal', evidence
+    active = evidence['xmqr_subscription_active'] if kind == 'xmqr' else (
+        evidence['received_suback'] and evidence['granted_positive'] and not evidence['granted_128'])
+    if state['Status'] != 'running' or not active:
+        raise AssertionError('ACL delivery filtering requires an active acknowledged subscription')
+    return 'delivery_filter', evidence
 
 
 def events(output, kind):
@@ -56,6 +90,8 @@ class Campaign(c43.Campaign):
         self.last_subscriber = None
         self.startup_failure = None
         self.anchor = None
+        self.job_records = {}
+        self.last_job_will = False
 
     def client_args(self, kind, command, qos, **kwargs):
         writer = kwargs.pop('writer', False)
@@ -73,6 +109,33 @@ class Campaign(c43.Campaign):
 
     def state(self, name):
         return json.loads(invoke('inspect', name).stdout)[0]['State']
+
+    def job(self, server, secrets, kind, command, qos, detached=False, **kwargs):
+        began = time.monotonic()
+        before = len(self.containers)
+        self.last_job_will = bool(kwargs.get('will'))
+        try:
+            return super().job(server, secrets, kind, command, qos, detached=detached, **kwargs)
+        finally:
+            if detached and len(self.containers) > before:
+                name = self.containers[-1]
+                self.job_records[name] = dict(server='mosquitto' if server.endswith('-mosquitto') else 'xmqr',
+                                              subscriber=kind, qos=qos, began=began,
+                                              readiness_seconds=round(time.monotonic() - began, 3))
+                if not self.anchor:
+                    self.last_subscriber = name
+                    self.stage = 'c43_subscriber_start'
+                    self.context = {key: value for key, value in self.job_records[name].items() if key != 'began'}
+
+    def finished(self, name):
+        self.last_subscriber = name
+        if not self.anchor and name in self.job_records:
+            record = self.job_records[name]
+            self.stage = 'c43_will_after_kill' if self.last_job_will else 'c43_finish_subscriber'
+            self.context = {key: value for key, value in record.items() if key != 'began'}
+            self.context.update(subscriber_age_seconds=round(time.monotonic() - record['began'], 3),
+                                c43_completed=len(self.results))
+        return super().finished(name)
 
     def start_server(self, kind, secrets, wrong_name=False):
         self.stage = 'start_' + kind + ('_wrong_san' if wrong_name else '')
@@ -183,7 +246,10 @@ class Campaign(c43.Campaign):
             if self.args.server_filter != 'both' and server_kind != self.args.server_filter:
                 continue
             server = self.start_server(server_kind, volume)
-            for pub_kind, sub_kind in [('xmqr', 'mosquitto'), ('mosquitto', 'xmqr')]:
+            traffic_directions = [('xmqr', 'mosquitto'), ('mosquitto', 'xmqr')]
+            if self.args.expanded_case == 'subscribe-acl':
+                traffic_directions = []
+            for pub_kind, sub_kind in traffic_directions:
                 for qos in (1, 2):
                     self.context = dict(server=server_kind, publisher=pub_kind, subscriber=sub_kind, qos=qos)
                     self.stage = 'subscriber_start_before_sigterm'
@@ -252,7 +318,10 @@ class Campaign(c43.Campaign):
                                              scenario='idle_exceeds_protocol_deadline_then_receives', status='PASS'))
             # Observe both ACL-denied sends independently; Mosquitto may ACK a
             # denied MQTT3 publication, so exit status is not an authorization oracle.
-            for denied_kind, observer_kind in [('xmqr', 'mosquitto'), ('mosquitto', 'xmqr')]:
+            publication_directions = [('xmqr', 'mosquitto'), ('mosquitto', 'xmqr')]
+            if self.args.expanded_case == 'subscribe-acl':
+                publication_directions = []
+            for denied_kind, observer_kind in publication_directions:
                 self.stage = 'publish_acl_negative'
                 observer = self.job(server, volume, observer_kind, 'sub', 1, topic='phase2/#', count=50, detached=True)
                 self.job(server, volume, denied_kind, 'pub', 1, topic='phase2/denied')
@@ -268,28 +337,36 @@ class Campaign(c43.Campaign):
                                          scenario='publish_acl_denied_observed_then_authorized_barrier', status='PASS'))
             for subscriber_kind, writer_kind in [('xmqr', 'mosquitto'), ('mosquitto', 'xmqr')]:
                 self.stage = 'subscribe_acl_negative'
+                self.context = dict(server=server_kind, subscriber=subscriber_kind, publisher=writer_kind, qos=1)
                 image, entry, options = self.client_args(subscriber_kind, 'sub', 1, topic='other/#', count=50)
                 name = self.prefix + '-denied-sub-' + uuid.uuid4().hex[:8]
                 self.containers.append(name)
+                self.last_subscriber = name
                 invoke('run', '-d', '-t', '--name', name, '--network', 'container:' + server,
                        '--user', '10001:10001', '--read-only', '--cap-drop=ALL',
                        '--security-opt', 'no-new-privileges', '-v', volume + ':/run/certs:ro',
                        *entry, image, *options)
                 fixture.wait(lambda: self.state(name)['Status'] == 'exited'
-                             or (b'received SUBACK' if subscriber_kind == 'mosquitto' else b'Assinatura ativa')
-                             in fixture.logs(name))
+                             or (b'received suback' if subscriber_kind == 'mosquitto' else b'assinatura ativa')
+                             in fixture.logs(name).lower()
+                             or b'suback recusou ou alterou qos solicitado' in fixture.logs(name).lower())
                 writer = self.job(server, volume, writer_kind, 'pub', 1, topic='other/value', writer=True)
                 if writer.returncode:
                     raise AssertionError('independent ACL writer was not authorized')
                 time.sleep(1)
                 if events(fixture.logs(name), subscriber_kind):
                     raise AssertionError('unauthorized subscription delivered independent writer payload')
-                behavior = 'immediate_refusal' if self.state(name)['Status'] == 'exited' else 'delivery_filter'
+                behavior, evidence = validate_subscription_policy(fixture.logs(name), subscriber_kind, self.state(name))
                 if behavior == 'delivery_filter':
                     invoke('stop', '--time', '8', name)
+                    if self.state(name)['ExitCode'] != 0:
+                        raise AssertionError('ACL observer graceful stop failed')
+                state = self.state(name)
                 self.results.append(dict(server=server_kind, subscriber=subscriber_kind, publisher=writer_kind,
                                          scenario='subscribe_acl_denied_independent_authorized_writer',
-                                         observed_policy=behavior, status='PASS'))
+                                         observed_policy=behavior, status='PASS',
+                                         subscriber_exit_code=state['ExitCode'] if state['Status'] == 'exited' else None,
+                                         refusal_evidence=evidence))
             invoke('stop', '--time', '20', server)
             if self.state(server)['ExitCode'] != 0:
                 raise AssertionError('expanded test broker shutdown failed')
@@ -320,10 +397,12 @@ def main():
     parser.add_argument('--label', choices=['baseline', 'candidate'], required=True)
     parser.add_argument('--only', choices=['all', 'expanded'], default='all')
     parser.add_argument('--server-filter', choices=['both', 'xmqr', 'mosquitto'], default='both')
+    parser.add_argument('--expanded-case', choices=['all', 'subscribe-acl'], default='all')
     args = parser.parse_args()
     if args.report.exists() or args.report.is_symlink():
         parser.error('report exists; choose another output')
-    if args.label == 'candidate' and (args.only != 'all' or args.server_filter != 'both'):
+    if args.label == 'candidate' and (args.only != 'all' or args.server_filter != 'both'
+                                      or args.expanded_case != 'all'):
         parser.error('candidate acceptance requires complete C43 regression and expansion')
     images = {name: c43.metadata(ref) for name, ref in [('broker', args.broker_image),
               ('client', args.client_image), ('mosquitto', args.mosquitto_image)]}
@@ -337,7 +416,7 @@ def main():
                                                          check=True, capture_output=True, timeout=30)
     campaign = Campaign(args, images)
     report = dict(schema_version=1, status='RUNNING', label=args.label, selection=args.only,
-                  server_selection=args.server_filter, images=images,
+                  server_selection=args.server_filter, expanded_case=args.expanded_case, images=images,
                   harness_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), scenarios=campaign.results,
                   dependency_sha256={str(path.relative_to(ROOT.parent)): hashlib.sha256(path.read_bytes()).hexdigest()
                                      for path in (ROOT.parent / 'xmqr-client/scripts/verify_mosquitto_phase2.py',
@@ -370,10 +449,15 @@ def main():
         if campaign.last_subscriber:
             state = campaign.state(campaign.last_subscriber)
             report['last_subscriber'] = dict(status=state['Status'], exit_code=state['ExitCode'])
+            report['last_subscriber'].update(started_utc=state['StartedAt'], finished_utc=state['FinishedAt'])
             output = fixture.logs(campaign.last_subscriber).lower()
             report['last_subscriber'].update(connection_lost=b'connection was lost' in output,
                                              timed_out=b'timed out' in output, tls_error=b'tls' in output,
                                              protocol_error=b'protocol error' in output,
+                                             received_connack=b'received connack' in output,
+                                             received_suback=b'received suback' in output,
+                                             all_subscriptions_denied=b'all subscription requests were denied' in output,
+                                             network_error=b'network' in output or b'connection refused' in output,
                                              logical_events=len(events(fixture.logs(campaign.last_subscriber),
                                                                        campaign.context.get('subscriber', 'xmqr'))))
     finally:

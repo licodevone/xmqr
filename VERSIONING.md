@@ -1,15 +1,16 @@
 # Versionamento
 
-## P89–P95 / C45–C46 — candidato de fechamento fase3
+## P89–P95 / C45–C46 — fechamento técnico da fase3
 
 Broker/legadoadmin patch0.11.6 corrige recusas CONNECT e encerramento TLS;
 client minor0.9.0
 adiciona prazo total opcional e robustez de reconexão. Novo admin0.1.0 mantém
 pin/release e é exercitado contra o broker, sem bump documental artificial.
 P92/C46 regem aceites e distribuição nova, sem mover tags/latest antigos.
-Checklist global só será encerrado com B06/B07/B08/C07 efetivamentePASS.
+Checklist B06/B07/B08/C07 encerrado com resultados efetivamentePASS.
 Gates/PROMPTS e limites em phase3-acceptance; versões candidatas não anunciam
-por si só release ou homologação. MQTT3.1.1/MIT/formatos/quotas preservados.
+por si só publicação ou homologação. Artefatos dos checkpoints abbe38ca/e688c75,
+mesmo com registros posteriores; MQTT3.1.1/MIT/formatos/quotas preservados.
 
 ## P88 — terceiro projeto, sem bump do broker
 

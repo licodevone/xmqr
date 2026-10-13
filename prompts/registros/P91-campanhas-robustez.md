@@ -19,7 +19,7 @@ nenhum firmwareESP32, senhaWi-Fi ou certificado privado real lido. Código MIT.
 
 ## Resultados intermediários realmente executados
 
-- `python scripts/test_phase3_harness.py`:16testes PASS, exit0, repetidos após
+- `python scripts/test_phase3_harness.py`:21testes PASS, exit0, repetidos após
   alterações do harness. Negativos de falta/bytes/QoS/retain/duplicaçãoQoS2;
   retransmissõesQoS1 legítimas não causam falsa falha. O oitavo teste forçaEOF
   primário seguido de cancelamento paralelo e comprova que diagnóstico primário
@@ -152,6 +152,91 @@ também quando shutdown/timeout/cleanup falham, mantendo causa primária.
 - Unit16/16PASS: neverready, errorsEvenReady, readyAfterDeadline, deadProcess
   antes/durante probe, trocaPID e transiente0→1, além da contabilidadeQoS.
   Nenhum prazo de ACK, bytes/QoS/IDs ou orçamento durável foi relaxado.
+
+## Candidato congelado após correção sem CONNECT
+
+BrokerSHA`e57b1e2d26de50d09bb6bdadb74e4c0531dcac15399ece4369f4e0a0824e2987`;
+adminSHA`f40ecbb5e1641565bbf6ec2cb0e14a7d58973709270bc89c64070ae32b6f9083`.
+
+- `p91-tls-eof-candidate-2.json`:10/10PASS, normaisSIGTERM.032s,
+  handshake parcial2.972/3.026s, todos EOF limpo/exit0.
+- `p91-tls-no-connect-candidate-1.json`:2/2PASS, handshake TLS completo e
+  nenhum MQTT, SIGTERM3.023/3.040s, EOF limpo/exit0. Corrige caminho real
+  demonstrado FAIL anteriormente, não desativa validação CA/SAN/SSLstrict.
+- `p91-wire-candidate-3.json`:19/19PASS, keepalive1.502s.
+- P91v1.23 antes de acrescentar source_tree_dirty e hashes src/Cargo aos
+  reports: HEAD durante os gates não necessariamente contém código ainda não
+  commitado. Broker/admin usados são cópias privadas imutáveis e os hashes
+  identificam essas cópias, não o caminho target/release ao final.
+- `p91-soak-candidate-6.json`:600x3 completo reiniciado nesse SHA, ainda em
+  execução; scripts congelados durante o ensaio. Matriz87 e B08 pendentes.
+
+## Interop P95 e fortalecimento do negativo SUB ACL
+
+- `p91-interop-candidate-2.json`:FAIL72/456.390s,59C43+13extensões XMQR PASS,
+  incluindo SIGTERM/reconnect, retained crash e idle nos dois sentidos após P95.
+  Último negativoSUB ACL teve readinessFAIL; last_subscriber/context antigos
+  eram de outro caso, portanto não atribuir causa. Cleanup162containers2volumes
+  PASS. Imagens576de5dd(broker abbe38ca)/e1c56183(client e688c75).
+- P91v1.24 antes de instrumentar nome/contexto exatos do negativo e selector
+  baseline focado; source/dependências do soak em execução não alterados.
+- `p91-interop-sub-acl-diagnostic-1.json`:2casosPASS/22.945s, recusa imediata
+  em ambos clients XMQRbroker, cleanup6containers1volumePASS. Não aceita full.
+- P91v1.25 antes de registrar provas/exitcodes concretos; diagnóstico2
+  PASS17.569s: XMQRexit1 +erro explícito SUBACK; Mosquittoexit0 +receivedSUBACK,
+  granted128 e allSubscriptionsDenied. Sem TLS/timeout/CONN_LOST e sem DATA;
+  publicador independente autorizado ACK. Cleanup6containers1volumePASS.
+- P91v1.26 antes de fortalecer oráculo: não aceitar qualquer exited; combinações
+  acima para recusa, ou assinatura positiva/processo vivo para delivery_filter.
+  Stop finalexit0. Negativos determinísticos contra exitsemSUBACK, TLS/timeout/
+  CONN_LOST, exitinesperado, SUBACKpositivo confundido com recusa e contradições.
+  Unit21/21PASS. A causa do FAIL72 antigo não foi comprovada e ele permaneceFAIL.
+- `p91-interop-candidate-3.json` full87 reiniciado por IDs imutáveis, ainda
+  em execução. Soakcandidate6 continua, nenhuma modificação em seus arquivos.
+
+## Gates finais realmente executados — PASS
+
+Runtime nativo congelado e57b1e2d/adminf40ecbb5 (hashes completos acima).
+Nenhuma alteração em phase3_soak/dependências entre início e conclusão.
+
+- `p91-soak-candidate-6.json`:6/6PASS, exit0,1808.946s de parede, três
+  repetições>=600s/TCP+mTLS, mais de60processo-minutos. TCP604.218/601.218/
+  600.914s; mTLS604.617/601.088/601.264s. Tráfego live40512publicações1KiB /
+  162048entregas fanout4, recuperação adicional separada,90crashes+30SIGTERM.
+  Final de todos:ready1/errors0/active0/sessions0/offline0/inflight0/filas0/retained0.
+  Todos1698healthprobes registrados;4ready0 transitórios, pior1.659s dentro15s,
+  zero errors e processo vivo. RSSpeak7392KiBTCP/48520KiBmTLS; arquivospeak
+  890870bytes, dentro budgets. Crescimento máximo por geração792/1448KiB em
+  janelas~120s; não inferir ausência global de leak. HarnessSHA
+  `b6ed0e8d253273c623b1fd35930a5a6e86e233c107ca294f632d2cde9007a5fc`.
+  HEAD inicial3a5e29d/source_tree_dirty=true e hashes de src/Cargo registrados,
+  distinguindo HEAD anterior de fonte compilada ainda não commitada.
+- `p91-interop-candidate-3.json`:FAIL18/109.766s antes de concluir próximo
+  Will/crash C43; externalSubscriberFailed sem container específico. Cleanup
+  45containers1volumePASS. P91v1.27 antes de instrumentar job/finished e estado/
+  timestamps/flags do assinante real; sem mudar-W8, bytes ou ACKs C43.
+- P91v1.28 antes de criar diagnóstico Will separado a pedido do coordenador.
+  `p91-will-diagnostic-1.json`:6/6PASS/26.457s, fixtureC43/persistencefalse/W8,
+  três repetições×dois sentidos XMQRbroker. Recipientready.650–.814s,
+  sourceKilled1.784–2.228s, entrega exata/exit0 até2.304–2.795s. Sem timeout/
+  CONN_LOST/certificate_error; cleanup13containers1volumePASS. Não reproduziu
+  FAIL18 e não prova sua causa; não altera deadline por hipótese.
+- `p91-interop-candidate-4.json`:87/87PASS,346.063s, exit0:59C43 intactos+
+  28extensões nos dois brokers/sentidos mTLS. SUBACL com prova de recusa128/
+  XMQRerroSUBACK, ou active/deliveryfilter/semretry e writer autorizado/no DATA.
+  Cleanup202containers2volumesPASS. HarnessSHA
+  `10cd3089620b6540688347ce6304532deb6e2dbb6b166b7501570219cc4eac72`.
+  Imagens broker`sha256:576de5ddc2dc2f74cbb2f243126d8c36668784f110ed0da03a05df8435352f97`,
+  client`sha256:e1c56183bd98fbe33c9fade58f81d61b2f60eb960c3704747528ec7f471a11ed`,
+  Mosquitto`sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21`;
+  runtimebroker commitabbe38ca/clientcommite688c75. Nada pulled ou publicado aqui.
+- TLS12/wire19 finais acima PASS; unit21/21PASS após fortalecimentoACL.
+
+Os FAIL históricos, inclusive interop72/18 sem causa exata comprovada, não
+foram sobrescritos nem apresentados como defeitos corrigidos sem prova. Os
+gates completos finais fornecem evidência nova no candidato exato; limites
+permanecem explícitos. B08 entregue ao coordenador para aceite integrado,
+checksum/commit/release/deb/Hub. Nenhum job de campanha permanece ativo.
 
 Reports intermediários ficam em`../.artifacts/p91-*.json` fora deste Git;
 somente reports finais sanitizados serão anexados/versionados pelo coordenador.

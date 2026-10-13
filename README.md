@@ -1,11 +1,11 @@
 # XMQR
 
-Candidato0.11.6 de robustez: [P89](prompts/broker/89-fechamento-fase3.md),
+Marco experimental0.11.6 de robustez: [P89](prompts/broker/89-fechamento-fase3.md),
 [fuzz limitado](docs/fuzzing.md), [campanha de recuperação](docs/phase3-campaign.md)
 e [CONNACK normativo P93](prompts/broker/93-contrato-connect.md).
-O [registro de aceite da fase 3](docs/phase3-acceptance.md) distingue resultados
-observados dos gates pendentes, incluindo o encerramento TLS P95.
-Fase3 permanece em validação até o aceite conjunto B06/B07/B08/C07;
+O [aceite da fase3](docs/phase3-acceptance.md) registra B06/B07/B08/C07 aceitos
+no recorte finito, incluindo encerramento TLS P95 e campanhas finais.
+Publicação registrada separadamente em P92;
 client0.9.0 e admin independente0.1.0 têm ciclos próprios.
 O [planejamento dos três sistemas](../xmqr-admin/docs/planejamento-tres-sistemas.md)
 inclui a futura administração de usuários, grupos, papéis e permissões.

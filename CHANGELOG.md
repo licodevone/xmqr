@@ -1,17 +1,18 @@
 # Histórico de versões
 
-## 0.11.6 — candidato de robustez fase3
+## 0.11.6 — robustez da fase3, experimental
 
 - CONNECT com nível não suportado responde CONNACK0x01; identificador vazio
   ou acima da quota local256bytes responde0x02, SessionPresent0 e encerra
   antes de registro/commit/pipeline. Malformados continuam fechando sem ACK.
 - P95: encerramento TLS limitado mesmo após erro de cleanup; parada aguarda
   conexões admitidas e actor/writer no mesmo prazo total de 15s, preservando
-  o erro de armazenamento. Gates finais ainda em validação.
+  o erro de armazenamento. Gates finais nativos/TLS/wire/campanhas PASS.
 - P90/B07: corpus sintético, mutações estáveis com oráculos/watchdog e
   regressões; não equivale a LibFuzzer/ASAN ou cobertura guiada.
 - P91/B08: ensaios prolongados TCP/mTLS, recuperação/pressão, matriz wire
-  normativa e interoperabilidade Mosquitto2.0.22; aceites registrados à parte.
+  normativa einterop Mosquitto2.0.22:6soak/87interop/19wire/12TLS PASS, com
+  limites/falhas históricas no aceite da fase3.
 - Binários/pacotes preservam MIT e textos originais LICENSE/NOTICE de
   terceiros, incluindo AWS-LC vendorizado; inventário não é composição ELF.
 - Client0.9.0 independente traz C45; admin independente0.1.0 não repinado.

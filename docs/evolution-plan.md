@@ -68,16 +68,19 @@ e [checklist ESP32](esp32-phase2-checklist.md). Fase2 global ACCEPTED apósP85.
 MemóriaMCU é probe quantizado, não heap total; sem conformidade/produção
 inferida. P85 não iniciou fase3; próxima fatia requer prompt próprio.
 
-### Fase 3 — em andamento
+### Fase 3 — concluída no recorte validado
 
 - [x] ~~B06: erros de leitura/gravação, ENOSPC/EIO, escrita curta, snapshot e corrupção; 54 casos determinísticos e patch0.11.5 (P86).~~
-- [ ] B07: fuzzing com corpus limitado e regressões determinísticas.
-- [ ] Fase 3: ensaios prolongados de pressão/recuperação e matriz MQTT3.1.1 ampliada (B08).
-- [ ] Fase 3: reconexão/backoff, cancelamento e interoperabilidade externa ampliada, incluindo TLS/mTLS e ACL.
+- [x] ~~B07: corpus/mutações reais com watchdog, três seeds e18processos PASS; não LibFuzzer/ASAN (P90/P95).~~
+- [x] ~~B08:3repetições>=600s TCP/mTLS,30min8,946s reais, wire19/TLS12/matriz87 PASS (P91).~~
+- [x] ~~C07:prazo total/jitter/cancelamento, idle90s real,63testes einterop TLS/mTLS/ACL ampliada (C45/C46).~~
 
 EvidênciaB06: [falhas de armazenamento](storage-faults.md) e
 [registroP86](../prompts/registros/P86-falhas-disco.md). Falhas injetadas não
-equivalem a disco físico cheio/energia. Fase3 global permanece parcial.
+equivalem a disco físico cheio/energia. [Aceite da fase3](phase3-acceptance.md):
+B06/B07/B08/C07 ACCEPTED no recorte finito, com falhas históricas e limites.
+Clones/licenças/ciclo de pacotes PASS; publicação coordenada em P92.
+Não significa conformidade MQTT integral ou produção.
 
 ### Fases 4–5 — entregas restantes
 - [x] ~~Admin independente0.1.0: CLI, painel local autenticado de leitura, prompts e release/deb/Docker próprio (P88).~~
@@ -92,7 +95,7 @@ Evidências da parcela operacional: [P63](../prompts/registros/P63-docker-distri
 [P64](../prompts/registros/P64-version-cli.md) e
 [C40](../../xmqr-client/prompts/registros/C40-docker-distribuicao.md).
 Evidência dos filtros: [C41](../../xmqr-client/prompts/registros/C41-filtros-retained.md).
-As fases 3–5 continuam abertas; a entrega operacional não encerra a fase 5.
+As fases 4–5 continuam abertas; a entrega operacional não encerra a fase 5.
 O [novo admin](https://github.com/licodevone/xmqr-admin) foi antecipado como
 interface somente de leitura; A01/A02/A03 em seu repositório são IDs locais,
 não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidência:

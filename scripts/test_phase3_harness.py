@@ -152,6 +152,37 @@ class HarnessContracts(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, 'process died or changed'):
             wait_healthy(Broker(), seconds=.1)
 
+    def test_acl_subscriber_expected_refusal_has_protocol_evidence(self):
+        xmqr = b'SUBACK recusou ou alterou QoS solicitado; confira ACL e limites do broker'
+        mosquitto = b'Client fixture received SUBACK\nSubscribed (mid: 1): 128\nAll subscription requests were denied.'
+        for kind, output, code in [('xmqr', xmqr, 1), ('mosquitto', mosquitto, 0)]:
+            behavior, _ = external.validate_subscription_policy(output, kind, dict(Status='exited', ExitCode=code))
+            self.assertEqual(behavior, 'immediate_refusal')
+
+    def test_acl_subscriber_arbitrary_exit_and_transport_failures_rejected(self):
+        for kind in ('xmqr', 'mosquitto'):
+            for output in (b'', b'certificate verify failed', b'Timed out', b'Connection was lost'):
+                with self.subTest(kind=kind, output=output):
+                    with self.assertRaises(AssertionError):
+                        external.validate_subscription_policy(output, kind, dict(Status='exited', ExitCode=1))
+
+    def test_acl_subscriber_expected_marker_does_not_accept_unexpected_exit(self):
+        output = b'Client fixture received SUBACK\nSubscribed (mid: 1): 128\nAll subscription requests were denied.'
+        with self.assertRaises(AssertionError):
+            external.validate_subscription_policy(output, 'mosquitto', dict(Status='exited', ExitCode=7))
+
+    def test_acl_subscriber_positive_suback_is_not_refusal(self):
+        output = b'Client fixture received SUBACK\nSubscribed (mid: 1): 1'
+        with self.assertRaises(AssertionError):
+            external.validate_subscription_policy(output, 'mosquitto', dict(Status='exited', ExitCode=0))
+        behavior, _ = external.validate_subscription_policy(output, 'mosquitto', dict(Status='running', ExitCode=0))
+        self.assertEqual(behavior, 'delivery_filter')
+
+    def test_acl_subscriber_refusal_cannot_hide_later_transport_failure(self):
+        output = b'Client fixture received SUBACK\nSubscribed (mid: 1): 128\nAll subscription requests were denied.\nConnection was lost'
+        with self.assertRaises(AssertionError):
+            external.validate_subscription_policy(output, 'mosquitto', dict(Status='exited', ExitCode=0))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,4 +1,4 @@
-# P92 v1.6 — gates finais e distribuição fase3
+# P92 v1.7 — gates finais e distribuição fase3
 
 Preparado 2026-10-13 antes de versões/embalagem. P89 exige B06+B07+B08+C07
 com evidência real. Broker patch0.11.6: recusas CONNECT corrigidas por P93,
@@ -101,3 +101,28 @@ acrescentar --version real de broker/legadoadmin/client em cada etapa instalada
 e comparar à versão Debian sem revisão. Repetir ciclo privado completo com
 os MESMOS artefatos. Não mudar builder, Cargo, binários, serviços do host ou
 tags. Não anunciar P91 concluído enquanto soak/matriz completa estiverem ativos.
+
+## Revisão 1.7 — aceite real antes do fechamento documental e publicação
+
+P91 agora terminou: soak6/6, 1808.946s, todos>=600s; matriz87/87, TLS12,
+wire19 e contratos21 PASS. P95/B06/P90/P80/C45/C46, clones exatos, QA5,
+licenças e ciclo Ubuntu26 com ELFs instalados PASS. Gitleaks do código novo
+broker/client PASS redacted, sem inferir auditoria integral. Concluir agora
+docs/phase3-acceptance, evolution-plan, matriz, README/CHANGELOG/VERSIONING,
+COBERTURA e registros. Em client, concluir README/CHANGELOG/C46; em admin,
+atualizar somente o estado factual do planejamento A04, não versão/pin.
+
+Preservar JSONs históricos: soak capturou HEAD3a5e29d dirty=true antes do
+checkpoint abbe, mas o ELF executado e57b1e2d e hashes src/Cargo são estáveis
+e coincidem com rebuild limpo abbe. Não relabelar o report como clean.
+Interop usa imagens576de5dd/e1c56183 com revisionsabbe/e688; nenhum MQTT5.
+Erros intermediários sem causa exata permanecem explícitos, reforçados por
+diagnóstico Will6PASS/oráculo SUBACK/contratos21 e matriz completa final,
+não mera promoção de um retry. Aceite é finito/experimental, não estabilidade
+ilimitada, SLA ou conformidade integral.
+
+Artefatos exportados de abbe/e688 clean, tags nesses checkpoints imutáveis,
+prereleases, Hub numerado sem latest, verificação real dos digests/assets.
+Commits documentais posteriores não alteram a fonte atribuída aos artefatos.
+Só marcar distribuição publicada depois das verificações remotas; falha de
+publicação deve permanecer informada sem desfazer/mascarar os gates técnicos.

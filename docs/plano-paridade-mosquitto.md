@@ -1,8 +1,9 @@
 # Plano de paridade funcional do XMQR com Mosquitto
 
-Atualizado em 2026-10-13. Broker/admin0.11.5 corrige recuperação porP86;
-publicado porP87 com .deb/Docker, client0.8.1 mantido. P88 referencia o novo
-xmqr-admin independente0.1.0 publicado, sem mudança do broker/client.
+Atualizado em 2026-10-13. Fase3 aceita no recorte finito: broker/legadoadmin
+0.11.6 eclient0.9.0, distribuição coordenada em P92. Releases anteriores
+0.11.5/0.8.1 preservadas; admin independente0.1.0 publicado e sem repin.
+Evidências/limites: [aceite da fase3](phase3-acceptance.md).
 O planejamento está completo como backlog
 executável; as funcionalidades pendentes não estão implementadas por isso.
 O propósito é evoluir um broker MQTT e seus utilitários com contratos próprios,
@@ -84,8 +85,8 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | B04 | Broker: assinantes lentos, filas e fan-out sob pressão | P80 PASS limitado; shutdown corrigido0.11.4 | Filas4/8 e32/64, restart/QoS1/2, peer e vaga; não é ensaio prolongado |
 | B05 | Broker: rate limits e quotas por identidade | Avaliação ADR0006 concluída; runtime adiado | Quotas mantidas; isolamento/fairness multitenant não implementados |
 | B06 | Broker: erros de disco, ENOSPC, escrita curta e corrupção | Aceito recorte determinístico P86:54casos; patch0.11.5 | storage-faults.md; sem ACK/fan-out indevido, poison/reopen e WAL inválido preservado; não prova falhas físicas/energia |
-| B07 | Broker: fuzzing de codec, estado e filtros | Planejado | B02/B06; corpus limitado, watchdog, sanitização de crash e regressões determinísticas |
-| B08 | Broker/client: matriz externa 3.1.1 | Parcial ampliadoC43:59cenários mTLS/bytes/QoS/retained/Will/sessões/negativos | Interrupções de rede e matriz exaustiva continuam fase3; não é conformidade completa |
+| B07 | Broker: fuzzing de codec, estado e filtros | Aceito recorte P90/P95:18processos/seeds/corpus/mutações/watchdog PASS | Preservar corpus/limites/regressões; não LibFuzzer/ASAN/cobertura guiada |
+| B08 | Broker/client: matriz externa 3.1.1 | Aceito recorte P91:87interop/19wire/12TLS e6soak>=600s PASS | Manter negativos/falhas históricas; campanha finita não é matriz exaustiva/conformidade completa |
 | B09 | Broker: múltiplos listeners | Planejado | B04/B08; políticas por endpoint, identidade isolada, sem duplicar roteadores/estado |
 | B10 | Broker/client: TLS com senha sem certificado cliente | Planejado, mTLS existente | B09; opt-in, CA/SAN obrigatório, senha/ACL e negativos, mTLS padrão inalterado |
 | B11 | Broker: rotação de certificado/CA/CRL | Parcial CRL/startup | B09/B10; contrato para conexões ativas, validação antes de swap, rollback e CA expirada |
@@ -107,7 +108,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | C04 | Client: publicação repetida/intervalo | Planejado | C01/B08; contagem finita, monotonic clock, Ctrl+C, sem reenviar resultado desconhecido |
 | C05 | Client: perfis reutilizáveis e precedência | Planejado | B10; CLI/env/arquivo, secret-file, permissões e schema versionado |
 | C06 | Client: novos formatos de saída | Decisão | C01/C03; contrato de escaping/binário/timestamp, limites e compatibilidade JSONL |
-| C07 | Client: reconexão/backoff e timeout total | Parcial C35/C37 | B08; distinguir prazo de protocolo/idle/total, jitter limitado, cancelamento e retransmissão legítima QoS1 |
+| C07 | Client: reconexão/backoff e timeout total | Aceito C45/C46:63testes/idle90s real/interop ampliada | Prazos protocolo/idle/total distintos, jitter/cancelamento; QoS1 pode retransmitir, QoS2 interrompido falha explicitamente |
 | C08 | Client: Will binário e opções complementares | Decisão | C01/B08; validar tamanho antes de rede, propriedades compatíveis e documentação por protocolo |
 | M01 | Broker/client: negociação MQTT5 e reason codes | Planejado | B06/B07/B08; codec separado da máquina de conexão, recusa correta por versão e regressão 3.1.1 |
 | M02 | Broker/client: parser de propriedades MQTT5 | Planejado | M01; tipos, multiplicidade/contexto, limites antes de alocar e propriedades desconhecidas recusadas conforme OASIS |

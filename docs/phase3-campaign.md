@@ -1,7 +1,57 @@
 # P91 — pressão, recuperação e MQTT 3.1.1 externo
 
-Campanha preparada em 2026-10-13. Enquanto gates do candidato não estiverem
-registrados, esta página não declara B08 nem a fase 3 concluídos.
+Campanha executada em 2026-10-13. Gates P91 finais PASS no candidato descrito
+abaixo. Esta evidência cobre B08; o fechamento global da fase 3 e a publicação
+dependem também dos gates B06/B07/C07 e da distribuição coordenada.
+
+## Resultado final observado
+
+Broker nativo SHA256
+`e57b1e2d26de50d09bb6bdadb74e4c0531dcac15399ece4369f4e0a0824e2987`;
+admin legado `f40ecbb5e1641565bbf6ec2cb0e14a7d58973709270bc89c64070ae32b6f9083`.
+TLS estrito: 12/12; protocolo wire: 19/19; contratos do harness: 21/21 PASS.
+
+Soak 6/6 PASS: **1808.946s de parede** (30min8.946s), TCP e mTLS paralelos em
+cada uma das três repetições independentes. Publicações/entregas da tabela são
+do tráfego live; operações offline/retained/replay são verificadas separadamente.
+
+| Repetição | Transporte | Duração real (s) | Publicações de 1 KiB | Entregas fan-out 4 | Pico RSS (KiB) |
+|---|---|---:|---:|---:|---:|
+| 1 | TCP | 604.218 | 6744 | 26976 | 7368 |
+| 1 | mTLS | 604.617 | 5904 | 23616 | 48520 |
+| 2 | TCP | 601.218 | 6936 | 27744 | 7312 |
+| 2 | mTLS | 601.088 | 6096 | 24384 | 48340 |
+| 3 | TCP | 600.914 | 7776 | 31104 | 7392 |
+| 3 | mTLS | 601.264 | 7056 | 28224 | 29152 |
+
+Totais live: 40512 publicações/162048 entregas, 90 crashes e 30 SIGTERM. Cada
+cenário final: ready=1/errors=0; conexões, sessões, offline, inflight, filas e
+retained=0. Os 1698 probes de saúde foram preservados: quatro ready=0
+transitórios, pior recuperação de 1.659s, sempre processo vivo e zero erros;
+não se alega SLA instantâneo de 500ms. Pico de arquivos duráveis: 890870 bytes
+(<128MiB). Maior crescimento RSS observado por geração: 792KiB TCP/1448KiB
+mTLS em janelas de aproximadamente 120s; não prova ausência
+universal de vazamentos nem estabilidade de dias.
+
+Interop 87/87 PASS em 346.063s: 59 regressões C43 inalteradas (Mosquitto -W8),
+28 extensões em ambos os brokers e sentidos, mTLS, retomada SIGTERM,
+retained-crash, idle e negativos ACL com prova explícita. Cleanup de 202
+containers/2 volumes PASS.
+BrokerDocker0.11.6ID`sha256:576de5ddc2dc2f74cbb2f243126d8c36668784f110ed0da03a05df8435352f97`
+(runtime commit`abbe38ca6c041f7328e85054506a4eed22c74c41`),
+client0.9.0ID`sha256:e1c56183bd98fbe33c9fade58f81d61b2f60eb960c3704747528ec7f471a11ed`
+(commit`e688c75a3779803e8f1868792dcc5e7a36f2dd6e`), Mosquitto2.0.22ID
+`sha256:199ea8ef2e35ec2b1b37e59cfd1dbae538ed4dfa4a2251a121a52215a6248a21`.
+Will/crash isolado6/6 PASS em26.457s, entrega exata nos dois sentidos até2.795s,
+exit0; sem aumentar-W8. É diagnóstico adicional, não substitui matriz completa.
+
+Reports finais sanitizados em `../.artifacts/`:
+`p91-soak-candidate-6.json`, `p91-interop-candidate-4.json`,
+`p91-tls-eof-candidate-2.json`, `p91-tls-no-connect-candidate-1.json`,
+`p91-wire-candidate-3.json`; diagnóstico `p91-will-diagnostic-1.json`.
+Todos os FAIL históricos permanecem FAIL; primeiras tentativas interop72/18
+tinham telemetria insuficiente e suas causas exatas não foram comprovadas.
+Nenhuma mudança de core foi atribuída a essas duas falhas sem prova.
 
 ## Método e scripts
 
@@ -42,7 +92,7 @@ de retry, evitando aceitar timeout disfarçado por reconexão automática.
 `scripts/test_phase3_wire.py`:19cenários wire independentes vinculados às
 cláusulas: ClientID vazio, flags, UTF-8, IDs zero, QoS0/DUP, QoS reservado,
 filtro inválido, keepalive1s, CONNECT fragmentado e PING concatenado.
-`scripts/test_phase3_harness.py`:16testes determinísticos da contabilidade,
+`scripts/test_phase3_harness.py`:21testes determinísticos da contabilidade,
 incluindo DUP permitido emQoS1, falta lógica e duplicação proibida emQoS2,
 e preservação do primeiro erro quando outro cenário é cancelado em paralelo.
 Incluem QoS0/DUP e negativos do helper diagnóstico: nunca ready, erro persistente
@@ -54,6 +104,11 @@ depois de cada probe, ready1 dentro do deadline absoluto, zero erros persistente
 em todos os probes. Todos os probes/tempos/counters são registrados (cap4000,
 exceder é FAIL), também na leitura final; tempo de espera integra a duração real
 e o deadline total solicitado+45s. As tentativas strict anteriores seguem FAIL.
+Os negativos de assinatura também distinguem SUBACK recusado de exit arbitrário,
+TLS/timeout/CONN_LOST, exit inesperado e evidência contraditória. Recusa exige
+SUBACK128/Mosquittoexit0 ou erro SUBACK explícito/XMQRexit1; filtragem de entrega
+exige assinatura confirmada, processo vivo e writer independente autorizado,
+sem DATA não autorizado. Nenhum erro de transporte é aceito como prova de ACL.
 
 `scripts/test_phase3_tls_shutdown.py`:10casos de EOF TLS estrito em TLS1.2/1.3,
 com `suppress_ragged_eofs=False`:2controles DISCONNECT normal,6SIGTERM e2SIGTERM
@@ -67,6 +122,11 @@ possa ter sido recompilado durante o ensaio. Certificados/estado só sintéticos
 validado por CA/SAN, sem enviar qualquer byte MQTT, depois SIGTERM. A conexão
 TLS estabelecida ainda não é uma sessão MQTT autenticada. Exige igualmente EOF
 limpo/exit0/prazo15.5s, cobrindo o caminho anterior ao primeiro CONNECT.
+
+`scripts/test_phase3_will_diagnostic.py`:subset baseline isolado, política e
+fixture C43/persistencefalse/W8 originais, três repetições de ambos sentidos,
+linha temporal real recipientReady→sourceReady→SIGKILL→entrega. Não é aceite
+do candidato, não transforma um FAIL anterior de causa desconhecida em PASS.
 
 ## Reprodução
 

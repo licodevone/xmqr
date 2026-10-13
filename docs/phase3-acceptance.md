@@ -1,55 +1,78 @@
-# Fase 3 — registro de aceite dos três sistemas
+# Fase 3 — aceite de robustez dos três sistemas
 
-Estado: **EM VALIDAÇÃO**, em 13 de outubro de 2026. Não equivale a release,
-homologação de produção ou conformidade MQTT completa. Candidatos: broker e
-admin legado 0.11.6, client 0.9.0. O admin independente mantém 0.1.0 e seu pin.
+**ACCEPTED no recorte finito validado**, em 13 de outubro de 2026. Broker e
+mqtt-admin legado 0.11.6, client 0.9.0; admin independente mantém 0.1.0,
+pin e distribuição anteriores. Publicação nova em preparação neste checkpoint.
+Não equivale a produção, SLA ou conformidade MQTT completa.
 
-## Gates observados e pendentes
+## Critérios cumpridos
 
-| Gate | Evidência observada | Situação do fechamento |
-| --- | --- | --- |
-| B06 — falhas de armazenamento | P86: 54 casos determinísticos; nova suíte nativa pré-P95 passou | Repetição no código final P95 requerida |
-| B07 — fuzzing limitado | P90: 18 processos, três seeds, mutações reais, corpus e watchdog; PASS local | Repetição no código final P95 requerida; não é LibFuzzer/ASAN |
-| B08 — wire e interoperabilidade | Wire candidato 19/19; C43 candidato 59/59; extensão descobriu encerramento TLS abrupto | Matriz completa após P95 pendente |
-| B08 — campanha prolongada | Repetição inicial 600s TCP/mTLS passou, mas campanha completa falhou; tentativas posteriores preservadas | Três repetições integrais de pelo menos 600s ainda pendentes |
-| C07 — robustez do client | C45/C46: 63 testes, idle90s real e cancelamento; clone exato e688c75 clean passou oito gates e gerou .deb | Extensão externa e ciclo do pacote ainda pendentes |
-| Compatibilidade do admin 0.1.0 | Formato/pin não alterados por esta fatia | Integração dos 18 cenários contra o broker final requerida |
-| Capacidade e peer não leitor | P94/P80: 60/60 no candidato anterior ao fix TLS | Repetição no ELF final requerida |
-| Licenças e distribuição | Imagens candidatas e .deb client conferidos; originais de terceiros e MIT preservados | Pacote broker, ciclo Ubuntu26, imagens finais e publicação pendentes |
+| Gate | Resultado final observado |
+| --- | --- |
+| B06 — armazenamento | 54 casos determinísticos reexecutados na suíte final; sem tratar erro como EOF/ACK indevido |
+| B07 — fuzzing limitado | 18/18 processos, três seeds, 300.000 mutações rápidas, restore/estado/roteador e watchdog; fontes estáveis |
+| B08 — wire e TLS | 19/19 vetores; 12/12 encerramentos TLS1.2/1.3, handshake parcial e TLS completo sem CONNECT |
+| B08 — matriz externa | 87/87:59 C43 +28 extensões; XMQR/Mosquitto2.0.22 nos dois sentidos, mTLS/ACL/reconexão/crash/idle |
+| B08 — ensaio prolongado | 6/6, três repetições TCP/mTLS >=600s; 1808,946s de parede e mais de 60 processo-minutos |
+| C07 — client | 63 testes, idle90s real, cancelamento/jitter/prazo total, clone clean e interop ampliada |
+| Admin independente | 18/18 compatibilidade0.1.0 com broker final; sem repin ou novo canal administrativo |
+| Capacidade/shutdown | 60/60 P80 no ELF final; três testes adicionais, inclusive snapshot falho com exit não-zero |
+| Fonte/artefatos | Clones clean, fmt/test/clippy/build/inventário; oito gates por pacote, versões/hashes reais |
+| Licenças/instalação | QA5/5 e14 negativos; ciclo Ubuntu26 install/upgrade/rollback/remove/purge e ELFs instalados executados |
 
-A falha TLS foi reproduzida independentemente: DISCONNECT normal produziu
-EOF limpo; SIGTERM produziu ragged EOF em TLS1.2 e TLS1.3, inclusive com um
-handshake parcial concorrente. P95 corrige a fronteira de fechamento e a
-espera das conexões, com um único prazo total e preservação do erro de disco.
-Essa correção precisa dos gates posteriores; uma hipótese ou teste unitário
-isolado não substitui a campanha completa.
+Soak:40.512 publicações de1024bytes/162.048 entregas fan-out,90crashes/30SIGTERM.
+Finais saudáveis com zero erros/filas/estado transitório. Todos1698probes
+registrados, inclusive quatro ready0 transitórios; recuperação máxima1,659s,
+dentro do prazo quiescente15s. Isso não é SLA de readiness ou throughput.
+RSS máximo amostrado7392KiB TCP/48520KiB mTLS; arquivos duráveis890870bytes.
+Crescimento por geração registrado; RSS/restart não prova ausência de leak.
+Estado privado /var/tmp disk-backed, não /tmp tmpfs dos ensaios invalidados.
 
-## Fontes e responsabilidades
+## Fonte exata e proveniência
 
-Broker decide protocolo, autorização e persistência. Client comprova envio,
-recebimento, cancelamento e recuperação. Admin independente é compatível no
-recorte atual de CLI/offline e painel de leitura, sem criar canal administrativo
-online nem segundo escritor do WAL.
+Broker: abbe38ca6c041f7328e85054506a4eed22c74c41, ELF nativo SHA-256
+e57b1e2d26de50d09bb6bdadb74e4c0531dcac15399ece4369f4e0a0824e2987.
+Admin legado f40ecbb5e1641565bbf6ec2cb0e14a7d58973709270bc89c64070ae32b6f9083.
+Client: e688c75a3779803e8f1868792dcc5e7a36f2dd6e, ELF nativo
+a7a89dba2245f56d4161d52a9767441257edca04be8042edcabf358e4bb05f58.
+Rebuilds clean coincidiram nesses bytes, sem promessa geral de reproducibilidade.
+Imagens Bookworm têm ELFs próprios e testes Docker, não os ELFs Ubuntu renomeados.
 
-Fonte exata candidata do client: e688c75a3779803e8f1868792dcc5e7a36f2dd6e.
-Seu ELF nativo tem SHA-256 a7a89dba2245f56d4161d52a9767441257edca04be8042edcabf358e4bb05f58;
-o clone e o build exatos estão no [registro C46](../../xmqr-client/prompts/registros/C46-release-fase3.md).
-O checkpoint de código final do broker e os hashes de artefatos só serão
-registrados depois de congelar e validar P95. Commits de documentação
-posteriores não serão apresentados como fonte de pacotes que não reconstruíram.
+O soak começou antes do commit final: JSON conserva HEAD3a5e29d/dirty=true.
+As26entradas src/Cargo permaneceram invariantes e o ELF efetivamente copiado/
+executado corresponde ao rebuild clean abbe. Não apresentar execução original
+como checkout clean nem reescrever JSON. Interop usou IDs imutáveis/revisionsabbe/e688.
 
-Registros: [P90](../prompts/registros/P90-fuzzing.md),
-[P91](../prompts/registros/P91-campanhas-robustez.md),
-[P93](../prompts/registros/P93-contrato-connect.md),
-[P94](../prompts/registros/P94-orcamento-nao-leitor.md),
-[prompt P95](../prompts/broker/95-encerramento-tls.md) e
+Terceiros comparados byte a byte: broker/admin113pacotes/218textos; client81/158.
+MIT/copyright próprios preservados, comparação somente CRLF→LF. Superset do lock,
+não SBOM completo do ELF/auditoria jurídica. Gitleaks do delta passou, não auditoria integral.
+
+## Falhas preservadas e limites
+
+P93 reproduziu recusas CONNECT incorretas; P95 reproduziu TLS EOF abrupto,
+inclusive sem MQTT. Fixes RED→GREEN. Campanhas antigas parciais/FAIL, ENOSPC
+observado e lançamentos WSL que não iniciaram permanecem registrados; não
+foram promovidos nem foi alegada limpeza de cache por nós.
+
+Duas matrizes intermediárias falharam em readiness ACL/subscriber externo;
+as causas exatas dessas ocorrências não foram recuperadas. Telemetria específica
+e prova SUBACK/recusa foram acrescentadas sem aceitar exit arbitrário. Will6,
+contratos21 e matriz completa final passaram sem ampliar W8. Falhas permanecem
+limitação histórica, não prova de causa ambiental/estabilidade ilimitada.
+
+MQTT3.1.1 é o protocolo desta fase. MQTT5 segue planejado na fase6, não iniciado.
+Fases4/5, rotação TLS, listeners adicionais e administração online não entregues
+aqui. Sem novo ESP32 físico, Windowsbroker/arm64/MSRV1.88 exato homologados,
+perda física de energia, estabilidade de dias ou throughput máximo.
+
+## Registros e próximos marcos
+
+[P90](../prompts/registros/P90-fuzzing.md), [P91](../prompts/registros/P91-campanhas-robustez.md),
+[P92](../prompts/registros/P92-aceitacao-distribuicao-fase3.md),
+[P93](../prompts/registros/P93-contrato-connect.md), [P94](../prompts/registros/P94-orcamento-nao-leitor.md),
+[P95](../prompts/registros/P95-encerramento-tls.md) e
+[C46](../../xmqr-client/prompts/registros/C46-release-fase3.md).
+Reports finais sanitizados serão anexados à distribuição; intermediários são
+evidência local e histórico explícito. As fases4/5 têm o
 [planejamento integrado do admin](../../xmqr-admin/docs/planejamento-tres-sistemas.md).
-
-## Limites
-
-MQTT 3.1.1 é o protocolo desta fase. MQTT 5 continua planejado na fase 6,
-sem implementação anunciada. Fases 4/5, rotação TLS, listeners adicionais e
-administração online não são iniciados por este fechamento. Não há novo teste
-físico ESP32 nesta fatia, nem homologação de Windows broker, arm64, MSRV1.88
-exato, dias de estabilidade, throughput máximo ou perda física de energia.
-O código próprio conserva MIT; as dependências mantêm suas licenças originais.
+Próximo código exige novo prompt, não iniciou por encerrar a fase3.
