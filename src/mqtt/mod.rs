@@ -3,6 +3,8 @@
 //! `#`, with durable Last Will; full conformance remains a separate gate.
 
 mod codec;
+#[cfg(all(test, unix))]
+mod connect_contract_tests;
 mod limits;
 mod router;
 #[cfg(all(test, unix))]
@@ -45,7 +47,8 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 /// # Errors
 ///
 /// Malformed packets, ACL violations, I/O failures and uncertain durable
-/// commits close the connection. Authentication failure emits `CONNACK 0x05`.
+/// commits close the connection. Refused protocol levels emit `CONNACK 0x01`,
+/// refused client identifiers `0x02`, and authentication failures `0x05`.
 #[allow(clippy::too_many_lines)] // Explicit packet-state dispatch is auditable against OASIS.
 pub async fn serve_connection(
     mut connection: BrokerConnection,
@@ -55,9 +58,20 @@ pub async fn serve_connection(
     let metrics = router.metrics();
     let _connection_metric = metrics.connection();
     let mut reader = FrameReader::new(connection.take_initial_mqtt_bytes());
-    let connect = reader
+    let connect = match reader
         .read_packet(&mut connection, Instant::now() + CONNECT_TIMEOUT)
-        .await?;
+        .await
+    {
+        Ok(packet) => packet,
+        Err(error) if error.is::<codec::UnsupportedProtocolLevel>() => {
+            // MQTT-3.1.2-2: explicit refusal before closing this connection.
+            connection
+                .write_all_with_deadline(&encode_connack(1), WRITE_TIMEOUT)
+                .await?;
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    };
     let Packet::Connect {
         client_id,
         clean_session,
@@ -69,6 +83,18 @@ pub async fn serve_connection(
     else {
         return Err("first MQTT packet must be CONNECT".into());
     };
+
+    // MQTT-3.1.3-8/9: XMQR refuses empty IDs rather than assigning one.
+    // The 256-byte ceiling is a local quota shared with durable validation.
+    // Validate before authentication/actor registration: a refused CONNECT
+    // cannot mutate state or process a pipelined publication (3.1.4-5).
+    if client_id.is_empty() || client_id.len() > store::MAX_CLIENT_ID_BYTES {
+        metrics.reject(Rejection::Quota);
+        connection
+            .write_all_with_deadline(&encode_connack(2), WRITE_TIMEOUT)
+            .await?;
+        return Ok(());
+    }
 
     let security_generation = auth.security_generation();
     let cert = connection.peer_certificates().first();

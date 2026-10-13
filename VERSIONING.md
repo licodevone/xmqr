@@ -1,5 +1,15 @@
 # Versionamento
 
+## P89–P93 / C45–C46 — candidato de fechamento fase3
+
+Broker/legadoadmin patch0.11.6 corrige recusas CONNECT; client minor0.9.0
+adiciona prazo total opcional e robustez de reconexão. Novo admin0.1.0 mantém
+pin/release e é exercitado contra o broker, sem bump documental artificial.
+P92/C46 regem aceites e distribuição nova, sem mover tags/latest antigos.
+Checklist global só será encerrado com B06/B07/B08/C07 efetivamentePASS.
+Gates/PROMPTS e limites em phase3-acceptance; versões candidatas não anunciam
+por si só release ou homologação. MQTT3.1.1/MIT/formatos/quotas preservados.
+
 ## P88 — terceiro projeto, sem bump do broker
 
 xmqr-admin independente0.1.0 tem tag/release e pacote próprios. mqtt-admin

@@ -6,12 +6,20 @@ use crate::transport::BrokerConnection;
 
 use super::topic::{TopicFilter, TopicName, valid_topic_name};
 
+#[cfg(all(test, unix))]
+#[path = "fuzz_tests.rs"]
+mod fuzz_tests;
+
 // Local quota includes the first byte, Remaining Length bytes and body.
 const MAX_PACKET: usize = 64 * 1024;
 const MAX_BUFFER: usize = MAX_PACKET;
 const MAX_PAYLOAD: usize = 4096;
 const MAX_SUBSCRIPTIONS: usize = 256;
 const MAX_PARTIAL_FRAME_TIME: Duration = Duration::from_secs(30);
+
+#[derive(Debug, thiserror::Error)]
+#[error("unsupported MQTT protocol level")]
+pub(super) struct UnsupportedProtocolLevel;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
@@ -224,8 +232,11 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
     let mut c = Cursor::new(body);
     let packet = match header {
         0x10 => {
-            if c.text()? != "MQTT" || c.byte()? != 4 {
+            if c.text()? != "MQTT" {
                 return Err("unsupported MQTT protocol".into());
+            }
+            if c.byte()? != 4 {
+                return Err(UnsupportedProtocolLevel.into());
             }
             let flags = c.byte()?;
             // MQTT-3.1.2-3/11/13/14/15: reserved and conditional Will flags.

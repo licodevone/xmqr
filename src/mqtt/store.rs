@@ -22,7 +22,7 @@ use super::topic::{TopicFilter, TopicName};
 const KEY: &[u8] = b"mqtt311.state.v1";
 const FORMAT_VERSION: u16 = 2;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
-const MAX_CLIENT_ID_BYTES: usize = 256;
+pub(super) const MAX_CLIENT_ID_BYTES: usize = 256;
 const MAX_PRINCIPAL_BYTES: usize = 256;
 const MAX_PAYLOAD_BYTES: usize = 4096;
 

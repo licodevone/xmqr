@@ -1,0 +1,156 @@
+// SPDX-License-Identifier: MIT
+//! Independent CONNECT bytes exercise real TCP admission into the MQTT actor.
+
+use super::*;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+    time::timeout,
+};
+
+fn connect(id: &[u8], clean: bool, level: u8) -> Vec<u8> {
+    let mut body = vec![
+        0,
+        4,
+        b'M',
+        b'Q',
+        b'T',
+        b'T',
+        level,
+        u8::from(clean) * 2,
+        0,
+        30,
+    ];
+    body.extend(u16::try_from(id.len()).unwrap().to_be_bytes());
+    body.extend(id);
+    let mut packet = vec![0x10];
+    let mut length = body.len();
+    loop {
+        let mut digit = u8::try_from(length % 128).unwrap();
+        length /= 128;
+        if length != 0 {
+            digit |= 128;
+        }
+        packet.push(digit);
+        if length == 0 {
+            break;
+        }
+    }
+    packet.extend(body);
+    packet
+}
+
+async fn closed(stream: &mut TcpStream) {
+    let mut byte = [0];
+    match timeout(Duration::from_secs(3), stream.read(&mut byte))
+        .await
+        .unwrap()
+    {
+        Ok(count) => assert_eq!(count, 0, "unexpected packet after CONNECT refusal"),
+        Err(error) => assert_eq!(error.kind(), std::io::ErrorKind::ConnectionReset),
+    }
+}
+
+async fn case(packet: Vec<u8>, code: Option<u8>) {
+    let directory = tempfile::tempdir().unwrap();
+    let auth = Arc::new(AccessPolicy::open_lab());
+    let router = Arc::new(Router::start(directory.path(), auth.clone()).await.unwrap());
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let handler_router = router.clone();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let connection = BrokerConnection::open_lab_for_test(stream).await.unwrap();
+        let _ = serve_connection(connection, auth, handler_router).await;
+    });
+    let mut stream = TcpStream::connect(address).await.unwrap();
+    stream.write_all(&packet).await.unwrap();
+    if let Some(code) = code {
+        let mut actual = [0; 4];
+        let result = timeout(Duration::from_secs(3), stream.read_exact(&mut actual)).await;
+        assert!(
+            matches!(result, Ok(Ok(_))),
+            "required CONNACK missing: {result:?}"
+        );
+        assert_eq!(actual, [0x20, 2, 0, code]);
+        if code == 0 {
+            stream.write_all(&[0xe0, 0]).await.unwrap();
+        }
+    }
+    closed(&mut stream).await;
+    timeout(Duration::from_secs(3), server)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        router.probe().await,
+        "rejected CONNECT must not poison actor"
+    );
+    assert_eq!(
+        router.metrics().persistence_errors.load(Ordering::Relaxed),
+        0
+    );
+    if code != Some(0) {
+        assert_eq!(router.metrics().commits.load(Ordering::Relaxed), 0);
+    }
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn unsupported_level_receives_connack_one() {
+    for level in [0, 3, 5, 255] {
+        case(connect(b"valid", true, level), Some(1)).await;
+    }
+}
+
+#[tokio::test]
+async fn refused_client_ids_receive_connack_two_without_state_change() {
+    for clean in [false, true] {
+        for id in [
+            Vec::new(),
+            vec![b'a'; 257],
+            "é".repeat(128)
+                .into_bytes()
+                .into_iter()
+                .chain(*b"a")
+                .collect(),
+        ] {
+            let mut packet = connect(&id, clean, 4);
+            // Retained QoS0 publish must never be processed after a refusal.
+            packet.extend([0x31, 4, 0, 1, b'x', b'y']);
+            case(packet, Some(2)).await;
+        }
+    }
+}
+
+#[tokio::test]
+async fn supported_alphanumeric_ids_and_local_utf8_boundary_are_accepted() {
+    let alphabet = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for length in 1..=23 {
+        case(connect(&alphabet[..length], true, 4), Some(0)).await;
+    }
+    for id in [vec![b'a'; 256], "é".repeat(128).into_bytes()] {
+        case(connect(&id, false, 4), Some(0)).await;
+    }
+}
+
+#[tokio::test]
+async fn malformed_connect_closes_without_connack() {
+    let valid = connect(b"valid", true, 4);
+    let mut wrong_name = valid.clone();
+    wrong_name[4] = b'X';
+    let mut reserved_flags = valid.clone();
+    reserved_flags[9] |= 1;
+    let mut trailing = valid.clone();
+    trailing[1] += 1;
+    trailing.push(0);
+    for packet in [
+        wrong_name,
+        reserved_flags,
+        trailing,
+        connect(&[0xff], true, 4),
+        connect(&[0], true, 4),
+    ] {
+        case(packet, None).await;
+    }
+}

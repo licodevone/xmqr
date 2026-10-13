@@ -8,10 +8,16 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
+COPY scripts/collect_notices.py ./scripts/collect_notices.py
+COPY packaging/notices ./packaging/notices
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 scripts/collect_notices.py --output /third-party-notices
 RUN cargo build --locked --release --bins
 
 FROM debian:bookworm-slim AS runtime-base
-ARG VERSION=0.11.5
+ARG VERSION=0.11.6
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
@@ -25,6 +31,7 @@ RUN apt-get update \
     && install -d -o 10001 -g 10001 -m 0750 /var/lib/xmqr
 COPY --chown=10001:10001 LICENSE /usr/share/licenses/xmqr/LICENSE
 COPY --chown=10001:10001 docs/third-party-licenses.md /usr/share/licenses/xmqr/third-party-licenses.md
+COPY --from=build --chown=10001:10001 /third-party-notices /usr/share/licenses/xmqr/third-party
 USER 10001:10001
 STOPSIGNAL SIGTERM
 

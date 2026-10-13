@@ -1,5 +1,19 @@
 # Histórico de versões
 
+## 0.11.6 — candidato de robustez fase3
+
+- CONNECT com nível não suportado responde CONNACK0x01; identificador vazio
+  ou acima da quota local256bytes responde0x02, SessionPresent0 e encerra
+  antes de registro/commit/pipeline. Malformados continuam fechando sem ACK.
+- P90/B07: corpus sintético, mutações estáveis com oráculos/watchdog e
+  regressões; não equivale a LibFuzzer/ASAN ou cobertura guiada.
+- P91/B08: ensaios prolongados TCP/mTLS, recuperação/pressão, matriz wire
+  normativa e interoperabilidade Mosquitto2.0.22; aceites registrados à parte.
+- Binários/pacotes preservam MIT e textos originais LICENSE/NOTICE de
+  terceiros, incluindo AWS-LC vendorizado; inventário não é composição ELF.
+- Client0.9.0 independente traz C45; admin independente0.1.0 não repinado.
+  Sem formatos/dependências/quotas novas, sem MQTT5 ou prontidão de produção.
+
 ## 0.11.5 — recuperação: erro de leitura não é cauda incompleta
 
 - Erro ao completar o tamanho de um registro WAL agora é propagado; somente

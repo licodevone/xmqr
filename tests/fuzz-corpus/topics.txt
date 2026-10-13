@@ -1,0 +1,13 @@
+# Synthetic tab-separated filter/topic pairs; no normalization.
+a/#	a
+a/+	a/
+#	$SYS/status
+$SYS/#	$SYS/status
+/+/	//
+ação/+	ação/😀
++/é	😀/é
+a//+	a//b
+a/+/c	a/b/c
+a/#	a/b/c
+é	é
+é	é
