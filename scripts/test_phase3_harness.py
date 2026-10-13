@@ -114,6 +114,14 @@ class HarnessContracts(unittest.TestCase):
         self.assertEqual(values['xmqr_ready'], 1)
         self.assertEqual([item['metrics']['xmqr_ready'] for item in probes], [0, 1])
 
+    def test_health_ready_response_after_deadline_is_rejected(self):
+        class Broker:
+            def metrics(self):
+                return dict(xmqr_ready=1, xmqr_persistence_errors_total=0)
+        with patch('test_phase3_health.time.monotonic', side_effect=[0, 0, 0, 2, 2, 2, 2]):
+            with self.assertRaises(TimeoutError):
+                wait_healthy(Broker(), seconds=1, interval=0)
+
 
 if __name__ == '__main__':
     unittest.main()

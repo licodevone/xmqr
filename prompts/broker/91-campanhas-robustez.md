@@ -1,4 +1,4 @@
-# P91 v1.17 — B08: campanhas limitadas de robustez e interoperabilidade
+# P91 v1.19 — B08: campanhas limitadas de robustez e interoperabilidade
 
 Preparado em 2026-10-13 antes de editar os harnesses. Pedido: finalizar fase 3,
 mantendo prompts antes do código e publicação somente após aceite coordenado.
@@ -221,3 +221,22 @@ incompleto, antesSIGTERM. Adicionar1caso/cadaTLS (total10), exigirEOF limpo
 da conexão autenticada e término<=15.5s (budget15s +tolerância de observação).
 Socketstall privado fica aberto até processoencerrar; não fechar antecipadamente
 para artificialmente liberarpermit. Sem alterações de timeout/handshake do core.
+
+## Refinamento v1.18 — proveniência e negativo de deadline
+
+Prova adicional: baseline2 tem 2 controles PASS e 8 SIGTERM FAIL, inclusive os
+dois handshakes incompletos. Antes do candidato P95, capturar SHA do executável
+privado efetivamente testado e do harness no início, nunca recalcular a partir
+de target/release potencialmente recompilado ao término. Copiar também admin
+privado e registrar dependências da fixture; label baseline/candidate explícito.
+Acrescentar negativo determinístico: resposta ready1 que chega após o deadline
+não pode ser aceita pelo helper diagnóstico. O soak continua com oráculo strict
+e três reprobes somente para diagnóstico; nenhuma adoção do helper nesta revisão.
+
+## Refinamento v1.19 — falhas TLS sempre produzem relatório
+
+Candidato P95 disponível. Antes do gate externo, garantir que timeout, exitcode
+não zero ou falha de cleanup também sejam casos FAIL sanitizados no JSON, não
+exceções sem report. Preservar causa primária e registrar cleanup separadamente;
+não permitir que cleanup FAIL mantenha status PASS. Nenhuma alteração nos
+requisitos EOF limpo, exit0, handshake ativo ou prazo15.5s.

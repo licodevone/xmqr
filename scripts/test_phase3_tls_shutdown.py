@@ -61,13 +61,21 @@ def scenario(root, binary, context, version, kind, repetition):
             result.update(status='FAIL', clean_tls_eof=False, error_type=type(failure).__name__,
                           error_reason=getattr(failure, 'reason', 'unexpected TLS EOF'))
         return result
+    except Exception as failure:
+        result.update(status='FAIL', error_type=type(failure).__name__,
+                      error_reason=str(failure) if isinstance(failure, AssertionError)
+                      else 'bounded TLS scenario operation failed')
+        return result
     finally:
         if client:
             client.close()
         if stalled:
             stalled.close()
         if broker.process and broker.process.poll() is None:
-            broker.shutdown()
+            try:
+                broker.shutdown()
+            except Exception as failure:
+                result.update(status='FAIL', cleanup_error_type=type(failure).__name__)
         result['seconds'] = round(time.monotonic() - began, 3)
 
 
@@ -76,28 +84,39 @@ def main():
     parser.add_argument('--broker', required=True, type=Path)
     parser.add_argument('--admin', required=True, type=Path)
     parser.add_argument('--state-root', type=Path, default=Path('/var/tmp'))
+    parser.add_argument('--label', choices=('baseline', 'candidate'), default='baseline')
     parser.add_argument('--report', required=True, type=Path)
     args = parser.parse_args()
     if sys.platform != 'linux' or args.report.exists() or args.report.is_symlink():
         parser.error('Linux and new report required')
     args.broker = args.broker.resolve(strict=True)
     args.admin = args.admin.resolve(strict=True)
+    harness_hash = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    fixture_hashes = {name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
+                      for name in ('benchmark_pressure.py', 'benchmark_fanout.py', 'benchmark_baseline.py',
+                                   'verify_interop.py', 'verify_docker.py')}
     results = []
     with tempfile.TemporaryDirectory(prefix='xmqr-p91-tls-eof-', dir=args.state_root) as temporary:
         root = Path(temporary)
         binary = root / 'mqtt-broker'
         shutil.copyfile(args.broker, binary)
         binary.chmod(0o700)
-        context = pressure.fanout.security(root, args.admin)
+        admin = root / 'mqtt-admin'
+        shutil.copyfile(args.admin, admin)
+        admin.chmod(0o700)
+        binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
+        admin_hash = hashlib.sha256(admin.read_bytes()).hexdigest()
+        context = pressure.fanout.security(root, admin)
         for version, protocol in [('TLS1.2', ssl.TLSVersion.TLSv1_2), ('TLS1.3', ssl.TLSVersion.TLSv1_3)]:
             context.minimum_version = context.maximum_version = protocol
             results.append(scenario(root, binary, context, version, 'client_disconnect', 1))
             for repetition in range(1, 4):
                 results.append(scenario(root, binary, context, version, 'server_sigterm', repetition))
             results.append(scenario(root, binary, context, version, 'server_sigterm_partial_handshake', 1))
-    report = dict(schema_version=1, status='PASS' if all(item['status'] == 'PASS' for item in results) else 'FAIL',
-                  broker_binary_sha256=hashlib.sha256(args.broker.read_bytes()).hexdigest(),
-                  harness_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+    report = dict(schema_version=1, label=args.label,
+                  status='PASS' if all(item['status'] == 'PASS' for item in results) else 'FAIL',
+                  broker_binary_sha256=binary_hash, admin_binary_sha256=admin_hash,
+                  harness_sha256=harness_hash, fixture_sha256=fixture_hashes,
                   completed_utc=datetime.now(timezone.utc).isoformat(), scenarios=results,
                   limitations=['owned synthetic mTLS fixture only', 'process shutdown, not physical power-loss'])
     args.report.parent.mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,4 @@
-# P92 v1.4 — gates finais e distribuição fase3
+# P92 v1.5 — gates finais e distribuição fase3
 
 Preparado 2026-10-13 antes de versões/embalagem. P89 exige B06+B07+B08+C07
 com evidência real. Broker patch0.11.6: recusas CONNECT corrigidas por P93,
@@ -78,3 +78,13 @@ passam a respeitar TMPDIR=/var/tmp. Sem mudar admin, pin ou seus 18 cenários.
 P94 full P80 final-v3 passou 60/60, mas P95 provou ragged EOF no SIGTERM mTLS:
 6/6 sinais falharam com TLS1.2/1.3, 2/2 DISCONNECTs foram controles positivos.
 Repetir os gates pertinentes no ELF corrigido, não anunciar fase 3 encerrada.
+
+## Revisão 1.5 — checkpoint documental antes do congelamento P95
+
+Criar docs/phase3-acceptance.md inicialmente EM VALIDAÇÃO, distinguindo os
+gates já observados de B08/artefatos ainda pendentes. Atualizar notas de
+CHANGELOG/README/VERSIONING com a correção P95 e as referências aos três
+sistemas, sem declarar aceite ou MQTT5. O relatório só passa a ACCEPTED após
+os resultados reais requeridos. Registrar fonte exata dos artefatos separada
+de commits documentais posteriores; não atribuir artefatos a outro commit
+sem gate de identidade/build. Imagens anteriores permanecem sem alteração.

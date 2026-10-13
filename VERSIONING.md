@@ -1,8 +1,9 @@
 # Versionamento
 
-## P89–P93 / C45–C46 — candidato de fechamento fase3
+## P89–P95 / C45–C46 — candidato de fechamento fase3
 
-Broker/legadoadmin patch0.11.6 corrige recusas CONNECT; client minor0.9.0
+Broker/legadoadmin patch0.11.6 corrige recusas CONNECT e encerramento TLS;
+client minor0.9.0
 adiciona prazo total opcional e robustez de reconexão. Novo admin0.1.0 mantém
 pin/release e é exercitado contra o broker, sem bump documental artificial.
 P92/C46 regem aceites e distribuição nova, sem mover tags/latest antigos.

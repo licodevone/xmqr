@@ -1,4 +1,4 @@
-# P95 v1.1 — encerramento TLS e espera das conexões no SIGTERM
+# P95 v1.3 — encerramento TLS e espera das conexões no SIGTERM
 
 13 de outubro de 2026, antes de reprodução/correção. P91 matriz candidata:
 59 casos C43 PASS, extensão FAIL no SIGTERM do XMQR com mosquitto_sub,
@@ -56,3 +56,23 @@ Tests novos precedem código e verificam RAII/drop/panic/drain pendente,
 deadline/error ator e não leitor limitado; matriz strictTLS independente
 antes/depois acompanha o fix. TMPDIR=/var/tmp e CARGO_BUILD_JOBS=1; nenhum
 reset/limpeza global de WSL, serviço ou cache. Não publicar candidatos velhos.
+
+## Revisão v1.2 — prioridade de erro mesmo após timeout do drain
+
+Cinco regressões targeted PASS na primeira correção (drain/RAII/cancel e
+main deadline/erro). Revisão encontrou borda: timeout externo conjunto
+descarta erro de actor já concluído se drain expirar. Antes de ajustar,
+adicionar teste actorErr+drainpendente que exige erro original; depois usar
+um deadline absoluto compartilhado por dois timeout_at, aguardar/tentar
+drain e só então retornar resultado de actor prioritário. Sem renovar15s,
+sem ocultar timeout quando actor não informou erro anterior. Reexecutar
+targeted e release antes do freeze e de iniciar soak/imagens P91.
+
+## Revisão v1.3 — RED executado antes do ajuste de prioridade
+
+Teste actor_error_is_not_masked_by_a_later_connection_drain_timeout executou
+e FAIL conforme a borda: retornou "broker shutdown timed out", esperado
+"synthetic actor storage failure". Nenhum dado do operador. Ajustar agora
+timeout_at conformev1.2; reforçar teste de deadline com dois períodos que,
+individualmente, caberiam no budget mas conjuntamente não cabem. Sem sleeps
+arbitrários em runtime ou novo prazo apósactor.

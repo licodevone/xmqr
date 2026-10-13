@@ -266,17 +266,16 @@ async fn finish_shutdown(
     connections: impl std::future::Future<Output = io::Result<()>>,
     budget: std::time::Duration,
 ) -> Result<(), mqtt_broker::transport::HandlerError> {
-    tokio::time::timeout(budget, async {
-        let actor_result = actor.await;
-        // Even a failed actor must not bypass the remaining connections' TLS
-        // close. Neither phase receives a fresh shutdown timeout.
-        let connection_result = connections.await;
-        actor_result?;
-        connection_result?;
-        Ok(())
-    })
-    .await
-    .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "broker shutdown timed out"))?
+    let deadline = tokio::time::Instant::now() + budget;
+    let actor_result = tokio::time::timeout_at(deadline, actor).await;
+    // Try the remaining connections even when the actor failed. Both phases
+    // share one absolute deadline, and a later drain timeout cannot overwrite
+    // an earlier durable-storage error.
+    let connection_result = tokio::time::timeout_at(deadline, connections).await;
+    let elapsed = |_| io::Error::new(io::ErrorKind::TimedOut, "broker shutdown timed out");
+    actor_result.map_err(elapsed)??;
+    connection_result.map_err(elapsed)??;
+    Ok(())
 }
 
 fn validate_security_environment(
@@ -484,6 +483,18 @@ mod tests {
     use super::{BrokerMode, ensure_state_profile, validate_open_lab_bind};
 
     #[tokio::test]
+    async fn actor_error_is_not_masked_by_a_later_connection_drain_timeout() {
+        let error = super::finish_shutdown(
+            async { Err("synthetic actor storage failure".into()) },
+            std::future::pending::<std::io::Result<()>>(),
+            std::time::Duration::from_millis(5),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.to_string(), "synthetic actor storage failure");
+    }
+
+    #[tokio::test]
     async fn actor_shutdown_error_is_preserved_after_connections_are_drained() {
         let drained = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let flag = drained.clone();
@@ -507,14 +518,15 @@ mod tests {
         let flag = entered_drain.clone();
         let error = super::finish_shutdown(
             async {
-                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(30)).await;
                 Ok(())
             },
             async move {
                 flag.store(true, std::sync::atomic::Ordering::SeqCst);
-                std::future::pending::<std::io::Result<()>>().await
+                tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+                Ok(())
             },
-            std::time::Duration::from_millis(15),
+            std::time::Duration::from_millis(45),
         )
         .await
         .unwrap_err();

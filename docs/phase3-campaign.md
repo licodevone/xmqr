@@ -42,9 +42,21 @@ de retry, evitando aceitar timeout disfarçado por reconexão automática.
 `scripts/test_phase3_wire.py`:19cenários wire independentes vinculados às
 cláusulas: ClientID vazio, flags, UTF-8, IDs zero, QoS0/DUP, QoS reservado,
 filtro inválido, keepalive1s, CONNECT fragmentado e PING concatenado.
-`scripts/test_phase3_harness.py`:8negativos determinísticos da contabilidade,
+`scripts/test_phase3_harness.py`:13testes determinísticos da contabilidade,
 incluindo DUP permitido emQoS1, falta lógica e duplicação proibida emQoS2,
 e preservação do primeiro erro quando outro cenário é cancelado em paralelo.
+Incluem QoS0/DUP e negativos do helper diagnóstico: nunca ready, erro persistente
+mesmo ready1 e resposta ready1 posterior ao prazo. O helper não substitui o
+oráculo strict de saúde do ensaio prolongado; três reprobes após ready0 servem
+apenas para registrar diagnóstico, não para transformar FAIL em PASS.
+
+`scripts/test_phase3_tls_shutdown.py`:10casos de EOF TLS estrito em TLS1.2/1.3,
+com `suppress_ragged_eofs=False`:2controles DISCONNECT normal,6SIGTERM e2SIGTERM
+com handshake incompleto paralelo. O socket incompleto permanece aberto até o
+processo terminar, enquanto a conexão autenticada deve receber close_notify.
+Conferir exit0 e budget compartilhado15s (+.5s tolerância de observação).
+O relatório usa SHA da cópia privada realmente executada, não de arquivo que
+possa ter sido recompilado durante o ensaio. Certificados/estado só sintéticos.
 
 ## Reprodução
 
@@ -53,6 +65,7 @@ Executar na raiz deste broker Linux/WSL com os binários aceitos:
 ```text
 python3 scripts/test_phase3_harness.py
 python3 scripts/test_phase3_wire.py --broker target/release/mqtt-broker --label candidate --report CAMINHO-NOVO/wire.json
+python3 scripts/test_phase3_tls_shutdown.py --broker target/release/mqtt-broker --admin target/release/mqtt-admin --state-root /var/tmp --label candidate --report CAMINHO-NOVO/tls-shutdown.json
 python3 scripts/phase3_soak.py --broker target/release/mqtt-broker --admin target/release/mqtt-admin --state-root /var/tmp --label candidate --seconds 600 --repetitions 3 --report CAMINHO-NOVO/soak.json
 ```
 
@@ -69,6 +82,16 @@ da versão anterior é identificada como baseline, não aceita código futuro.
 O state-root deve ser Linux disk-backed, não tmpfs/DrvFS, com>=512MiB livres.
 Nesta sessão `/tmp` estava tmpfs100% e abortou ensaios; usar `/var/tmp`ext4
 comprovado. Nenhum arquivo de outros processos foi apagado para liberar espaço.
+
+## Checkpoint anterior a P95
+
+O candidato d371d283 passou19wire e59C43, mas falhou na extensão SIGTERM/mTLS:
+Mosquitto_sub exit7(CONN_LOST), sem timeout e sem reconexão bem-sucedida. A prova
+direta baseline2 confirmou2controles PASS e8SIGTERM FAIL com EOF TLS truncado,
+apesar do brokerexit0. Esses FAIL ficam preservados e motivaram correção P95
+no core, por outro agente. A campanha600x3 completa e a matriz87casos continuam
+pendentes no binário/imagem posteriores a essa correção; resultados antigos
+não aceitam o código corrigido.
 
 ## Limites e fonte
 

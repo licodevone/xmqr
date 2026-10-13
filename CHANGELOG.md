@@ -5,6 +5,9 @@
 - CONNECT com nível não suportado responde CONNACK0x01; identificador vazio
   ou acima da quota local256bytes responde0x02, SessionPresent0 e encerra
   antes de registro/commit/pipeline. Malformados continuam fechando sem ACK.
+- P95: encerramento TLS limitado mesmo após erro de cleanup; parada aguarda
+  conexões admitidas e actor/writer no mesmo prazo total de 15s, preservando
+  o erro de armazenamento. Gates finais ainda em validação.
 - P90/B07: corpus sintético, mutações estáveis com oráculos/watchdog e
   regressões; não equivale a LibFuzzer/ASAN ou cobertura guiada.
 - P91/B08: ensaios prolongados TCP/mTLS, recuperação/pressão, matriz wire
