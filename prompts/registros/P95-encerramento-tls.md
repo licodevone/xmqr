@@ -87,9 +87,65 @@ SHA69ec47dc não é o aceite do novo ELF pós-v1.4. Preservados como evidência:
 
 ## Gates finais pós-v1.4
 
-Em execução. Preencher com resultados reais no ELF final; não inferir PASS
-das provas intermediárias. Exigidos fmt/test/clippy/release/inventory,
-B06/P80/P90, TLS12, wire19, matriz externa e soak3x600s no commit exato.
+Release0 em1m43s, fmtcheck anterior0, inventário0. ELFbroker final SHA
+e57b1e2d26de50d09bb6bdadb74e4c0531dcac15399ece4369f4e0a0824e2987;
+ELFadmin legado SHA f40ecbb5e1641565bbf6ec2cb0e14a7d58973709270bc89c64070ae32b6f9083.
+Targeted transport6/6PASS exit0 (compile49.72s, tests.04s), incluindo
+nonreading/drain/RAII/cancel. Fonte runtime congelada antes dos testes P91,
+nenhum novo build substitui esses ELFs durante campanhas.
+
+P91 externo executou e o agente P95 leu os três JSONs:
+
+- `.artifacts/p91-tls-eof-candidate-2.json`:10/10PASS, reportSHA
+  415a6a6039b8149241c6a07a950ab9b4fa4b6de09b92a1eb6b14a1e7d45059d1;
+  harnessSHA da878f079c8824165e48e087da59dbd05d0c43d7b8982cb207fb006af5716538.
+- `.artifacts/p91-tls-no-connect-candidate-1.json`:2/2PASS, TLS1.2/TLS1.3
+  negociados, zeroMQTT e EOF limpo, SIGTERM3.023/3.040s e exit0; reportSHA
+  118668859ef8a86f13b238d31c5a919aede2b860c6e4eb6bc57fd69ff8487b23;
+  harnessSHA 437c66614807fbfc321ee508df3796f12d0ffa513d7664c9c26516c8ee4c21b7.
+- `.artifacts/p91-wire-candidate-3.json`:19/19PASS, reportSHA
+  f9afa1337a8115fb969931859f2cea74fb014d6a1f199a3d0af113c9f6eafc9b;
+  harnessSHA 98fb06b4013df0d4b808eb78baf9aeeb73193cc461f412817b36ddce310774fd.
+
+Todos os reports identificam o mesmo broker e57b1e2d; TLS também o adminf40e.
+Portanto RED→GREEN real nas duas fronteiras, sem desligar validação TLS.
+SHAs raw das três fontes runtime na cópia Windows compartilhada:
+mqtt/mod.rs be0e4b0a538816882202af1c5126eb772a2f8107fbef9abc6637a4b5b23743eb;
+transport/mod.rs797745517926d3eb644949bfe8da8da2083cf0412b193daebd6eb9f1a617dd39;
+main.rs18310f7c00382fb3df9463eb15a8ac31aefb46e423368725095a8bcf97399aa9.
+CRLF/LF de clone podem mudar SHA raw de fonte, não contratos ou termos MIT.
+
+Gates finais executados na fonte congelada, cadeia fail-fast retornou0:
+
+```text
+TMPDIR=/var/tmp CARGO_BUILD_JOBS=1
+cargo test --locked -- --test-threads=1
+cargo clippy --locked --all-targets -- -D warnings
+cargo fmt --all -- --check
+python3 scripts/run_fuzz.py --iterations 25000 --state-iterations 128 --router-iterations 256 --output dist/fuzz/p95-v14-final.json
+```
+
+- FullRust:135PASS/6ignored (campanhas explicitamente repetidas por driver),
+  lib113PASS em49s, legacyadmin4PASS em8.30s, main7PASS em.06s,
+  integração backup1/adminCLI2/config5/quotas1/version2. B06 falhas I/O,
+  commit/ACK/fanout/crash e P80nonreading incluídos e PASS, não presumidos.
+- Clippy0 em18.29s, fmtcheck0, inventory0. Buildrelease0 já descrito acima;
+  hashes dos ELFs conferidos novamente após gates, inalterados.
+- P90 final18/18PASS:300000 casos rápidos+384restore+384 candidatos
+  semânticos+768router, 44.1165s, RSS máximo amostrado10211328bytes,
+  input65536máx/timeout120s por alvo/RSS512MiB/sample20ms. Fonte invariável
+  entre início/fim, sem panic/divergência/limite de tempo/RSS do broker.
+  Report dist/fuzz/p95-v14-final.json SHA
+  0ee817ed7e1fd282697393184a79c3e4c0977220b6329fbb7ae37ba9cda60bb7;
+  libtestSHA144ba7ae840f2178ec8816f8f0278437ba84964dbacf6d63fb27fd57ca071e4a.
+  JSON identificou HEADabbe38ca6c041f7328e85054506a4eed22c74c41, dirtytrue
+  por registros compartilhados em edição, snapshot SHA das fontes estável.
+- git diff --check:0, somente avisos conhecidos LF/CRLF em registros.
+
+P91soak3x600s e matriz externa final são gate separado, em andamento pelo
+agente P91 no ELF e57b1e2d. Ainda não aprovados por esses testes curtos.
+Coordenador fará clone/artefatos de commit exato; estes gates não equivalem
+à validação dos ELFs reconstruídos ou payload de deb/imagens.
 
 ## Limitações e aceite
 
