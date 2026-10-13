@@ -1,5 +1,12 @@
 # Versionamento
 
+## P88 — terceiro projeto, sem bump do broker
+
+xmqr-admin independente0.1.0 tem tag/release e pacote próprios. mqtt-admin
+legado permanece0.11.5 no broker/deb/imagem existentes. A publicação do novo
+admin não move tag0.11.5 nem muda client0.8.1. P88 apenas atualiza referências
+e checklist; commits documentais não exigem versão/tag artificial.
+
 ## P86/P87 — patch0.11.5, início da fase3
 
 P86 corrige a distinção entre erro de leitura e cauda WAL incompleta. Somente

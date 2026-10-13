@@ -1,15 +1,20 @@
 # Plano de paridade funcional do XMQR com Mosquitto
 
 Atualizado em 2026-10-13. Broker/admin0.11.5 corrige recuperação porP86;
-publicado porP87 com .deb/Docker, client0.8.1 mantido. O planejamento está completo como backlog
+publicado porP87 com .deb/Docker, client0.8.1 mantido. P88 referencia o novo
+xmqr-admin independente0.1.0 publicado, sem mudança do broker/client.
+O planejamento está completo como backlog
 executável; as funcionalidades pendentes não estão implementadas por isso.
 O propósito é evoluir um broker MQTT e seus utilitários com contratos próprios,
 não reproduzir cada detalhe interno, arquivo ou opção de todas as versões Mosquitto.
 
 ## Escopo, referências e estado
 
-Há dois repositórios independentes: `xmqr` contém `mqtt-broker` e `mqtt-admin`;
-`xmqr-client` contém `mqtt-client`. O admin acompanha a versão do broker.
+Há três repositórios independentes: `xmqr` contém `mqtt-broker` e o legado
+`mqtt-admin`; `xmqr-client` contém `mqtt-client`; [xmqr-admin](https://github.com/licodevone/xmqr-admin)
+contém `xmqr-admin`0.1.0 (CLI e painel local autenticado de leitura). Somente
+o admin legado acompanha a versão do broker. O novo tem versão/tag/release
+próprias, reutiliza o core por commit imutável e não substitui os existentes.
 ESP32 é consumidor externo, não o alvo do broker atual. Firmware, banco, web e
 regras de negócio ficam fora do núcleo. MIT própria preservada; dependências
 e arquivos de terceiros conservam suas respectivas licenças.
@@ -66,6 +71,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 
 | ID | Responsável e função | Estado / evidência atual | Dependência e aceite específico |
 | --- | --- | --- | --- |
+| U01 | Admin independente: CLI e painel de consulta | Aceito xmqr-admin0.1.0/P88; A01/A02/A03 locais do novo repo | Loopback autenticado/agregados somente leitura; release/deb/Docker aceitos; não encerra A02/A03/A09 da matriz |
 | B01 | Broker: configuração TOML e quotas globais | Existente P52/P54/P55/P61 | Manter regressões de precedência, N/N+1, redução e recuperação sem truncar |
 | B02 | Broker: QoS0/1/2, retained, sessões, Will e filtros | Existente P42/P61; matriz 3.1.1 ainda parcial | Vetores independentes e evidência por cláusula; não anunciar conformidade completa |
 | B03 | Broker: conexões simultâneas e admissão sob saturação | P80 PASS até teto configurado64; sem SLA | N/N+1/vaga/RSS/CPU/percentis TCP/mTLS; performance-pressure.md |
@@ -80,7 +86,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | B12 | Broker: reload geral da configuração | Decisão, bundle/SIGHUP existente | B09; classificar campos hot-reload/restart-only, transação sem estado parcial |
 | B13 | Broker: métricas operacionais e logs | Parcial monitor P43 | B03/B04; cardinalidade finita, sem payload/credenciais, probe do writer/ator |
 | B14 | Broker: tópicos $SYS | Decisão | B13/A04; namespace explícito, ACL própria, frequência limitada e custo medido |
-| A01 | Admin: CRUD local de usuários e fingerprint/hash | Existente, Unix | Manter arquivo privado, lock, symlink negativo, arquivo temporário e atualização atômica |
+| A01 | Admin: CRUD local de usuários e fingerprint/hash | Existente, Unix; novo CLI xmqr-admin0.1.0 compatível e legado preservado | Manter arquivo privado, lock, symlink negativo, arquivo temporário e atualização atômica |
 | A02 | Admin: gestão de grupos, papéis e ACL no bundle | Planejado; bundle manual existente | B08; validate/list/create/update/delete, referências inválidas recusadas e permissões mínimas |
 | A03 | Admin: habilitar/revogar identidade e aplicar bundle | Planejado, reload conservador existente | A02; efeito nas conexões/sessões definido, QoS2 durável e auditabilidade |
 | A04 | Admin: contrato do canal administrativo autenticado | Decisão | A02/A03; aprovar IPC/HTTPS/MQTT reservado em ADR com RBAC, quotas/idempotência; o ADR não comprova canal implementado |
@@ -207,6 +213,13 @@ binários compilados para seu runtime. .deb e imagem são artefatos diferentes:
 não instalar esse .deb Ubuntu no Bookworm nem anunciar Debian/Ubuntu24/arm64
 como homologados por existir um container. Admin está no .deb do broker e
 tem imagem própria `lepinheiro100/xmqr-admin`, não um serviço de rede.
+
+O parágrafo anterior é do legado `mqtt-admin`. O novo xmqr-admin0.1.0 tem
+deb separado `xmqr-admin_0.1.0-1_amd64.deb` e imagem
+`lepinheiro100/xmqr-admin-ui:0.1.0`, não-root10001 e SIGTERM. Seu painel local
+é somente leitura do monitor; não oferece o canal A09. Dockerloopback não
+é exposto por publicar uma porta; laboratório usou namespace compartilhado.
+Release/checksums/gates: [P88](../prompts/registros/P88-admin.md).
 
 Para atualização do broker: backup offline verificado, stop coordenado,
 preservar volume/configuração, instalar versão aceita, verificar recuperação

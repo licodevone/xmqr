@@ -1,9 +1,10 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; acompanhamento atualizado em 2026-10-13
-por P80/C43/P81/P82/P83/P84/P85/C44. Versões nos manifests atuais: broker/admin 0.11.4 e client independente 0.8.1.
+por P80/C43/P81/P82/P83/P84/P85/C44/P86/P87/P88. Versões atuais: broker e
+admin legado0.11.5; client independente0.8.1; novo xmqr-admin independente0.1.0.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
-2026-10-13 por P78/C42, fecha o planejamento de funções, dependências e gates
+2026-10-13 por P78/C42/P86/P88, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
 Estimativas para uma sequência de desenvolvimento
 com dedicação regular, contadas do início da execução, não datas prometidas.
@@ -79,6 +80,7 @@ EvidênciaB06: [falhas de armazenamento](storage-faults.md) e
 equivalem a disco físico cheio/energia. Fase3 global permanece parcial.
 
 ### Fases 4–5 — entregas restantes
+- [x] ~~Admin independente0.1.0: CLI, painel local autenticado de leitura, prompts e release/deb/Docker próprio (P88).~~
 - [ ] Fase 4: múltiplos listeners, políticas por endpoint, TLS sem certificado cliente quando configurado e rotação de certificados.
 - [ ] Fase 4: perfis reutilizáveis do client e testes de rotação/erros de credenciais.
 - [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.
@@ -91,6 +93,10 @@ Evidências da parcela operacional: [P63](../prompts/registros/P63-docker-distri
 [C40](../../xmqr-client/prompts/registros/C40-docker-distribuicao.md).
 Evidência dos filtros: [C41](../../xmqr-client/prompts/registros/C41-filtros-retained.md).
 As fases 3–5 continuam abertas; a entrega operacional não encerra a fase 5.
+O [novo admin](https://github.com/licodevone/xmqr-admin) foi antecipado como
+interface somente de leitura; A01/A02/A03 em seu repositório são IDs locais,
+não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidência:
+[P88](../prompts/registros/P88-admin.md). mqtt-admin legado permanece intacto.
 
 ### Fases 6–9 e distribuição — pendentes
 
@@ -115,7 +121,7 @@ e o link do registro. Manter itens em validação desmarcados e indicar seu bloq
 | Capacidade | ~~Baseline RAM/CPU/PUBACK QoS1 medida em P62~~; sem teto de produção medido | Ampliar QoS/fan-out/TLS e saturação; relatório de capacidade |
 | Robustez | Recuperação e backup existentes, cobertura incompleta | Disco cheio, erro de escrita, pressão de filas, fuzzing, testes prolongados e matriz3.1.1 |
 | Listeners | Um listener por processo/perfil | Múltiplos listeners, políticas por listener e TLS com senha sem exigir certificado cliente quando configurado |
-| Administração | CRUD de usuários e bundle/SIGHUP | Gestão segura de grupos/papéis/ACL, auditoria e contrato administrativo; plugins são trilha posterior |
+| Administração | CRUD/backup legado; novo xmqr-admin0.1.0 com CLI e painel autenticado de agregados; bundle/SIGHUP no broker | Gestão segura de grupos/papéis/ACL, auditoria e contrato administrativo; plugins são trilha posterior |
 | Métricas/logs | Monitor básico e tracing | Métricas operacionais, formatos/exportação definidos e decidir suporte MQTT $SYS |
 | MQTT5 | Ausente | Codec/propriedades, negociação, sessões/expiração, fluxo, assinaturas e autenticação estendida |
 | WebSocket | Ausente | WS/WSS no broker e conexão correspondente no client |

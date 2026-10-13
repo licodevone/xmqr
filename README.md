@@ -72,6 +72,9 @@ extraídos usam somente sua toolchain, sem Python/WSL/Docker para execução.
 
 Broker MQTT3.1.1 experimental em Rust2024/Tokio, licença MIT. Pacote mqtt-broker;
 binários mqtt-broker e mqtt-admin. O client é o projeto independente ../xmqr-client.
+O terceiro projeto [XMQR Admin](https://github.com/licodevone/xmqr-admin)
+fornece `xmqr-admin`0.1.0 independente, com CLI compatível e painel web local
+autenticado de leitura. Não remove o `mqtt-admin` legado. [Registro P88](prompts/registros/P88-admin.md).
 Não há declaração de conformidade completa ou prontidão para produção.
 
 ## Versões
@@ -84,6 +87,9 @@ Marco de distribuição atual: **broker/admin 0.11.5**. [B06/P86](docs/storage-f
 corrige recuperação e cobre falhas de armazenamento; fase 3 segue parcial.
 [Release experimental](https://github.com/licodevone/xmqr/releases/tag/v0.11.5)
 com .deb Ubuntu26 amd64, imagens e evidências publicadas porP87. Client0.8.1 mantido.
+Admin independente0.1.0: [release experimental](https://github.com/licodevone/xmqr-admin/releases/tag/v0.1.0)
+com pacote `xmqr-admin` e imagem `lepinheiro100/xmqr-admin-ui:0.1.0`, sem
+conflito com o utilitário legado0.11.5. Painel não controla ACL/sessões ao vivo.
 Consulta de versão do
 admin, imagem admin separada e contexto Docker seguro. O [plano detalhado de
 paridade com Mosquitto](docs/plano-paridade-mosquitto.md) está concluído como
