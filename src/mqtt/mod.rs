@@ -49,17 +49,30 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 /// Malformed packets, ACL violations, I/O failures and uncertain durable
 /// commits close the connection. Refused protocol levels emit `CONNACK 0x01`,
 /// refused client identifiers `0x02`, and authentication failures `0x05`.
-#[allow(clippy::too_many_lines)] // Explicit packet-state dispatch is auditable against OASIS.
 pub async fn serve_connection(
     mut connection: BrokerConnection,
     auth: Arc<AccessPolicy>,
     router: Arc<Router>,
 ) -> Result<(), HandlerError> {
+    // Close remains inside the admitted task, even after a CONNECT refusal or
+    // actor cleanup error. Preserve the MQTT error ahead of a later close error.
+    let _connection_metric = router.metrics().connection();
+    let result = serve_mqtt(&mut connection, auth, router).await;
+    let closed = connection.shutdown().await;
+    result?;
+    closed.map_err(Into::into)
+}
+
+#[allow(clippy::too_many_lines)] // Explicit packet-state dispatch is auditable against OASIS.
+async fn serve_mqtt(
+    connection: &mut BrokerConnection,
+    auth: Arc<AccessPolicy>,
+    router: Arc<Router>,
+) -> Result<(), HandlerError> {
     let metrics = router.metrics();
-    let _connection_metric = metrics.connection();
     let mut reader = FrameReader::new(connection.take_initial_mqtt_bytes());
     let connect = match reader
-        .read_packet(&mut connection, Instant::now() + CONNECT_TIMEOUT)
+        .read_packet(connection, Instant::now() + CONNECT_TIMEOUT)
         .await
     {
         Ok(packet) => packet,
@@ -150,7 +163,7 @@ pub async fn serve_connection(
     let mut last_inbound = Instant::now();
     let result: Result<(), HandlerError> = async {
         for delivery in session.replay.drain(..) {
-            send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+            send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
         }
         loop {
             // MQTT-3.1.2-24: disconnect after 1.5 times the advertised keep-alive.
@@ -165,7 +178,7 @@ pub async fn serve_connection(
                 biased;
                 _ = session.closed.changed() => break,
                 () = sleep_until(deadline) => break,
-                incoming = reader.read_packet(&mut connection, deadline) => {
+                incoming = reader.read_packet(connection, deadline) => {
                     last_inbound = Instant::now();
                     match incoming? {
                         Packet::Subscribe { packet_id, filters } => {
@@ -175,7 +188,7 @@ pub async fn serve_connection(
                             }).collect();
                             let (codes, retained) = router.subscribe(&session, requested).await?;
                             connection.write_all_with_deadline(&encode_suback(packet_id, &codes), WRITE_TIMEOUT).await?;
-                            for delivery in retained { send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?; }
+                            for delivery in retained { send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?; }
                         }
                         Packet::Unsubscribe { packet_id, filters } => {
                             router.unsubscribe(&session, filters).await?;
@@ -204,17 +217,17 @@ pub async fn serve_connection(
                         }
                         Packet::PubAck(id) => {
                             for delivery in router.ack(&session, AckKind::Ack, id).await? {
-                                send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
                             }
                         }
                         Packet::PubRec(id) => {
                             for delivery in router.ack(&session, AckKind::Rec, id).await? {
-                                send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
                             }
                         }
                         Packet::PubComp(id) => {
                             for delivery in router.ack(&session, AckKind::Comp, id).await? {
-                                send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
                             }
                         }
                         Packet::PingReq => connection.write_all_with_deadline(&encode_pingresp(), WRITE_TIMEOUT).await?,
@@ -224,7 +237,7 @@ pub async fn serve_connection(
                 }
                 outbound = session.outbound.recv() => {
                     let Some(delivery) = outbound else { break; };
-                    send_delivery(&mut connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+                    send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
                 }
             }
         }
@@ -238,7 +251,6 @@ pub async fn serve_connection(
     {
         return Err(error.into());
     }
-    let _ = connection.shutdown().await;
     result
 }
 

@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import socket
 import ssl
 import sys
 import tempfile
@@ -29,6 +30,7 @@ def scenario(root, binary, context, version, kind, repetition):
     case.mkdir()
     broker = pressure.Broker(case, binary, root)
     client = None
+    stalled = None
     began = time.monotonic()
     result = dict(tls_version=version, scenario=kind, repetition=repetition, status='RUNNING')
     try:
@@ -36,11 +38,19 @@ def scenario(root, binary, context, version, kind, repetition):
         client = pressure.Client(broker, 'strict-tls-eof', StrictContext(context))
         client.ping()
         result['negotiated_version'] = client.socket.version()
+        if kind == 'server_sigterm_partial_handshake':
+            stalled = socket.create_connection(('127.0.0.1', broker.port), timeout=5)
+            stalled.sendall(b'\x16\x03\x03\x00\x05\x01')  # unfinished TLS record/ClientHello
+            pressure.wait_for(lambda: broker.metrics()['xmqr_tcp_accepted_total'] >= 2)
         if kind == 'client_disconnect':
             client.send(0xe0)
         else:
+            stopping = time.monotonic()
             broker.shutdown()
             result['broker_exit_code'] = broker.process.returncode
+            result['shutdown_seconds'] = round(time.monotonic() - stopping, 3)
+            if time.monotonic() - stopping > 15.5:
+                raise AssertionError('server shutdown exceeded shared actor/transport deadline')
         try:
             received = client.socket.recv(1)
             result['clean_tls_eof'] = received == b''
@@ -54,6 +64,8 @@ def scenario(root, binary, context, version, kind, repetition):
     finally:
         if client:
             client.close()
+        if stalled:
+            stalled.close()
         if broker.process and broker.process.poll() is None:
             broker.shutdown()
         result['seconds'] = round(time.monotonic() - began, 3)
@@ -82,6 +94,7 @@ def main():
             results.append(scenario(root, binary, context, version, 'client_disconnect', 1))
             for repetition in range(1, 4):
                 results.append(scenario(root, binary, context, version, 'server_sigterm', repetition))
+            results.append(scenario(root, binary, context, version, 'server_sigterm_partial_handshake', 1))
     report = dict(schema_version=1, status='PASS' if all(item['status'] == 'PASS' for item in results) else 'FAIL',
                   broker_binary_sha256=hashlib.sha256(args.broker.read_bytes()).hexdigest(),
                   harness_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),

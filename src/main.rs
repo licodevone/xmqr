@@ -11,7 +11,8 @@ use mqtt_broker::{
     monitoring::{Config as MonitorConfig, Metrics, Monitor},
     mqtt::{self, Router},
     transport::{
-        MtlsFiles, OpenLabTransport, SecureTransport, TransportLimits, load_mtls_server_config,
+        ConnectionDrain, MtlsFiles, OpenLabTransport, SecureTransport, TransportLimits,
+        load_mtls_server_config,
     },
 };
 use tracing::{info, warn};
@@ -123,6 +124,7 @@ async fn serve(
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             info!(%bind_address, "secure MQTT listener started");
             let shutdown_router = router.clone();
+            let connections = transport.drain_handle();
             run_until_shutdown(
                 transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
@@ -131,6 +133,7 @@ async fn serve(
                 }),
                 shutdown_router,
                 metrics.clone(),
+                connections,
             )
             .await?;
         }
@@ -146,6 +149,7 @@ async fn serve(
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "OPEN LAB listener started without TLS, authentication or ACL; loopback only");
             let shutdown_router = router.clone();
+            let connections = transport.drain_handle();
             run_until_shutdown(
                 transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
@@ -154,6 +158,7 @@ async fn serve(
                 }),
                 shutdown_router,
                 metrics.clone(),
+                connections,
             )
             .await?;
         }
@@ -171,6 +176,7 @@ async fn serve(
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "PASSWORD LAB listener started without TLS or ACL; credentials are plaintext on the wire; loopback only");
             let shutdown_router = router.clone();
+            let connections = transport.drain_handle();
             run_until_shutdown(
                 transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
@@ -179,6 +185,7 @@ async fn serve(
                 }),
                 shutdown_router,
                 metrics.clone(),
+                connections,
             )
             .await?;
         }
@@ -194,6 +201,7 @@ async fn serve(
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "ACL LAB listener started without TLS; credentials are plaintext on the wire; loopback only");
             let shutdown_router = router.clone();
+            let connections = transport.drain_handle();
             run_until_shutdown(
                 transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
@@ -202,6 +210,7 @@ async fn serve(
                 }),
                 shutdown_router,
                 metrics.clone(),
+                connections,
             )
             .await?;
         }
@@ -228,23 +237,46 @@ async fn run_until_shutdown(
     serving: impl std::future::Future<Output = io::Result<()>>,
     router: Arc<Router>,
     metrics: Arc<Metrics>,
+    connections: ConnectionDrain,
 ) -> Result<(), mqtt_broker::transport::HandlerError> {
     // Drop the accept loop/listener before queuing the actor shutdown barrier.
-    {
+    let stopped = {
         tokio::pin!(serving);
         tokio::select! {
             biased;
-            signal = shutdown_signal() => signal?,
-            result = &mut serving => result?,
+            signal = shutdown_signal() => signal,
+            result = &mut serving => result,
         }
-    }
+    };
     metrics.set_listener_ready(false);
     info!("stopping listener and durable session actor");
-    tokio::time::timeout(std::time::Duration::from_secs(15), router.shutdown())
-        .await
-        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "broker shutdown timed out"))??;
+    finish_shutdown(
+        router.shutdown(),
+        connections.wait(),
+        std::time::Duration::from_secs(15),
+    )
+    .await?;
+    stopped?;
     info!("durable broker shutdown complete");
     Ok(())
+}
+
+async fn finish_shutdown(
+    actor: impl std::future::Future<Output = Result<(), mqtt_broker::transport::HandlerError>>,
+    connections: impl std::future::Future<Output = io::Result<()>>,
+    budget: std::time::Duration,
+) -> Result<(), mqtt_broker::transport::HandlerError> {
+    tokio::time::timeout(budget, async {
+        let actor_result = actor.await;
+        // Even a failed actor must not bypass the remaining connections' TLS
+        // close. Neither phase receives a fresh shutdown timeout.
+        let connection_result = connections.await;
+        actor_result?;
+        connection_result?;
+        Ok(())
+    })
+    .await
+    .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "broker shutdown timed out"))?
 }
 
 fn validate_security_environment(
@@ -457,9 +489,14 @@ mod tests {
         let flag = drained.clone();
         let error = super::finish_shutdown(
             async { Err("synthetic actor storage failure".into()) },
-            async move { flag.store(true, std::sync::atomic::Ordering::SeqCst); Ok(()) },
+            async move {
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            },
             std::time::Duration::from_secs(1),
-        ).await.unwrap_err();
+        )
+        .await
+        .unwrap_err();
         assert!(drained.load(std::sync::atomic::Ordering::SeqCst));
         assert_eq!(error.to_string(), "synthetic actor storage failure");
     }
@@ -469,15 +506,23 @@ mod tests {
         let entered_drain = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let flag = entered_drain.clone();
         let error = super::finish_shutdown(
-            async { tokio::time::sleep(std::time::Duration::from_millis(5)).await; Ok(()) },
+            async {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                Ok(())
+            },
             async move {
                 flag.store(true, std::sync::atomic::Ordering::SeqCst);
                 std::future::pending::<std::io::Result<()>>().await
             },
             std::time::Duration::from_millis(15),
-        ).await.unwrap_err();
+        )
+        .await
+        .unwrap_err();
         assert!(entered_drain.load(std::sync::atomic::Ordering::SeqCst));
-        assert_eq!(error.downcast_ref::<std::io::Error>().unwrap().kind(), std::io::ErrorKind::TimedOut);
+        assert_eq!(
+            error.downcast_ref::<std::io::Error>().unwrap().kind(),
+            std::io::ErrorKind::TimedOut
+        );
     }
 
     #[test]

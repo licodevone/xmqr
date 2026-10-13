@@ -247,6 +247,7 @@ pub struct SecureTransport {
     listener: TcpListener,
     tls_acceptor: TlsAcceptor,
     connection_slots: Arc<Semaphore>,
+    connection_capacity: u32,
     next_connection_id: Arc<AtomicU64>,
     metrics: Option<Arc<Metrics>>,
 }
@@ -256,8 +257,51 @@ pub struct SecureTransport {
 pub struct OpenLabTransport {
     listener: TcpListener,
     connection_slots: Arc<Semaphore>,
+    connection_capacity: u32,
     next_connection_id: Arc<AtomicU64>,
     metrics: Option<Arc<Metrics>>,
+}
+
+/// Completion barrier for all admitted connection work, including handshakes.
+/// Obtain this before moving the transport into `serve`, then stop/drop the
+/// accept loop before waiting. This does not cancel existing client tasks.
+#[derive(Clone)]
+pub struct ConnectionDrain {
+    slots: Arc<Semaphore>,
+    capacity: u32,
+}
+
+impl ConnectionDrain {
+    /// Wait until every connection's owned admission permit has been released.
+    /// The caller must apply its overall shutdown deadline and stop new accepts
+    /// first. Cancellation safely returns partially reserved permits.
+    /// # Errors
+    /// Returns an error if the admission semaphore was unexpectedly closed.
+    pub async fn wait(self) -> io::Result<()> {
+        let _finished = self
+            .slots
+            .acquire_many_owned(self.capacity)
+            .await
+            .map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::BrokenPipe,
+                    "connection admission tracker closed",
+                )
+            })?;
+        Ok(())
+    }
+}
+
+fn admission_capacity(limit: usize) -> io::Result<u32> {
+    u32::try_from(limit)
+        .ok()
+        .filter(|_| limit > 0 && limit <= Semaphore::MAX_PERMITS)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "connection limit outside supported admission range",
+            )
+        })
 }
 
 impl SecureTransport {
@@ -283,21 +327,25 @@ impl SecureTransport {
         limits: TransportLimits,
         metrics: Option<Arc<Metrics>>,
     ) -> io::Result<Self> {
-        if limits.max_concurrent_connections == 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "max_concurrent_connections must be greater than zero",
-            ));
-        }
-
+        let connection_capacity = admission_capacity(limits.max_concurrent_connections)?;
         let listener = TcpListener::bind(address).await?;
         Ok(Self {
             listener,
             tls_acceptor: TlsAcceptor::from(tls_config),
             connection_slots: Arc::new(Semaphore::new(limits.max_concurrent_connections)),
+            connection_capacity,
             next_connection_id: Arc::new(AtomicU64::new(1)),
             metrics,
         })
+    }
+
+    /// Obtain a drain observer without changing connection admission limits.
+    #[must_use]
+    pub fn drain_handle(&self) -> ConnectionDrain {
+        ConnectionDrain {
+            slots: self.connection_slots.clone(),
+            capacity: self.connection_capacity,
+        }
     }
 
     /// Accept clients forever and isolate every device in its own Tokio task.
@@ -347,8 +395,8 @@ impl SecureTransport {
             let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
             let metrics = self.metrics.clone();
 
-            // Intentionally detached: Tokio contains task panics in the JoinHandle,
-            // and catch_unwind below lets us record the failure without propagating it.
+            // The drain barrier tracks work through its RAII admission permit;
+            // catch_unwind records isolated panics without propagating them.
             drop(tokio::spawn(async move {
                 let _permit = permit;
                 let client = async {
@@ -406,19 +454,24 @@ impl OpenLabTransport {
                 "open-lab transport requires a loopback bind address",
             ));
         }
-        if limits.max_concurrent_connections == 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "max_concurrent_connections must be greater than zero",
-            ));
-        }
+        let connection_capacity = admission_capacity(limits.max_concurrent_connections)?;
         let listener = TcpListener::bind(address).await?;
         Ok(Self {
             listener,
             connection_slots: Arc::new(Semaphore::new(limits.max_concurrent_connections)),
+            connection_capacity,
             next_connection_id: Arc::new(AtomicU64::new(1)),
             metrics,
         })
+    }
+
+    /// Obtain a drain observer without changing loopback or admission policy.
+    #[must_use]
+    pub fn drain_handle(&self) -> ConnectionDrain {
+        ConnectionDrain {
+            slots: self.connection_slots.clone(),
+            capacity: self.connection_capacity,
+        }
     }
 
     /// Accept loopback clients forever with the same admission and panic
@@ -724,8 +777,12 @@ mod tests {
     async fn connection_drain_waits_for_every_owned_permit_and_does_not_change_capacity() {
         let transport = OpenLabTransport::bind(
             "127.0.0.1:0".parse().unwrap(),
-            TransportLimits { max_concurrent_connections: 2 },
-        ).await.unwrap();
+            TransportLimits {
+                max_concurrent_connections: 2,
+            },
+        )
+        .await
+        .unwrap();
         let slots = transport.connection_slots.clone();
         let first = slots.clone().acquire_owned().await.unwrap();
         let second = slots.clone().acquire_owned().await.unwrap();
@@ -738,7 +795,11 @@ mod tests {
         tokio::task::yield_now().await;
         assert!(!waiting.is_finished());
         drop(second);
-        tokio::time::timeout(Duration::from_secs(1), waiting).await.unwrap().unwrap().unwrap();
+        tokio::time::timeout(Duration::from_secs(1), waiting)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(slots.available_permits(), 2);
     }
 
@@ -746,9 +807,18 @@ mod tests {
     async fn connection_drain_releases_after_task_panic_and_drop() {
         let transport = OpenLabTransport::bind(
             "127.0.0.1:0".parse().unwrap(),
-            TransportLimits { max_concurrent_connections: 1 },
-        ).await.unwrap();
-        let permit = transport.connection_slots.clone().acquire_owned().await.unwrap();
+            TransportLimits {
+                max_concurrent_connections: 1,
+            },
+        )
+        .await
+        .unwrap();
+        let permit = transport
+            .connection_slots
+            .clone()
+            .acquire_owned()
+            .await
+            .unwrap();
         let drain = transport.drain_handle();
         drop(transport);
         let task = tokio::spawn(async move {
@@ -756,20 +826,31 @@ mod tests {
             panic!("synthetic isolated connection panic");
         });
         assert!(task.await.unwrap_err().is_panic());
-        tokio::time::timeout(Duration::from_secs(1), drain.wait()).await.unwrap().unwrap();
+        tokio::time::timeout(Duration::from_secs(1), drain.wait())
+            .await
+            .unwrap()
+            .unwrap();
     }
 
     #[tokio::test]
     async fn cancelled_drain_does_not_leak_permits_or_report_completion() {
         let transport = OpenLabTransport::bind(
             "127.0.0.1:0".parse().unwrap(),
-            TransportLimits { max_concurrent_connections: 1 },
-        ).await.unwrap();
+            TransportLimits {
+                max_concurrent_connections: 1,
+            },
+        )
+        .await
+        .unwrap();
         let slots = transport.connection_slots.clone();
         let held = slots.clone().acquire_owned().await.unwrap();
         let drain = transport.drain_handle();
         drop(transport);
-        assert!(tokio::time::timeout(Duration::from_millis(5), drain.clone().wait()).await.is_err());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(5), drain.clone().wait())
+                .await
+                .is_err()
+        );
         assert_eq!(slots.available_permits(), 0);
         drop(held);
         drain.wait().await.unwrap();

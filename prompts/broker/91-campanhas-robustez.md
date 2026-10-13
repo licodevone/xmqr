@@ -1,4 +1,4 @@
-# P91 v1.16 — B08: campanhas limitadas de robustez e interoperabilidade
+# P91 v1.17 — B08: campanhas limitadas de robustez e interoperabilidade
 
 Preparado em 2026-10-13 antes de editar os harnesses. Pedido: finalizar fase 3,
 mantendo prompts antes do código e publicação somente após aceite coordenado.
@@ -211,3 +211,13 @@ Criar `test_phase3_tls_shutdown.py` antes de corrigir core: PythonSSL strict
 controleDISCONNECTnormal e3SIGTERM/cada. Conferir EOF limpo vsSSLEOFError,
 exit0do processo e tempos; sem logs/certs/senhas. Se demonstrar raggedEOF,
 enviar ao coordenadorP94, mantendo FAIL e sem editar Rust nesta ownership.
+
+## Complemento v1.17 — drain inclui handshake incompleto
+
+Prova direta executada: control2PASS/SIGTERM6FAIL, strictSSLEOF emTLS1.2/1.3,
+processoexit0, SHA d371d283. AgenteP95 assume exclusivamente core e pediu
+cenário extra: conexão mTLS autenticada e socket paralelo com recordClientHello
+incompleto, antesSIGTERM. Adicionar1caso/cadaTLS (total10), exigirEOF limpo
+da conexão autenticada e término<=15.5s (budget15s +tolerância de observação).
+Socketstall privado fica aberto até processoencerrar; não fechar antecipadamente
+para artificialmente liberarpermit. Sem alterações de timeout/handshake do core.
