@@ -13,3 +13,5 @@ Evidência: [P107](../prompts/registros/P107-canal-admin-reload.md), [P108](../p
 O client C52–C55 passou os cenários de exclusão local com ACK, repetição finita, saída hex/raw e Will binário; veja [release C56](../../xmqr-client/prompts/registros/C56-release-0.13.0.md), tag `v0.13.0`. Seu código não foi alterado neste fechamento.
 
 Limites remanescentes: não houve ensaio de falha de energia durante fsync, retenção de arquivo por longo prazo, operação remota/Windows nativo, campanha física ESP32 nova para o canal ou serviço com SLA. Fases 6–9 permanecem planejadas separadamente.
+
+Distribuição experimental: [broker v0.15.0](https://github.com/licodevone/xmqr/releases/tag/v0.15.0), [admin v0.4.0](https://github.com/licodevone/xmqr-admin/releases/tag/v0.4.0) e [client v0.13.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.13.0). Gates e hashes da publicação broker: [P113](../prompts/registros/P113-release-fase5.md); admin: [A11](https://github.com/licodevone/xmqr-admin/blob/main/prompts/registros/A11-release-fase5.md).

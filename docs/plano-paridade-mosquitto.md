@@ -147,7 +147,7 @@ a um Mosquitto isolado. APIs de plugins, arquivos de persistência e comando
 | Fase 2 capacidade | B03/B04, decisão B05, E01 e ampliação B08 | P72 | Repetições em máquina identificada, RAM/CPU/p95/p99, cenários lentos, teto observado e fatores limitantes; sem SLA inferido |
 | Fase 3 robustez | B06/B07/B08/C07 | Saída fase 2 | Injeção de falhas, corpus, testes prolongados, matriz OASIS 3.1.1 e interop TLS/ACL, todos com resultado reproduzível |
 | Fase 4 listeners e perfis | B09/B10/B11/E02, decisão B12, C05 | Saída fase 3 e E01 para E02 | Isolamento por listener, negativos TLS/CA/SAN/ACL, rotação/rollback, placa e precedência de perfis |
-| Fase 5 operação | A02/A03, decisão A04, implementação A09, A05/A07/A08/B13, decisões B14/C06, C03/C04/C08 | Saída fase 4 | Canal administrativo implementado/aceito antes de auditoria online/sessões/retained, com autorização, recuperação e pendências explícitas |
+| Fase 5 operação | A02/A03, decisão A04, implementação A09, A05/A07/A08/B13, decisões B14/C06, C03/C04/C08 | Saída fase 4 | [Aceita no recorte local Linux/WSL](phase5-acceptance.md); releases experimentais broker0.15.0/admin0.4.0/client0.13.0, com limites explícitos |
 | Fase 6A negociação | M01/M02 | Saída fase 5 | Vetores por contexto/propriedade, limites/reason codes, coexistência 3.1.1 e duas implementações externas |
 | Fase 6B sessões | M03/M04 | Saída 6A | Migração, expiração, Will Delay, takeover/restart/crash sem perda silenciosa |
 | Fase 6C fluxo | M05/M06/M07 | Saída 6B | Negociação bilateral, backlog, QoS0/1/2, alias/reset e propriedades duráveis |
@@ -222,12 +222,12 @@ não instalar esse .deb Ubuntu no Bookworm nem anunciar Debian/Ubuntu24/arm64
 como homologados por existir um container. Admin está no .deb do broker e
 tem imagem própria `lepinheiro100/xmqr-admin`, não um serviço de rede.
 
-O parágrafo anterior é do legado `mqtt-admin`. O novo xmqr-admin0.1.0 tem
-deb separado `xmqr-admin_0.1.0-1_amd64.deb` e imagem
-`lepinheiro100/xmqr-admin-ui:0.1.0`, não-root10001 e SIGTERM. Seu painel local
-é somente leitura do monitor; não oferece o canal A09. Dockerloopback não
-é exposto por publicar uma porta; laboratório usou namespace compartilhado.
-Release/checksums/gates: [P88](../prompts/registros/P88-admin.md).
+O parágrafo anterior é do legado `mqtt-admin`. O independente `xmqr-admin`
+0.4.0 tem `.deb` próprio `xmqr-admin_0.4.0-1_amd64.deb` e imagem
+`lepinheiro100/xmqr-admin-ui:0.4.0`, não-root 10001 e SIGTERM. Seu CLI usa
+o canal A09 local; o painel web continua somente leitura do monitor. Publicar
+uma porta Docker não expõe o listener loopback. Release e gates:
+[A11](https://github.com/licodevone/xmqr-admin/blob/main/prompts/registros/A11-release-fase5.md).
 
 Para atualização do broker: backup offline verificado, stop coordenado,
 preservar volume/configuração, instalar versão aceita, verificar recuperação

@@ -116,6 +116,7 @@ Não significa conformidade MQTT integral ou produção.
 - [x] ~~Fase 5/client C06: decisão e implementação de saída hex/raw sem ambiguidade binária (C54).~~
 - [x] ~~Fase 5/client C08: Will binário por arquivo limitado e validado antes da rede (C55).~~
 - [x] ~~Fase 5: aceite global do broker, admin e client, com canal A09 e auditoria operacional no recorte local Linux/WSL.~~ [Evidência](phase5-acceptance.md).
+- [x] ~~Fase 5: tags e prereleases experimentais do broker0.15.0, admin0.4.0 e client0.13.0 com checksums e limites publicados.~~ [P113](../prompts/registros/P113-release-fase5.md).
 - [x] ~~Parcela operacional já entregue: ciclo de release experimental e pacotes com checksums/rollback (P61/C39/P63/P64/C40).~~
 
 Evidências da parcela operacional: [P63](../prompts/registros/P63-docker-distribuicao.md),

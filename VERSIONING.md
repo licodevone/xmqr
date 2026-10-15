@@ -9,6 +9,8 @@ CLI e diagnóstico; client 0.13.0 já foi publicado. O broker lê v1–v4, mas
 0.14.0 não lê v5: rollback requer backup offline anterior e diretório novo.
 As tags são imutáveis e as releases permanecem experimentais. Consulte
 [aceite da fase 5](docs/phase5-acceptance.md) para gates e limites.
+As tags `v0.15.0`/`v0.4.0` e prereleases correspondentes foram publicadas;
+veja [P113](prompts/registros/P113-release-fase5.md).
 
 ## P103 — fechamento experimental da fase 4
 

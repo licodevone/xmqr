@@ -1,0 +1,7 @@
+# P113 — release experimental 0.15.0
+
+- Prompt: [P113 rev1](../broker/113-release-fase5.md). Fonte imutável: commit `40a3e9f7e780a2c7a39e3c625e5cc2d4fcb2b9d7`, tag anotada `v0.15.0`, [prerelease](https://github.com/licodevone/xmqr/releases/tag/v0.15.0).
+- Gates do commit: Ubuntu26/WSL fmt, 126 testes de biblioteca PASS/6 ignored mais integrações, Clippy `-D warnings`, build release de ambos os binários, inventário MIT, `ADMIN_CHANNEL_RELOAD_PASS`, `CHANNEL_CLI_PASS` cruzado com admin0.4.0 e três testes de shutdown PASS. [CI](https://github.com/licodevone/xmqr/actions/runs/38783876024) PASS em Rust/interop com mosquitto-clients e instalação/validação do `.deb` Ubuntu26.
+- Distribuição: `xmqr-broker_0.15.0-1_amd64.deb` e imagens numeradas `lepinheiro100/xmqr-broker:0.15.0` e `lepinheiro100/xmqr-admin:0.15.0`. Oito anexos da release (deb, dois exports Docker, manifesto e SHA256) tiveram nome/tamanho/digest SHA256 conferidos pela API GitHub; `.deb` baixado novamente com mesmo hash.
+- Digests Docker Hub verificados por `imagetools inspect` e execução por digest: broker `sha256:c2f44fea4ebc4db630a4cb64b4ac76eee2558b0df7b2576adb85a35fe3667518`; admin legado `sha256:0bd17a7f99ba50db44494a3af5fe329183abaa217ebd5229587e48f8240250f2`. Ambos imprimem 0.15.0. Sem `latest`, reescrita de tags antigas ou produção.
+- O teste externo `verify_interop.py` não rodou no WSL local por ausência de `mosquitto-clients`; rodou e passou no CI que instala essa dependência. Arquivos de estado/credenciais de ensaio ficaram temporários e não foram anexados.
