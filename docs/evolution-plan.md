@@ -98,6 +98,7 @@ Não significa conformidade MQTT integral ou produção.
 - [x] ~~A05/U02 parcial: validação offline de bundle seguro no admin independente, sem escrita nem reload.~~
 - [x] ~~Fase 4 concluída no escopo finito B09/B10/B11/B12/C05/E02.~~ [Aceite](phase4-acceptance.md).
 - [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.
+- [x] ~~Fase 5/A04: contrato do canal administrativo local decidido em ADR 0001 (P105).~~
 - [x] ~~Client: --ignore-retained/--retained-only na saída; count filtrado e ACKs QoS1/2 preservados (C41).~~
 - [x] ~~Fase 5/client C03: exclusão local de tópicos com count após filtros e ACKs preservados (C52).~~
 - [x] ~~Fase 5/client C04: repetição finita de publicação com intervalo monotônico e sem replay incerto (C53).~~
