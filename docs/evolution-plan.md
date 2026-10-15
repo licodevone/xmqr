@@ -99,14 +99,18 @@ Não significa conformidade MQTT integral ou produção.
 - [x] ~~Fase 4 concluída no escopo finito B09/B10/B11/B12/C05/E02.~~ [Aceite](phase4-acceptance.md).
 - [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.
 - [x] ~~Client: --ignore-retained/--retained-only na saída; count filtrado e ACKs QoS1/2 preservados (C41).~~
-- [ ] Fase 5: exclusão de tópicos, outros formatos de saída, repetição com intervalo e demais opções prioritárias pub/sub.
+- [x] ~~Fase 5/client C03: exclusão local de tópicos com count após filtros e ACKs preservados (C52).~~
+- [x] ~~Fase 5/client C04: repetição finita de publicação com intervalo monotônico e sem replay incerto (C53).~~
+- [x] ~~Fase 5/client C06: decisão e implementação de saída hex/raw sem ambiguidade binária (C54).~~
+- [x] ~~Fase 5/client C08: Will binário por arquivo limitado e validado antes da rede (C55).~~
+- [ ] Fase 5: aceite global do broker, admin e client, com canal A09 e auditoria operacional.
 - [x] ~~Parcela operacional já entregue: ciclo de release experimental e pacotes com checksums/rollback (P61/C39/P63/P64/C40).~~
 
 Evidências da parcela operacional: [P63](../prompts/registros/P63-docker-distribuicao.md),
 [P64](../prompts/registros/P64-version-cli.md) e
 [C40](../../xmqr-client/prompts/registros/C40-docker-distribuicao.md).
 Evidência dos filtros: [C41](../../xmqr-client/prompts/registros/C41-filtros-retained.md).
-As fases 4–5 continuam abertas; a entrega operacional não encerra a fase 5.
+A fase 4 foi aceita; a fase 5 continua aberta pela trilha administrativa.
 O [novo admin](https://github.com/licodevone/xmqr-admin) foi antecipado como
 interface somente de leitura; A01/A02/A03 em seu repositório são IDs locais,
 não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidência:

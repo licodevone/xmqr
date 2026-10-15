@@ -105,12 +105,12 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | A08 | Admin: plano de recuperação e diagnóstico | Parcial | A06/B06; dry-run/validação, espaço livre, backup, versões e saídas redigidas |
 | C01 | Client: pub/sub, arquivo/stdin/linhas, QoS e JSONL | Existente C28/C39 | Preservar bytes, saída stdout separada de logs e resultado desconhecido após interrupção |
 | C02 | Client: retained/Will e filtros de saída | Existente C41 | Regressão --count filtrado, ACKs preservados e diferença entre replay e publicação ao vivo |
-| C03 | Client: excluir tópicos recebidos | Planejado | B08/C02; filtros locais, ACKs mantidos e contagem das mensagens exibidas |
-| C04 | Client: publicação repetida/intervalo | Planejado | C01/B08; contagem finita, monotonic clock, Ctrl+C, sem reenviar resultado desconhecido |
+| C03 | Client: excluir tópicos recebidos | C52 PASS local: --exclude-topic, count após filtros e ACKs QoS1/2 no wire | Filtro local não substitui ACL do broker; fase5 global pendente |
+| C04 | Client: publicação repetida/intervalo | C53 PASS local: --repeat/--repeat-interval-ms, QoS0/1/2 e prazo monotônico | Fonte única e finita; sem replay de resultado desconhecido |
 | C05 | Client: perfis reutilizáveis e precedência | C47/C48/C50: TOML v1, campos completos, CLI > ambiente > arquivo, secret-file privado; integração mTLS/TLS-senha PASS | B10; sem senha inline, erro explícito sem fallback inseguro; versão client0.12.0 |
-| C06 | Client: novos formatos de saída | Decisão | C01/C03; contrato de escaping/binário/timestamp, limites e compatibilidade JSONL |
+| C06 | Client: novos formatos de saída | Decisão/implementação C54 PASS local: hex reversível e raw de mensagem única | Sem timestamp fabricado; text/jsonl preservados |
 | C07 | Client: reconexão/backoff e timeout total | Aceito C45/C46:63testes/idle90s real/interop ampliada | Prazos protocolo/idle/total distintos, jitter/cancelamento; QoS1 pode retransmitir, QoS2 interrompido falha explicitamente |
-| C08 | Client: Will binário e opções complementares | Decisão | C01/B08; validar tamanho antes de rede, propriedades compatíveis e documentação por protocolo |
+| C08 | Client: Will binário e opções complementares | C55 PASS local: --will-message-file 0..4096 bytes, CONNECT binário no wire | MQTT3.1.1; propriedades MQTT5 pertencem à fase6 |
 | M01 | Broker/client: negociação MQTT5 e reason codes | Planejado | B06/B07/B08; codec separado da máquina de conexão, recusa correta por versão e regressão 3.1.1 |
 | M02 | Broker/client: parser de propriedades MQTT5 | Planejado | M01; tipos, multiplicidade/contexto, limites antes de alocar e propriedades desconhecidas recusadas conforme OASIS |
 | M03 | Broker/client: Clean Start e Session Expiry | Planejado | M02/A06; estado versionado, relógio e restart/crash, coexistência de sessões 3.1.1 |
