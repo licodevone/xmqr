@@ -61,7 +61,7 @@ mod linux {
     use super::{Config, invalid};
     use crate::{
         auth::AccessPolicy,
-        mqtt::{AdminError, AdminListKind, Router},
+        mqtt::{AdminError, AdminListKind, Router, topic::TopicName},
     };
     use serde::Deserialize;
     use serde_json::json;
@@ -105,6 +105,10 @@ mod linux {
         cursor: Option<String>,
         #[serde(default)]
         limit: Option<u8>,
+        #[serde(default)]
+        topic: Option<String>,
+        #[serde(default)]
+        client_id: Option<String>,
     }
 
     struct Credentials {
@@ -273,6 +277,8 @@ mod linux {
             target_request_id,
             cursor,
             limit,
+            topic,
+            client_id,
         } = request;
         let token = Zeroizing::new(token);
         if version != 1 || id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -287,7 +293,9 @@ mod linux {
                     && bundle_sha256.is_none()
                     && target_request_id.is_none()
                     && cursor.is_none()
-                    && limit.is_none() =>
+                    && limit.is_none()
+                    && topic.is_none()
+                    && client_id.is_none() =>
             {
                 let ready = router.probe().await;
                 reply(
@@ -301,7 +309,9 @@ mod linux {
                 if expected_generation.is_none()
                     && bundle_sha256.is_none()
                     && cursor.is_none()
-                    && limit.is_none() =>
+                    && limit.is_none()
+                    && topic.is_none()
+                    && client_id.is_none() =>
             {
                 let Some(target) = target_request_id else {
                     return error(&mut stream, &id, "invalid_request").await;
@@ -310,13 +320,15 @@ mod linux {
                     return error(&mut stream, &id, "invalid_request").await;
                 }
                 match router.admin_receipt(target.clone()).await {
-                    Ok(Some((digest, expected, applied, uid, timestamp))) => {
+                    Ok(Some(receipt)) => {
                         reply(
                             &mut stream,
                             json!({"ok":true,"request_id":id,"target_request_id":target,
-                            "bundle_sha256":digest,"expected_generation":expected,
-                            "applied_generation":applied,"actor_uid":uid,"outcome":"committed",
-                            "operation":"reload","timestamp_unix_ms":timestamp}),
+                            "request_sha256":receipt.request_sha256,
+                            "expected_generation":receipt.expected_generation,
+                            "applied_generation":receipt.applied_generation,
+                            "actor_uid":receipt.actor_uid,"outcome":"committed",
+                            "operation":receipt.operation,"timestamp_unix_ms":receipt.timestamp_unix_ms}),
                         )
                         .await
                     }
@@ -328,7 +340,9 @@ mod linux {
                 if role == "operator"
                     && expected_generation.is_none()
                     && bundle_sha256.is_none()
-                    && target_request_id.is_none() =>
+                    && target_request_id.is_none()
+                    && topic.is_none()
+                    && client_id.is_none() =>
             {
                 let (kind, max) = if operation == "sessions_list" {
                     (AdminListKind::Sessions, 16)
@@ -358,7 +372,9 @@ mod linux {
                 if role == "operator"
                     && target_request_id.is_none()
                     && cursor.is_none()
-                    && limit.is_none() =>
+                    && limit.is_none()
+                    && topic.is_none()
+                    && client_id.is_none() =>
             {
                 let (Some(expected), Some(digest)) = (expected_generation, bundle_sha256) else {
                     return error(&mut stream, &id, "invalid_request").await;
@@ -370,12 +386,15 @@ mod linux {
                     return error(&mut stream, &id, "invalid_request").await;
                 }
                 match router.admin_receipt(id.clone()).await {
-                    Ok(Some((stored, previous, applied, _, _))) => {
-                        if stored == digest && previous == expected {
+                    Ok(Some(receipt)) => {
+                        if receipt.operation == "reload"
+                            && receipt.request_sha256 == digest
+                            && receipt.expected_generation == expected
+                        {
                             return reply(
                                 &mut stream,
                                 json!({"ok":true,"request_id":id,
-                                "applied_generation":applied,"replayed":true}),
+                                "applied_generation":receipt.applied_generation,"replayed":true}),
                             )
                             .await;
                         }
@@ -408,9 +427,60 @@ mod linux {
                     Err(reason) => error(&mut stream, &id, admin_code(&reason)).await,
                 }
             }
-            "sessions_list" | "retained_list" | "reload" => {
-                error(&mut stream, &id, "forbidden").await
+            "retained_delete"
+                if role == "operator"
+                    && expected_generation.is_none()
+                    && bundle_sha256.is_none()
+                    && target_request_id.is_none()
+                    && cursor.is_none()
+                    && limit.is_none()
+                    && client_id.is_none() =>
+            {
+                let Some(topic) = topic.and_then(|value| TopicName::try_from(value).ok()) else {
+                    return error(&mut stream, &id, "invalid_request").await;
+                };
+                match router
+                    .admin_retained_delete(topic, id.clone(), peer.uid())
+                    .await
+                {
+                    Ok(replayed) => {
+                        reply(
+                            &mut stream,
+                            json!({"ok":true,"request_id":id,"deleted":true,"replayed":replayed}),
+                        )
+                        .await
+                    }
+                    Err(reason) => error(&mut stream, &id, admin_code(&reason)).await,
+                }
             }
+            "session_disconnect"
+                if role == "operator"
+                    && expected_generation.is_none()
+                    && bundle_sha256.is_none()
+                    && target_request_id.is_none()
+                    && cursor.is_none()
+                    && limit.is_none()
+                    && topic.is_none() =>
+            {
+                let Some(target) = client_id.filter(|value| {
+                    !value.is_empty() && value.len() <= 256 && !value.contains('\0')
+                }) else {
+                    return error(&mut stream, &id, "invalid_request").await;
+                };
+                match router
+                    .admin_session_disconnect(target, id.clone(), peer.uid())
+                    .await
+                {
+                    Ok(replayed) => reply(
+                        &mut stream,
+                        json!({"ok":true,"request_id":id,"disconnected":true,"replayed":replayed}),
+                    )
+                    .await,
+                    Err(reason) => error(&mut stream, &id, admin_code(&reason)).await,
+                }
+            }
+            "sessions_list" | "retained_list" | "retained_delete" | "session_disconnect"
+            | "reload" => error(&mut stream, &id, "forbidden").await,
             "status" | "receipt" => error(&mut stream, &id, "invalid_request").await,
             _ => error(&mut stream, &id, "unsupported_operation").await,
         }
@@ -427,6 +497,7 @@ mod linux {
             AdminError::Capacity => "receipt_capacity",
             AdminError::Unavailable => "unavailable",
             AdminError::CommitFailed => "result_unknown",
+            AdminError::NotFound => "not_found",
         }
     }
 

@@ -3,6 +3,7 @@
 
 use std::{collections::BTreeMap, path::Path};
 
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -33,6 +34,8 @@ pub(crate) enum AdminError {
     Unavailable,
     #[error("administrative commit failed")]
     CommitFailed,
+    #[error("administrative target not found")]
+    NotFound,
 }
 
 #[derive(Debug, Error)]
@@ -63,7 +66,28 @@ pub(super) enum Delivery {
 }
 
 type SubscribeResult = Result<(Vec<u8>, Vec<Delivery>), RouterError>;
-type AdminReceiptSummary = (String, u64, u64, u32, u64);
+#[derive(Clone)]
+pub(crate) struct AdminReceiptView {
+    pub operation: String,
+    pub request_sha256: String,
+    pub expected_generation: u64,
+    pub applied_generation: u64,
+    pub actor_uid: u32,
+    pub timestamp_unix_ms: u64,
+}
+
+impl From<&AdminReceipt> for AdminReceiptView {
+    fn from(receipt: &AdminReceipt) -> Self {
+        Self {
+            operation: receipt.operation.clone(),
+            request_sha256: receipt.request_sha256.clone(),
+            expected_generation: receipt.expected_generation,
+            applied_generation: receipt.applied_generation,
+            actor_uid: receipt.actor_uid,
+            timestamp_unix_ms: receipt.timestamp_unix_ms,
+        }
+    }
+}
 
 pub(crate) struct AdminPage {
     pub items: Vec<serde_json::Value>,
@@ -105,6 +129,18 @@ struct Actor {
 }
 
 enum Command {
+    AdminSessionDisconnect {
+        client_id: String,
+        request_id: String,
+        actor_uid: u32,
+        reply: oneshot::Sender<Result<bool, AdminError>>,
+    },
+    AdminRetainedDelete {
+        topic: super::topic::TopicName,
+        request_id: String,
+        actor_uid: u32,
+        reply: oneshot::Sender<Result<bool, AdminError>>,
+    },
     AdminList {
         kind: AdminListKind,
         cursor: Option<String>,
@@ -113,7 +149,7 @@ enum Command {
     },
     AdminReceiptLookup {
         request_id: String,
-        reply: oneshot::Sender<Option<AdminReceiptSummary>>,
+        reply: oneshot::Sender<Option<AdminReceiptView>>,
     },
     AdminReload {
         candidate: AuthPolicy,
@@ -245,6 +281,42 @@ impl Drop for ConnectionGuard {
 }
 
 impl Router {
+    pub(crate) async fn admin_session_disconnect(
+        &self,
+        client_id: String,
+        request_id: String,
+        actor_uid: u32,
+    ) -> Result<bool, AdminError> {
+        let (reply, result) = oneshot::channel();
+        self.sender
+            .try_send(Command::AdminSessionDisconnect {
+                client_id,
+                request_id,
+                actor_uid,
+                reply,
+            })
+            .map_err(|_| AdminError::Unavailable)?;
+        result.await.map_err(|_| AdminError::Unavailable)?
+    }
+
+    pub(crate) async fn admin_retained_delete(
+        &self,
+        topic: super::topic::TopicName,
+        request_id: String,
+        actor_uid: u32,
+    ) -> Result<bool, AdminError> {
+        let (reply, result) = oneshot::channel();
+        self.sender
+            .try_send(Command::AdminRetainedDelete {
+                topic,
+                request_id,
+                actor_uid,
+                reply,
+            })
+            .map_err(|_| AdminError::Unavailable)?;
+        result.await.map_err(|_| AdminError::Unavailable)?
+    }
+
     pub(crate) async fn admin_list(
         &self,
         kind: AdminListKind,
@@ -266,7 +338,7 @@ impl Router {
     pub(crate) async fn admin_receipt(
         &self,
         request_id: String,
-    ) -> Result<Option<AdminReceiptSummary>, AdminError> {
+    ) -> Result<Option<AdminReceiptView>, AdminError> {
         let (reply, result) = oneshot::channel();
         self.sender
             .try_send(Command::AdminReceiptLookup { request_id, reply })
@@ -733,6 +805,28 @@ impl Actor {
     )]
     async fn handle(&mut self, command: Command) {
         match command {
+            Command::AdminSessionDisconnect {
+                client_id,
+                request_id,
+                actor_uid,
+                reply,
+            } => {
+                let result = self
+                    .admin_disconnect_session(&client_id, request_id, actor_uid)
+                    .await;
+                let _ = reply.send(result);
+            }
+            Command::AdminRetainedDelete {
+                topic,
+                request_id,
+                actor_uid,
+                reply,
+            } => {
+                let result = self
+                    .admin_delete_retained(topic, request_id, actor_uid)
+                    .await;
+                let _ = reply.send(result);
+            }
             Command::AdminList {
                 kind,
                 cursor,
@@ -748,15 +842,7 @@ impl Actor {
                     .admin_receipts
                     .iter()
                     .find(|r| r.request_id == request_id)
-                    .map(|r| {
-                        (
-                            r.bundle_sha256.clone(),
-                            r.expected_generation,
-                            r.applied_generation,
-                            r.actor_uid,
-                            r.timestamp_unix_ms,
-                        )
-                    });
+                    .map(AdminReceiptView::from);
                 let _ = reply.send(receipt);
             }
             Command::AdminReload {
@@ -923,6 +1009,110 @@ impl Actor {
         }
     }
 
+    async fn admin_disconnect_session(
+        &mut self,
+        client_id: &str,
+        request_id: String,
+        actor_uid: u32,
+    ) -> Result<bool, AdminError> {
+        let mut hasher = Sha256::new();
+        hasher.update(b"session_disconnect\0");
+        hasher.update(client_id.as_bytes());
+        let digest = format!("{:x}", hasher.finalize());
+        if let Some(receipt) = self
+            .state
+            .admin_receipts
+            .iter()
+            .find(|r| r.request_id == request_id)
+        {
+            return if receipt.operation == "session_disconnect" && receipt.request_sha256 == digest
+            {
+                Ok(true)
+            } else {
+                Err(AdminError::Conflict)
+            };
+        }
+        if self.state.admin_receipts.len() >= MAX_ADMIN_RECEIPTS {
+            return Err(AdminError::Capacity);
+        }
+        let generation = self
+            .live
+            .get(client_id)
+            .ok_or(AdminError::NotFound)?
+            .generation;
+        let millis = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| AdminError::Unavailable)?
+            .as_millis();
+        let timestamp_unix_ms = u64::try_from(millis).map_err(|_| AdminError::Unavailable)?;
+        let receipt = AdminReceipt {
+            request_id,
+            operation: "session_disconnect".into(),
+            outcome: "committed".into(),
+            request_sha256: digest,
+            expected_generation: 0,
+            applied_generation: 0,
+            actor_uid,
+            timestamp_unix_ms,
+        };
+        self.unregister_with_receipt(client_id, generation, false, Some(receipt))
+            .await
+            .map_err(|_| AdminError::CommitFailed)?;
+        Ok(false)
+    }
+
+    async fn admin_delete_retained(
+        &mut self,
+        topic: super::topic::TopicName,
+        request_id: String,
+        actor_uid: u32,
+    ) -> Result<bool, AdminError> {
+        let mut hasher = Sha256::new();
+        hasher.update(b"retained_delete\0");
+        hasher.update(topic.as_str().as_bytes());
+        let digest = format!("{:x}", hasher.finalize());
+        if let Some(receipt) = self
+            .state
+            .admin_receipts
+            .iter()
+            .find(|r| r.request_id == request_id)
+        {
+            return if receipt.operation == "retained_delete" && receipt.request_sha256 == digest {
+                Ok(true)
+            } else {
+                Err(AdminError::Conflict)
+            };
+        }
+        if self.state.admin_receipts.len() >= MAX_ADMIN_RECEIPTS {
+            return Err(AdminError::Capacity);
+        }
+        if !self.state.retained.contains_key(&topic) {
+            return Err(AdminError::NotFound);
+        }
+        let millis = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| AdminError::Unavailable)?
+            .as_millis();
+        let timestamp_unix_ms = u64::try_from(millis).map_err(|_| AdminError::Unavailable)?;
+        let receipt = AdminReceipt {
+            request_id,
+            operation: "retained_delete".into(),
+            outcome: "committed".into(),
+            request_sha256: digest,
+            expected_generation: 0,
+            applied_generation: 0,
+            actor_uid,
+            timestamp_unix_ms,
+        };
+        let mut candidate = self.state.clone();
+        candidate.retained.remove(&topic);
+        candidate.admin_receipts.push(receipt);
+        self.commit(candidate)
+            .await
+            .map_err(|_| AdminError::CommitFailed)?;
+        Ok(false)
+    }
+
     async fn admin_reload_candidate(
         &mut self,
         policy: AuthPolicy,
@@ -937,7 +1127,8 @@ impl Actor {
             .iter()
             .find(|r| r.request_id == request_id)
         {
-            return if receipt.bundle_sha256 == bundle_sha256
+            return if receipt.operation == "reload"
+                && receipt.request_sha256 == bundle_sha256
                 && receipt.expected_generation == expected_generation
             {
                 Ok(receipt.applied_generation)
@@ -961,7 +1152,7 @@ impl Actor {
             request_id,
             operation: "reload".into(),
             outcome: "committed".into(),
-            bundle_sha256,
+            request_sha256: bundle_sha256,
             expected_generation,
             applied_generation: expected_generation + 1,
             actor_uid,
@@ -1391,6 +1582,17 @@ impl Actor {
         generation: u64,
         graceful: bool,
     ) -> Result<(), RouterError> {
+        self.unregister_with_receipt(client_id, generation, graceful, None)
+            .await
+    }
+
+    async fn unregister_with_receipt(
+        &mut self,
+        client_id: &str,
+        generation: u64,
+        graceful: bool,
+        receipt: Option<AdminReceipt>,
+    ) -> Result<(), RouterError> {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
         let will = candidate.pending_wills.remove(client_id);
@@ -1424,6 +1626,9 @@ impl Actor {
                     return Err(error);
                 }
             };
+        }
+        if let Some(receipt) = receipt {
+            candidate.admin_receipts.push(receipt);
         }
         // MQTT-3.1.2-10 and MQTT-3.14.4-3: cancellation/publication is durable.
         // A failed Will must remain pending; continuing would allow takeover
@@ -1563,6 +1768,186 @@ fn allocate_packet_id(session: &mut DurableSession) -> Result<u16, RouterError> 
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn admin_disconnect_commits_will_qos2_and_receipt_once() {
+        let (directory, mut actor) = actor().await;
+        let session = actor
+            .register_with_will(
+                "device".into(),
+                "user".into(),
+                false,
+                Some(message("test/state", 1, true, b"will")),
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "device",
+                session.generation,
+                message("test/state", 2, false, b"accepted"),
+                Some(7),
+            )
+            .await
+            .unwrap();
+        let id = "0123456789abcdef0123456789abcdef".to_owned();
+        assert!(
+            !actor
+                .admin_disconnect_session("device", id.clone(), 1000)
+                .await
+                .unwrap()
+        );
+        assert!(*session.closed.borrow());
+        assert_eq!(actor.state.sessions["device"].inbound_qos2.len(), 1);
+        assert_eq!(actor.state.retained["test/state"].payload, b"will");
+        assert_eq!(
+            actor.state.admin_receipts[0].operation,
+            "session_disconnect"
+        );
+        assert!(
+            actor
+                .admin_disconnect_session("device", id.clone(), 1000)
+                .await
+                .unwrap()
+        );
+        assert!(matches!(
+            actor
+                .admin_disconnect_session("device", "fedcba9876543210fedcba9876543210".into(), 1000)
+                .await,
+            Err(AdminError::NotFound)
+        ));
+        assert!(matches!(
+            actor.admin_disconnect_session("other", id, 1000).await,
+            Err(AdminError::Conflict)
+        ));
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered.sessions["device"].inbound_qos2.len(), 1);
+        assert_eq!(recovered.retained["test/state"].payload, b"will");
+        assert_eq!(recovered.admin_receipts.len(), 1);
+        store.shutdown().await.unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn admin_disconnect_wal_error_preserves_will_and_refuses_success() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (directory, mut actor) = actor().await;
+        let session = actor
+            .register_with_will(
+                "device".into(),
+                "user".into(),
+                false,
+                Some(message("test/state", 1, true, b"will")),
+            )
+            .await
+            .unwrap();
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            actor
+                .admin_disconnect_session("device", "0123456789abcdef0123456789abcdef".into(), 1000)
+                .await,
+            Err(AdminError::CommitFailed)
+        ));
+        assert!(actor.fatal);
+        assert_eq!(actor.state.pending_wills.len(), 1);
+        assert_eq!(actor.state.admin_receipts.len(), 0);
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered.pending_wills.len(), 1);
+        assert_eq!(recovered.admin_receipts.len(), 0);
+        store.shutdown().await.unwrap();
+        drop(session);
+    }
+
+    #[tokio::test]
+    async fn admin_retained_delete_commits_receipt_and_deduplicates_after_restart() {
+        let (directory, mut actor) = actor().await;
+        let topic = TopicName::try_from("private/value".to_owned()).unwrap();
+        let mut candidate = actor.state.clone();
+        candidate
+            .retained
+            .insert(topic.clone(), message("private/value", 1, true, b"hidden"));
+        actor.commit(candidate).await.unwrap();
+        let id = "0123456789abcdef0123456789abcdef".to_owned();
+        assert!(
+            !actor
+                .admin_delete_retained(topic.clone(), id.clone(), 1000)
+                .await
+                .unwrap()
+        );
+        assert!(actor.state.retained.is_empty());
+        assert!(
+            actor
+                .admin_delete_retained(topic.clone(), id.clone(), 1000)
+                .await
+                .unwrap()
+        );
+        assert!(matches!(
+            actor
+                .admin_delete_retained(TopicName::try_from("other".to_owned()).unwrap(), id, 1000)
+                .await,
+            Err(AdminError::Conflict)
+        ));
+        assert!(matches!(
+            actor
+                .admin_delete_retained(topic, "fedcba9876543210fedcba9876543210".into(), 1000)
+                .await,
+            Err(AdminError::NotFound)
+        ));
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert!(recovered.retained.is_empty());
+        assert_eq!(recovered.admin_receipts.len(), 1);
+        assert_eq!(recovered.admin_receipts[0].operation, "retained_delete");
+        store.shutdown().await.unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn admin_retained_delete_wal_error_never_reports_success() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (directory, mut actor) = actor().await;
+        let topic = TopicName::try_from("private/value".to_owned()).unwrap();
+        let mut candidate = actor.state.clone();
+        candidate
+            .retained
+            .insert(topic.clone(), message("private/value", 1, true, b"hidden"));
+        actor.commit(candidate).await.unwrap();
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            actor
+                .admin_delete_retained(
+                    topic.clone(),
+                    "0123456789abcdef0123456789abcdef".into(),
+                    1000
+                )
+                .await,
+            Err(AdminError::CommitFailed)
+        ));
+        assert!(actor.fatal);
+        assert!(actor.state.retained.contains_key(&topic));
+        assert_eq!(actor.state.admin_receipts.len(), 0);
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert!(recovered.retained.contains_key(&topic));
+        assert_eq!(recovered.admin_receipts.len(), 0);
+        store.shutdown().await.unwrap();
+    }
+
     #[tokio::test]
     async fn admin_inventory_is_paginated_and_never_returns_payloads() {
         let (_directory, mut actor) = actor().await;

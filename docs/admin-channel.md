@@ -48,7 +48,7 @@ feita. Isto requer manutenção planejada antes de ampliar o uso operacional.
 {"version":1,"request_id":"0123456789abcdef0123456789abcdef","operation":"receipt","token":"<viewer ou operator hex>","target_request_id":"fedcba9876543210fedcba9876543210"}
 ```
 
-`receipt` retorna ID alvo, hash do bundle, UID, operação, resultado
+`receipt` retorna ID alvo, hash da operação (`request_sha256`), UID, operação, resultado
 `committed`, timestamp UTC em milissegundos e gerações esperada/aplicada. Não
 inclui token ou conteúdo do bundle. Em timeout, desconexão ou
 `result_unknown`, consultar o recibo antes de repetir; ausência de resposta
@@ -62,11 +62,22 @@ opcional. Respostas têm `items` e `next_cursor`; `null` encerra a listagem.
 Sessões trazem client ID, status conectado/persistente e contagens de
 assinaturas, filas e QoS2; retained traz tópico, QoS e tamanho do payload,
 **sem bytes de payload**. Viewer recebe `forbidden`. As páginas não são um
-snapshot estável durante publicações/conexões concorrentes. Ainda não há
-exclusão administrativa de retained nem desconexão administrativa.
+snapshot estável durante publicações/conexões concorrentes. `retained_delete`
+exige `topic` concreto e token operator; remove apenas uma mensagem retained
+existente, sem tocar em publicações já entregues. Retorna `deleted` e
+`replayed`. ID repetido com o mesmo tópico devolve o recibo, inclusive após
+restart; ID usado em operação/alvo diferente é conflito. Tópico ausente dá
+`not_found` sem commit. A consulta de receipt mostra somente hash do alvo,
+sem payload. `session_disconnect` exige `client_id` exato e token operator;
+somente conexão ativa é alvo. A ação equivale a encerramento não gracioso:
+Will autorizado é publicado, sessão persistente e inbound QoS2 já aceito
+continuam duráveis; sessão clean é removida. Recibo no mesmo commit evita
+segundo Will na repetição do ID. Sessão offline/ausente retorna `not_found`
+sem mutação. Esta ação não exclui a sessão persistente.
 
-O documento durável MQTT passa a **v3** no primeiro commit com este binário:
-leituras de v1/v2 continuam aceitas, mas o broker 0.14.0 não abre v3. Para
+O documento durável MQTT passa a **v4** no primeiro commit com este binário:
+leituras de v1/v2/v3 continuam aceitas, inclusive recibos P107 v3, mas o broker
+0.14.0 não abre v4 (nem v3). Para
 rollback, fazer backup offline do estado anterior à primeira escrita v3 e
 restaurá-lo em diretório de estado novo com o procedimento de backup/restore;
 isso perde alterações posteriores ao backup. Não converter ou apagar o WAL
@@ -74,7 +85,7 @@ ativo para forçar downgrade. SIGHUP legado continua disponível, sem recibo
 administrativo.
 
 A09 permanece parcial: a CLI independente integra status/reload/receipt e
-inventários paginados, mas ainda faltam ações de sessão/retained,
-consulta/retenção de auditoria ampliada e testes de falha
+inventários paginados, exclusão retained e desconexão de sessão. Ainda faltam
+consulta/retenção de auditoria ampliada e testes de concorrência e falha
 de armazenamento/concorrência. O [ADR 0001](adr/0001-admin-channel.md)
 define o contrato alvo.
