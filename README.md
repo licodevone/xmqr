@@ -110,11 +110,17 @@ Não há declaração de conformidade completa ou prontidão para produção.
 
 ## Versões
 
+Marco atual: [broker/admin legado v0.14.0](https://github.com/licodevone/xmqr/releases/tag/v0.14.0)
+e [client independente v0.12.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.12.0),
+prereleases experimentais da [fase 4 aceita](docs/phase4-acceptance.md).
+Pacotes Ubuntu 26.04 amd64, imagens numeradas, manifests e SHA-256 estão nos
+assets de cada release. Admin independente mantém seu versionamento próprio.
+
 P80 corrige shutdownTLS do cliente não leitor; [fase2 por componente](docs/phase2-acceptance.md)
 tem software e ESP32 físico validados após P85/C44: fase2 concluída no escopo
 definido, sem conformidade integral ou produção inferida.
 
-Marco de distribuição atual: **broker/admin legado 0.11.6**, fase3 aceita no
+Marco anterior: **broker/admin legado 0.11.6**, fase3 aceita no
 [recorte experimental](docs/phase3-acceptance.md).
 [Prerelease](https://github.com/licodevone/xmqr/releases/tag/v0.11.6)
 com .deb Ubuntu26amd64, exports de imagens Docker, checksums e evidências.
