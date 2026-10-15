@@ -1,5 +1,13 @@
 # Versionamento
 
+## P103 — software da fase 4, sem aceite E02
+
+Broker/legado admin0.14.0 inclui rotação TLS P100/B11 e política estática por
+endpoint P101/B09. P102 foi gravado na COM4, mas a campanha física parou antes
+de MQTT por associação Wi-Fi indisponível; fase4 permanece aberta. A versão
+0.14.0 só será tagueada/publicada após gates do commit exato, pacotes, hashes e
+imagens numeradas; client0.11.1/admin independente0.2.0 continuam inalterados.
+
 ## Fase 4 — P97/P98
 
 Broker/legadoadmin 0.13.1 acrescenta `tls-password` opt-in no listener único;

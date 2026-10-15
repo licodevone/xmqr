@@ -1,15 +1,20 @@
 # XMQR
 
-O marco experimental 0.13.1 acrescenta o modo `tls-password` (P97/B10) e
-corrige o default da imagem Docker (P99). A tag de código 0.13.0 foi
-substituída antes da distribuição; consulte o changelog.
+O marco experimental 0.14.0 acrescenta rotação TLS por SIGUSR1 (P100/B11) e
+usuários/ACL estáticos por endpoint mTLS (P101/B09), preservando um roteador,
+estado, limite e geração TLS comuns. Consulte [configuração](docs/architecture/configuration.md)
+e [transporte seguro](docs/security/secure-transport.md). A campanha ESP32 E02
+aguarda a rede Wi-Fi privada usada no ensaio anterior; a fase 4 segue aberta.
+
+O marco 0.13.1 acrescentou o modo `tls-password` (P97/B10) e corrigiu o
+default da imagem Docker (P99). A tag de código 0.13.0 ficou sem distribuição.
 
 O marco experimental 0.12.0 acrescenta até três endpoints mTLS adicionais
 configurados por `broker.additional_binds` no TOML v1. Eles compartilham a
 mesma política, roteador, estado e limite global de conexões; alterações exigem
 restart. Veja [configuração](docs/architecture/configuration.md) e o
-[registro P96](prompts/registros/P96-endpoints-mtls.md). Políticas separadas
-por endpoint e rotação de certificados seguem no plano da fase 4.
+[registro P96](prompts/registros/P96-endpoints-mtls.md). As políticas por
+endpoint e a rotação TLS foram implementadas no marco 0.14.0.
 
 P97 acrescenta `tls-password` para conexões TLS com usuário/senha e ACL, sem
 certificado de cliente. É um modo explícito de listener único com estado próprio;

@@ -7,14 +7,14 @@ use esp_idf_svc::{
     sntp::{EspSntp, SyncStatus},
     wifi::{ClientConfiguration, Configuration, EspWifi, WifiEvent},
 };
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 use esp_idf_svc::{
     mqtt::client::{
         Details, EspMqttClient, EventPayload, MqttClientConfiguration, MqttProtocolVersion, QoS,
     },
     tls::X509,
 };
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{
     thread,
@@ -26,23 +26,25 @@ mod private {
 }
 #[cfg(e01_campaign)]
 mod campaign;
+#[cfg(e02_campaign)]
+mod e02;
 #[cfg(e01_campaign)]
 mod memory_probe;
-#[cfg(all(e01_retained, not(e01_campaign)))]
+#[cfg(all(e01_retained, not(any(e01_campaign, e02_campaign))))]
 mod retained;
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 const TOPIC: &str = "e01/board/bytes";
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 static CONNECTED: AtomicBool = AtomicBool::new(false);
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 static SUBSCRIBED: AtomicBool = AtomicBool::new(false);
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 static RECEIVED: AtomicUsize = AtomicUsize::new(0);
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 static EXPECTED: AtomicUsize = AtomicUsize::new(0);
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 static PUBLISHED: AtomicUsize = AtomicUsize::new(usize::MAX);
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 static INVALID: AtomicBool = AtomicBool::new(false);
 
 fn wait(seconds: u64, predicate: impl Fn() -> bool) -> bool {
@@ -58,6 +60,9 @@ fn wait(seconds: u64, predicate: impl Fn() -> bool) -> bool {
 
 fn run() -> Result<(), &'static str> {
     esp_idf_svc::sys::link_patches();
+    #[cfg(e02_campaign)]
+    println!("E02_BOOT fixture=0.1.0");
+    #[cfg(not(e02_campaign))]
     println!("E01_BOOT fixture=0.1.0 payload=1024");
     let peripherals = Peripherals::take().map_err(|_| "PERIPHERALS")?;
     let event_loop = EspSystemEventLoop::take().map_err(|_| "EVENT_LOOP")?;
@@ -102,13 +107,17 @@ fn run() -> Result<(), &'static str> {
     {
         campaign::run(&mut wifi)
     }
-    #[cfg(not(e01_campaign))]
+    #[cfg(e02_campaign)]
+    {
+        e02::run(&mut wifi)
+    }
+    #[cfg(not(any(e01_campaign, e02_campaign)))]
     {
         initial_mqtt(&mut wifi)
     }
 }
 
-#[cfg(not(e01_campaign))]
+#[cfg(not(any(e01_campaign, e02_campaign)))]
 fn initial_mqtt(wifi: &mut EspWifi<'_>) -> Result<(), &'static str> {
     let config = MqttClientConfiguration {
         protocol_version: Some(MqttProtocolVersion::V3_1_1),
@@ -217,7 +226,13 @@ fn initial_mqtt(wifi: &mut EspWifi<'_>) -> Result<(), &'static str> {
 
 fn main() {
     if let Err(stage) = run() {
+        #[cfg(e02_campaign)]
+        println!("E02_FAIL stage={stage}");
+        #[cfg(not(e02_campaign))]
         println!("E01_FAIL stage={stage}");
     }
+    #[cfg(e02_campaign)]
+    println!("E02_STOP");
+    #[cfg(not(e02_campaign))]
     println!("E01_STOP");
 }

@@ -121,6 +121,10 @@ const OPEN_LAB_PRINCIPAL: &str = "__open_lab__";
 #[derive(Clone)]
 pub enum AccessPolicy {
     Secure(AuthPolicy),
+    Scoped {
+        policies: Arc<Vec<AuthPolicy>>,
+        endpoint: Option<usize>,
+    },
     TlsPassword(AuthPolicy),
     Dynamic(Arc<DynamicPolicy>),
     OpenLab,
@@ -153,6 +157,36 @@ impl AccessPolicy {
         Self::Secure(policy)
     }
 
+    /// One static mTLS policy per listener. `None` is the router-wide view;
+    /// `Some(index)` can authenticate only that listener's identities.
+    #[must_use]
+    pub fn scoped(policies: Arc<Vec<AuthPolicy>>, endpoint: Option<usize>) -> Self {
+        Self::Scoped { policies, endpoint }
+    }
+
+    #[must_use]
+    pub fn scoped_client_id(&self, id: &str) -> Option<String> {
+        match self {
+            Self::Scoped {
+                endpoint: Some(index),
+                ..
+            } => (id.len() <= 254).then(|| format!("{index}:{id}")),
+            _ => Some(id.to_owned()),
+        }
+    }
+
+    fn scoped_principal<'a>(&'a self, principal: &'a str) -> Option<(&'a AuthPolicy, &'a str)> {
+        let Self::Scoped { policies, endpoint } = self else {
+            return None;
+        };
+        let (prefix, username) = principal.split_once(':')?;
+        let index: usize = prefix.parse().ok()?;
+        if endpoint.is_some_and(|expected| expected != index) {
+            return None;
+        }
+        Some((policies.get(index)?, username))
+    }
+
     #[must_use]
     pub fn tls_password(policy: AuthPolicy) -> Self {
         Self::TlsPassword(policy)
@@ -179,6 +213,21 @@ impl AccessPolicy {
         password: Option<&[u8]>,
     ) -> Result<Option<String>, AuthError> {
         match self {
+            Self::Scoped {
+                policies,
+                endpoint: Some(index),
+            } => {
+                let (Some(cert_der), Some(username), Some(password), Some(policy)) =
+                    (cert_der, username, password, policies.get(*index))
+                else {
+                    return Ok(None);
+                };
+                Ok(policy
+                    .authenticate(cert_der, username, password)
+                    .await?
+                    .map(|name| format!("{index}:{name}")))
+            }
+            Self::Scoped { endpoint: None, .. } => Ok(None),
             Self::Dynamic(policy) => policy.authenticate(cert_der, username, password).await,
             Self::Secure(policy) => {
                 let (Some(cert_der), Some(username), Some(password)) =
@@ -207,6 +256,9 @@ impl AccessPolicy {
     #[must_use]
     pub fn allowed_publish(&self, principal: &str, topic: &str) -> bool {
         match self {
+            Self::Scoped { .. } => self
+                .scoped_principal(principal)
+                .is_some_and(|(policy, username)| policy.allowed_publish(username, topic)),
             Self::Dynamic(policy) => policy
                 .snapshot()
                 .is_some_and(|p| p.allowed_publish(principal, topic)),
@@ -223,6 +275,9 @@ impl AccessPolicy {
     #[must_use]
     pub fn allowed_subscribe(&self, principal: &str, filter: &str) -> bool {
         match self {
+            Self::Scoped { .. } => self
+                .scoped_principal(principal)
+                .is_some_and(|(policy, username)| policy.allowed_subscribe(username, filter)),
             Self::Dynamic(policy) => policy
                 .snapshot()
                 .is_some_and(|p| p.allowed_subscribe(principal, filter)),
@@ -240,6 +295,9 @@ impl AccessPolicy {
     #[must_use]
     pub fn allowed_delivery(&self, principal: &str, topic: &str) -> bool {
         match self {
+            Self::Scoped { .. } => self
+                .scoped_principal(principal)
+                .is_some_and(|(policy, username)| policy.allowed_delivery(username, topic)),
             Self::Dynamic(policy) => policy
                 .snapshot()
                 .is_some_and(|p| p.allowed_delivery(principal, topic)),
@@ -256,6 +314,9 @@ impl AccessPolicy {
     #[must_use]
     pub fn contains_principal(&self, principal: &str) -> bool {
         match self {
+            Self::Scoped { .. } => self
+                .scoped_principal(principal)
+                .is_some_and(|(policy, username)| policy.contains_principal(username)),
             Self::Dynamic(_) => valid_username(principal), // Keep accepted inbound ownership across removals.
 
             Self::Secure(policy) => policy.contains_principal(principal),

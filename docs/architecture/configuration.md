@@ -61,8 +61,9 @@ A vaga é liberada quando a tarefa da conexão termina. Alteração exige restar
 Reduzir esse valor não remove sessões persistentes. Quotas de sessões, filas,
 inflight, pacote e payload continuam fixas; sua configuração será outra fatia.
 
-Configuração imutável por processo; mudanças de bind exigem restart. SIGHUP
-continua reservado ao bundle de segurança.
+Configuração TOML imutável por processo; mudanças de bind exigem restart. SIGHUP
+continua reservado ao bundle de segurança. SIGUSR1 relê apenas os arquivos TLS
+referenciados no startup; consulte a [rotação TLS](../security/secure-transport.md).
 
 P96 permite até três `additional_binds` TCP mTLS, com endereço e porta explícitos.
 O primário e os adicionais compartilham TLS, política, roteador, estado,
@@ -70,8 +71,33 @@ monitoramento, IDs e `max_connections`; falha de qualquer bind impede o início.
 Porta zero, duplicata, wildcard adicional e sobreposição com primário wildcard
 são recusados. Os modos de laboratório não aceitam endpoints adicionais.
 Cada alteração de endereço exige restart; remova `additional_binds` para voltar
-ao listener único. Políticas distintas por endpoint e rotação de
-CA/certificado seguem planejadas.
+ao listener único. A rotação de CA/certificado/CRL por SIGUSR1 publica uma
+geração comum aos endpoints.
+
+P101 permite políticas **estáticas** por endpoint mTLS. No TOML, declare
+`[[endpoint_policies]]` uma vez para cada bind, inclusive o primário:
+
+```toml
+[[endpoint_policies]]
+bind = "0.0.0.0:8883"
+users_file = "/etc/xmqr/primary-users.toml"
+acl_file = "/etc/xmqr/primary-acl.toml"
+
+[[endpoint_policies]]
+bind = "127.0.0.1:8884"
+users_file = "/etc/xmqr/secondary-users.toml"
+acl_file = "/etc/xmqr/secondary-acl.toml"
+```
+
+O segundo bind também deve constar em `broker.additional_binds`. O broker
+recusa mapeamento parcial, duplicado ou estranho, arquivos inválidos, modo
+diferente de `secure-mtls` e mistura com `security.bundle` ou os campos globais
+`users_file`/`acl_file`. O roteador e o limite continuam compartilhados;
+usuários e IDs de client iguais em endpoints distintos são isolados no estado
+durável. O estado recebe perfil `secure-mtls-scoped` e exige diretório próprio:
+não há migração implícita do perfil compartilhado. IDs de client nesse perfil
+têm até 254 bytes antes do prefixo interno de dois bytes. TLS e rotação SIGUSR1
+permanecem comuns aos endpoints; arquivos de política estática exigem restart.
 
 P97 acrescenta o modo opt-in `tls-password` no listener único. Configure
 `[broker] mode = "tls-password"`, `state_dir` próprio, `[tls] server_cert` e

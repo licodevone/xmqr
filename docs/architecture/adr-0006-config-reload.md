@@ -6,7 +6,7 @@ somente no início do processo. Editá-lo não muda o broker em execução.
 | Entrada | Aplicação atual | Motivo |
 | --- | --- | --- |
 | Bundle privado de usuários, papéis e ACL | SIGHUP, apenas quando bundle dinâmico foi ativado | O candidato é validado antes da publicação; conexões dinâmicas são encerradas para reautenticar. |
-| Certificado/chave do servidor e CA/CRL dos clientes | B11 definirá rotação TLS separada | Precisa validar par, trust anchors e revogação antes de trocar os novos handshakes. |
+| Certificado/chave do servidor e CA/CRL dos clientes | SIGUSR1 (P100/B11), mesmos caminhos de startup | Candidato TLS completo validado antes de trocar os novos handshakes; falha conserva geração anterior. |
 | Bind primário/adicionais, perfil `MQTT_MODE`, diretório de estado | Restart-only | Mudam sockets, fronteira de identidade e ownership do estado durável. |
 | Limites de conexão, sessões, assinaturas, offline e inflight | Restart-only | Redução pode contradizer estado/admissões já existentes. |
 | Monitor habilitado/bind e demais campos do TOML | Restart-only | Precisam ser preparados e validados junto do processo. |

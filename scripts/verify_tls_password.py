@@ -7,16 +7,20 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
+import signal
 import socket
 import ssl
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from verify_multi_endpoint import free_port, hash_fixture, wait_port, wait_subscription
+from verify_tls_rotation import rotate
 
 
 def run_client(binary, root, port, password_file, *args):
@@ -45,6 +49,11 @@ def main():
         root = Path(temporary)
         root.chmod(0o700)
         fixture.certificates(root)
+        second = root / 'next'
+        second.mkdir()
+        fixture.certificates(second)
+        for name in ('server.crt', 'server.key'):
+            shutil.copyfile(root / name, root / ('active-' + name))
         password = secrets.token_urlsafe(24)
         (root / 'password').write_text(password)
         (root / 'password').chmod(0o600)
@@ -60,11 +69,12 @@ def main():
         (root / 'broker.toml').write_text(
             'version=1\n[broker]\nmode="tls-password"\n'
             f'bind="127.0.0.1:{port}"\nstate_dir="state"\n'
-            '[tls]\nserver_cert="server.crt"\nserver_key="server.key"\n'
+            '[tls]\nserver_cert="active-server.crt"\nserver_key="active-server.key"\n'
             '[security]\nusers_file="users.toml"\nacl_file="acl.toml"\n')
         environment = {key: value for key, value in os.environ.items()
                        if not key.startswith('MQTT_')}
         environment['MQTT_CONFIG'] = str(root / 'broker.toml')
+        environment['RUST_LOG'] = 'info'
         with (root / 'broker.log').open('wb') as log:
             broker = subprocess.Popen([args.broker], env=environment, stdout=log, stderr=log)
             try:
@@ -114,6 +124,53 @@ def main():
                     else:
                         raise AssertionError('wrong SAN was accepted')
                 print('PASS: TLS without client certificate; QoS0/1/2; password, CA, SAN and ACL negatives')
+                (root / 'c50-password.toml').write_text(
+                    'version=1\n[connection]\ntls_password=true\n'
+                    'host="wrong.invalid"\nport=1\nusername="fixture-device"\n'
+                    'ca="wrong-ca.crt"\npassword_file="password"\nqos=1\n'
+                    'clean_session=false\nreconnect_attempts=1\n'
+                    'total_timeout_seconds=15\n')
+                client_environment = environment.copy()
+                client_environment['MQTT_CLIENT_HOST'] = 'wrong.invalid'
+                client_environment['MQTT_CLIENT_PORT'] = str(port)
+                client_environment['MQTT_CA_CERT'] = str(root / 'ca.crt')
+                profiled = subprocess.run(
+                    [args.client, 'pub', '--profile', root / 'c50-password.toml',
+                     '--host', '127.0.0.1', '--topic', 'p97/value', '--message', 'c50-tls-password'],
+                    env=client_environment, capture_output=True, text=True, timeout=15)
+                assert profiled.returncode == 0, profiled.stderr
+                print('PASS: C50 TLS-password profile < environment < CLI with private password file')
+                (root / 'active-server.key').write_text('invalid-key')
+                rotate(broker, root / 'broker.log', False)
+                old = run_client(args.client, root, port, root / 'password',
+                                 'pub', '--topic', 'p97/value', '--message', 'old-still-active')
+                assert old.returncode == 0, 'invalid key replaced TLS-password generation'
+                for name in ('server.crt', 'server.key'):
+                    shutil.copyfile(second / name, root / ('active-' + name))
+                rotate(broker, root / 'broker.log', True)
+                deadline = time.monotonic() + 8
+                while time.monotonic() < deadline:
+                    changed = run_client(args.client, root, port, root / 'password',
+                                         'pub', '--topic', 'p97/value', '--message', 'new',
+                                         '--ca', second / 'ca.crt')
+                    if changed.returncode == 0:
+                        break
+                    time.sleep(.1)
+                assert changed.returncode == 0, 'TLS-password certificate rotation failed'
+                assert run_client(args.client, root, port, root / 'password',
+                                  'pub', '--topic', 'p97/value', '--message', 'old').returncode != 0
+                for name in ('server.crt', 'server.key'):
+                    shutil.copyfile(root / name, root / ('active-' + name))
+                rotate(broker, root / 'broker.log', True)
+                deadline = time.monotonic() + 8
+                while time.monotonic() < deadline:
+                    recovered = run_client(args.client, root, port, root / 'password',
+                                           'pub', '--topic', 'p97/value', '--message', 'rollback')
+                    if recovered.returncode == 0:
+                        break
+                    time.sleep(.1)
+                assert recovered.returncode == 0, 'TLS-password rollback failed'
+                print('PASS: TLS-password invalid key rollback and server certificate rotation')
             finally:
                 broker.terminate()
                 assert broker.wait(timeout=12) == 0

@@ -10,6 +10,10 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | --- | --- | --- |
 | aho-corasick | 1.1.5 | `Unlicense OR MIT` |
 | argon2 | 0.5.3 | `MIT OR Apache-2.0` |
+| asn1-rs | 0.7.2 | `MIT OR Apache-2.0` |
+| asn1-rs-derive | 0.6.0 | `MIT OR Apache-2.0` |
+| asn1-rs-impl | 0.2.0 | `MIT/Apache-2.0` |
+| autocfg | 1.5.1 | `Apache-2.0 OR MIT` |
 | aws-lc-rs | 1.18.1 | `ISC AND (Apache-2.0 OR ISC)` |
 | aws-lc-sys | 0.45.0 | `ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)` |
 | base64ct | 1.8.3 | `Apache-2.0 OR MIT` |
@@ -23,7 +27,11 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | cpufeatures | 0.2.17 | `MIT OR Apache-2.0` |
 | crc32fast | 1.5.2 | `MIT OR Apache-2.0` |
 | crypto-common | 0.1.7 | `MIT OR Apache-2.0` |
+| data-encoding | 2.11.1 | `MIT` |
+| der-parser | 10.0.0 | `MIT OR Apache-2.0` |
+| deranged | 0.5.9 | `MIT OR Apache-2.0` |
 | digest | 0.10.7 | `MIT OR Apache-2.0` |
+| displaydoc | 0.2.7 | `MIT OR Apache-2.0` |
 | dunce | 1.0.5 | `CC0-1.0 OR MIT-0 OR Apache-2.0` |
 | equivalent | 1.0.2 | `Apache-2.0 OR MIT` |
 | errno | 0.3.14 | `MIT OR Apache-2.0` |
@@ -47,12 +55,20 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | log | 0.4.34 | `MIT OR Apache-2.0` |
 | matchers | 0.2.0 | `MIT` |
 | memchr | 2.8.3 | `Unlicense OR MIT` |
+| minimal-lexical | 0.2.1 | `MIT/Apache-2.0` |
 | mio | 1.2.3 | `MIT` |
+| nom | 7.1.3 | `MIT` |
 | nu-ansi-term | 0.50.3 | `MIT` |
+| num-bigint | 0.4.8 | `MIT OR Apache-2.0` |
+| num-conv | 0.2.2 | `MIT OR Apache-2.0` |
+| num-integer | 0.1.47 | `MIT OR Apache-2.0` |
+| num-traits | 0.2.19 | `MIT OR Apache-2.0` |
+| oid-registry | 0.8.1 | `MIT OR Apache-2.0` |
 | once_cell | 1.21.4 | `MIT OR Apache-2.0` |
 | password-hash | 0.5.0 | `MIT OR Apache-2.0` |
 | pin-project-lite | 0.2.17 | `Apache-2.0 OR MIT` |
 | pkg-config | 0.3.34 | `MIT OR Apache-2.0` |
+| powerfmt | 0.2.1 | `MIT OR Apache-2.0` |
 | proc-macro2 | 1.0.107 | `MIT OR Apache-2.0` |
 | quote | 1.0.47 | `MIT OR Apache-2.0` |
 | r-efi | 6.0.0 | `MIT OR Apache-2.0 OR LGPL-2.1-or-later` |
@@ -62,6 +78,7 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | ring | 0.17.14 | `Apache-2.0 AND ISC` |
 | rpassword | 7.5.4 | `Apache-2.0` |
 | rtoolbox | 0.0.6 | `Apache-2.0` |
+| rusticata-macros | 4.1.0 | `MIT/Apache-2.0` |
 | rustix | 1.1.5 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | rustls | 0.23.45 | `Apache-2.0 OR ISC OR MIT` |
 | rustls-pemfile | 2.2.0 | `Apache-2.0 OR ISC OR MIT` |
@@ -81,10 +98,14 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | subtle | 2.6.1 | `BSD-3-Clause` |
 | syn | 2.0.119 | `MIT OR Apache-2.0` |
 | syn | 3.0.6 | `MIT OR Apache-2.0` |
+| synstructure | 0.13.2 | `MIT` |
 | tempfile | 3.27.0 | `MIT OR Apache-2.0` |
 | thiserror | 2.0.20 | `MIT OR Apache-2.0` |
 | thiserror-impl | 2.0.20 | `MIT OR Apache-2.0` |
 | thread_local | 1.1.10 | `MIT OR Apache-2.0` |
+| time | 0.3.55 | `MIT OR Apache-2.0` |
+| time-core | 0.1.9 | `MIT OR Apache-2.0` |
+| time-macros | 0.2.32 | `MIT OR Apache-2.0` |
 | tokio | 1.53.1 | `MIT` |
 | tokio-macros | 2.7.2 | `MIT` |
 | tokio-rustls | 0.26.5 | `MIT OR Apache-2.0` |
@@ -99,6 +120,7 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | tracing-subscriber | 0.3.23 | `MIT` |
 | typenum | 1.20.1 | `MIT OR Apache-2.0` |
 | unicode-ident | 1.0.26 | `(MIT OR Apache-2.0) AND Unicode-3.0` |
+| untrusted | 0.7.1 | `ISC` |
 | untrusted | 0.9.0 | `ISC` |
 | valuable | 0.1.1 | `MIT` |
 | version_check | 0.9.5 | `MIT/Apache-2.0` |
@@ -120,4 +142,5 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | windows_x86_64_msvc | 0.52.6 | `MIT OR Apache-2.0` |
 | winnow | 0.7.15 | `MIT` |
 | winnow | 1.0.4 | `MIT` |
+| x509-parser | 0.18.1 | `MIT OR Apache-2.0` |
 | zeroize | 1.9.0 | `Apache-2.0 OR MIT` |

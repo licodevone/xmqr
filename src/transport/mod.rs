@@ -28,11 +28,15 @@ use thiserror::Error;
 use tokio::{
     io::{AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
-    sync::Semaphore,
+    sync::{Semaphore, watch},
     time::{sleep, timeout},
 };
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
 use tracing::{debug, error, info, warn};
+use x509_parser::{parse_x509_certificate, parse_x509_crl, time::ASN1Time};
+
+mod rotation;
+pub use rotation::{TlsFiles, TlsWatcher, watch_tls};
 
 /// Maximum number of MQTT bytes accepted by the first application read.
 pub const MAX_INITIAL_MQTT_BYTES: usize = 4 * 1024;
@@ -222,6 +226,12 @@ pub enum TlsConfigError {
     ClientVerifier(String),
     #[error("cannot build the TLS server configuration: {0}")]
     ServerConfig(String),
+    #[error("{0} certificate validity period is invalid or expired")]
+    CertificateValidity(&'static str),
+    #[error("client CRL validity period is invalid or expired")]
+    CrlValidity,
+    #[error("client CRL issuer or signature does not match a configured CA")]
+    CrlIssuer,
 }
 
 #[derive(Debug, Error)]
@@ -242,15 +252,26 @@ enum ClientError {
 
 pub type HandlerError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-/// TCP listener plus an immutable mTLS acceptor and connection admission limit.
+/// TCP listener plus a shared TLS generation and connection admission limit.
 pub struct SecureTransport {
     listener: TcpListener,
-    tls_acceptor: TlsAcceptor,
+    tls_config: watch::Receiver<Arc<ServerConfig>>,
+    tls_sender: watch::Sender<Arc<ServerConfig>>,
     require_client_certificate: bool,
     connection_slots: Arc<Semaphore>,
     connection_capacity: u32,
     next_connection_id: Arc<AtomicU64>,
     metrics: Option<Arc<Metrics>>,
+}
+
+/// Publishes a fully validated TLS generation for subsequent handshakes.
+#[derive(Clone)]
+pub struct TlsReloader(watch::Sender<Arc<ServerConfig>>);
+
+impl TlsReloader {
+    pub fn publish(&self, config: Arc<ServerConfig>) {
+        self.0.send_replace(config);
+    }
 }
 
 /// Plain TCP listener for a local teaching lab. Construction rejects every
@@ -330,9 +351,11 @@ impl SecureTransport {
     ) -> io::Result<Self> {
         let connection_capacity = admission_capacity(limits.max_concurrent_connections)?;
         let listener = TcpListener::bind(address).await?;
+        let (tls_sender, tls_config) = watch::channel(tls_config);
         Ok(Self {
             listener,
-            tls_acceptor: TlsAcceptor::from(tls_config),
+            tls_config,
+            tls_sender,
             require_client_certificate: true,
             connection_slots: Arc::new(Semaphore::new(limits.max_concurrent_connections)),
             connection_capacity,
@@ -362,13 +385,19 @@ impl SecureTransport {
     pub async fn bind_additional(&self, address: SocketAddr) -> io::Result<Self> {
         Ok(Self {
             listener: TcpListener::bind(address).await?,
-            tls_acceptor: self.tls_acceptor.clone(),
+            tls_config: self.tls_config.clone(),
+            tls_sender: self.tls_sender.clone(),
             require_client_certificate: self.require_client_certificate,
             connection_slots: self.connection_slots.clone(),
             connection_capacity: self.connection_capacity,
             next_connection_id: self.next_connection_id.clone(),
             metrics: self.metrics.clone(),
         })
+    }
+
+    #[must_use]
+    pub fn tls_reloader(&self) -> TlsReloader {
+        TlsReloader(self.tls_sender.clone())
     }
 
     /// Obtain a drain observer without changing connection admission limits.
@@ -422,7 +451,7 @@ impl SecureTransport {
                 warn!(%peer_addr, error = %source, "cannot configure accepted socket");
                 continue;
             }
-            let tls_acceptor = self.tls_acceptor.clone();
+            let tls_acceptor = TlsAcceptor::from(self.tls_config.borrow().clone());
             let require_client_certificate = self.require_client_certificate;
             let client_handler = handler.clone();
             let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
@@ -682,20 +711,26 @@ pub fn load_mtls_server_config(files: &MtlsFiles) -> Result<Arc<ServerConfig>, T
     let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
     let server_certificates =
         load_certificates(&files.server_certificate_chain, "server certificate")?;
+    validate_certificates(&server_certificates, "server")?;
     let server_key = load_private_key(&files.server_private_key)?;
     let client_ca_certificates = load_certificates(&files.client_ca_certificate, "client CA")?;
+    validate_certificates(&client_ca_certificates, "client CA")?;
 
     let mut roots = RootCertStore::empty();
-    for certificate in client_ca_certificates {
+    for certificate in &client_ca_certificates {
         roots
-            .add(certificate)
+            .add(certificate.clone())
             .map_err(|source| TlsConfigError::InvalidClientCa(source.to_string()))?;
     }
 
     let mut verifier_builder =
         WebPkiClientVerifier::builder_with_provider(Arc::new(roots), Arc::clone(&provider));
     if let Some(crl_path) = &files.client_crl {
-        verifier_builder = verifier_builder.with_crls(load_crls(crl_path)?);
+        let crls = load_crls(crl_path)?;
+        validate_crls(&crls, &client_ca_certificates)?;
+        verifier_builder = verifier_builder
+            .with_crls(crls)
+            .enforce_revocation_expiration();
     }
     // Deliberately do not call allow_unauthenticated(): a client certificate is mandatory.
     let client_verifier = verifier_builder
@@ -721,6 +756,7 @@ pub fn load_password_server_config(
 ) -> Result<Arc<ServerConfig>, TlsConfigError> {
     let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
     let certificates = load_certificates(certificate_chain, "server certificate")?;
+    validate_certificates(&certificates, "server")?;
     let key = load_private_key(private_key)?;
     let config = ServerConfig::builder_with_provider(provider)
         .with_protocol_versions(&[&TLS13, &TLS12])
@@ -729,6 +765,45 @@ pub fn load_password_server_config(
         .with_single_cert(certificates, key)
         .map_err(|source| TlsConfigError::ServerConfig(source.to_string()))?;
     Ok(Arc::new(config))
+}
+
+fn validate_certificates(
+    certificates: &[CertificateDer<'static>],
+    kind: &'static str,
+) -> Result<(), TlsConfigError> {
+    let now = ASN1Time::now();
+    for der in certificates {
+        let (remainder, certificate) = parse_x509_certificate(der.as_ref())
+            .map_err(|_| TlsConfigError::CertificateValidity(kind))?;
+        if !remainder.is_empty() || !certificate.validity().is_valid_at(now) {
+            return Err(TlsConfigError::CertificateValidity(kind));
+        }
+    }
+    Ok(())
+}
+
+fn validate_crls(
+    crls: &[CertificateRevocationListDer<'static>],
+    client_cas: &[CertificateDer<'static>],
+) -> Result<(), TlsConfigError> {
+    let now = ASN1Time::now().timestamp();
+    for der in crls {
+        let (remainder, crl) =
+            parse_x509_crl(der.as_ref()).map_err(|_| TlsConfigError::CrlValidity)?;
+        let next = crl.next_update().ok_or(TlsConfigError::CrlValidity)?;
+        if !remainder.is_empty() || crl.last_update().timestamp() > now || next.timestamp() <= now {
+            return Err(TlsConfigError::CrlValidity);
+        }
+        let signed_by_configured_ca = client_cas.iter().any(|ca_der| {
+            parse_x509_certificate(ca_der.as_ref()).is_ok_and(|(_, ca)| {
+                crl.issuer() == ca.subject() && crl.verify_signature(ca.public_key()).is_ok()
+            })
+        });
+        if !signed_by_configured_ca {
+            return Err(TlsConfigError::CrlIssuer);
+        }
+    }
+    Ok(())
 }
 
 fn load_certificates(

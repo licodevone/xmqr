@@ -108,6 +108,13 @@ async fn serve_mqtt(
             .await?;
         return Ok(());
     }
+    let Some(client_id) = auth.scoped_client_id(&client_id) else {
+        metrics.reject(Rejection::Quota);
+        connection
+            .write_all_with_deadline(&encode_connack(2), WRITE_TIMEOUT)
+            .await?;
+        return Ok(());
+    };
 
     let security_generation = auth.security_generation();
     let cert = connection.peer_certificates().first();

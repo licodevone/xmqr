@@ -88,9 +88,9 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | B06 | Broker: erros de disco, ENOSPC, escrita curta e corrupção | Aceito recorte determinístico P86:54casos; patch0.11.5 | storage-faults.md; sem ACK/fan-out indevido, poison/reopen e WAL inválido preservado; não prova falhas físicas/energia |
 | B07 | Broker: fuzzing de codec, estado e filtros | Aceito recorte P90/P95:18processos/seeds/corpus/mutações/watchdog PASS | Preservar corpus/limites/regressões; não LibFuzzer/ASAN/cobertura guiada |
 | B08 | Broker/client: matriz externa 3.1.1 | Aceito recorte P91:87interop/19wire/12TLS e6soak>=600s PASS | Manter negativos/falhas históricas; campanha finita não é matriz exaustiva/conformidade completa |
-| B09 | Broker: múltiplos listeners | Parcial P96: endpoints mTLS compartilham política/estado/limite; políticas por endpoint pendentes | B04/B08; políticas por endpoint, identidade isolada, sem duplicar roteadores/estado |
+| B09 | Broker: múltiplos listeners | P96/P101: endpoints mTLS compartilham TLS/roteador/estado/limite; arquivos estáticos de usuários/ACL e identidades isolados por endpoint | B04/B08; sem CA distinta por endpoint, sem bundle dinâmico misturado a políticas estáticas |
 | B10 | Broker/client: TLS com senha sem certificado cliente | P97/C48 implementado e integrado, listener único opt-in | B09; CA/SAN obrigatório, senha/ACL e negativos, mTLS padrão inalterado |
-| B11 | Broker: rotação de certificado/CA/CRL | Parcial CRL/startup | B09/B10; contrato para conexões ativas, validação antes de swap, rollback e CA expirada |
+| B11 | Broker: rotação de certificado/CA/CRL | P100: SIGUSR1 em mTLS/TLS-senha, candidato validado antes do swap, rollback e conexões ativas mantidas; integração externa PASS | B09/B10; CA/CRL comuns aos endpoints mTLS, revogação imediata de conexões ativas exige encerramento operacional |
 | B12 | Broker: reload geral da configuração | Decisão P98/ADR-0006: TOML restart-only; bundle/SIGHUP existente; transação obrigatória para eventual reload geral | B09; classificar campos hot-reload/restart-only, transação sem estado parcial |
 | B13 | Broker: métricas operacionais e logs | Parcial monitor P43 | B03/B04; cardinalidade finita, sem payload/credenciais, probe do writer/ator |
 | B14 | Broker: tópicos $SYS | Decisão | B13/A04; namespace explícito, ACL própria, frequência limitada e custo medido |
@@ -107,7 +107,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | C02 | Client: retained/Will e filtros de saída | Existente C41 | Regressão --count filtrado, ACKs preservados e diferença entre replay e publicação ao vivo |
 | C03 | Client: excluir tópicos recebidos | Planejado | B08/C02; filtros locais, ACKs mantidos e contagem das mensagens exibidas |
 | C04 | Client: publicação repetida/intervalo | Planejado | C01/B08; contagem finita, monotonic clock, Ctrl+C, sem reenviar resultado desconhecido |
-| C05 | Client: perfis reutilizáveis e precedência | Planejado | B10; CLI/env/arquivo, secret-file, permissões e schema versionado |
+| C05 | Client: perfis reutilizáveis e precedência | C47/C48/C50: TOML v1, campos completos, CLI > ambiente > arquivo, secret-file privado; integração mTLS/TLS-senha PASS | B10; sem senha inline, erro explícito sem fallback inseguro; versão client0.12.0 |
 | C06 | Client: novos formatos de saída | Decisão | C01/C03; contrato de escaping/binário/timestamp, limites e compatibilidade JSONL |
 | C07 | Client: reconexão/backoff e timeout total | Aceito C45/C46:63testes/idle90s real/interop ampliada | Prazos protocolo/idle/total distintos, jitter/cancelamento; QoS1 pode retransmitir, QoS2 interrompido falha explicitamente |
 | C08 | Client: Will binário e opções complementares | Decisão | C01/B08; validar tamanho antes de rede, propriedades compatíveis e documentação por protocolo |

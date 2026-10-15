@@ -8,9 +8,9 @@ atualizada a cada release.
 
 | Série | Suporte |
 | --- | --- |
-| `0.12.x` | sim |
-| `0.11.x` | correções críticas, quando possível |
-| `< 0.11` | não |
+| `0.14.x` | sim |
+| `0.13.x` | correções críticas, quando possível |
+| `< 0.13` | não |
 
 ## Relatar uma vulnerabilidade
 

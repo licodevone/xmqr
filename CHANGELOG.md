@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 0.14.0 — rotação TLS e ACL estática por endpoint, experimental
+
+- P100/B11: SIGUSR1 valida certificado, chave, CA e CRL completos e publica
+  uma geração comum aos endpoints mTLS para novos handshakes; falha conserva
+  a anterior. TLS-senha também gira certificado/chave. Conexões ativas seguem
+  até encerramento próprio ou controlado.
+- P101/B09: `[[endpoint_policies]]` associa arquivos de usuários/ACL estáticos
+  a cada bind mTLS. Principal, client ID e perfil durável são isolados por
+  endpoint; roteador, estado, quotas e TLS permanecem compartilhados.
+- P102/E02: firmware/ensaio físico preparados, mas campanha da placa ficou
+  pendente após falha real de associação Wi-Fi. Esta release não encerra a fase 4.
+
 ## 0.13.1 — correção de distribuição do B10
 
 - P99: alinha o `ARG VERSION` padrão do Dockerfile ao Cargo. Nenhuma alteração

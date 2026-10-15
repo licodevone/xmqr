@@ -2,6 +2,16 @@
 use std::{env, fs, path::PathBuf};
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(e02_campaign)");
+    println!("cargo:rerun-if-env-changed=XMQR_E02_CAMPAIGN");
+    let e02 = match env::var("XMQR_E02_CAMPAIGN").as_deref() {
+        Ok("1") => {
+            println!("cargo:rustc-cfg=e02_campaign");
+            true
+        }
+        Ok("0") | Err(_) => false,
+        _ => panic!("invalid E02 campaign mode"),
+    };
     println!("cargo:rustc-check-cfg=cfg(e01_campaign)");
     println!("cargo:rerun-if-env-changed=XMQR_E01_CAMPAIGN");
     let campaign = match env::var("XMQR_E01_CAMPAIGN").as_deref() {
@@ -12,6 +22,10 @@ fn main() {
         Ok("0") | Err(_) => false,
         _ => panic!("invalid physical campaign mode"),
     };
+    assert!(
+        !(campaign && e02),
+        "E01 and E02 campaigns are mutually exclusive"
+    );
     println!("cargo:rustc-check-cfg=cfg(e01_retained)");
     println!("cargo:rerun-if-env-changed=XMQR_E01_RETAINED");
     match env::var("XMQR_E01_RETAINED").as_deref() {

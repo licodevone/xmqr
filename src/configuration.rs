@@ -36,6 +36,15 @@ const KEYS: &[&str] = &[
 pub struct Configuration {
     values: BTreeMap<String, OsString>,
     additional_binds: Vec<String>,
+    endpoint_policies: Vec<EndpointPolicyFiles>,
+}
+
+/// Static user/ACL files for one explicitly named mTLS listener.
+#[derive(Clone)]
+pub struct EndpointPolicyFiles {
+    pub bind: std::net::SocketAddr,
+    pub users_file: PathBuf,
+    pub acl_file: PathBuf,
 }
 
 impl Configuration {
@@ -141,7 +150,60 @@ impl Configuration {
         if result.additional_binds.len() > 3 {
             return Err(invalid("at most three additional binds are supported"));
         }
+        for entry in document.endpoint_policies {
+            let bind = entry
+                .bind
+                .parse()
+                .map_err(|_| invalid("invalid endpoint policy bind"))?;
+            let resolve = |path: PathBuf| -> io::Result<PathBuf> {
+                if path.as_os_str().is_empty() {
+                    Err(invalid("endpoint policy path must not be empty"))
+                } else if path.is_absolute() {
+                    Ok(path)
+                } else {
+                    Ok(base.join(path))
+                }
+            };
+            result.endpoint_policies.push(EndpointPolicyFiles {
+                bind,
+                users_file: resolve(entry.users_file)?,
+                acl_file: resolve(entry.acl_file)?,
+            });
+        }
         Ok(result)
+    }
+
+    /// Return one static policy for each listener, in bind order, if enabled.
+    /// # Errors
+    /// Rejects partial, duplicate or foreign endpoint mappings.
+    pub fn endpoint_policies(
+        &self,
+        primary: std::net::SocketAddr,
+        additional: &[std::net::SocketAddr],
+    ) -> io::Result<Vec<EndpointPolicyFiles>> {
+        if self.endpoint_policies.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut ordered = Vec::with_capacity(1 + additional.len());
+        for bind in std::iter::once(&primary).chain(additional) {
+            let entries: Vec<_> = self
+                .endpoint_policies
+                .iter()
+                .filter(|p| p.bind == *bind)
+                .collect();
+            if entries.len() != 1 {
+                return Err(invalid(
+                    "endpoint policy mapping must cover each listener once",
+                ));
+            }
+            ordered.push(entries[0].clone());
+        }
+        if ordered.len() != self.endpoint_policies.len() {
+            return Err(invalid(
+                "endpoint policy mapping contains an unknown listener",
+            ));
+        }
+        Ok(ordered)
     }
 
     /// Resolve additional mTLS endpoints sharing the primary endpoint's policy.
@@ -269,6 +331,13 @@ struct Security {
     users_file: Option<PathBuf>,
     acl_file: Option<PathBuf>,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EndpointPolicyEntry {
+    bind: String,
+    users_file: PathBuf,
+    acl_file: PathBuf,
+}
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Monitor {
@@ -287,6 +356,8 @@ struct Document {
     tls: Tls,
     #[serde(default)]
     security: Security,
+    #[serde(default)]
+    endpoint_policies: Vec<EndpointPolicyEntry>,
     #[serde(default)]
     monitor: Monitor,
 }

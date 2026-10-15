@@ -86,11 +86,14 @@ Não significa conformidade MQTT integral ou produção.
 
 ### Fases 4–5 — entregas restantes
 - [x] ~~Admin independente0.1.0: CLI, painel local autenticado de leitura, prompts e release/deb/Docker próprio (P88).~~
-- [ ] Fase 4: múltiplos listeners, políticas por endpoint, TLS sem certificado cliente quando configurado e rotação de certificados.
-- [ ] Fase 4: perfis reutilizáveis do client e testes de rotação/erros de credenciais.
+- [x] ~~Fase 4/software broker: múltiplos listeners mTLS, políticas estáticas por endpoint, TLS sem certificado cliente quando configurado e rotação transacional de certificados.~~
+- [x] ~~Fase 4/software client: perfis reutilizáveis com precedência CLI/ambiente/TOML, mTLS/TLS-senha e negativos de credenciais/rotação.~~
 - [x] ~~P96/B09 parcial: até três endpoints mTLS adicionais com roteador, estado e limite de conexões compartilhados; integração cruzada e restart.~~
+- [x] ~~P101/B09: arquivos de usuários/ACL por endpoint mTLS, principal e client ID isolados, roteador/estado/limite comuns; replay retained após restart.~~
 - [x] ~~P97/B10: modo TLS com senha e ACL sem certificado cliente, opt-in; QoS0/1/2 e negativos CA/SAN/senha/ACL.~~
 - [x] ~~P98/B12: decisão de campos recarregáveis e restart-only, transação sem publicação parcial.~~
+- [x] ~~P100/B11: rotação SIGUSR1 de certificado/chave/CA/CRL nos endpoints mTLS e TLS-senha, com validação, rollback e conexões ativas preservadas.~~
+- [ ] P102/E02: campanha física de rotação/revogação na ESP32 COM4; firmware gravado, mas associação Wi-Fi bloqueou antes do primeiro handshake. [Evidência](phase4-acceptance.md).
 - [x] ~~C47/C05 parcial: perfis TOML opt-in do client, precedência de flags e caminhos relativos; integração mTLS e negativos.~~
 - [x] ~~A05/U02 parcial: validação offline de bundle seguro no admin independente, sem escrita nem reload.~~
 - [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.

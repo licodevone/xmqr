@@ -33,6 +33,30 @@ O listener aceita somente TLS com certificado de cliente obrigatório. A cadeia 
 
 O certificado do servidor deve incluir `IP:192.168.0.100` no Subject Alternative Name. O Common Name sozinho não é suficiente para clientes TLS modernos. Em containers, confirme se esse IP existe no namespace de rede ou sobrescreva `MQTT_BIND`.
 
+## Rotação local de TLS (P100/B11)
+
+Em Unix, `SIGUSR1` faz o broker reler os caminhos TLS configurados no startup.
+Prepare certificado, chave, CA e CRL como um conjunto coerente em arquivos
+privados, substitua-os e sinalize o PID conhecido da instância:
+
+```sh
+kill -USR1 <PID_DO_BROKER>
+```
+
+O broker valida certificado/chave, validade temporal do certificado do servidor
+e da CA, emissor, assinatura e período da CRL, e a configuração TLS completa
+antes de publicar uma nova geração. Uma falha preserva a geração anterior em
+todos os endpoints. Os logs registram apenas aceite/recusa e número da geração,
+sem material TLS. Em `tls-password`, a rotação cobre certificado e chave do
+servidor; o broker continua sem solicitar certificado do cliente.
+
+A mudança vale para novos handshakes. Conexões TLS existentes prosseguem com a
+sessão antiga; para revogação imediata, encerre-as por procedimento operacional
+controlado. O sinal não recarrega TOML, bind, ACL, usuários nem estado. `SIGHUP`
+continua reservado ao bundle de segurança dinâmica. Uma CRL é opcional no
+startup mTLS, mas quando configurada precisa permanecer válida em cada rotação.
+Guarde o conjunto anterior para rollback e sinalize novamente após restaurá-lo.
+
 ## Limites do controle
 
 Esta camada não substitui validação MQTT. O codec deve limitar Remaining Length, strings, propriedades, filas, inflight e fan-out. O keep-alive negociado determina o deadline depois do CONNECT. Para revogação imediata, distribua CRLs atualizadas ou projete OCSP/um serviço de identidade; apenas confiar na CA não informa certificados revogados.

@@ -11,8 +11,8 @@ use mqtt_broker::{
     monitoring::{Config as MonitorConfig, Metrics, Monitor},
     mqtt::{self, Router},
     transport::{
-        ConnectionDrain, MtlsFiles, OpenLabTransport, SecureTransport, TransportLimits,
-        load_mtls_server_config, load_password_server_config,
+        ConnectionDrain, MtlsFiles, OpenLabTransport, SecureTransport, TlsFiles, TransportLimits,
+        watch_tls,
     },
 };
 use tracing::{info, warn};
@@ -55,10 +55,23 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     .parse()?;
     let additional_binds = config.additional_binds(bind_address)?;
+    let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
     if mode != BrokerMode::SecureMtls && !additional_binds.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "additional binds require secure-mtls",
+        )
+        .into());
+    }
+    if !endpoint_policies.is_empty()
+        && (mode != BrokerMode::SecureMtls
+            || config.var_os("MQTT_SECURITY_BUNDLE").is_some()
+            || config.var_os("MQTT_USERS_FILE").is_some()
+            || config.var_os("MQTT_ACL_FILE").is_some())
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "endpoint policies require static secure-mtls without shared security files",
         )
         .into());
     }
@@ -80,6 +93,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         mode,
         BrokerMode::SecureMtls | BrokerMode::TlsPassword | BrokerMode::AclLab
     ) && config.var_os("MQTT_SECURITY_BUNDLE").is_none()
+        && endpoint_policies.is_empty()
     {
         required_path(&config, "MQTT_USERS_FILE")?;
         required_path(&config, "MQTT_ACL_FILE")?;
@@ -112,24 +126,46 @@ async fn serve(
     metrics: Arc<Metrics>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (bind_address, additional_binds) = bind_addresses;
+    let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
     let (limits, state_limits) = limits;
     match mode {
         BrokerMode::SecureMtls | BrokerMode::TlsPassword => {
-            let tls_config = if mode == BrokerMode::SecureMtls {
-                load_mtls_server_config(&MtlsFiles {
+            let tls_files = if mode == BrokerMode::SecureMtls {
+                TlsFiles::Mtls(MtlsFiles {
                     server_certificate_chain: required_path(config, "MQTT_SERVER_CERT")?,
                     server_private_key: required_path(config, "MQTT_SERVER_KEY")?,
                     client_ca_certificate: required_path(config, "MQTT_CLIENT_CA")?,
                     client_crl: config.var_os("MQTT_CLIENT_CRL").map(PathBuf::from),
-                })?
+                })
             } else {
-                load_password_server_config(
-                    &required_path(config, "MQTT_SERVER_CERT")?,
-                    &required_path(config, "MQTT_SERVER_KEY")?,
-                )?
+                TlsFiles::Password {
+                    certificate_chain: required_path(config, "MQTT_SERVER_CERT")?,
+                    private_key: required_path(config, "MQTT_SERVER_KEY")?,
+                }
             };
-            let auth = load_policy(config, mode).await?;
-            ensure_state_profile(&state_directory, mode.profile_name())?;
+            let tls_config = tls_files.load()?;
+            let scoped = if endpoint_policies.is_empty() {
+                None
+            } else {
+                let policies = endpoint_policies
+                    .iter()
+                    .map(|entry| AuthPolicy::load(&entry.users_file, &entry.acl_file))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Some(Arc::new(policies))
+            };
+            let auth = if let Some(policies) = &scoped {
+                Arc::new(AccessPolicy::scoped(policies.clone(), None))
+            } else {
+                load_policy(config, mode).await?
+            };
+            ensure_state_profile(
+                &state_directory,
+                if scoped.is_some() {
+                    "secure-mtls-scoped"
+                } else {
+                    mode.profile_name()
+                },
+            )?;
             let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport = if mode == BrokerMode::SecureMtls {
@@ -153,17 +189,20 @@ async fn serve(
             for address in additional_binds {
                 transports.push(transport.bind_additional(address).await?);
             }
+            let _tls_watch = watch_tls(tls_files, transport.tls_reloader())?;
             metrics.set_listener_ready(true);
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             info!(%bind_address, "secure MQTT listener started");
             let shutdown_router = router.clone();
             let connections = transport.drain_handle();
-            transports.push(transport);
+            transports.insert(0, transport);
             run_until_shutdown(
                 async move {
                     let mut listeners = Vec::new();
-                    for transport in transports {
-                        let auth = Arc::clone(&auth);
+                    for (index, transport) in transports.into_iter().enumerate() {
+                        let auth = scoped.as_ref().map_or_else(
+                            || Arc::clone(&auth),
+                            |policies| Arc::new(AccessPolicy::scoped(policies.clone(), Some(index))));
                         let router = Arc::clone(&router);
                         listeners.push(Box::pin(async move {
                             transport.serve(move |connection| {

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "prompt": "P102",
+  "environment": "ESP32 DevKit V1 / ESP32-D0WD-V3 / 4 MiB / CH340 / COM4; Windows 11; Docker Desktop",
+  "result": "BLOCKED_WIFI_ASSOCIATION",
+  "flash_verified": true,
+  "app_bytes": 993136,
+  "backup_original": "two independent 4 MiB copies matched before flash",
+  "broker_precheck": "mTLS and initial CRL accepted by isolated Docker broker",
+  "observed_markers": ["E02_BOOT fixture=0.1.0", "E02_FAIL stage=WIFI_ASSOCIATION_TIMEOUT"],
+  "rotations_executed": 0,
+  "ssid_visible_in_windows_scan": false,
+  "broker_resources_cleaned": true,
+  "limitations": "No TLS rotation or revocation was observed by the physical board. No production or power-loss claim."
+}
