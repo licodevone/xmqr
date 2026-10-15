@@ -93,7 +93,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | B11 | Broker: rotação de certificado/CA/CRL | P100: SIGUSR1 em mTLS/TLS-senha, candidato validado antes do swap, rollback e conexões ativas mantidas; integração externa PASS | B09/B10; CA/CRL comuns aos endpoints mTLS, revogação imediata de conexões ativas exige encerramento operacional |
 | B12 | Broker: reload geral da configuração | Decisão P98/ADR-0006: TOML restart-only; bundle/SIGHUP existente; transação obrigatória para eventual reload geral | B09; classificar campos hot-reload/restart-only, transação sem estado parcial |
 | B13 | Broker: métricas operacionais e logs | Parcial monitor P43 | B03/B04; cardinalidade finita, sem payload/credenciais, probe do writer/ator |
-| B14 | Broker: tópicos $SYS | Decisão | B13/A04; namespace explícito, ACL própria, frequência limitada e custo medido |
+| B14 | Broker: tópicos $SYS | ADR 0002/P106: não gerar na fase 5; usar monitor HTTP loopback | Reavaliar somente com demanda, ACL/namespace próprios, frequência e custo medidos |
 | A01 | Admin: CRUD local de usuários e fingerprint/hash | Existente, Unix; novo CLI xmqr-admin0.1.0 compatível e legado preservado | Manter arquivo privado, lock, symlink negativo, arquivo temporário e atualização atômica |
 | A02 | Admin: gestão de grupos, papéis e ACL no bundle | Planejado; bundle manual existente | B08; validate/list/create/update/delete, referências inválidas recusadas e permissões mínimas |
 | A03 | Admin: habilitar/revogar identidade e aplicar bundle | Planejado, reload conservador existente | A02 e canal A09 aceito para operação online; efeito nas conexões/sessões definido, QoS2 durável e auditabilidade |
