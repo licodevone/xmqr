@@ -2,8 +2,10 @@
 
 ## Fase 4 — P97/P98
 
-Broker/legadoadmin 0.13.0 acrescenta `tls-password` opt-in no listener único;
-client C48 0.11.0 mantém CA/SAN/validade sem certificado de cliente. B12 tem
+Broker/legadoadmin 0.13.1 acrescenta `tls-password` opt-in no listener único;
+client C48 0.11.1 mantém CA/SAN/validade sem certificado de cliente. As tags
+0.13.0/0.11.0 ficaram sem release por default Docker divergente; P99/C49
+corrigiram isso sem reescrever tags. B12 tem
 decisão em ADR-0006, sem reload geral do TOML. Políticas por listener B09,
 rotação B11 e campanha física E02 continuam abertas. Tags/release são criadas
 somente após gates e artefatos do commit exato; versões anteriores imutáveis.

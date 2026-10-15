@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 0.13.1 — correção de distribuição do B10
+
+- P99: alinha o `ARG VERSION` padrão do Dockerfile ao Cargo. Nenhuma alteração
+  de TLS/MQTT. A tag0.13.0 de código não teve release por falha no contrato de
+  distribuição; a publicação usa este patch com novo commit e tag.
+
 ## 0.13.0 — TLS com senha e ACL, experimental
 
 - P97/B10: modo `tls-password` opt-in com certificado do servidor e CONNECT

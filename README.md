@@ -1,5 +1,9 @@
 # XMQR
 
+O marco experimental 0.13.1 acrescenta o modo `tls-password` (P97/B10) e
+corrige o default da imagem Docker (P99). A tag de código 0.13.0 foi
+substituída antes da distribuição; consulte o changelog.
+
 O marco experimental 0.12.0 acrescenta até três endpoints mTLS adicionais
 configurados por `broker.additional_binds` no TOML v1. Eles compartilham a
 mesma política, roteador, estado e limite global de conexões; alterações exigem
