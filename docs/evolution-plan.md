@@ -100,6 +100,7 @@ Não significa conformidade MQTT integral ou produção.
 - [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.
 - [x] ~~Fase 5/A04: contrato do canal administrativo local decidido em ADR 0001 (P105).~~
 - [x] ~~Fase 5/B14: decisão de não gerar tópicos $SYS; monitor HTTP existente preservado (P106).~~
+- [ ] Fase 5/A09: P107 oferece apenas status local autenticado; mutações, recibos e auditoria duráveis ainda faltam.
 - [x] ~~Client: --ignore-retained/--retained-only na saída; count filtrado e ACKs QoS1/2 preservados (C41).~~
 - [x] ~~Fase 5/client C03: exclusão local de tópicos com count após filtros e ACKs preservados (C52).~~
 - [x] ~~Fase 5/client C04: repetição finita de publicação com intervalo monotônico e sem replay incerto (C53).~~

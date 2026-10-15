@@ -353,7 +353,7 @@ mod hex_bytes {
         }
         let mut output = Vec::with_capacity(bytes.len() / 2);
         let (pairs, remainder) = bytes.as_chunks::<2>();
-        debug_assert_eq!(remainder, []);
+        debug_assert_eq!(remainder, &[] as &[u8]);
         for pair in pairs {
             let high = nibble(pair[0]).ok_or_else(|| D::Error::custom("invalid payload hex"))?;
             let low = nibble(pair[1]).ok_or_else(|| D::Error::custom("invalid payload hex"))?;

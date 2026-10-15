@@ -23,6 +23,9 @@ const KEYS: &[&str] = &[
     "MQTT_ACL_FILE",
     "MQTT_MONITOR_ENABLED",
     "MQTT_MONITOR_BIND",
+    "MQTT_ADMIN_SOCKET",
+    "MQTT_ADMIN_VIEW_TOKEN_FILE",
+    "MQTT_ADMIN_OPERATOR_TOKEN_FILE",
     "MQTT_MAX_CONNECTIONS",
     "MQTT_MAX_SESSIONS",
     "MQTT_MAX_RETAINED",
@@ -131,6 +134,12 @@ impl Configuration {
             ("MQTT_SECURITY_BUNDLE", document.security.bundle),
             ("MQTT_USERS_FILE", document.security.users_file),
             ("MQTT_ACL_FILE", document.security.acl_file),
+            ("MQTT_ADMIN_SOCKET", document.admin.socket),
+            ("MQTT_ADMIN_VIEW_TOKEN_FILE", document.admin.view_token_file),
+            (
+                "MQTT_ADMIN_OPERATOR_TOKEN_FILE",
+                document.admin.operator_token_file,
+            ),
         ] {
             if let Some(path) = value {
                 if path.as_os_str().is_empty() {
@@ -344,6 +353,13 @@ struct Monitor {
     enabled: Option<bool>,
     bind: Option<String>,
 }
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Admin {
+    socket: Option<PathBuf>,
+    view_token_file: Option<PathBuf>,
+    operator_token_file: Option<PathBuf>,
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Document {
@@ -360,6 +376,8 @@ struct Document {
     endpoint_policies: Vec<EndpointPolicyEntry>,
     #[serde(default)]
     monitor: Monitor,
+    #[serde(default)]
+    admin: Admin,
 }
 fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)

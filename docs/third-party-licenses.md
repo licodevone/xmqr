@@ -48,6 +48,7 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | getrandom | 0.4.3 | `MIT OR Apache-2.0` |
 | hashbrown | 0.17.1 | `MIT OR Apache-2.0` |
 | indexmap | 2.14.2 | `Apache-2.0 OR MIT` |
+| itoa | 1.0.18 | `MIT OR Apache-2.0` |
 | jobserver | 0.1.35 | `MIT OR Apache-2.0` |
 | lazy_static | 1.5.0 | `MIT OR Apache-2.0` |
 | libc | 0.2.189 | `MIT OR Apache-2.0` |
@@ -87,6 +88,7 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | serde | 1.0.229 | `MIT OR Apache-2.0` |
 | serde_core | 1.0.229 | `MIT OR Apache-2.0` |
 | serde_derive | 1.0.229 | `MIT OR Apache-2.0` |
+| serde_json | 1.0.154 | `MIT OR Apache-2.0` |
 | serde_spanned | 1.1.1 | `MIT OR Apache-2.0` |
 | sha2 | 0.10.9 | `MIT OR Apache-2.0` |
 | sharded-slab | 0.1.7 | `MIT` |
@@ -144,3 +146,4 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | winnow | 1.0.4 | `MIT` |
 | x509-parser | 0.18.1 | `MIT OR Apache-2.0` |
 | zeroize | 1.9.0 | `Apache-2.0 OR MIT` |
+| zmij | 1.0.23 | `MIT` |

@@ -2637,7 +2637,7 @@ mod tests {
         else {
             panic!("deletion missing")
         };
-        assert_eq!(deleted.payload, []);
+        assert_eq!(deleted.payload, Vec::<u8>::new());
         assert!(!deleted.retain);
         let (_, retained) = router
             .subscribe(&subscriber, vec![(filter(&topic), Some(2))])

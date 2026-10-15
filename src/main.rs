@@ -6,6 +6,7 @@ use std::{
 };
 
 use mqtt_broker::{
+    admin_channel::{AdminChannel, Config as AdminChannelConfig},
     auth::{AccessPolicy, AuthPolicy, DynamicPolicy, watch_security},
     configuration::Configuration,
     monitoring::{Config as MonitorConfig, Metrics, Monitor},
@@ -43,6 +44,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let config = Configuration::load()?;
     let monitor_config = MonitorConfig::from_lookup(|name| config.var(name))?;
+    let admin_config = AdminChannelConfig::from_lookup(|name| config.var_os(name))?;
+    if admin_config.is_some() && config.var_os("MQTT_SECURITY_BUNDLE").is_none() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "admin channel requires security bundle",
+        )
+        .into());
+    }
     let metrics = Arc::new(Metrics::default());
     let mode = BrokerMode::from_config(&config)?;
     validate_security_environment(mode, &config)?;
@@ -109,7 +118,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         (bind_address, additional_binds),
         state_directory,
         (limits, state_limits),
-        monitor_config,
+        (monitor_config, admin_config),
         metrics,
     )
     .await
@@ -122,10 +131,11 @@ async fn serve(
     bind_addresses: (SocketAddr, Vec<SocketAddr>),
     state_directory: PathBuf,
     limits: (TransportLimits, mqtt::StateLimits),
-    monitor_config: MonitorConfig,
+    operational_configs: (MonitorConfig, Option<AdminChannelConfig>),
     metrics: Arc<Metrics>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (bind_address, additional_binds) = bind_addresses;
+    let (monitor_config, admin_config) = operational_configs;
     let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
     let (limits, state_limits) = limits;
     match mode {
@@ -168,6 +178,10 @@ async fn serve(
             )?;
             let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
             let _security = watch_security(&auth, router.clone())?;
+            let _admin = admin_config
+                .as_ref()
+                .map(|config| AdminChannel::start(config, auth.clone(), router.clone()))
+                .transpose()?;
             let transport = if mode == BrokerMode::SecureMtls {
                 SecureTransport::bind_observed(
                     bind_address,
@@ -286,6 +300,10 @@ async fn serve(
             ensure_state_profile(&state_directory, mode.profile_name())?;
             let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
             let _security = watch_security(&auth, router.clone())?;
+            let _admin = admin_config
+                .as_ref()
+                .map(|config| AdminChannel::start(config, auth.clone(), router.clone()))
+                .transpose()?;
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
                     .await?;
