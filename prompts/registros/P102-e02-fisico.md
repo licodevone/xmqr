@@ -7,12 +7,20 @@
   idênticos, SAN IP e validade de CA/servidor/board, cross-build Rust release,
   formato e imagem Docker do broker. App 993136 bytes dentro da partição 1MiB;
   flash esptool verificado. Broker isolado e CRL inicial passaram mTLS host.
-- A placa emitiu `E02_BOOT fixture=0.1.0`, depois
-  `E02_FAIL stage=WIFI_ASSOCIATION_TIMEOUT`. Nenhum SIGUSR1 físico foi executado.
-  A varredura Windows atual não mostra o SSID privado da campanha E01; a rede
-  usada pelo host também não é esse SSID. Recursos Docker foram limpos.
-- Resultado: **BLOCKED_WIFI_ASSOCIATION** para E02. Não marcar aceite físico,
-  nem fase 4 completa. Retomar o mesmo harness após a rede 2,4 GHz estar
-  visível, repetindo preflight/backup e a campanha; registrar então cada etapa
-  de certificado/CA/CRL e recuperação. Evidência pública sanitizada em
+- Primeira tentativa: `E02_FAIL stage=WIFI_ASSOCIATION_TIMEOUT`; o SSID privado
+  estava ausente. Após a rede 2,4 GHz voltar, a senha do arquivo Wi-Fi diferia
+  da configuração incorporada. `sync_wifi.py` criou backup privado, sincronizou
+  e o firmware E02 foi recompilado. Nenhum segredo foi copiado para o Git.
+- Segunda tentativa: handshake inicial mTLS PASS; o harness alcançou
+  `INVALID_KEY_ROLLBACK_READY`, mas lia somente stderr do Docker e não confirmou
+  o marcador de rotação emitido em stdout. P102 rev13 corrigiu a leitura dos
+  dois fluxos, com contadores anteriores/posteriores, antes da repetição.
+- Terceira tentativa: **PASS_PHYSICAL_CAMPAIGN**. A placa emitiu os 16 marcos em
+  ordem, incluindo baseline, seis pares READY/PASS, `E02_PHYSICAL_PASS` e
+  `E02_STOP`. Os seis SIGUSR1 cobriram chave inválida com rollback, novo
+  certificado, CA estranha rejeitada, recuperação da CA, CRL revogada e
+  recuperação da CRL. Docker container e volume de teste removidos e ausência
+  confirmada ao final. Evidência pública sanitizada em
   [JSON](../../docs/results/p102-e02-2026-10-15.json).
+- Aceite físico limitado à campanha finita; não implica teste de energia,
+  duração longa, revogação de sessões ativas nem prontidão para produção.

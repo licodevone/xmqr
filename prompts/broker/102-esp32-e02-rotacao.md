@@ -96,3 +96,12 @@ Isso preserva o escopo da campanha em Windows.
 Salvar futuras execuções sob prefixo `e02-result` para distingui-las dos
 relatórios E01 anteriores no mesmo diretório privado. Conteúdo sanitizado e
 regra de criação exclusiva permanecem iguais.
+
+## rev13 — confirmação da rotação no Docker
+
+O ensaio físico alcançou o primeiro marco READY, mas o runner não confirmou o
+resultado do SIGUSR1. `docker logs` pode entregar a linha de tracing em stdout
+ou stderr. Contar os marcadores em ambos os fluxos, comparar os contadores
+anteriores e posteriores para exigir um novo resultado do tipo esperado e
+manter o prazo finito. Incluir ambos os fluxos apenas na classificação
+sanitizada do relatório privado, sem publicar logs brutos ou credenciais.

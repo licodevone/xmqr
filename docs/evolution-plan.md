@@ -93,9 +93,10 @@ Não significa conformidade MQTT integral ou produção.
 - [x] ~~P97/B10: modo TLS com senha e ACL sem certificado cliente, opt-in; QoS0/1/2 e negativos CA/SAN/senha/ACL.~~
 - [x] ~~P98/B12: decisão de campos recarregáveis e restart-only, transação sem publicação parcial.~~
 - [x] ~~P100/B11: rotação SIGUSR1 de certificado/chave/CA/CRL nos endpoints mTLS e TLS-senha, com validação, rollback e conexões ativas preservadas.~~
-- [ ] P102/E02: campanha física de rotação/revogação na ESP32 COM4; firmware gravado, mas associação Wi-Fi bloqueou antes do primeiro handshake. [Evidência](phase4-acceptance.md).
+- [x] ~~P102/E02: campanha física de rotação/revogação na ESP32 COM4, com certificado, CA, CRL, recusas e recuperação.~~ [Evidência](phase4-acceptance.md).
 - [x] ~~C47/C05 parcial: perfis TOML opt-in do client, precedência de flags e caminhos relativos; integração mTLS e negativos.~~
 - [x] ~~A05/U02 parcial: validação offline de bundle seguro no admin independente, sem escrita nem reload.~~
+- [x] ~~Fase 4 concluída no escopo finito B09/B10/B11/B12/C05/E02.~~ [Aceite](phase4-acceptance.md).
 - [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.
 - [x] ~~Client: --ignore-retained/--retained-only na saída; count filtrado e ACKs QoS1/2 preservados (C41).~~
 - [ ] Fase 5: exclusão de tópicos, outros formatos de saída, repetição com intervalo e demais opções prioritárias pub/sub.

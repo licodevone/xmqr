@@ -92,18 +92,21 @@ def rotate(name, accepted):
     before = subprocess.run(['docker', 'logs', name], capture_output=True, timeout=10)
     if before.returncode:
         raise ValueError('broker log unavailable')
-    previous = before.stderr.count(b'TLS rotation committed') + before.stderr.count(b'TLS rotation rejected')
+    committed = b'TLS rotation committed'
+    rejected = b'TLS rotation rejected'
+    previous_committed = before.stdout.count(committed) + before.stderr.count(committed)
+    previous_rejected = before.stdout.count(rejected) + before.stderr.count(rejected)
     docker('kill', '--signal=USR1', name)
     deadline = time.monotonic() + 6
     while time.monotonic() < deadline:
         output = subprocess.run(['docker', 'logs', name], capture_output=True, timeout=10)
         if output.returncode:
             raise ValueError('broker exited during rotation')
-        data = output.stderr
-        count = data.count(b'TLS rotation committed') + data.count(b'TLS rotation rejected')
-        if count > previous:
-            marker = b'TLS rotation committed' if accepted else b'TLS rotation rejected'
-            if marker not in data[len(before.stderr):]:
+        current_committed = output.stdout.count(committed) + output.stderr.count(committed)
+        current_rejected = output.stdout.count(rejected) + output.stderr.count(rejected)
+        if current_committed + current_rejected > previous_committed + previous_rejected:
+            if (accepted and current_committed <= previous_committed
+                    or not accepted and current_rejected <= previous_rejected):
                 raise ValueError('unexpected TLS generation result')
             return
         time.sleep(.1)
@@ -270,7 +273,7 @@ def exercise(args):
         if container_created:
             output = subprocess.run(['docker', 'logs', name], capture_output=True, timeout=10)
             if output.returncode == 0:
-                tail = output.stderr.lower().splitlines()[-3:]
+                tail = (output.stdout + b'\n' + output.stderr).lower().splitlines()[-3:]
                 joined = b' '.join(tail)
                 if tail:
                     report['broker_error_redacted'] = re.sub(

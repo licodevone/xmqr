@@ -3,8 +3,8 @@
 O marco experimental 0.14.0 acrescenta rotação TLS por SIGUSR1 (P100/B11) e
 usuários/ACL estáticos por endpoint mTLS (P101/B09), preservando um roteador,
 estado, limite e geração TLS comuns. Consulte [configuração](docs/architecture/configuration.md)
-e [transporte seguro](docs/security/secure-transport.md). A campanha ESP32 E02
-aguarda a rede Wi-Fi privada usada no ensaio anterior; a fase 4 segue aberta.
+e [transporte seguro](docs/security/secure-transport.md). A campanha física
+ESP32 E02 passou na COM4; veja o [aceite da fase 4](docs/phase4-acceptance.md).
 
 O marco 0.13.1 acrescentou o modo `tls-password` (P97/B10) e corrigiu o
 default da imagem Docker (P99). A tag de código 0.13.0 ficou sem distribuição.

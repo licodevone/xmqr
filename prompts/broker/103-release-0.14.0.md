@@ -23,3 +23,11 @@ E02 físico pendente por Wi-Fi externo. Não reescrever tags anteriores.
 C50/C05 passou unidades e integração real mTLS/TLS-senha após P103 ser criado.
 O client terá a release independente 0.12.0/C51; a fase 4 global continua
 aberta somente por E02 físico. Não misturar binários ou tags dos repositórios.
+
+## rev3 — E02 aceito antes da publicação
+
+Após restaurar a rede 2,4 GHz, sincronizar a senha privada e corrigir a leitura
+dos logs Docker no harness P102, a ESP32 concluiu as seis rotações e os marcos
+físicos. A release 0.14.0 passa a registrar o aceite da fase 4 no escopo finito
+da matriz, sem alegar prontidão de produção, energia ou campanha prolongada.
+Manter todos os gates de distribuição e proveniência do commit exato.

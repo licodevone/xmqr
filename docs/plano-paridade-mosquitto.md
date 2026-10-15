@@ -132,7 +132,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | D04 | Broker/admin: Windows nativo | Planejado | B06/A01/D01; abstrações de locks/fsync/rename/sinais, serviço Windows, ACL de arquivos e instalador homologado |
 | D05 | Client: Windows e instaladores | Parcial CLI portátil | C05/D01; credenciais/TTY/encoding/Ctrl+C, instalação e upgrade/reversão sem segredos |
 | E01 | ESP32 DevKit V1 como consumidor, campanha base | ACCEPTED P85: P83/P84 + Will/reconexão/retained restart/negativos/MosquittoQoS2/memória-probe PASS | Checklist esp32-phase2-checklist.md; escopo curto, não heap total/energia/pcapTLS/produção; não dependeB11 |
-| E02 | ESP32: campanha de rotação e revogação | Planejado teste físico | E01/B11 na fase 4; mudança de CA/certificado/CRL, erro e recuperação observados na placa |
+| E02 | ESP32: campanha de rotação e revogação | P102 PASS físico na COM4: seis rotações, certificado/CA/CRL, recusa e recuperação | Escopo finito; sem prova de energia, longa duração ou produção; [aceite](phase4-acceptance.md) |
 
 Cluster/alta disponibilidade distribuída, dashboard web, app móvel e broker
 ESP32 Lite são trilhas separadas, não requisitos para equivaler funcionalmente

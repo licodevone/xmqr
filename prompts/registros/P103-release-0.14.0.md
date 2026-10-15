@@ -9,7 +9,7 @@
   Binários release broker0.14.0/client0.12.0 integrados por P96/P97/P100/P101:
   mTLS, TLS-senha, CA/CRL/cert/key, rollback, ACL, QoS0/1/2, retained e C50.
 - Firmware E02: cross-build ESP release, fmt, Clippy e inventário PASS; flash
-  físico verificado, mas Wi-Fi não associou. [P102](P102-e02-fisico.md) registra
-  bloqueio sem marcar fase4 global concluída.
+  físico verificado e seis rotações TLS concluídas na COM4. [P102](P102-e02-fisico.md)
+  e [aceite](../../docs/phase4-acceptance.md) registram o escopo e os limites.
 - Publicação: pendente neste checkpoint; preencher commit/tag, .deb, imagens,
   checksums, assets e confirmação remota após o ciclo de distribuição.
