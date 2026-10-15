@@ -121,6 +121,7 @@ const OPEN_LAB_PRINCIPAL: &str = "__open_lab__";
 #[derive(Clone)]
 pub enum AccessPolicy {
     Secure(AuthPolicy),
+    TlsPassword(AuthPolicy),
     Dynamic(Arc<DynamicPolicy>),
     OpenLab,
     PasswordLab(AuthPolicy),
@@ -150,6 +151,11 @@ impl AccessPolicy {
     #[must_use]
     pub fn secure(policy: AuthPolicy) -> Self {
         Self::Secure(policy)
+    }
+
+    #[must_use]
+    pub fn tls_password(policy: AuthPolicy) -> Self {
+        Self::TlsPassword(policy)
     }
 
     #[must_use]
@@ -186,7 +192,7 @@ impl AccessPolicy {
                 (cert_der.is_none() && username.is_none() && password.is_none())
                     .then(|| OPEN_LAB_PRINCIPAL.to_owned()),
             ),
-            Self::PasswordLab(policy) | Self::AclLab(policy) => {
+            Self::PasswordLab(policy) | Self::AclLab(policy) | Self::TlsPassword(policy) => {
                 if cert_der.is_some() {
                     return Ok(None);
                 }
@@ -208,7 +214,9 @@ impl AccessPolicy {
             Self::PasswordLab(policy) => {
                 policy.contains_principal(principal) && valid_topic_name(topic)
             }
-            Self::Secure(policy) | Self::AclLab(policy) => policy.allowed_publish(principal, topic),
+            Self::Secure(policy) | Self::AclLab(policy) | Self::TlsPassword(policy) => {
+                policy.allowed_publish(principal, topic)
+            }
         }
     }
 
@@ -222,7 +230,7 @@ impl AccessPolicy {
             Self::PasswordLab(policy) => {
                 policy.contains_principal(principal) && valid_topic_filter(filter)
             }
-            Self::Secure(policy) | Self::AclLab(policy) => {
+            Self::Secure(policy) | Self::AclLab(policy) | Self::TlsPassword(policy) => {
                 policy.allowed_subscribe(principal, filter)
             }
         }
@@ -235,7 +243,7 @@ impl AccessPolicy {
             Self::Dynamic(policy) => policy
                 .snapshot()
                 .is_some_and(|p| p.allowed_delivery(principal, topic)),
-            Self::Secure(policy) | Self::AclLab(policy) => {
+            Self::Secure(policy) | Self::AclLab(policy) | Self::TlsPassword(policy) => {
                 policy.allowed_delivery(principal, topic)
             }
             Self::OpenLab => principal == OPEN_LAB_PRINCIPAL && valid_topic_name(topic),
@@ -252,7 +260,7 @@ impl AccessPolicy {
 
             Self::Secure(policy) => policy.contains_principal(principal),
             Self::OpenLab => principal == OPEN_LAB_PRINCIPAL,
-            Self::PasswordLab(policy) | Self::AclLab(policy) => {
+            Self::PasswordLab(policy) | Self::AclLab(policy) | Self::TlsPassword(policy) => {
                 policy.contains_principal(principal)
             }
         }
@@ -812,6 +820,28 @@ mod tests {
         assert!(
             acl_lab
                 .authenticate(None, Some("student"), Some(b"wrong-pass"))
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let tls_password =
+            AccessPolicy::tls_password(AuthPolicy::load_passwords_with_acl(&users, &acl).unwrap());
+        assert_eq!(
+            tls_password
+                .authenticate(None, Some("student"), Some(b"correct-pass"))
+                .await
+                .unwrap(),
+            Some("student".into())
+        );
+        assert!(tls_password.allowed_publish("student", "allowed/topic"));
+        assert!(!tls_password.allowed_publish("student", "denied/topic"));
+        assert!(
+            tls_password
+                .authenticate(
+                    Some(b"unexpected-cert"),
+                    Some("student"),
+                    Some(b"correct-pass")
+                )
                 .await
                 .unwrap()
                 .is_none()

@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 0.13.0 — TLS com senha e ACL, experimental
+
+- P97/B10: modo `tls-password` opt-in com certificado do servidor e CONNECT
+  autenticado por usuário/senha, ACL deny-by-default e estado separado.
+- Integração client C48: QoS0/1/2 e negativos de senha, CA, SAN e ACL.
+  Configuração recusa client CA/CRL; mTLS continua padrão.
+- B09 políticas por endpoint, B11 rotação e E02 físico ainda pendentes.
+
 ## 0.12.0 — endpoints mTLS compartilhados, experimental
 
 - P96: até três endpoints adicionais via TOML v1, com política, roteador,

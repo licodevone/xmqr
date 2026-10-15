@@ -89,9 +89,9 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | B07 | Broker: fuzzing de codec, estado e filtros | Aceito recorte P90/P95:18processos/seeds/corpus/mutações/watchdog PASS | Preservar corpus/limites/regressões; não LibFuzzer/ASAN/cobertura guiada |
 | B08 | Broker/client: matriz externa 3.1.1 | Aceito recorte P91:87interop/19wire/12TLS e6soak>=600s PASS | Manter negativos/falhas históricas; campanha finita não é matriz exaustiva/conformidade completa |
 | B09 | Broker: múltiplos listeners | Parcial P96: endpoints mTLS compartilham política/estado/limite; políticas por endpoint pendentes | B04/B08; políticas por endpoint, identidade isolada, sem duplicar roteadores/estado |
-| B10 | Broker/client: TLS com senha sem certificado cliente | Planejado, mTLS existente | B09; opt-in, CA/SAN obrigatório, senha/ACL e negativos, mTLS padrão inalterado |
+| B10 | Broker/client: TLS com senha sem certificado cliente | P97/C48 implementado e integrado, listener único opt-in | B09; CA/SAN obrigatório, senha/ACL e negativos, mTLS padrão inalterado |
 | B11 | Broker: rotação de certificado/CA/CRL | Parcial CRL/startup | B09/B10; contrato para conexões ativas, validação antes de swap, rollback e CA expirada |
-| B12 | Broker: reload geral da configuração | Decisão, bundle/SIGHUP existente | B09; classificar campos hot-reload/restart-only, transação sem estado parcial |
+| B12 | Broker: reload geral da configuração | Decisão P98/ADR-0006: TOML restart-only; bundle/SIGHUP existente; transação obrigatória para eventual reload geral | B09; classificar campos hot-reload/restart-only, transação sem estado parcial |
 | B13 | Broker: métricas operacionais e logs | Parcial monitor P43 | B03/B04; cardinalidade finita, sem payload/credenciais, probe do writer/ator |
 | B14 | Broker: tópicos $SYS | Decisão | B13/A04; namespace explícito, ACL própria, frequência limitada e custo medido |
 | A01 | Admin: CRUD local de usuários e fingerprint/hash | Existente, Unix; novo CLI xmqr-admin0.1.0 compatível e legado preservado | Manter arquivo privado, lock, symlink negativo, arquivo temporário e atualização atômica |

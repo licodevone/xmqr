@@ -12,7 +12,7 @@ use mqtt_broker::{
     mqtt::{self, Router},
     transport::{
         ConnectionDrain, MtlsFiles, OpenLabTransport, SecureTransport, TransportLimits,
-        load_mtls_server_config,
+        load_mtls_server_config, load_password_server_config,
     },
 };
 use tracing::{info, warn};
@@ -64,19 +64,22 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     if mode.is_plain_lab() {
         validate_open_lab_bind(bind_address)?;
-        mode.validate_environment(&config)?;
     }
+    mode.validate_environment(&config)?;
     let state_directory = required_path(&config, "MQTT_STATE_DIR")?;
     let required: &[&str] = match mode {
         BrokerMode::SecureMtls => &["MQTT_SERVER_CERT", "MQTT_SERVER_KEY", "MQTT_CLIENT_CA"],
+        BrokerMode::TlsPassword => &["MQTT_SERVER_CERT", "MQTT_SERVER_KEY"],
         BrokerMode::PasswordLab => &["MQTT_USERS_FILE"],
         BrokerMode::OpenLab | BrokerMode::AclLab => &[],
     };
     for name in required {
         required_path(&config, name)?;
     }
-    if matches!(mode, BrokerMode::SecureMtls | BrokerMode::AclLab)
-        && config.var_os("MQTT_SECURITY_BUNDLE").is_none()
+    if matches!(
+        mode,
+        BrokerMode::SecureMtls | BrokerMode::TlsPassword | BrokerMode::AclLab
+    ) && config.var_os("MQTT_SECURITY_BUNDLE").is_none()
     {
         required_path(&config, "MQTT_USERS_FILE")?;
         required_path(&config, "MQTT_ACL_FILE")?;
@@ -111,24 +114,41 @@ async fn serve(
     let (bind_address, additional_binds) = bind_addresses;
     let (limits, state_limits) = limits;
     match mode {
-        BrokerMode::SecureMtls => {
-            let tls_config = load_mtls_server_config(&MtlsFiles {
-                server_certificate_chain: required_path(config, "MQTT_SERVER_CERT")?,
-                server_private_key: required_path(config, "MQTT_SERVER_KEY")?,
-                client_ca_certificate: required_path(config, "MQTT_CLIENT_CA")?,
-                client_crl: config.var_os("MQTT_CLIENT_CRL").map(PathBuf::from),
-            })?;
-            let auth = load_policy(config, true).await?;
+        BrokerMode::SecureMtls | BrokerMode::TlsPassword => {
+            let tls_config = if mode == BrokerMode::SecureMtls {
+                load_mtls_server_config(&MtlsFiles {
+                    server_certificate_chain: required_path(config, "MQTT_SERVER_CERT")?,
+                    server_private_key: required_path(config, "MQTT_SERVER_KEY")?,
+                    client_ca_certificate: required_path(config, "MQTT_CLIENT_CA")?,
+                    client_crl: config.var_os("MQTT_CLIENT_CRL").map(PathBuf::from),
+                })?
+            } else {
+                load_password_server_config(
+                    &required_path(config, "MQTT_SERVER_CERT")?,
+                    &required_path(config, "MQTT_SERVER_KEY")?,
+                )?
+            };
+            let auth = load_policy(config, mode).await?;
             ensure_state_profile(&state_directory, mode.profile_name())?;
             let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
             let _security = watch_security(&auth, router.clone())?;
-            let transport = SecureTransport::bind_observed(
-                bind_address,
-                tls_config,
-                limits,
-                Some(metrics.clone()),
-            )
-            .await?;
+            let transport = if mode == BrokerMode::SecureMtls {
+                SecureTransport::bind_observed(
+                    bind_address,
+                    tls_config,
+                    limits,
+                    Some(metrics.clone()),
+                )
+                .await?
+            } else {
+                SecureTransport::bind_password_observed(
+                    bind_address,
+                    tls_config,
+                    limits,
+                    Some(metrics.clone()),
+                )
+                .await?
+            };
             let mut transports = Vec::new();
             for address in additional_binds {
                 transports.push(transport.bind_additional(address).await?);
@@ -223,7 +243,7 @@ async fn serve(
             .await?;
         }
         BrokerMode::AclLab => {
-            let auth = load_policy(config, false).await?;
+            let auth = load_policy(config, mode).await?;
             ensure_state_profile(&state_directory, mode.profile_name())?;
             let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
             let _security = watch_security(&auth, router.clone())?;
@@ -316,10 +336,13 @@ fn validate_security_environment(
     config: &Configuration,
 ) -> Result<(), io::Error> {
     if config.var_os("MQTT_SECURITY_BUNDLE").is_some() {
-        if !matches!(mode, BrokerMode::SecureMtls | BrokerMode::AclLab) {
+        if !matches!(
+            mode,
+            BrokerMode::SecureMtls | BrokerMode::TlsPassword | BrokerMode::AclLab
+        ) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "security bundle requires secure-mtls or acl-lab",
+                "security bundle requires secure-mtls, tls-password or acl-lab",
             ));
         }
         reject_variables(
@@ -333,8 +356,9 @@ fn validate_security_environment(
 
 async fn load_policy(
     config: &Configuration,
-    secure: bool,
+    mode: BrokerMode,
 ) -> Result<Arc<AccessPolicy>, mqtt_broker::transport::HandlerError> {
+    let secure = mode == BrokerMode::SecureMtls;
     if let Some(path) = config.var_os("MQTT_SECURITY_BUNDLE") {
         return DynamicPolicy::load(PathBuf::from(path), secure)
             .await
@@ -347,10 +371,15 @@ async fn load_policy(
             &required_path(config, "MQTT_ACL_FILE")?,
         )?)
     } else {
-        AccessPolicy::acl_lab(AuthPolicy::load_passwords_with_acl(
+        let password_policy = AuthPolicy::load_passwords_with_acl(
             &required_path(config, "MQTT_USERS_FILE")?,
             &required_path(config, "MQTT_ACL_FILE")?,
-        )?)
+        )?;
+        if mode == BrokerMode::TlsPassword {
+            AccessPolicy::tls_password(password_policy)
+        } else {
+            AccessPolicy::acl_lab(password_policy)
+        }
     };
     Ok(Arc::new(policy))
 }
@@ -369,6 +398,7 @@ async fn start_router(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum BrokerMode {
     SecureMtls,
+    TlsPassword,
     OpenLab,
     PasswordLab,
     AclLab,
@@ -381,7 +411,7 @@ impl BrokerMode {
             Err(env::VarError::NotPresent) => Self::parse(None),
             Err(env::VarError::NotUnicode(_)) => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "MQTT_MODE must be secure-mtls, open-lab, password-lab or acl-lab",
+                "MQTT_MODE must be secure-mtls, tls-password, open-lab, password-lab or acl-lab",
             )),
         }
     }
@@ -391,17 +421,18 @@ impl BrokerMode {
             Some("open-lab") => Ok(Self::OpenLab),
             Some("password-lab") => Ok(Self::PasswordLab),
             Some("acl-lab") => Ok(Self::AclLab),
+            Some("tls-password") => Ok(Self::TlsPassword),
             Some("secure-mtls") | None => Ok(Self::SecureMtls),
             Some(_) => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "MQTT_MODE must be secure-mtls, open-lab, password-lab or acl-lab",
+                "MQTT_MODE must be secure-mtls, tls-password, open-lab, password-lab or acl-lab",
             )),
         }
     }
 
     const fn default_bind(self) -> &'static str {
         match self {
-            Self::SecureMtls => "192.168.0.100:8883",
+            Self::SecureMtls | Self::TlsPassword => "192.168.0.100:8883",
             Self::OpenLab | Self::PasswordLab | Self::AclLab => "127.0.0.1:1883",
         }
     }
@@ -409,6 +440,7 @@ impl BrokerMode {
     const fn profile_name(self) -> &'static str {
         match self {
             Self::SecureMtls => "secure-mtls",
+            Self::TlsPassword => "tls-password",
             Self::OpenLab => "open-lab",
             Self::PasswordLab => "password-lab",
             Self::AclLab => "acl-lab",
@@ -416,7 +448,7 @@ impl BrokerMode {
     }
 
     const fn is_plain_lab(self) -> bool {
-        !matches!(self, Self::SecureMtls)
+        matches!(self, Self::OpenLab | Self::PasswordLab | Self::AclLab)
     }
 
     fn validate_environment(self, config: &Configuration) -> Result<(), io::Error> {
@@ -426,12 +458,19 @@ impl BrokerMode {
             "MQTT_CLIENT_CA",
             "MQTT_CLIENT_CRL",
         ];
-        reject_variables(
-            config,
-            &TLS_VARIABLES,
-            "plain laboratory mode rejects TLS variables",
-        )?;
+        if self.is_plain_lab() {
+            reject_variables(
+                config,
+                &TLS_VARIABLES,
+                "plain laboratory mode rejects TLS variables",
+            )?;
+        }
         match self {
+            Self::TlsPassword => reject_variables(
+                config,
+                &["MQTT_CLIENT_CA", "MQTT_CLIENT_CRL"],
+                "tls-password rejects client CA and CRL",
+            ),
             Self::OpenLab => reject_variables(
                 config,
                 &["MQTT_USERS_FILE", "MQTT_ACL_FILE"],
@@ -574,6 +613,10 @@ mod tests {
     fn secure_mode_is_default_and_unknown_values_fail_closed() {
         assert_eq!(BrokerMode::parse(None).unwrap(), BrokerMode::SecureMtls);
         assert_eq!(
+            BrokerMode::parse(Some("tls-password")).unwrap(),
+            BrokerMode::TlsPassword
+        );
+        assert_eq!(
             BrokerMode::parse(Some("open-lab")).unwrap(),
             BrokerMode::OpenLab
         );
@@ -586,6 +629,16 @@ mod tests {
             BrokerMode::AclLab
         );
         assert!(BrokerMode::parse(Some("open")).is_err());
+    }
+
+    #[test]
+    fn tls_password_separates_state() {
+        let mode = BrokerMode::TlsPassword;
+        assert!(!mode.is_plain_lab());
+        assert_eq!(mode.profile_name(), "tls-password");
+        let directory = tempfile::tempdir().unwrap();
+        ensure_state_profile(directory.path(), mode.profile_name()).unwrap();
+        assert!(ensure_state_profile(directory.path(), "secure-mtls").is_err());
     }
 
     #[test]

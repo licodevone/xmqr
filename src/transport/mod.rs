@@ -100,7 +100,7 @@ impl BrokerConnection {
     }
 
     /// Certificate chain verified against the configured local client CA.
-    /// Empty only for a loopback-restricted open-lab connection.
+    /// Empty for TLS-password and the loopback-only laboratory modes.
     #[must_use]
     pub fn peer_certificates(&self) -> &[CertificateDer<'static>] {
         &self.peer_certificates
@@ -246,6 +246,7 @@ pub type HandlerError = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub struct SecureTransport {
     listener: TcpListener,
     tls_acceptor: TlsAcceptor,
+    require_client_certificate: bool,
     connection_slots: Arc<Semaphore>,
     connection_capacity: u32,
     next_connection_id: Arc<AtomicU64>,
@@ -332,11 +333,27 @@ impl SecureTransport {
         Ok(Self {
             listener,
             tls_acceptor: TlsAcceptor::from(tls_config),
+            require_client_certificate: true,
             connection_slots: Arc::new(Semaphore::new(limits.max_concurrent_connections)),
             connection_capacity,
             next_connection_id: Arc::new(AtomicU64::new(1)),
             metrics,
         })
+    }
+
+    /// Bind a TLS endpoint that authenticates MQTT credentials without a client certificate.
+    /// This is opt-in and must be paired with a deny-by-default password/ACL policy.
+    /// # Errors
+    /// Returns the same admission-limit and socket errors as `bind_observed`.
+    pub async fn bind_password_observed(
+        address: SocketAddr,
+        tls_config: Arc<ServerConfig>,
+        limits: TransportLimits,
+        metrics: Option<Arc<Metrics>>,
+    ) -> io::Result<Self> {
+        let mut transport = Self::bind_observed(address, tls_config, limits, metrics).await?;
+        transport.require_client_certificate = false;
+        Ok(transport)
     }
 
     /// Bind another mTLS endpoint sharing this transport's admission pool and IDs.
@@ -346,6 +363,7 @@ impl SecureTransport {
         Ok(Self {
             listener: TcpListener::bind(address).await?,
             tls_acceptor: self.tls_acceptor.clone(),
+            require_client_certificate: self.require_client_certificate,
             connection_slots: self.connection_slots.clone(),
             connection_capacity: self.connection_capacity,
             next_connection_id: self.next_connection_id.clone(),
@@ -405,6 +423,7 @@ impl SecureTransport {
                 continue;
             }
             let tls_acceptor = self.tls_acceptor.clone();
+            let require_client_certificate = self.require_client_certificate;
             let client_handler = handler.clone();
             let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
             let metrics = self.metrics.clone();
@@ -414,9 +433,14 @@ impl SecureTransport {
             drop(tokio::spawn(async move {
                 let _permit = permit;
                 let client = async {
-                    let connection =
-                        establish_secure_connection(connection_id, peer_addr, socket, tls_acceptor)
-                            .await?;
+                    let connection = establish_secure_connection(
+                        connection_id,
+                        peer_addr,
+                        socket,
+                        tls_acceptor,
+                        require_client_certificate,
+                    )
+                    .await?;
 
                     client_handler(connection)
                         .await
@@ -568,6 +592,7 @@ async fn establish_secure_connection(
     peer_addr: SocketAddr,
     socket: TcpStream,
     tls_acceptor: TlsAcceptor,
+    require_client_certificate: bool,
 ) -> Result<BrokerConnection, ClientError> {
     // Protect the TLS handshake itself from a pre-MQTT Slowloris client.
     let mut stream = timeout(INITIAL_IO_TIMEOUT, tls_acceptor.accept(socket))
@@ -580,9 +605,10 @@ async fn establish_secure_connection(
             .get_ref()
             .1
             .peer_certificates()
-            .filter(|certificates| !certificates.is_empty())
-            .ok_or(ClientError::MissingPeerCertificate)?
-            .to_vec();
+            .map_or_else(Vec::new, ToOwned::to_owned);
+        if require_client_certificate && peer_certificates.is_empty() {
+            return Err(ClientError::MissingPeerCertificate);
+        }
 
         // Cap decrypted MQTT bytes, not the potentially larger TLS handshake.
         let mut initial_buffer = [0_u8; MAX_INITIAL_MQTT_BYTES];
@@ -607,7 +633,7 @@ async fn establish_secure_connection(
         }
     };
 
-    info!(id, %peer_addr, "mutually authenticated MQTT transport established");
+    info!(id, %peer_addr, "TLS MQTT transport established");
     Ok(BrokerConnection {
         id,
         peer_addr,
@@ -683,6 +709,25 @@ pub fn load_mtls_server_config(files: &MtlsFiles) -> Result<Arc<ServerConfig>, T
         .with_single_cert(server_certificates, server_key)
         .map_err(|source| TlsConfigError::ServerConfig(source.to_string()))?;
 
+    Ok(Arc::new(config))
+}
+
+/// Build TLS with server identity only. MQTT username/password and ACL remain mandatory.
+/// # Errors
+/// Rejects missing, malformed or mismatched certificate and private key files.
+pub fn load_password_server_config(
+    certificate_chain: &Path,
+    private_key: &Path,
+) -> Result<Arc<ServerConfig>, TlsConfigError> {
+    let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
+    let certificates = load_certificates(certificate_chain, "server certificate")?;
+    let key = load_private_key(private_key)?;
+    let config = ServerConfig::builder_with_provider(provider)
+        .with_protocol_versions(&[&TLS13, &TLS12])
+        .map_err(|source| TlsConfigError::ServerConfig(source.to_string()))?
+        .with_no_client_auth()
+        .with_single_cert(certificates, key)
+        .map_err(|source| TlsConfigError::ServerConfig(source.to_string()))?;
     Ok(Arc::new(config))
 }
 

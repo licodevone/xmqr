@@ -70,8 +70,19 @@ monitoramento, IDs e `max_connections`; falha de qualquer bind impede o início.
 Porta zero, duplicata, wildcard adicional e sobreposição com primário wildcard
 são recusados. Os modos de laboratório não aceitam endpoints adicionais.
 Cada alteração de endereço exige restart; remova `additional_binds` para voltar
-ao listener único. Políticas distintas por endpoint, TLS com senha sem
-certificado de cliente e rotação de CA/certificado seguem planejados.
+ao listener único. Políticas distintas por endpoint e rotação de
+CA/certificado seguem planejadas.
+
+P97 acrescenta o modo opt-in `tls-password` no listener único. Configure
+`[broker] mode = "tls-password"`, `state_dir` próprio, `[tls] server_cert` e
+`server_key` e, em `[security]`, `users_file` com hashes Argon2id e `acl_file`
+com permissões explícitas, ou o bundle privado. `client_ca` e `client_crl`
+são recusados nesse modo; o servidor não solicita certificado de cliente.
+Senha/usuário são obrigatórios em CONNECT, protegidos por TLS, e a ACL segue
+deny-by-default. O client usa `--tls-password --ca CA.crt --username USUARIO`
+e senha interativa ou `--password-file` privado. SAN e validade do servidor
+continuam verificados. O diretório de estado `tls-password` não pode ser
+reutilizado por `secure-mtls` ou laboratório; não há migração de WAL.
 
 Etapa posterior: limites tipados propagados a transporte, ator, codec e store;
 preservar defaults 64 conexões/sessões, 32 inflight, 64 offline, 256 assinaturas,

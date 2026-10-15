@@ -7,6 +7,10 @@ restart. Veja [configuração](docs/architecture/configuration.md) e o
 [registro P96](prompts/registros/P96-endpoints-mtls.md). Políticas separadas
 por endpoint e rotação de certificados seguem no plano da fase 4.
 
+P97 acrescenta `tls-password` para conexões TLS com usuário/senha e ACL, sem
+certificado de cliente. É um modo explícito de listener único com estado próprio;
+o mTLS permanece padrão. Veja [configuração](docs/architecture/configuration.md).
+
 Marco experimental0.11.6 de robustez: [P89](prompts/broker/89-fechamento-fase3.md),
 [fuzz limitado](docs/fuzzing.md), [campanha de recuperação](docs/phase3-campaign.md)
 e [CONNACK normativo P93](prompts/broker/93-contrato-connect.md).

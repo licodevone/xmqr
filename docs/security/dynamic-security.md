@@ -1,7 +1,7 @@
 # Segurança dinâmica do broker (P44, 0.8.0 local)
 
 Recurso opcional para Linux/WSL, ativado por `MQTT_SECURITY_BUNDLE` com o caminho
-absoluto de um bundle TOML privado. Aceita `secure-mtls` e `acl-lab`; este último
+absoluto de um bundle TOML privado. Aceita `secure-mtls`, `tls-password` e `acl-lab`; este último
 continua restrito a loopback. Sem a variável, os perfis e arquivos legados mantêm
 o comportamento anterior. O bundle rejeita `MQTT_USERS_FILE` e `MQTT_ACL_FILE`.
 Windows compila os perfis legados, mas rejeita o bundle dinâmico. Outros sistemas
@@ -42,7 +42,7 @@ O exemplo é um esquema, não uma configuração executável. Obtenha o hash pel
 entrada interativa de `mqtt-admin hash-password` e o fingerprint por
 `mqtt-admin fingerprint`, conforme [autenticação](auth-acl.md). Nunca coloque
 senha como argumento nem use a credencial pública das fixtures em uma instalação.
-Em acl-lab, `cert_sha256` pode ser omitido. Em secure-mtls, certificado, senha e
+Em `acl-lab` e `tls-password`, `cert_sha256` pode ser omitido. Em secure-mtls, certificado, senha e
 vínculo de fingerprint continuam obrigatórios; o reload não troca CA/CRL/TLS.
 
 Concessões diretas, papéis e grupos formam uma união. `publish` exige tópicos
