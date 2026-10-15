@@ -65,6 +65,17 @@ pub(super) enum Delivery {
 type SubscribeResult = Result<(Vec<u8>, Vec<Delivery>), RouterError>;
 type AdminReceiptSummary = (String, u64, u64, u32, u64);
 
+pub(crate) struct AdminPage {
+    pub items: Vec<serde_json::Value>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum AdminListKind {
+    Sessions,
+    Retained,
+}
+
 pub(super) struct Session {
     pub client_id: String,
     pub generation: u64,
@@ -94,6 +105,12 @@ struct Actor {
 }
 
 enum Command {
+    AdminList {
+        kind: AdminListKind,
+        cursor: Option<String>,
+        limit: usize,
+        reply: oneshot::Sender<AdminPage>,
+    },
     AdminReceiptLookup {
         request_id: String,
         reply: oneshot::Sender<Option<AdminReceiptSummary>>,
@@ -228,6 +245,24 @@ impl Drop for ConnectionGuard {
 }
 
 impl Router {
+    pub(crate) async fn admin_list(
+        &self,
+        kind: AdminListKind,
+        cursor: Option<String>,
+        limit: usize,
+    ) -> Result<AdminPage, AdminError> {
+        let (reply, result) = oneshot::channel();
+        self.sender
+            .try_send(Command::AdminList {
+                kind,
+                cursor,
+                limit,
+                reply,
+            })
+            .map_err(|_| AdminError::Unavailable)?;
+        result.await.map_err(|_| AdminError::Unavailable)
+    }
+
     pub(crate) async fn admin_receipt(
         &self,
         request_id: String,
@@ -698,6 +733,15 @@ impl Actor {
     )]
     async fn handle(&mut self, command: Command) {
         match command {
+            Command::AdminList {
+                kind,
+                cursor,
+                limit,
+                reply,
+            } => {
+                let page = self.admin_list_page(kind, cursor.as_deref(), limit);
+                let _ = reply.send(page);
+            }
             Command::AdminReceiptLookup { request_id, reply } => {
                 let receipt = self
                     .state
@@ -829,6 +873,53 @@ impl Actor {
                 self.record_result(&result);
                 let _ = reply.send(result);
             }
+        }
+    }
+
+    fn admin_list_page(
+        &self,
+        kind: AdminListKind,
+        cursor: Option<&str>,
+        limit: usize,
+    ) -> AdminPage {
+        let mut entries: Vec<(String, serde_json::Value)> = match kind {
+            AdminListKind::Sessions => self
+                .state
+                .sessions
+                .iter()
+                .filter(|(id, _)| cursor.is_none_or(|after| id.as_str() > after))
+                .take(limit + 1)
+                .map(|(id, session)| {
+                    (
+                        id.clone(),
+                        serde_json::json!({"client_id":id,"connected":self.live.contains_key(id),
+                            "persistent":session.persistent,"subscriptions":session.subscriptions.len(),
+                            "offline":session.offline.len(),"inbound_qos2":session.inbound_qos2.len(),
+                            "outbound":session.outbound.len()}),
+                    )
+                })
+                .collect(),
+            AdminListKind::Retained => self
+                .state
+                .retained
+                .iter()
+                .filter(|(topic, _)| cursor.is_none_or(|after| topic.as_str() > after))
+                .take(limit + 1)
+                .map(|(topic, message)| {
+                    (
+                        topic.as_str().to_owned(),
+                        serde_json::json!({"topic":topic.as_str(),"qos":message.qos,
+                            "payload_bytes":message.payload.len()}),
+                    )
+                })
+                .collect(),
+        };
+        let has_more = entries.len() > limit;
+        entries.truncate(limit);
+        let next_cursor = has_more.then(|| entries.last().expect("positive page limit").0.clone());
+        AdminPage {
+            items: entries.into_iter().map(|(_, item)| item).collect(),
+            next_cursor,
         }
     }
 
@@ -1472,6 +1563,39 @@ fn allocate_packet_id(session: &mut DurableSession) -> Result<u16, RouterError> 
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn admin_inventory_is_paginated_and_never_returns_payloads() {
+        let (_directory, mut actor) = actor().await;
+        actor
+            .state
+            .sessions
+            .insert("a".into(), DurableSession::new("owner".into(), true));
+        actor
+            .state
+            .sessions
+            .insert("b".into(), DurableSession::new("owner".into(), true));
+        actor.state.retained.insert(
+            TopicName::try_from("private/a".to_owned()).unwrap(),
+            message("private/a", 1, true, b"secret-payload"),
+        );
+        actor.state.retained.insert(
+            TopicName::try_from("private/b".to_owned()).unwrap(),
+            message("private/b", 1, true, b"secret-payload"),
+        );
+        let first = actor.admin_list_page(AdminListKind::Sessions, None, 1);
+        assert_eq!(first.items.len(), 1);
+        assert_eq!(first.next_cursor.as_deref(), Some("a"));
+        let second =
+            actor.admin_list_page(AdminListKind::Sessions, first.next_cursor.as_deref(), 1);
+        assert_eq!(second.items[0]["client_id"], "b");
+        assert!(second.next_cursor.is_none());
+        let retained = actor.admin_list_page(AdminListKind::Retained, None, 1);
+        assert_eq!(retained.next_cursor.as_deref(), Some("private/a"));
+        assert_eq!(retained.items[0]["payload_bytes"], 14);
+        assert!(!retained.items[0].to_string().contains("secret-payload"));
+        actor.store.shutdown().await.unwrap();
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn storage_failure_closes_all_live_sessions_and_preserves_offline_candidate() {

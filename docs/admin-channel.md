@@ -56,6 +56,15 @@ da consulta ainda é resultado desconhecido. A geração de segurança em memór
 reinicia após restart; a geração aplicada no recibo é histórica. O ID garante
 deduplicação do reload já confirmado mesmo após restart.
 
+O operator também pode consultar `sessions_list` (até 16 por página) e
+`retained_list` (até 8 por página), com `limit` opcional e `cursor` lexical
+opcional. Respostas têm `items` e `next_cursor`; `null` encerra a listagem.
+Sessões trazem client ID, status conectado/persistente e contagens de
+assinaturas, filas e QoS2; retained traz tópico, QoS e tamanho do payload,
+**sem bytes de payload**. Viewer recebe `forbidden`. As páginas não são um
+snapshot estável durante publicações/conexões concorrentes. Ainda não há
+exclusão administrativa de retained nem desconexão administrativa.
+
 O documento durável MQTT passa a **v3** no primeiro commit com este binário:
 leituras de v1/v2 continuam aceitas, mas o broker 0.14.0 não abre v3. Para
 rollback, fazer backup offline do estado anterior à primeira escrita v3 e
@@ -64,7 +73,8 @@ isso perde alterações posteriores ao backup. Não converter ou apagar o WAL
 ativo para forçar downgrade. SIGHUP legado continua disponível, sem recibo
 administrativo.
 
-A09 permanece parcial: ainda faltam integração da CLI independente, operações
-de sessão/retained, consulta/retenção de auditoria ampliada e testes de falha
+A09 permanece parcial: a CLI independente integra status/reload/receipt e
+inventários paginados, mas ainda faltam ações de sessão/retained,
+consulta/retenção de auditoria ampliada e testes de falha
 de armazenamento/concorrência. O [ADR 0001](adr/0001-admin-channel.md)
 define o contrato alvo.

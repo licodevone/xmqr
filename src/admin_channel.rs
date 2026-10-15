@@ -61,7 +61,7 @@ mod linux {
     use super::{Config, invalid};
     use crate::{
         auth::AccessPolicy,
-        mqtt::{AdminError, Router},
+        mqtt::{AdminError, AdminListKind, Router},
     };
     use serde::Deserialize;
     use serde_json::json;
@@ -101,6 +101,10 @@ mod linux {
         bundle_sha256: Option<String>,
         #[serde(default)]
         target_request_id: Option<String>,
+        #[serde(default)]
+        cursor: Option<String>,
+        #[serde(default)]
+        limit: Option<u8>,
     }
 
     struct Credentials {
@@ -267,6 +271,8 @@ mod linux {
             expected_generation,
             bundle_sha256,
             target_request_id,
+            cursor,
+            limit,
         } = request;
         let token = Zeroizing::new(token);
         if version != 1 || id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -279,7 +285,9 @@ mod linux {
             "status"
                 if expected_generation.is_none()
                     && bundle_sha256.is_none()
-                    && target_request_id.is_none() =>
+                    && target_request_id.is_none()
+                    && cursor.is_none()
+                    && limit.is_none() =>
             {
                 let ready = router.probe().await;
                 reply(
@@ -289,7 +297,12 @@ mod linux {
                 )
                 .await
             }
-            "receipt" if expected_generation.is_none() && bundle_sha256.is_none() => {
+            "receipt"
+                if expected_generation.is_none()
+                    && bundle_sha256.is_none()
+                    && cursor.is_none()
+                    && limit.is_none() =>
+            {
                 let Some(target) = target_request_id else {
                     return error(&mut stream, &id, "invalid_request").await;
                 };
@@ -311,7 +324,42 @@ mod linux {
                     Err(_) => error(&mut stream, &id, "unavailable").await,
                 }
             }
-            "reload" if role == "operator" && target_request_id.is_none() => {
+            "sessions_list" | "retained_list"
+                if role == "operator"
+                    && expected_generation.is_none()
+                    && bundle_sha256.is_none()
+                    && target_request_id.is_none() =>
+            {
+                let (kind, max) = if operation == "sessions_list" {
+                    (AdminListKind::Sessions, 16)
+                } else {
+                    (AdminListKind::Retained, 8)
+                };
+                let size = limit.unwrap_or(max);
+                if size == 0
+                    || size > max
+                    || cursor.as_ref().is_some_and(|value| value.len() > 1024)
+                {
+                    return error(&mut stream, &id, "invalid_request").await;
+                }
+                match router.admin_list(kind, cursor, usize::from(size)).await {
+                    Ok(page) => {
+                        reply(
+                            &mut stream,
+                            json!({"ok":true,"request_id":id,"items":page.items,
+                            "next_cursor":page.next_cursor}),
+                        )
+                        .await
+                    }
+                    Err(_) => error(&mut stream, &id, "unavailable").await,
+                }
+            }
+            "reload"
+                if role == "operator"
+                    && target_request_id.is_none()
+                    && cursor.is_none()
+                    && limit.is_none() =>
+            {
                 let (Some(expected), Some(digest)) = (expected_generation, bundle_sha256) else {
                     return error(&mut stream, &id, "invalid_request").await;
                 };
@@ -360,7 +408,9 @@ mod linux {
                     Err(reason) => error(&mut stream, &id, admin_code(&reason)).await,
                 }
             }
-            "reload" => error(&mut stream, &id, "forbidden").await,
+            "sessions_list" | "retained_list" | "reload" => {
+                error(&mut stream, &id, "forbidden").await
+            }
             "status" | "receipt" => error(&mut stream, &id, "invalid_request").await,
             _ => error(&mut stream, &id, "unsupported_operation").await,
         }
@@ -489,6 +539,18 @@ mod linux {
             assert_eq!(viewer["security_generation"], 1);
             let operator = ask(&config.socket, &"b".repeat(64), "status").await;
             assert_eq!(operator["role"], "operator");
+            assert_eq!(
+                ask(&config.socket, &"a".repeat(64), "sessions_list").await["error"],
+                "forbidden"
+            );
+            let inventory = ask(&config.socket, &"b".repeat(64), "sessions_list").await;
+            assert_eq!(inventory["items"].as_array().unwrap().len(), 0);
+            let oversized = json!({"version":1,"request_id":"0123456789abcdef0123456789abcdef",
+                "operation":"retained_list","token":"b".repeat(64),"limit":9});
+            assert_eq!(
+                ask_json(&config.socket, oversized).await["error"],
+                "invalid_request"
+            );
             assert_eq!(
                 ask(&config.socket, &"c".repeat(64), "status").await["error"],
                 "unauthorized"

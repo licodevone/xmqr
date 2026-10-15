@@ -101,7 +101,8 @@ Não significa conformidade MQTT integral ou produção.
 - [x] ~~Fase 5/A04: contrato do canal administrativo local decidido em ADR 0001 (P105).~~
 - [x] ~~Fase 5/B14: decisão de não gerar tópicos $SYS; monitor HTTP existente preservado (P106).~~
 - [x] ~~Fase 5/A09 parcial: P107 entrega status e primeiro reload local autenticado, com hash/CAS e recibo auditável no mesmo commit durável; teste de processo e restart.~~
-- [ ] Fase 5/A09: integrar CLI independente, sessões/retained, falhas de armazenamento/concorrência e completar aceite do canal.
+- [x] ~~Fase 5/A09 parcial: CLI independente aplica bundle e consulta recibos; P108 lista sessões/retained com paginação e sem payload.~~
+- [ ] Fase 5/A09: ações auditadas de sessões/retained, falhas de armazenamento/concorrência e aceite do canal.
 - [x] ~~Client: --ignore-retained/--retained-only na saída; count filtrado e ACKs QoS1/2 preservados (C41).~~
 - [x] ~~Fase 5/client C03: exclusão local de tópicos com count após filtros e ACKs preservados (C52).~~
 - [x] ~~Fase 5/client C04: repetição finita de publicação com intervalo monotônico e sem replay incerto (C53).~~
