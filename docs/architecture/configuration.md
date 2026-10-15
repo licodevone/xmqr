@@ -22,6 +22,7 @@ version = 1
 [broker]
 mode = "secure-mtls"
 bind = "0.0.0.0:8883"
+# additional_binds = ["127.0.0.1:8884"] # P96, apenas secure-mtls
 state_dir = "/var/lib/xmqr"
 
 [tls]
@@ -60,9 +61,17 @@ A vaga é liberada quando a tarefa da conexão termina. Alteração exige restar
 Reduzir esse valor não remove sessões persistentes. Quotas de sessões, filas,
 inflight, pacote e payload continuam fixas; sua configuração será outra fatia.
 
-Primeira implementação: apenas campos existentes, configuração imutável por
-processo, restart para mudanças e rollback removendo MQTT_CONFIG. SIGHUP
-continua reservado ao bundle de segurança. Não ativar listener adicional.
+Configuração imutável por processo; mudanças de bind exigem restart. SIGHUP
+continua reservado ao bundle de segurança.
+
+P96 permite até três `additional_binds` TCP mTLS, com endereço e porta explícitos.
+O primário e os adicionais compartilham TLS, política, roteador, estado,
+monitoramento, IDs e `max_connections`; falha de qualquer bind impede o início.
+Porta zero, duplicata, wildcard adicional e sobreposição com primário wildcard
+são recusados. Os modos de laboratório não aceitam endpoints adicionais.
+Cada alteração de endereço exige restart; remova `additional_binds` para voltar
+ao listener único. Políticas distintas por endpoint, TLS com senha sem
+certificado de cliente e rotação de CA/certificado seguem planejados.
 
 Etapa posterior: limites tipados propagados a transporte, ator, codec e store;
 preservar defaults 64 conexões/sessões, 32 inflight, 64 offline, 256 assinaturas,

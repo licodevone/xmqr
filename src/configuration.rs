@@ -35,6 +35,7 @@ const KEYS: &[&str] = &[
 #[derive(Default)]
 pub struct Configuration {
     values: BTreeMap<String, OsString>,
+    additional_binds: Vec<String>,
 }
 
 impl Configuration {
@@ -136,7 +137,42 @@ impl Configuration {
                     .insert(name.to_owned(), resolved.into_os_string());
             }
         }
+        result.additional_binds = document.broker.additional_binds;
+        if result.additional_binds.len() > 3 {
+            return Err(invalid("at most three additional binds are supported"));
+        }
         Ok(result)
+    }
+
+    /// Resolve additional mTLS endpoints sharing the primary endpoint's policy.
+    /// # Errors
+    /// Rejects invalid, duplicate, wildcard or ephemeral additional endpoints.
+    pub fn additional_binds(
+        &self,
+        primary: std::net::SocketAddr,
+    ) -> io::Result<Vec<std::net::SocketAddr>> {
+        let mut addresses = vec![primary];
+        for value in &self.additional_binds {
+            let address: std::net::SocketAddr = value
+                .parse()
+                .map_err(|_| invalid("invalid additional bind"))?;
+            if address.port() == 0
+                || address.ip().is_unspecified()
+                || addresses.contains(&address)
+                || (address.port() == primary.port() && primary.ip().is_unspecified())
+            {
+                return Err(invalid(
+                    "additional bind duplicates or overlaps another endpoint",
+                ));
+            }
+            addresses.push(address);
+        }
+        if addresses.len() > 1 && primary.port() == 0 {
+            return Err(invalid(
+                "primary bind must have an explicit port with additional binds",
+            ));
+        }
+        Ok(addresses.into_iter().skip(1).collect())
     }
 
     /// Read a textual value with the same missing/non-Unicode semantics as env.
@@ -215,6 +251,8 @@ struct Broker {
     mode: Option<String>,
     bind: Option<String>,
     state_dir: Option<PathBuf>,
+    #[serde(default)]
+    additional_binds: Vec<String>,
 }
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -258,6 +296,44 @@ fn invalid(message: &'static str) -> io::Error {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn additional_endpoints_validate_without_changing_defaults() {
+        let primary = "127.0.0.1:8883".parse().unwrap();
+        assert_eq!(
+            Configuration::default().additional_binds(primary).unwrap(),
+            Vec::<std::net::SocketAddr>::new()
+        );
+        let config = Configuration::parse(
+            "version=1\n[broker]\nadditional_binds=['127.0.0.1:8884']",
+            Path::new("."),
+        )
+        .unwrap();
+        assert_eq!(
+            config.additional_binds(primary).unwrap(),
+            vec!["127.0.0.1:8884".parse::<std::net::SocketAddr>().unwrap()]
+        );
+        for extra in ["127.0.0.1:8883", "127.0.0.1:0", "0.0.0.0:8884", "invalid"] {
+            let text = format!("version=1\n[broker]\nadditional_binds=['{extra}']");
+            assert!(
+                Configuration::parse(&text, Path::new("."))
+                    .unwrap()
+                    .additional_binds(primary)
+                    .is_err()
+            );
+        }
+        for entries in [
+            "'127.0.0.1:8884','127.0.0.1:8884'",
+            "'127.0.0.1:1','127.0.0.1:2','127.0.0.1:3','127.0.0.1:4'",
+        ] {
+            let text = format!("version=1\n[broker]\nadditional_binds=[{entries}]");
+            assert!(
+                Configuration::parse(&text, Path::new("."))
+                    .and_then(|config| config.additional_binds(primary))
+                    .is_err()
+            );
+        }
+    }
+
     #[test]
     fn state_quota_defaults_precedence_and_invalid_values() {
         assert_eq!(
@@ -318,6 +394,7 @@ mod tests {
         ] {
             let config = Configuration {
                 values: BTreeMap::from([(name.to_owned(), OsString::from_vec(vec![255]))]),
+                ..Configuration::default()
             };
             assert!(config.state_limits().is_err());
         }

@@ -339,6 +339,20 @@ impl SecureTransport {
         })
     }
 
+    /// Bind another mTLS endpoint sharing this transport's admission pool and IDs.
+    /// # Errors
+    /// Returns the socket bind error without starting any accept task.
+    pub async fn bind_additional(&self, address: SocketAddr) -> io::Result<Self> {
+        Ok(Self {
+            listener: TcpListener::bind(address).await?,
+            tls_acceptor: self.tls_acceptor.clone(),
+            connection_slots: self.connection_slots.clone(),
+            connection_capacity: self.connection_capacity,
+            next_connection_id: self.next_connection_id.clone(),
+            metrics: self.metrics.clone(),
+        })
+    }
+
     /// Obtain a drain observer without changing connection admission limits.
     #[must_use]
     pub fn drain_handle(&self) -> ConnectionDrain {

@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 0.12.0 — endpoints mTLS compartilhados, experimental
+
+- P96: até três endpoints adicionais via TOML v1, com política, roteador,
+  estado, limite de conexões e IDs compartilhados. Apenas secure-mtls; restart
+  para alterar binds. Políticas distintas por endpoint continuam pendentes.
+- Integração real com client de perfis: QoS0/1/2 cruzados, retained após
+  restart, N/N+1 agregado, bind ocupado e negativos de CA/credenciais.
+- MQTT3.1.1, formatos duráveis e limites existentes preservados.
+
 ## 0.11.6 — robustez da fase3, experimental
 
 - CONNECT com nível não suportado responde CONNACK0x01; identificador vazio

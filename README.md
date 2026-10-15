@@ -1,5 +1,12 @@
 # XMQR
 
+O marco experimental 0.12.0 acrescenta até três endpoints mTLS adicionais
+configurados por `broker.additional_binds` no TOML v1. Eles compartilham a
+mesma política, roteador, estado e limite global de conexões; alterações exigem
+restart. Veja [configuração](docs/architecture/configuration.md) e o
+[registro P96](prompts/registros/P96-endpoints-mtls.md). Políticas separadas
+por endpoint e rotação de certificados seguem no plano da fase 4.
+
 Marco experimental0.11.6 de robustez: [P89](prompts/broker/89-fechamento-fase3.md),
 [fuzz limitado](docs/fuzzing.md), [campanha de recuperação](docs/phase3-campaign.md)
 e [CONNACK normativo P93](prompts/broker/93-contrato-connect.md).

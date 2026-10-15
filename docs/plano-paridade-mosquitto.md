@@ -88,7 +88,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | B06 | Broker: erros de disco, ENOSPC, escrita curta e corrupção | Aceito recorte determinístico P86:54casos; patch0.11.5 | storage-faults.md; sem ACK/fan-out indevido, poison/reopen e WAL inválido preservado; não prova falhas físicas/energia |
 | B07 | Broker: fuzzing de codec, estado e filtros | Aceito recorte P90/P95:18processos/seeds/corpus/mutações/watchdog PASS | Preservar corpus/limites/regressões; não LibFuzzer/ASAN/cobertura guiada |
 | B08 | Broker/client: matriz externa 3.1.1 | Aceito recorte P91:87interop/19wire/12TLS e6soak>=600s PASS | Manter negativos/falhas históricas; campanha finita não é matriz exaustiva/conformidade completa |
-| B09 | Broker: múltiplos listeners | Planejado | B04/B08; políticas por endpoint, identidade isolada, sem duplicar roteadores/estado |
+| B09 | Broker: múltiplos listeners | Parcial P96: endpoints mTLS compartilham política/estado/limite; políticas por endpoint pendentes | B04/B08; políticas por endpoint, identidade isolada, sem duplicar roteadores/estado |
 | B10 | Broker/client: TLS com senha sem certificado cliente | Planejado, mTLS existente | B09; opt-in, CA/SAN obrigatório, senha/ACL e negativos, mTLS padrão inalterado |
 | B11 | Broker: rotação de certificado/CA/CRL | Parcial CRL/startup | B09/B10; contrato para conexões ativas, validação antes de swap, rollback e CA expirada |
 | B12 | Broker: reload geral da configuração | Decisão, bundle/SIGHUP existente | B09; classificar campos hot-reload/restart-only, transação sem estado parcial |

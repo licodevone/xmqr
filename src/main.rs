@@ -54,6 +54,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     }
     .parse()?;
+    let additional_binds = config.additional_binds(bind_address)?;
+    if mode != BrokerMode::SecureMtls && !additional_binds.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "additional binds require secure-mtls",
+        )
+        .into());
+    }
     if mode.is_plain_lab() {
         validate_open_lab_bind(bind_address)?;
         mode.validate_environment(&config)?;
@@ -81,7 +89,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     serve(
         &config,
         mode,
-        bind_address,
+        (bind_address, additional_binds),
         state_directory,
         (limits, state_limits),
         monitor_config,
@@ -94,12 +102,13 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 async fn serve(
     config: &Configuration,
     mode: BrokerMode,
-    bind_address: SocketAddr,
+    bind_addresses: (SocketAddr, Vec<SocketAddr>),
     state_directory: PathBuf,
     limits: (TransportLimits, mqtt::StateLimits),
     monitor_config: MonitorConfig,
     metrics: Arc<Metrics>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let (bind_address, additional_binds) = bind_addresses;
     let (limits, state_limits) = limits;
     match mode {
         BrokerMode::SecureMtls => {
@@ -120,17 +129,41 @@ async fn serve(
                 Some(metrics.clone()),
             )
             .await?;
+            let mut transports = Vec::new();
+            for address in additional_binds {
+                transports.push(transport.bind_additional(address).await?);
+            }
             metrics.set_listener_ready(true);
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             info!(%bind_address, "secure MQTT listener started");
             let shutdown_router = router.clone();
             let connections = transport.drain_handle();
+            transports.push(transport);
             run_until_shutdown(
-                transport.serve(move |connection| {
-                    let auth = Arc::clone(&auth);
-                    let router = Arc::clone(&router);
-                    async move { mqtt::serve_connection(connection, auth, router).await }
-                }),
+                async move {
+                    let mut listeners = Vec::new();
+                    for transport in transports {
+                        let auth = Arc::clone(&auth);
+                        let router = Arc::clone(&router);
+                        listeners.push(Box::pin(async move {
+                            transport.serve(move |connection| {
+                                let auth = Arc::clone(&auth);
+                                let router = Arc::clone(&router);
+                                async move { mqtt::serve_connection(connection, auth, router).await }
+                            }).await
+                        }));
+                    }
+                    // All accept futures are owned here: cancellation drops every
+                    // listener synchronously before the router shutdown barrier.
+                    std::future::poll_fn(move |context| {
+                        for listener in &mut listeners {
+                            if let std::task::Poll::Ready(result) = listener.as_mut().poll(context) {
+                                return std::task::Poll::Ready(result);
+                            }
+                        }
+                        std::task::Poll::Pending
+                    }).await
+                },
                 shutdown_router,
                 metrics.clone(),
                 connections,

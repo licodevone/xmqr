@@ -88,6 +88,9 @@ Não significa conformidade MQTT integral ou produção.
 - [x] ~~Admin independente0.1.0: CLI, painel local autenticado de leitura, prompts e release/deb/Docker próprio (P88).~~
 - [ ] Fase 4: múltiplos listeners, políticas por endpoint, TLS sem certificado cliente quando configurado e rotação de certificados.
 - [ ] Fase 4: perfis reutilizáveis do client e testes de rotação/erros de credenciais.
+- [x] ~~P96/B09 parcial: até três endpoints mTLS adicionais com roteador, estado e limite de conexões compartilhados; integração cruzada e restart.~~
+- [x] ~~C47/C05 parcial: perfis TOML opt-in do client, precedência de flags e caminhos relativos; integração mTLS e negativos.~~
+- [x] ~~A05/U02 parcial: validação offline de bundle seguro no admin independente, sem escrita nem reload.~~
 - [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.
 - [x] ~~Client: --ignore-retained/--retained-only na saída; count filtrado e ACKs QoS1/2 preservados (C41).~~
 - [ ] Fase 5: exclusão de tópicos, outros formatos de saída, repetição com intervalo e demais opções prioritárias pub/sub.
