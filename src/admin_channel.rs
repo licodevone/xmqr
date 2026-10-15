@@ -1,4 +1,4 @@
-//! Opt-in, local-only administrative transport. Initially exposes read-only status.
+//! Opt-in, local-only administrative transport with durable reload receipts.
 use std::{ffi::OsString, io, path::PathBuf};
 
 #[derive(Clone)]
@@ -59,7 +59,10 @@ fn invalid(message: &'static str) -> io::Error {
 #[cfg(target_os = "linux")]
 mod linux {
     use super::{Config, invalid};
-    use crate::{auth::AccessPolicy, mqtt::Router};
+    use crate::{
+        auth::AccessPolicy,
+        mqtt::{AdminError, Router},
+    };
     use serde::Deserialize;
     use serde_json::json;
     use std::{
@@ -92,6 +95,12 @@ mod linux {
         id: String,
         operation: String,
         token: String,
+        #[serde(default)]
+        expected_generation: Option<u64>,
+        #[serde(default)]
+        bundle_sha256: Option<String>,
+        #[serde(default)]
+        target_request_id: Option<String>,
     }
 
     struct Credentials {
@@ -212,6 +221,10 @@ mod linux {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "bounded parsing and authorization precede dispatch"
+    )]
     async fn handle(
         mut stream: UnixStream,
         credentials: &Credentials,
@@ -251,6 +264,9 @@ mod linux {
             id,
             operation,
             token,
+            expected_generation,
+            bundle_sha256,
+            target_request_id,
         } = request;
         let token = Zeroizing::new(token);
         if version != 1 || id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -259,20 +275,113 @@ mod linux {
         let Some(role) = credentials.role(&token) else {
             return reply(&mut stream, json!({"ok":false,"error":"unauthorized"})).await;
         };
-        if operation != "status" {
-            return reply(
-                &mut stream,
-                json!({"ok":false,"error":"unsupported_operation","request_id":id}),
-            )
-            .await;
+        match operation.as_str() {
+            "status"
+                if expected_generation.is_none()
+                    && bundle_sha256.is_none()
+                    && target_request_id.is_none() =>
+            {
+                let ready = router.probe().await;
+                reply(
+                    &mut stream,
+                    json!({"ok":true,"request_id":id,"role":role,
+                    "security_generation":auth.security_generation(),"ready":ready}),
+                )
+                .await
+            }
+            "receipt" if expected_generation.is_none() && bundle_sha256.is_none() => {
+                let Some(target) = target_request_id else {
+                    return error(&mut stream, &id, "invalid_request").await;
+                };
+                if !valid_id(&target) {
+                    return error(&mut stream, &id, "invalid_request").await;
+                }
+                match router.admin_receipt(target.clone()).await {
+                    Ok(Some((digest, expected, applied, uid, timestamp))) => {
+                        reply(
+                            &mut stream,
+                            json!({"ok":true,"request_id":id,"target_request_id":target,
+                            "bundle_sha256":digest,"expected_generation":expected,
+                            "applied_generation":applied,"actor_uid":uid,"outcome":"committed",
+                            "operation":"reload","timestamp_unix_ms":timestamp}),
+                        )
+                        .await
+                    }
+                    Ok(None) => error(&mut stream, &id, "not_found").await,
+                    Err(_) => error(&mut stream, &id, "unavailable").await,
+                }
+            }
+            "reload" if role == "operator" && target_request_id.is_none() => {
+                let (Some(expected), Some(digest)) = (expected_generation, bundle_sha256) else {
+                    return error(&mut stream, &id, "invalid_request").await;
+                };
+                if expected == 0
+                    || digest.len() != 64
+                    || !digest.bytes().all(|b| b.is_ascii_hexdigit())
+                {
+                    return error(&mut stream, &id, "invalid_request").await;
+                }
+                match router.admin_receipt(id.clone()).await {
+                    Ok(Some((stored, previous, applied, _, _))) => {
+                        if stored == digest && previous == expected {
+                            return reply(
+                                &mut stream,
+                                json!({"ok":true,"request_id":id,
+                                "applied_generation":applied,"replayed":true}),
+                            )
+                            .await;
+                        }
+                        return error(&mut stream, &id, "request_conflict").await;
+                    }
+                    Ok(None) => {}
+                    Err(_) => return error(&mut stream, &id, "unavailable").await,
+                }
+                let Some(dynamic) = auth.dynamic() else {
+                    return error(&mut stream, &id, "unavailable").await;
+                };
+                let Ok((candidate, actual)) = dynamic.candidate_with_hash().await else {
+                    return error(&mut stream, &id, "invalid_bundle").await;
+                };
+                if actual != digest {
+                    return error(&mut stream, &id, "bundle_changed").await;
+                }
+                match router
+                    .admin_reload(candidate, id.clone(), digest, expected, peer.uid())
+                    .await
+                {
+                    Ok(applied) => {
+                        reply(
+                            &mut stream,
+                            json!({"ok":true,"request_id":id,
+                        "applied_generation":applied,"replayed":false}),
+                        )
+                        .await
+                    }
+                    Err(reason) => error(&mut stream, &id, admin_code(&reason)).await,
+                }
+            }
+            "reload" => error(&mut stream, &id, "forbidden").await,
+            "status" | "receipt" => error(&mut stream, &id, "invalid_request").await,
+            _ => error(&mut stream, &id, "unsupported_operation").await,
         }
-        let ready = router.probe().await;
-        reply(
-            &mut stream,
-            json!({"ok":true,"request_id":id,"role":role,
-            "security_generation":auth.security_generation(),"ready":ready}),
-        )
-        .await
+    }
+
+    fn valid_id(id: &str) -> bool {
+        id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit())
+    }
+
+    fn admin_code(error: &AdminError) -> &'static str {
+        match error {
+            AdminError::Conflict => "request_conflict",
+            AdminError::Stale => "stale_generation",
+            AdminError::Capacity => "receipt_capacity",
+            AdminError::Unavailable => "unavailable",
+            AdminError::CommitFailed => "result_unknown",
+        }
+    }
+
+    async fn error(stream: &mut UnixStream, id: &str, code: &'static str) -> io::Result<()> {
+        reply(stream, json!({"ok":false,"request_id":id,"error":code})).await
     }
 
     async fn reply(stream: &mut UnixStream, value: serde_json::Value) -> io::Result<()> {
@@ -320,6 +429,7 @@ mod linux {
         use super::*;
         use crate::auth::DynamicPolicy;
         use argon2::password_hash::{PasswordHasher, SaltString};
+        use sha2::{Digest, Sha256};
 
         fn private_file(path: &Path, contents: &str) {
             fs::write(path, contents).unwrap();
@@ -327,9 +437,13 @@ mod linux {
         }
 
         async fn ask(socket: &Path, token: &str, operation: &str) -> serde_json::Value {
-            let mut stream = UnixStream::connect(socket).await.unwrap();
             let request = json!({"version":1,"request_id":"0123456789abcdef0123456789abcdef",
                 "operation":operation,"token":token});
+            ask_json(socket, request).await
+        }
+
+        async fn ask_json(socket: &Path, request: serde_json::Value) -> serde_json::Value {
+            let mut stream = UnixStream::connect(socket).await.unwrap();
             let mut bytes = serde_json::to_vec(&request).unwrap();
             bytes.push(b'\n');
             stream.write_all(&bytes).await.unwrap();
@@ -381,7 +495,7 @@ mod linux {
             );
             assert_eq!(
                 ask(&config.socket, &"b".repeat(64), "reload").await["error"],
-                "unsupported_operation"
+                "invalid_request"
             );
             let mut slow = UnixStream::connect(&config.socket).await.unwrap();
             slow.write_all(b"{").await.unwrap();
@@ -395,6 +509,85 @@ mod linux {
             );
             drop(channel);
             assert!(!config.socket.exists());
+            router.shutdown().await.unwrap();
+        }
+
+        #[tokio::test]
+        async fn reload_is_durable_deduplicated_and_queryable_after_restart() {
+            let root = tempfile::tempdir().unwrap();
+            fs::set_permissions(root.path(), fs::Permissions::from_mode(0o700)).unwrap();
+            let bundle = root.path().join("bundle.toml");
+            let salt = SaltString::encode_b64(b"sixteen-byte-salt").unwrap();
+            let hash = crate::auth::argon2_context()
+                .hash_password(b"fixture", &salt)
+                .unwrap();
+            let original = format!(
+                "version=1\n[[users]]\nusername='fixture'\npassword_hash='{hash}'\ncert_sha256='sha256:{}'\n",
+                "00".repeat(32)
+            );
+            private_file(&bundle, &original);
+            let digest = format!("{:x}", Sha256::digest(fs::read(&bundle).unwrap()));
+            fs::create_dir(root.path().join("state")).unwrap();
+            let auth = Arc::new(DynamicPolicy::load(bundle.clone(), true).await.unwrap());
+            let router = Arc::new(
+                Router::start(&root.path().join("state"), auth.clone())
+                    .await
+                    .unwrap(),
+            );
+            let config = Config {
+                socket: root.path().join("admin.sock"),
+                view_token_file: root.path().join("view.token"),
+                operator_token_file: root.path().join("operator.token"),
+            };
+            private_file(&config.view_token_file, &"a".repeat(64));
+            private_file(&config.operator_token_file, &"b".repeat(64));
+            let channel = AdminChannel::start(&config, auth, router.clone()).unwrap();
+            let id = "fedcba9876543210fedcba9876543210";
+            let request = json!({"version":1,"request_id":id,"operation":"reload",
+                "token":"b".repeat(64),"expected_generation":1,"bundle_sha256":digest});
+            let mut denied = request.clone();
+            denied["token"] = json!("a".repeat(64));
+            assert_eq!(ask_json(&config.socket, denied).await["error"], "forbidden");
+            let first = ask_json(&config.socket, request.clone()).await;
+            assert_eq!(first["applied_generation"], 2);
+            assert_eq!(first["replayed"], false);
+            assert_eq!(
+                ask_json(&config.socket, request.clone()).await["replayed"],
+                true
+            );
+            private_file(&bundle, "invalid bundle");
+            assert_eq!(
+                ask_json(&config.socket, request.clone()).await["replayed"],
+                true
+            );
+            let mut conflict = request.clone();
+            conflict["bundle_sha256"] = json!("0".repeat(64));
+            assert_eq!(
+                ask_json(&config.socket, conflict).await["error"],
+                "request_conflict"
+            );
+            let query = json!({"version":1,"request_id":"0123456789abcdef0123456789abcdef",
+                "operation":"receipt","token":"a".repeat(64),"target_request_id":id});
+            let audit = ask_json(&config.socket, query.clone()).await;
+            assert_eq!(audit["outcome"], "committed");
+            assert_eq!(audit["applied_generation"], 2);
+            assert!(audit["timestamp_unix_ms"].as_u64().unwrap() > 0);
+            drop(channel);
+            router.shutdown().await.unwrap();
+            private_file(&bundle, &original);
+            let auth = Arc::new(DynamicPolicy::load(bundle, true).await.unwrap());
+            let router = Arc::new(
+                Router::start(&root.path().join("state"), auth.clone())
+                    .await
+                    .unwrap(),
+            );
+            let channel = AdminChannel::start(&config, auth, router.clone()).unwrap();
+            assert_eq!(ask_json(&config.socket, request).await["replayed"], true);
+            assert_eq!(
+                ask_json(&config.socket, query).await["applied_generation"],
+                2
+            );
+            drop(channel);
             router.shutdown().await.unwrap();
         }
 

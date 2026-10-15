@@ -7,6 +7,7 @@ use super::{
 };
 use crate::mqtt::Router;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeSet, HashMap},
     io,
@@ -297,6 +298,10 @@ impl DynamicPolicy {
     }
     #[cfg(unix)]
     pub(crate) async fn candidate(&self) -> Result<AuthPolicy, AuthError> {
+        self.candidate_with_hash().await.map(|(policy, _)| policy)
+    }
+    #[cfg(unix)]
+    pub(crate) async fn candidate_with_hash(&self) -> Result<(AuthPolicy, String), AuthError> {
         let path = self.path.clone();
         let secure = self.secure;
         let slots = self.slots.clone();
@@ -307,7 +312,9 @@ impl DynamicPolicy {
             .dummy_hash
             .clone();
         tokio::task::spawn_blocking(move || {
-            compile(&read_private(&path)?, secure, slots, Some(dummy))
+            let text = read_private(&path)?;
+            let digest = format!("{:x}", Sha256::digest(text.as_bytes()));
+            Ok((compile(&text, secure, slots, Some(dummy))?, digest))
         })
         .await
         .map_err(|_| AuthError::Worker)?

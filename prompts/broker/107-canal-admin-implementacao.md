@@ -36,3 +36,25 @@ bundle vazio em diretório temporário privado e consultar o socket real.
 Negativos: token errado, mutação não implementada, request grande e política
 estática com canal configurado. Confirmar encerramento/remoção do socket e
 ausência dos tokens nos logs. Nada em instância instalada do operador.
+
+## rev4 — primeiro reload online com recibo no WAL
+
+Adicionar `reload` somente para token operator, com `expected_generation`,
+`bundle_sha256` e `request_id`. O socket consulta recibo existente antes de
+reler o arquivo; o ator revalida o ID sob concorrência. Inserir recibo/auditoria
+em documento durável no mesmo commit da reconciliação, antes da publicação da
+política. Limitar a tabela de recibos e recusar novos IDs ao esgotar a quota,
+em vez de esquecer IDs antigos e permitir replay. Bump de formato com leitura
+das versões anteriores e rollback documentado. Falhas de candidato/CAS/quota
+não alteram política; commit incerto falha fechado. Testar duplicata com
+mesmo ID/corpo, conflito com corpo diferente e restart.
+
+## rev5 — recibo auditável e contrato de recuperação
+
+Registrar no recibo instante UTC em milissegundos, UID, operação, resultado,
+hash do bundle e gerações antes/depois, sem segredos. Expor consulta por ID para
+viewer/operator. Erro de commit no canal significa resultado desconhecido até
+consulta do recibo, pois a falha pode ocorrer após `fsync`. Documentar leitura
+do estado v1/v2 e escrita v3, com backup anterior para rollback do binário
+0.14.0. Registrar A09 parcial até a CLI independente e operações de
+sessão/retained serem aceitas.

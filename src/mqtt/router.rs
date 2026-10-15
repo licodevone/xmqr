@@ -13,13 +13,27 @@ use std::sync::{Arc, atomic::Ordering};
 
 use super::StateLimits;
 use super::store::{
-    DurableSession, DurableState, InboundQos2, MqttStore, OutboundInflight, OutboundStage,
-    PendingWill, StateError, StoredMessage,
+    AdminReceipt, DurableSession, DurableState, InboundQos2, MAX_ADMIN_RECEIPTS, MqttStore,
+    OutboundInflight, OutboundStage, PendingWill, StateError, StoredMessage,
 };
 use super::topic::TopicFilter;
 
 const COMMAND_CAPACITY: usize = 256;
 const DELIVERY_CAPACITY: usize = 64;
+
+#[derive(Debug, Error)]
+pub(crate) enum AdminError {
+    #[error("administrative request ID conflicts with committed receipt")]
+    Conflict,
+    #[error("security generation changed")]
+    Stale,
+    #[error("administrative receipt capacity exhausted")]
+    Capacity,
+    #[error("administrative actor unavailable")]
+    Unavailable,
+    #[error("administrative commit failed")]
+    CommitFailed,
+}
 
 #[derive(Debug, Error)]
 pub(super) enum RouterError {
@@ -49,6 +63,7 @@ pub(super) enum Delivery {
 }
 
 type SubscribeResult = Result<(Vec<u8>, Vec<Delivery>), RouterError>;
+type AdminReceiptSummary = (String, u64, u64, u32, u64);
 
 pub(super) struct Session {
     pub client_id: String,
@@ -79,6 +94,18 @@ struct Actor {
 }
 
 enum Command {
+    AdminReceiptLookup {
+        request_id: String,
+        reply: oneshot::Sender<Option<AdminReceiptSummary>>,
+    },
+    AdminReload {
+        candidate: AuthPolicy,
+        request_id: String,
+        bundle_sha256: String,
+        expected_generation: u64,
+        actor_uid: u32,
+        reply: oneshot::Sender<Result<u64, AdminError>>,
+    },
     #[cfg(test)]
     Inject {
         fault: crate::persistence::faults::Fault,
@@ -201,6 +228,38 @@ impl Drop for ConnectionGuard {
 }
 
 impl Router {
+    pub(crate) async fn admin_receipt(
+        &self,
+        request_id: String,
+    ) -> Result<Option<AdminReceiptSummary>, AdminError> {
+        let (reply, result) = oneshot::channel();
+        self.sender
+            .try_send(Command::AdminReceiptLookup { request_id, reply })
+            .map_err(|_| AdminError::Unavailable)?;
+        result.await.map_err(|_| AdminError::Unavailable)
+    }
+
+    pub(crate) async fn admin_reload(
+        &self,
+        candidate: AuthPolicy,
+        request_id: String,
+        bundle_sha256: String,
+        expected_generation: u64,
+        actor_uid: u32,
+    ) -> Result<u64, AdminError> {
+        let (reply, result) = oneshot::channel();
+        self.sender
+            .try_send(Command::AdminReload {
+                candidate,
+                request_id,
+                bundle_sha256,
+                expected_generation,
+                actor_uid,
+                reply,
+            })
+            .map_err(|_| AdminError::Unavailable)?;
+        result.await.map_err(|_| AdminError::Unavailable)?
+    }
     /// Drain prior commands, preserve sessions, publish Wills and stop storage.
     /// # Errors
     /// Returns an error when the actor or durable storage cannot complete shutdown.
@@ -566,6 +625,14 @@ impl Actor {
     }
 
     async fn reload_security(&mut self, policy: AuthPolicy) -> Result<u64, RouterError> {
+        self.reload_security_with_receipt(policy, None).await
+    }
+
+    async fn reload_security_with_receipt(
+        &mut self,
+        policy: AuthPolicy,
+        receipt: Option<AdminReceipt>,
+    ) -> Result<u64, RouterError> {
         let dynamic = self.auth.dynamic().ok_or(RouterError::Security)?;
         if dynamic.generation() == u64::MAX {
             return Err(RouterError::Security);
@@ -598,6 +665,9 @@ impl Actor {
                 published += 1;
             }
         }
+        if let Some(receipt) = receipt {
+            candidate.admin_receipts.push(receipt);
+        }
         self.commit(candidate).await?;
         let Ok(generation) = dynamic.publish(policy) else {
             self.fail_closed();
@@ -622,8 +692,48 @@ impl Actor {
         self.update_metrics();
         ready
     }
+    #[expect(
+        clippy::too_many_lines,
+        reason = "all actor commands dispatch through one match"
+    )]
     async fn handle(&mut self, command: Command) {
         match command {
+            Command::AdminReceiptLookup { request_id, reply } => {
+                let receipt = self
+                    .state
+                    .admin_receipts
+                    .iter()
+                    .find(|r| r.request_id == request_id)
+                    .map(|r| {
+                        (
+                            r.bundle_sha256.clone(),
+                            r.expected_generation,
+                            r.applied_generation,
+                            r.actor_uid,
+                            r.timestamp_unix_ms,
+                        )
+                    });
+                let _ = reply.send(receipt);
+            }
+            Command::AdminReload {
+                candidate,
+                request_id,
+                bundle_sha256,
+                expected_generation,
+                actor_uid,
+                reply,
+            } => {
+                let result = self
+                    .admin_reload_candidate(
+                        candidate,
+                        request_id,
+                        bundle_sha256,
+                        expected_generation,
+                        actor_uid,
+                    )
+                    .await;
+                let _ = reply.send(result);
+            }
             Command::Shutdown { .. } => unreachable!("shutdown handled by actor loop"),
             #[cfg(test)]
             Command::Stop | Command::Inject { .. } => self.fail_closed(),
@@ -720,6 +830,55 @@ impl Actor {
                 let _ = reply.send(result);
             }
         }
+    }
+
+    async fn admin_reload_candidate(
+        &mut self,
+        policy: AuthPolicy,
+        request_id: String,
+        bundle_sha256: String,
+        expected_generation: u64,
+        actor_uid: u32,
+    ) -> Result<u64, AdminError> {
+        if let Some(receipt) = self
+            .state
+            .admin_receipts
+            .iter()
+            .find(|r| r.request_id == request_id)
+        {
+            return if receipt.bundle_sha256 == bundle_sha256
+                && receipt.expected_generation == expected_generation
+            {
+                Ok(receipt.applied_generation)
+            } else {
+                Err(AdminError::Conflict)
+            };
+        }
+        if self.auth.security_generation() != expected_generation || expected_generation == u64::MAX
+        {
+            return Err(AdminError::Stale);
+        }
+        if self.state.admin_receipts.len() >= MAX_ADMIN_RECEIPTS {
+            return Err(AdminError::Capacity);
+        }
+        let millis = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| AdminError::Unavailable)?
+            .as_millis();
+        let timestamp_unix_ms = u64::try_from(millis).map_err(|_| AdminError::Unavailable)?;
+        let receipt = AdminReceipt {
+            request_id,
+            operation: "reload".into(),
+            outcome: "committed".into(),
+            bundle_sha256,
+            expected_generation,
+            applied_generation: expected_generation + 1,
+            actor_uid,
+            timestamp_unix_ms,
+        };
+        self.reload_security_with_receipt(policy, Some(receipt))
+            .await
+            .map_err(|_| AdminError::CommitFailed)
     }
 
     fn record_result<T>(&self, result: &Result<T, RouterError>) {

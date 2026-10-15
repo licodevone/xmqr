@@ -20,7 +20,8 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 2;
+const FORMAT_VERSION: u16 = 3;
+pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
 pub(super) const MAX_CLIENT_ID_BYTES: usize = 256;
 const MAX_PRINCIPAL_BYTES: usize = 256;
@@ -50,6 +51,22 @@ pub(super) struct DurableState {
     // Wills belong to accepted connections, including clean sessions.
     #[serde(default)]
     pub pending_wills: BTreeMap<String, PendingWill>,
+    #[serde(default)]
+    pub admin_receipts: Vec<AdminReceipt>,
+}
+
+/// A bounded audit/idempotency receipt committed with an administrative change.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AdminReceipt {
+    pub request_id: String,
+    pub operation: String,
+    pub outcome: String,
+    pub bundle_sha256: String,
+    pub expected_generation: u64,
+    pub applied_generation: u64,
+    pub actor_uid: u32,
+    pub timestamp_unix_ms: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -164,7 +181,7 @@ impl MqttStore {
                 }
                 let text = std::str::from_utf8(&bytes).map_err(|_| StateError::Malformed)?;
                 let envelope: Envelope = toml::from_str(text).map_err(|_| StateError::Malformed)?;
-                if !matches!(envelope.version, 1 | FORMAT_VERSION) {
+                if !matches!(envelope.version, 1..=FORMAT_VERSION) {
                     return Err(StateError::UnsupportedVersion(envelope.version));
                 }
                 validate_with_limits(&envelope.state, limits)?;
@@ -237,6 +254,25 @@ pub(super) fn validate_with_limits(
     state: &DurableState,
     limits: StateLimits,
 ) -> Result<(), StateError> {
+    if state.admin_receipts.len() > MAX_ADMIN_RECEIPTS {
+        return Err(StateError::Limit("admin receipts"));
+    }
+    let mut admin_ids = HashSet::new();
+    for receipt in &state.admin_receipts {
+        if receipt.request_id.len() != 32
+            || !receipt.request_id.bytes().all(|b| b.is_ascii_hexdigit())
+            || receipt.operation != "reload"
+            || receipt.outcome != "committed"
+            || receipt.bundle_sha256.len() != 64
+            || !receipt.bundle_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+            || receipt.expected_generation == 0
+            || receipt.applied_generation == 0
+            || receipt.timestamp_unix_ms == 0
+            || !admin_ids.insert(&receipt.request_id)
+        {
+            return Err(StateError::Malformed);
+        }
+    }
     if state.sessions.len() > limits.max_sessions {
         return Err(StateError::Limit("sessions"));
     }
@@ -587,7 +623,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(3))
+            Err(StateError::UnsupportedVersion(4))
         ));
     }
 
@@ -647,27 +683,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_and_commits_v2_without_losing_retained() {
-        let directory = tempdir().unwrap();
-        let expected = state();
-        {
-            let mut writer = Store::open(directory.path()).unwrap();
-            let document = toml::to_string(&Envelope {
-                version: 1,
-                state: expected.clone(),
-            })
-            .unwrap()
-            .replace("[state.pending_wills]\n", "");
-            writer.put(KEY, document.as_bytes()).unwrap();
+    async fn reads_v1_v2_and_commits_v3_without_losing_retained() {
+        for version in [1, 2] {
+            let directory = tempdir().unwrap();
+            let expected = state();
+            {
+                let mut writer = Store::open(directory.path()).unwrap();
+                let mut document = toml::to_string(&Envelope {
+                    version,
+                    state: expected.clone(),
+                })
+                .unwrap()
+                .replace("admin_receipts = []\n", "");
+                if version == 1 {
+                    document = document.replace("[state.pending_wills]\n", "");
+                }
+                writer.put(KEY, document.as_bytes()).unwrap();
+            }
+            let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+            assert_eq!(recovered, expected);
+            store.commit(&recovered).await.unwrap();
+            store.shutdown().await.unwrap();
+            let writer = Store::open(directory.path()).unwrap();
+            let bytes = writer.get(KEY).unwrap();
+            let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
+            assert_eq!(envelope.version, 3);
+            assert_eq!(envelope.state, expected);
         }
-        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
-        assert_eq!(recovered, expected);
-        store.commit(&recovered).await.unwrap();
-        store.shutdown().await.unwrap();
-        let writer = Store::open(directory.path()).unwrap();
-        let bytes = writer.get(KEY).unwrap();
-        let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-        assert_eq!(envelope.version, 2);
-        assert_eq!(envelope.state, expected);
     }
 }

@@ -13,6 +13,7 @@ mod store;
 pub(crate) mod topic;
 
 pub use limits::StateLimits;
+pub(crate) use router::AdminError;
 pub use router::Router;
 
 /// Maximum UTF-8 byte length of a topic name or filter accepted by XMQR.

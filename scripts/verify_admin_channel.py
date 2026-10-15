@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 """P107 isolated Linux process check for the read-only Unix admin channel."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,12 +17,13 @@ def private(path, contents):
     path.chmod(0o600)
 
 
-def request(path, token, operation='status'):
+def request(path, token, operation='status', request_id='0123456789abcdef0123456789abcdef', **fields):
     with socket.socket(socket.AF_UNIX) as connection:
         connection.settimeout(3)
         connection.connect(str(path))
-        message = dict(version=1, request_id='0123456789abcdef0123456789abcdef',
+        message = dict(version=1, request_id=request_id,
                        operation=operation, token=token)
+        message.update(fields)
         connection.sendall(json.dumps(message).encode() + b'\n')
         answer = bytearray()
         while True:
@@ -71,7 +73,19 @@ def main():
             assert request(endpoint, 'a' * 64)['role'] == 'viewer'
             assert request(endpoint, 'b' * 64)['role'] == 'operator'
             assert request(endpoint, 'c' * 64)['error'] == 'unauthorized'
-            assert request(endpoint, 'b' * 64, 'reload')['error'] == 'unsupported_operation'
+            digest = hashlib.sha256(policy.read_bytes()).hexdigest()
+            mutation = dict(expected_generation=1, bundle_sha256=digest)
+            target = 'fedcba9876543210fedcba9876543210'
+            assert request(endpoint, 'a' * 64, 'reload', request_id=target, **mutation)['error'] == 'forbidden'
+            applied = request(endpoint, 'b' * 64, 'reload', request_id=target, **mutation)
+            assert applied['applied_generation'] == 2 and applied['replayed'] is False
+            assert request(endpoint, 'b' * 64, 'reload', request_id=target, **mutation)['replayed'] is True
+            receipt = request(endpoint, 'a' * 64, 'receipt', target_request_id=target)
+            assert receipt['outcome'] == 'committed' and receipt['actor_uid'] == os.getuid()
+            assert request(endpoint, 'b' * 64, 'reload', request_id=target,
+                           expected_generation=1, bundle_sha256='0' * 64)['error'] == 'request_conflict'
+            assert request(endpoint, 'b' * 64, 'reload', request_id='0' * 32,
+                           **mutation)['error'] == 'stale_generation'
             with socket.socket(socket.AF_UNIX) as connection:
                 connection.settimeout(3)
                 connection.connect(str(endpoint))
@@ -86,6 +100,20 @@ def main():
             assert not endpoint.exists()
             for secret in ('a' * 64, 'b' * 64, str(policy)):
                 assert secret.encode() not in output
+            restarted = subprocess.Popen([str(args.broker.resolve())], env=environment,
+                                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            try:
+                deadline = time.monotonic() + 8
+                while not endpoint.exists():
+                    if restarted.poll() is not None or time.monotonic() > deadline:
+                        raise AssertionError('broker restart failed')
+                    time.sleep(.02)
+                assert request(endpoint, 'b' * 64, 'reload', request_id=target, **mutation)['replayed'] is True
+                assert request(endpoint, 'a' * 64, 'receipt', target_request_id=target)['applied_generation'] == 2
+            finally:
+                restarted.terminate()
+                restarted.communicate(timeout=8)
+                assert not endpoint.exists()
             environment.pop('MQTT_SECURITY_BUNDLE')
             environment['MQTT_USERS_FILE'] = str(policy)
             environment['MQTT_ACL_FILE'] = str(policy)
@@ -93,7 +121,7 @@ def main():
                                      capture_output=True, timeout=5)
             assert refused.returncode != 0
             assert not endpoint.exists()
-            print('ADMIN_CHANNEL_READ_ONLY_PASS')
+            print('ADMIN_CHANNEL_RELOAD_PASS')
         finally:
             if broker.poll() is None:
                 broker.kill()
