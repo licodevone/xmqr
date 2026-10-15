@@ -109,6 +109,10 @@ mod linux {
         topic: Option<String>,
         #[serde(default)]
         client_id: Option<String>,
+        #[serde(default)]
+        archive_sha256: Option<String>,
+        #[serde(default)]
+        archive_count: Option<u16>,
     }
 
     struct Credentials {
@@ -279,6 +283,8 @@ mod linux {
             limit,
             topic,
             client_id,
+            archive_sha256,
+            archive_count,
         } = request;
         let token = Zeroizing::new(token);
         if version != 1 || id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -287,7 +293,45 @@ mod linux {
         let Some(role) = credentials.role(&token) else {
             return reply(&mut stream, json!({"ok":false,"error":"unauthorized"})).await;
         };
+        if operation != "audit_rotate" && (archive_sha256.is_some() || archive_count.is_some()) {
+            return error(&mut stream, &id, "invalid_request").await;
+        }
         match operation.as_str() {
+            "audit_rotate"
+                if role == "operator"
+                    && expected_generation.is_none()
+                    && bundle_sha256.is_none()
+                    && target_request_id.is_none()
+                    && cursor.is_none()
+                    && limit.is_none()
+                    && topic.is_none()
+                    && client_id.is_none() =>
+            {
+                let (Some(digest), Some(count)) = (archive_sha256, archive_count) else {
+                    return error(&mut stream, &id, "invalid_request").await;
+                };
+                if digest.len() != 64
+                    || !digest.bytes().all(|b| b.is_ascii_hexdigit())
+                    || count == 0
+                    || count > 128
+                {
+                    return error(&mut stream, &id, "invalid_request").await;
+                }
+                match router
+                    .admin_audit_rotate(id.clone(), digest, count, peer.uid())
+                    .await
+                {
+                    Ok((new_epoch, replayed)) => {
+                        reply(
+                            &mut stream,
+                            json!({"ok":true,"request_id":id,"admin_epoch":new_epoch,
+                            "replayed":replayed}),
+                        )
+                        .await
+                    }
+                    Err(reason) => error(&mut stream, &id, admin_code(&reason)).await,
+                }
+            }
             "status"
                 if expected_generation.is_none()
                     && bundle_sha256.is_none()
@@ -298,10 +342,15 @@ mod linux {
                     && client_id.is_none() =>
             {
                 let ready = router.probe().await;
+                let Ok((admin_epoch, receipt_count)) = router.admin_status().await else {
+                    return error(&mut stream, &id, "unavailable").await;
+                };
                 reply(
                     &mut stream,
                     json!({"ok":true,"request_id":id,"role":role,
-                    "security_generation":auth.security_generation(),"ready":ready}),
+                    "security_generation":auth.security_generation(),"ready":ready,
+                    "admin_epoch":admin_epoch,"receipt_count":receipt_count,
+                    "broker_version":env!("CARGO_PKG_VERSION")}),
                 )
                 .await
             }
@@ -328,7 +377,8 @@ mod linux {
                             "expected_generation":receipt.expected_generation,
                             "applied_generation":receipt.applied_generation,
                             "actor_uid":receipt.actor_uid,"outcome":"committed",
-                            "operation":receipt.operation,"timestamp_unix_ms":receipt.timestamp_unix_ms}),
+                            "operation":receipt.operation,"timestamp_unix_ms":receipt.timestamp_unix_ms,
+                            "epoch":receipt.epoch,"archive_count":receipt.archive_count}),
                         )
                         .await
                     }
@@ -508,8 +558,10 @@ mod linux {
                     Err(reason) => error(&mut stream, &id, admin_code(&reason)).await,
                 }
             }
-            "sessions_list" | "retained_list" | "audit_list" | "retained_delete"
-            | "session_disconnect" | "reload" => error(&mut stream, &id, "forbidden").await,
+            "sessions_list" | "retained_list" | "audit_list" | "audit_rotate"
+            | "retained_delete" | "session_disconnect" | "reload" => {
+                error(&mut stream, &id, "forbidden").await
+            }
             "status" | "receipt" => error(&mut stream, &id, "invalid_request").await,
             _ => error(&mut stream, &id, "unsupported_operation").await,
         }
@@ -527,6 +579,8 @@ mod linux {
             AdminError::Unavailable => "unavailable",
             AdminError::CommitFailed => "result_unknown",
             AdminError::NotFound => "not_found",
+            AdminError::StaleEpoch => "stale_epoch",
+            AdminError::ArchiveChanged => "archive_changed",
         }
     }
 

@@ -1,4 +1,4 @@
-# Canal administrativo local — P107 parcial
+# Canal administrativo local — fase 5
 
 Com `MQTT_SECURITY_BUNDLE` dinâmico no Linux/WSL, configure antes do startup:
 
@@ -10,13 +10,14 @@ MQTT_ADMIN_OPERATOR_TOKEN_FILE=/caminho/privado/operator.token
 
 Os diretórios finais precisam ser reais e modo 0700; os arquivos de token,
 regulares, sem symlink, modo 0600 e mesmo UID do diretório/socket, com 64 dígitos
-hexadecimais distintos. `xmqr-admin token-init --file NOVO_ARQUIVO` 0.3.0 gera
+hexadecimais distintos. `xmqr-admin token-init --file NOVO_ARQUIVO` 0.4.0 gera
 os arquivos. Não incluir tokens em repositório, URL, argumentos ou logs. O
 socket é 0600 e recusa caminho preexistente, configuração parcial ou política
 estática. O UID do peer precisa coincidir com o dono do socket.
 
 Cada conexão aceita uma linha JSON v1 de até 16 KiB, com prazo absoluto de 2 s
-e no máximo 16 handlers. `request_id` é um ID hexadecimal aleatório de 128 bits.
+e no máximo 16 handlers. `request_id` tem 128 bits hexadecimais; após rotação,
+os primeiros 32 codificam `admin_epoch` e os 96 restantes são aleatórios.
 Tokens `viewer` e `operator` podem consultar `status` e `receipt`; só `operator`
 pode executar `reload`.
 
@@ -24,8 +25,10 @@ pode executar `reload`.
 {"version":1,"request_id":"0123456789abcdef0123456789abcdef","operation":"status","token":"<64 hex>"}
 ```
 
-`status` retorna `security_generation` da política em memória e `ready` do
-probe real do ator/writer. `reload` exige `expected_generation` obtida de
+`status` retorna `security_generation` da política em memória, `admin_epoch`,
+`broker_version`,
+ocupação dos recibos e `ready` do probe real do ator/writer. `reload` exige
+`expected_generation` obtida de
 `status` e `bundle_sha256` do arquivo privado já editado e validado. O broker
 relê o bundle, confere o hash, valida a política e reconcilia sessões no ator.
 O recibo de sucesso é gravado no mesmo commit WAL da mudança antes da publicação
@@ -49,7 +52,7 @@ feita. Isto requer manutenção planejada antes de ampliar o uso operacional.
 ```
 
 `receipt` retorna ID alvo, hash da operação (`request_sha256`), UID, operação, resultado
-`committed`, timestamp UTC em milissegundos e gerações esperada/aplicada. Não
+`committed`, timestamp UTC em milissegundos, época e gerações esperada/aplicada. Não
 inclui token ou conteúdo do bundle. Em timeout, desconexão ou
 `result_unknown`, consultar o recibo antes de repetir; ausência de resposta
 da consulta ainda é resultado desconhecido. A geração de segurança em memória
@@ -79,22 +82,33 @@ sem mutação. Esta ação não exclui a sessão persistente.
 índice decimal da primeira entrada; `next_cursor` aponta à próxima página.
 Cada item contém instante, request_id, UID, operação, resultado, hash do alvo
 e gerações; não contém payload, token, senha ou tópico/client ID do alvo.
-O registro é append-only dentro do documento MQTT v4 e validado na reabertura
-do WAL. A tabela tem 128 entradas, não expira nem remove IDs automaticamente;
-ao encher, o broker recusa novas mutações para preservar idempotência. Uma
-política segura de arquivamento/rotação ainda está em definição.
+O registro é append-only na época corrente do documento MQTT v5 e validado na
+reabertura do WAL. A tabela tem 128 entradas; ao encher, o broker recusa novas
+mutações comuns, mas permite `audit_rotate` com exportação comprovada.
 
-O documento durável MQTT passa a **v4** no primeiro commit com este binário:
-leituras de v1/v2/v3 continuam aceitas, inclusive recibos P107 v3, mas o broker
-0.14.0 não abre v4 (nem v3). Para
+Para rotacionar, use `xmqr-admin channel audit-rotate --socket CAMINHO
+--token-file OPERADOR --archive NOVO_ARQUIVO`. A CLI lê todas as páginas,
+grava JSON privado 0600 com `fsync` de arquivo/diretório e envia hash SHA256
+e contagem. O ator confere os recibos **atuais**; se houve outra mutação,
+retorna `archive_changed` e não limpa nada. No commit, conserva um recibo de
+rotação, avança `admin_epoch` e só então permite novos IDs da época seguinte.
+O arquivo exportado pode ser conferido com `xmqr-admin audit-verify --file
+ARQUIVO`; compare o SHA256 impresso ao `request_sha256` do recibo de rotação.
+Um ID antigo não pode executar de novo após a rotação: IDs novos trazem a
+época nos oito primeiros hexadecimais; IDs legados da época zero ficam em
+índice durável de aposentados. O limite desse índice é 256, com recusa segura
+se atingido. Conserve o arquivo exportado e backup offline em local privado.
+
+O documento durável MQTT passa a **v5** no primeiro commit com este binário:
+leituras de v1/v2/v3/v4 continuam aceitas, inclusive recibos P107 v3, mas o
+broker 0.14.0 não abre v5 (nem v3/v4). Para
 rollback, fazer backup offline do estado anterior à primeira escrita v3 e
 restaurá-lo em diretório de estado novo com o procedimento de backup/restore;
 isso perde alterações posteriores ao backup. Não converter ou apagar o WAL
 ativo para forçar downgrade. SIGHUP legado continua disponível, sem recibo
 administrativo.
 
-A09 permanece parcial: a CLI independente integra status/reload/receipt,
-inventários paginados, auditoria consultável, exclusão retained e desconexão
-de sessão. Ainda faltam política de arquivamento/rotação e aceite de falhas
-em concorrência. O [ADR 0001](adr/0001-admin-channel.md)
-define o contrato alvo.
+O canal integra status/reload/receipt, inventários paginados, auditoria,
+rotação, exclusão retained e desconexão de sessão. O [ADR 0001](adr/0001-admin-channel.md)
+define o contrato. O aceite A09 vale para Linux/WSL local, com as limitações
+e os ensaios no [aceite da fase 5](phase5-acceptance.md).

@@ -1,5 +1,15 @@
 # Versionamento
 
+## P113 — fechamento experimental da fase 5
+
+Broker e `mqtt-admin` legado 0.15.0 acrescentam canal local autenticado,
+recibos duráveis, auditoria com rotação/épocas no documento MQTT v5, inventários,
+ações de sessão/retained e versão em status. Admin independente 0.4.0 fornece
+CLI e diagnóstico; client 0.13.0 já foi publicado. O broker lê v1–v4, mas
+0.14.0 não lê v5: rollback requer backup offline anterior e diretório novo.
+As tags são imutáveis e as releases permanecem experimentais. Consulte
+[aceite da fase 5](docs/phase5-acceptance.md) para gates e limites.
+
 ## P103 — fechamento experimental da fase 4
 
 Broker/legado admin0.14.0 inclui rotação TLS P100/B11 e política estática por

@@ -36,6 +36,10 @@ pub(crate) enum AdminError {
     CommitFailed,
     #[error("administrative target not found")]
     NotFound,
+    #[error("administrative request ID belongs to an old audit epoch")]
+    StaleEpoch,
+    #[error("audit archive does not match current receipts")]
+    ArchiveChanged,
 }
 
 #[derive(Debug, Error)]
@@ -74,6 +78,8 @@ pub(crate) struct AdminReceiptView {
     pub applied_generation: u64,
     pub actor_uid: u32,
     pub timestamp_unix_ms: u64,
+    pub epoch: u32,
+    pub archive_count: u16,
 }
 
 impl From<&AdminReceipt> for AdminReceiptView {
@@ -85,6 +91,8 @@ impl From<&AdminReceipt> for AdminReceiptView {
             applied_generation: receipt.applied_generation,
             actor_uid: receipt.actor_uid,
             timestamp_unix_ms: receipt.timestamp_unix_ms,
+            epoch: receipt.epoch,
+            archive_count: receipt.archive_count,
         }
     }
 }
@@ -129,6 +137,16 @@ struct Actor {
 }
 
 enum Command {
+    AdminAuditRotate {
+        request_id: String,
+        archive_sha256: String,
+        archive_count: u16,
+        actor_uid: u32,
+        reply: oneshot::Sender<Result<(u32, bool), AdminError>>,
+    },
+    AdminStatus {
+        reply: oneshot::Sender<(u32, usize)>,
+    },
     AdminAuditList {
         offset: usize,
         limit: usize,
@@ -286,6 +304,34 @@ impl Drop for ConnectionGuard {
 }
 
 impl Router {
+    pub(crate) async fn admin_audit_rotate(
+        &self,
+        request_id: String,
+        archive_sha256: String,
+        archive_count: u16,
+        actor_uid: u32,
+    ) -> Result<(u32, bool), AdminError> {
+        let (reply, result) = oneshot::channel();
+        self.sender
+            .try_send(Command::AdminAuditRotate {
+                request_id,
+                archive_sha256,
+                archive_count,
+                actor_uid,
+                reply,
+            })
+            .map_err(|_| AdminError::Unavailable)?;
+        result.await.map_err(|_| AdminError::Unavailable)?
+    }
+
+    pub(crate) async fn admin_status(&self) -> Result<(u32, usize), AdminError> {
+        let (reply, result) = oneshot::channel();
+        self.sender
+            .try_send(Command::AdminStatus { reply })
+            .map_err(|_| AdminError::Unavailable)?;
+        result.await.map_err(|_| AdminError::Unavailable)
+    }
+
     pub(crate) fn note_admin_replay(&self) {
         self.metrics
             .admin_mutations_replayed
@@ -832,6 +878,22 @@ impl Actor {
     )]
     async fn handle(&mut self, command: Command) {
         match command {
+            Command::AdminAuditRotate {
+                request_id,
+                archive_sha256,
+                archive_count,
+                actor_uid,
+                reply,
+            } => {
+                let result = self
+                    .admin_rotate_audit(request_id, archive_sha256, archive_count, actor_uid)
+                    .await;
+                self.count_admin_result(result.as_ref().map(|(_, replayed)| *replayed));
+                let _ = reply.send(result);
+            }
+            Command::AdminStatus { reply } => {
+                let _ = reply.send((self.state.admin_epoch, self.state.admin_receipts.len()));
+            }
             Command::AdminAuditList {
                 offset,
                 limit,
@@ -1014,6 +1076,7 @@ impl Actor {
                     "expected_generation":receipt.expected_generation,
                     "applied_generation":receipt.applied_generation,
                     "actor_uid":receipt.actor_uid,"timestamp_unix_ms":receipt.timestamp_unix_ms,
+                "epoch":receipt.epoch,"archive_count":receipt.archive_count,
                 })
             })
             .collect();
@@ -1071,6 +1134,95 @@ impl Actor {
         }
     }
 
+    async fn admin_rotate_audit(
+        &mut self,
+        request_id: String,
+        archive_sha256: String,
+        archive_count: u16,
+        actor_uid: u32,
+    ) -> Result<(u32, bool), AdminError> {
+        if let Some(receipt) = self
+            .state
+            .admin_receipts
+            .iter()
+            .find(|r| r.request_id == request_id)
+        {
+            return if receipt.operation == "audit_rotate"
+                && receipt.request_sha256 == archive_sha256
+                && receipt.archive_count == archive_count
+            {
+                Ok((
+                    u32::try_from(receipt.applied_generation)
+                        .map_err(|_| AdminError::Unavailable)?,
+                    true,
+                ))
+            } else {
+                Err(AdminError::Conflict)
+            };
+        }
+        self.check_admin_id(&request_id)?;
+        if self.state.admin_epoch == u32::MAX {
+            return Err(AdminError::Capacity);
+        }
+        let count = self.state.admin_receipts.len();
+        if count == 0 || count != usize::from(archive_count) {
+            return Err(AdminError::ArchiveChanged);
+        }
+        let bytes = serde_json::to_vec(&self.admin_audit_page(0, MAX_ADMIN_RECEIPTS).items)
+            .map_err(|_| AdminError::Unavailable)?;
+        let actual = format!("{:x}", Sha256::digest(bytes));
+        if actual != archive_sha256 {
+            return Err(AdminError::ArchiveChanged);
+        }
+        let millis = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| AdminError::Unavailable)?
+            .as_millis();
+        let timestamp_unix_ms = u64::try_from(millis).map_err(|_| AdminError::Unavailable)?;
+        let mut candidate = self.state.clone();
+        for old in &self.state.admin_receipts {
+            if old.epoch == 0 && !candidate.retired_admin_ids.contains(&old.request_id) {
+                candidate.retired_admin_ids.push(old.request_id.clone());
+            }
+        }
+        if candidate.retired_admin_ids.len() > super::store::MAX_RETIRED_ADMIN_IDS {
+            return Err(AdminError::Capacity);
+        }
+        candidate.admin_receipts.clear();
+        candidate.admin_epoch += 1;
+        candidate.admin_receipts.push(AdminReceipt {
+            request_id,
+            operation: "audit_rotate".into(),
+            outcome: "committed".into(),
+            request_sha256: archive_sha256,
+            expected_generation: u64::from(self.state.admin_epoch),
+            applied_generation: u64::from(candidate.admin_epoch),
+            actor_uid,
+            timestamp_unix_ms,
+            epoch: self.state.admin_epoch,
+            archive_count,
+        });
+        let new_epoch = candidate.admin_epoch;
+        self.commit(candidate)
+            .await
+            .map_err(|_| AdminError::CommitFailed)?;
+        Ok((new_epoch, false))
+    }
+
+    fn check_admin_id(&self, request_id: &str) -> Result<(), AdminError> {
+        if self
+            .state
+            .retired_admin_ids
+            .iter()
+            .any(|id| id == request_id)
+            || (self.state.admin_epoch > 0
+                && !request_id.starts_with(&format!("{:08x}", self.state.admin_epoch)))
+        {
+            return Err(AdminError::StaleEpoch);
+        }
+        Ok(())
+    }
+
     async fn admin_disconnect_session(
         &mut self,
         client_id: &str,
@@ -1094,6 +1246,7 @@ impl Actor {
                 Err(AdminError::Conflict)
             };
         }
+        self.check_admin_id(&request_id)?;
         if self.state.admin_receipts.len() >= MAX_ADMIN_RECEIPTS {
             return Err(AdminError::Capacity);
         }
@@ -1116,6 +1269,8 @@ impl Actor {
             applied_generation: 0,
             actor_uid,
             timestamp_unix_ms,
+            epoch: self.state.admin_epoch,
+            archive_count: 0,
         };
         self.unregister_with_receipt(client_id, generation, false, Some(receipt))
             .await
@@ -1145,6 +1300,7 @@ impl Actor {
                 Err(AdminError::Conflict)
             };
         }
+        self.check_admin_id(&request_id)?;
         if self.state.admin_receipts.len() >= MAX_ADMIN_RECEIPTS {
             return Err(AdminError::Capacity);
         }
@@ -1165,6 +1321,8 @@ impl Actor {
             applied_generation: 0,
             actor_uid,
             timestamp_unix_ms,
+            epoch: self.state.admin_epoch,
+            archive_count: 0,
         };
         let mut candidate = self.state.clone();
         candidate.retained.remove(&topic);
@@ -1198,6 +1356,7 @@ impl Actor {
                 Err(AdminError::Conflict)
             };
         }
+        self.check_admin_id(&request_id)?;
         if self.auth.security_generation() != expected_generation || expected_generation == u64::MAX
         {
             return Err(AdminError::Stale);
@@ -1219,6 +1378,8 @@ impl Actor {
             applied_generation: expected_generation + 1,
             actor_uid,
             timestamp_unix_ms,
+            epoch: self.state.admin_epoch,
+            archive_count: 0,
         };
         self.reload_security_with_receipt(policy, Some(receipt))
             .await
@@ -1843,6 +2004,158 @@ fn allocate_packet_id(session: &mut DurableSession) -> Result<u16, RouterError> 
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn audit_rotation_is_allowed_at_full_receipt_capacity() {
+        let (_directory, mut actor) = actor().await;
+        let mut candidate = actor.state.clone();
+        for index in 0..MAX_ADMIN_RECEIPTS {
+            candidate.admin_receipts.push(AdminReceipt {
+                request_id: format!("{index:032x}"),
+                operation: "retained_delete".into(),
+                outcome: "committed".into(),
+                request_sha256: "a".repeat(64),
+                expected_generation: 0,
+                applied_generation: 0,
+                actor_uid: 1000,
+                timestamp_unix_ms: 1,
+                epoch: 0,
+                archive_count: 0,
+            });
+        }
+        actor.commit(candidate).await.unwrap();
+        let items = actor.admin_audit_page(0, MAX_ADMIN_RECEIPTS).items;
+        let digest = format!("{:x}", Sha256::digest(serde_json::to_vec(&items).unwrap()));
+        assert_eq!(
+            actor
+                .admin_rotate_audit("ffffffffffffffffffffffffffffffff".into(), digest, 128, 1000)
+                .await
+                .unwrap(),
+            (1, false)
+        );
+        assert_eq!(actor.state.admin_receipts.len(), 1);
+        assert_eq!(actor.state.retired_admin_ids.len(), 128);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn audit_rotation_wal_error_preserves_receipts_and_epoch() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (directory, mut actor) = actor().await;
+        let topic = TopicName::try_from("test/state".to_owned()).unwrap();
+        let mut candidate = actor.state.clone();
+        candidate
+            .retained
+            .insert(topic.clone(), message("test/state", 1, true, b"private"));
+        actor.commit(candidate).await.unwrap();
+        actor
+            .admin_delete_retained(topic, "0123456789abcdef0123456789abcdef".into(), 1000)
+            .await
+            .unwrap();
+        let items = actor.admin_audit_page(0, MAX_ADMIN_RECEIPTS).items;
+        let digest = format!("{:x}", Sha256::digest(serde_json::to_vec(&items).unwrap()));
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            actor
+                .admin_rotate_audit("fedcba9876543210fedcba9876543210".into(), digest, 1, 1000)
+                .await,
+            Err(AdminError::CommitFailed)
+        ));
+        assert!(actor.fatal);
+        assert_eq!(actor.state.admin_epoch, 0);
+        assert_eq!(actor.state.admin_receipts.len(), 1);
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered.admin_epoch, 0);
+        assert_eq!(recovered.admin_receipts.len(), 1);
+        store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn audit_rotation_preserves_old_id_safety_and_restarts_in_new_epoch() {
+        let (directory, mut actor) = actor().await;
+        let topic = TopicName::try_from("test/state".to_owned()).unwrap();
+        let mut candidate = actor.state.clone();
+        candidate
+            .retained
+            .insert(topic.clone(), message("test/state", 1, true, b"private"));
+        actor.commit(candidate).await.unwrap();
+        let old_id = "0123456789abcdef0123456789abcdef".to_owned();
+        assert!(
+            !actor
+                .admin_delete_retained(topic.clone(), old_id.clone(), 1000)
+                .await
+                .unwrap()
+        );
+        let items = actor.admin_audit_page(0, MAX_ADMIN_RECEIPTS).items;
+        let digest = format!("{:x}", Sha256::digest(serde_json::to_vec(&items).unwrap()));
+        let rotate_id = "fedcba9876543210fedcba9876543210".to_owned();
+        assert!(matches!(
+            actor
+                .admin_rotate_audit(rotate_id.clone(), "0".repeat(64), 1, 1000)
+                .await,
+            Err(AdminError::ArchiveChanged)
+        ));
+        assert_eq!(actor.state.admin_epoch, 0);
+        assert_eq!(
+            actor
+                .admin_rotate_audit(rotate_id.clone(), digest.clone(), 1, 1000)
+                .await
+                .unwrap(),
+            (1, false)
+        );
+        assert_eq!(actor.state.admin_epoch, 1);
+        assert_eq!(actor.state.admin_receipts.len(), 1);
+        assert!(actor.state.retired_admin_ids.contains(&old_id));
+        assert_eq!(
+            actor
+                .admin_rotate_audit(rotate_id, digest, 1, 1000)
+                .await
+                .unwrap(),
+            (1, true)
+        );
+        assert!(matches!(
+            actor
+                .admin_delete_retained(topic.clone(), old_id.clone(), 1000)
+                .await,
+            Err(AdminError::StaleEpoch)
+        ));
+        let mut candidate = actor.state.clone();
+        candidate
+            .retained
+            .insert(topic.clone(), message("test/state", 1, true, b"new"));
+        actor.commit(candidate).await.unwrap();
+        assert!(matches!(
+            actor
+                .admin_delete_retained(
+                    topic.clone(),
+                    "99999999000000000000000000000000".into(),
+                    1000
+                )
+                .await,
+            Err(AdminError::StaleEpoch)
+        ));
+        assert!(
+            !actor
+                .admin_delete_retained(topic, "00000001aaaaaaaaaaaaaaaaaaaaaaaa".into(), 1000)
+                .await
+                .unwrap()
+        );
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered.admin_epoch, 1);
+        assert_eq!(recovered.admin_receipts.len(), 2);
+        assert!(recovered.retired_admin_ids.contains(&old_id));
+        store.shutdown().await.unwrap();
+    }
+
     #[tokio::test]
     async fn admin_disconnect_commits_will_qos2_and_receipt_once() {
         let (directory, mut actor) = actor().await;

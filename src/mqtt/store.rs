@@ -20,8 +20,9 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 4;
+const FORMAT_VERSION: u16 = 5;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
+pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
 pub(super) const MAX_CLIENT_ID_BYTES: usize = 256;
 const MAX_PRINCIPAL_BYTES: usize = 256;
@@ -53,6 +54,10 @@ pub(super) struct DurableState {
     pub pending_wills: BTreeMap<String, PendingWill>,
     #[serde(default)]
     pub admin_receipts: Vec<AdminReceipt>,
+    #[serde(default)]
+    pub admin_epoch: u32,
+    #[serde(default)]
+    pub retired_admin_ids: Vec<String>,
 }
 
 /// A bounded audit/idempotency receipt committed with an administrative change.
@@ -68,6 +73,10 @@ pub(super) struct AdminReceipt {
     pub applied_generation: u64,
     pub actor_uid: u32,
     pub timestamp_unix_ms: u64,
+    #[serde(default)]
+    pub epoch: u32,
+    #[serde(default)]
+    pub archive_count: u16,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -251,17 +260,28 @@ pub(super) fn validate(state: &DurableState) -> Result<(), StateError> {
     validate_with_limits(state, StateLimits::default())
 }
 
-fn validate_admin_receipts(receipts: &[AdminReceipt]) -> Result<(), StateError> {
-    if receipts.len() > MAX_ADMIN_RECEIPTS {
+fn validate_admin_receipts(state: &DurableState) -> Result<(), StateError> {
+    if state.admin_receipts.len() > MAX_ADMIN_RECEIPTS {
         return Err(StateError::Limit("admin receipts"));
     }
+    if state.retired_admin_ids.len() > MAX_RETIRED_ADMIN_IDS {
+        return Err(StateError::Limit("retired admin IDs"));
+    }
     let mut ids = HashSet::new();
-    for receipt in receipts {
+    for retired in &state.retired_admin_ids {
+        if retired.len() != 32
+            || !retired.bytes().all(|b| b.is_ascii_hexdigit())
+            || !ids.insert(retired.as_str())
+        {
+            return Err(StateError::Malformed);
+        }
+    }
+    for receipt in &state.admin_receipts {
         if receipt.request_id.len() != 32
             || !receipt.request_id.bytes().all(|b| b.is_ascii_hexdigit())
             || !matches!(
                 receipt.operation.as_str(),
-                "reload" | "retained_delete" | "session_disconnect"
+                "reload" | "retained_delete" | "session_disconnect" | "audit_rotate"
             )
             || receipt.outcome != "committed"
             || receipt.request_sha256.len() != 64
@@ -275,8 +295,19 @@ fn validate_admin_receipts(receipts: &[AdminReceipt]) -> Result<(), StateError> 
                 receipt.operation.as_str(),
                 "retained_delete" | "session_disconnect"
             ) && (receipt.expected_generation != 0 || receipt.applied_generation != 0))
+            || (receipt.operation == "audit_rotate"
+                && (receipt.archive_count == 0
+                    || usize::from(receipt.archive_count) > MAX_ADMIN_RECEIPTS
+                    || receipt.expected_generation != u64::from(receipt.epoch)
+                    || receipt.applied_generation != receipt.expected_generation + 1))
+            || (receipt.operation != "audit_rotate" && receipt.archive_count != 0)
+            || receipt.epoch > state.admin_epoch
+            || (receipt.epoch > 0
+                && !receipt
+                    .request_id
+                    .starts_with(&format!("{:08x}", receipt.epoch)))
             || receipt.timestamp_unix_ms == 0
-            || !ids.insert(&receipt.request_id)
+            || !ids.insert(receipt.request_id.as_str())
         {
             return Err(StateError::Malformed);
         }
@@ -288,7 +319,7 @@ pub(super) fn validate_with_limits(
     state: &DurableState,
     limits: StateLimits,
 ) -> Result<(), StateError> {
-    validate_admin_receipts(&state.admin_receipts)?;
+    validate_admin_receipts(state)?;
     if state.sessions.len() > limits.max_sessions {
         return Err(StateError::Limit("sessions"));
     }
@@ -639,7 +670,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(5))
+            Err(StateError::UnsupportedVersion(6))
         ));
     }
 
@@ -699,8 +730,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_v2_v3_and_commits_v4_without_losing_retained() {
-        for version in [1, 2, 3] {
+    async fn reads_v1_v2_v3_v4_and_commits_v5_without_losing_retained() {
+        for version in [1, 2, 3, 4] {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -710,7 +741,9 @@ mod tests {
                     state: expected.clone(),
                 })
                 .unwrap()
-                .replace("admin_receipts = []\n", "");
+                .replace("admin_receipts = []\n", "")
+                .replace("admin_epoch = 0\n", "")
+                .replace("retired_admin_ids = []\n", "");
                 if version == 1 {
                     document = document.replace("[state.pending_wills]\n", "");
                 }
@@ -723,7 +756,7 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 4);
+            assert_eq!(envelope.version, 5);
             assert_eq!(envelope.state, expected);
         }
     }
@@ -741,6 +774,8 @@ mod tests {
             applied_generation: 2,
             actor_uid: 1000,
             timestamp_unix_ms: 1,
+            epoch: 0,
+            archive_count: 0,
         });
         {
             let mut writer = Store::open(directory.path()).unwrap();
@@ -749,7 +784,11 @@ mod tests {
                 state: expected.clone(),
             })
             .unwrap()
-            .replace("request_sha256", "bundle_sha256");
+            .replace("request_sha256", "bundle_sha256")
+            .replace("admin_epoch = 0\n", "")
+            .replace("retired_admin_ids = []\n", "")
+            .replace("epoch = 0\n", "")
+            .replace("archive_count = 0\n", "");
             writer.put(KEY, old.as_bytes()).unwrap();
         }
         let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();

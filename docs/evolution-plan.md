@@ -97,7 +97,7 @@ Não significa conformidade MQTT integral ou produção.
 - [x] ~~C47/C05 parcial: perfis TOML opt-in do client, precedência de flags e caminhos relativos; integração mTLS e negativos.~~
 - [x] ~~A05/U02 parcial: validação offline de bundle seguro no admin independente, sem escrita nem reload.~~
 - [x] ~~Fase 4 concluída no escopo finito B09/B10/B11/B12/C05/E02.~~ [Aceite](phase4-acceptance.md).
-- [ ] Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais.
+- [x] ~~Fase 5: gestão administrativa de grupos/papéis/ACL, auditoria e métricas operacionais no escopo finito da matriz.~~ [Aceite](phase5-acceptance.md).
 - [x] ~~Fase 5/A04: contrato do canal administrativo local decidido em ADR 0001 (P105).~~
 - [x] ~~Fase 5/B14: decisão de não gerar tópicos $SYS; monitor HTTP existente preservado (P106).~~
 - [x] ~~Fase 5/A09 parcial: P107 entrega status e primeiro reload local autenticado, com hash/CAS e recibo auditável no mesmo commit durável; teste de processo e restart.~~
@@ -107,20 +107,24 @@ Não significa conformidade MQTT integral ou produção.
 - [x] ~~Fase 5/A02/A03: editor de grupo/papel/ACL, aplicação online e revogação de usuário com conexão encerrada, nova autenticação negada e inbound QoS2 preservado após restart (P110, laboratório local).~~
 - [x] ~~Fase 5/A05 parcial: auditoria paginada operator e consulta por ID, sem payload/segredos; retenção limitada a 128 sem descarte.~~
 - [x] ~~Fase 5/B13: monitor loopback inclui contadores administrativos de cardinalidade fixa e ocupação de recibos, sem labels privados.~~
-- [ ] Fase 5/A09: concorrência, auditoria consultável/retenção e aceite do canal.
+- [x] ~~Fase 5/A05: exportação privada e rotação atômica de auditoria, épocas duráveis e recusa de replay; documento MQTT v5.~~
+- [x] ~~Fase 5/A08: diagnóstico sem mutação de bundle, backup, espaço e versões, com saída redigida.~~
+- [x] ~~Fase 5/A09: concorrência, limites, falha WAL, restart, auditoria consultável/retenção e aceite local do canal.~~
 - [x] ~~Client: --ignore-retained/--retained-only na saída; count filtrado e ACKs QoS1/2 preservados (C41).~~
 - [x] ~~Fase 5/client C03: exclusão local de tópicos com count após filtros e ACKs preservados (C52).~~
 - [x] ~~Fase 5/client C04: repetição finita de publicação com intervalo monotônico e sem replay incerto (C53).~~
 - [x] ~~Fase 5/client C06: decisão e implementação de saída hex/raw sem ambiguidade binária (C54).~~
 - [x] ~~Fase 5/client C08: Will binário por arquivo limitado e validado antes da rede (C55).~~
-- [ ] Fase 5: aceite global do broker, admin e client, com canal A09 e auditoria operacional.
+- [x] ~~Fase 5: aceite global do broker, admin e client, com canal A09 e auditoria operacional no recorte local Linux/WSL.~~ [Evidência](phase5-acceptance.md).
 - [x] ~~Parcela operacional já entregue: ciclo de release experimental e pacotes com checksums/rollback (P61/C39/P63/P64/C40).~~
 
 Evidências da parcela operacional: [P63](../prompts/registros/P63-docker-distribuicao.md),
 [P64](../prompts/registros/P64-version-cli.md) e
 [C40](../../xmqr-client/prompts/registros/C40-docker-distribuicao.md).
 Evidência dos filtros: [C41](../../xmqr-client/prompts/registros/C41-filtros-retained.md).
-A fase 4 foi aceita; a fase 5 continua aberta pela trilha administrativa.
+A fase 4 e a fase 5 foram aceitas nos respectivos escopos finitos; veja
+[fase 4](phase4-acceptance.md) e [fase 5](phase5-acceptance.md). O painel web
+administrativo continua somente leitura; o CLI usa o canal local autenticado.
 O [novo admin](https://github.com/licodevone/xmqr-admin) foi antecipado como
 interface somente de leitura; A01/A02/A03 em seu repositório são IDs locais,
 não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidência:

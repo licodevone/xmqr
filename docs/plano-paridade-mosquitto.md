@@ -96,13 +96,13 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | B14 | Broker: tópicos $SYS | ADR 0002/P106: não gerar na fase 5; usar monitor HTTP loopback | Reavaliar somente com demanda, ACL/namespace próprios, frequência e custo medidos |
 | A01 | Admin: CRUD local de usuários e fingerprint/hash | Existente, Unix; novo CLI xmqr-admin0.1.0 compatível e legado preservado | Manter arquivo privado, lock, symlink negativo, arquivo temporário e atualização atômica |
 | A02 | Admin: gestão de grupos, papéis e ACL no bundle | A06/P110: editor offline atômico e prova MQTT real de role/group concedido e tópico negado após reload | Recorte Linux/WSL acl-lab; referências inválidas/arquivo inseguro recusados; não é campanha física mTLS nova |
-| A03 | Admin: habilitar/revogar identidade e aplicar bundle | A06/A08/P110: disable + reload online com hash/CAS/recibo; conexão cai, reconexão falha e inbound QoS2 persiste após restart | Recorte local dinâmico; A09 global e auditoria de longo prazo ainda abertos |
+| A03 | Admin: habilitar/revogar identidade e aplicar bundle | A06/A08/P110: disable + reload online com hash/CAS/recibo; conexão cai, reconexão falha e inbound QoS2 persiste após restart | Aceito no recorte local dinâmico; sem nova campanha física mTLS |
 | A04 | Admin: contrato do canal administrativo autenticado | ADR 0001/P105: Unix socket local, UID + tokens por papel, quotas/idempotência/auditoria decididos | Contrato decidido; A09 ainda exige implementação e testes de concorrência/crash |
-| A09 | Broker/admin: implementar e aceitar o canal escolhido | P107/P108 parcial: status/reload/receipt e inventários paginados no socket privado; reload com hash, CAS, recibo no commit WAL e CLI independente integrada | Faltam ações auditadas de sessões/retained, concorrência/falha de storage; documento MQTT v3 exige backup prévio para downgrade |
-| A05 | Admin: consulta e evolução da auditoria sem segredos | P109 parcial: receipt por ID e audit_list operator paginado, WAL v4 com integridade, sem payload/tópico/cliente no evento | Tabela append-only de 128 entradas falha fechado; ainda definir arquivamento/rotação segura sem perder idempotência |
+| A09 | Broker/admin: implementar e aceitar o canal escolhido | P107–P112/A08–A10: socket privado, RBAC, CAS, recibos atômicos, sessões/retained, concorrência, limites, restart e falha WAL; PASS local Linux/WSL | [Aceite da fase 5](phase5-acceptance.md); sem acesso remoto nem promessa de produção |
+| A05 | Admin: consulta e evolução da auditoria sem segredos | P109/P111: consulta paginada e por ID, exportação 0600 com hash e fsync, rotação atômica por época, replay antigo negado; WAL v5 lê v1–v4 | Limite 128 por época; conservar arquivo e backup privado; rollback do estado v5 exige backup anterior |
 | A06 | Admin: backup/verify/restore | Existente P45 | Preservar offline, lock exclusivo, checksums e destino novo; planejar exportação seletiva sem substituir estado ativo |
 | A07 | Admin: retenções e sessões administráveis | P108/A08: inventários paginados; retained_delete e session_disconnect com recibos no mesmo commit e CLI; Will/QoS2/restart em integração real | Aceite A07 no recorte local Linux/WSL; sessão persistente não é excluída, páginas não formam snapshot estável; A09/global ainda aberto |
-| A08 | Admin: plano de recuperação e diagnóstico | Parcial | A06/B06; dry-run/validação, espaço livre, backup, versões e saídas redigidas |
+| A08 | Admin: plano de recuperação e diagnóstico | P112/A10: `diagnose` somente leitura valida bundle e backup, mede espaço, consulta readiness/versões e emite JSON sem caminhos/segredos; PASS Linux/WSL | Piso operacional de 16 MiB; backup offline criado com broker parado; não é previsão de capacidade futura |
 | C01 | Client: pub/sub, arquivo/stdin/linhas, QoS e JSONL | Existente C28/C39 | Preservar bytes, saída stdout separada de logs e resultado desconhecido após interrupção |
 | C02 | Client: retained/Will e filtros de saída | Existente C41 | Regressão --count filtrado, ACKs preservados e diferença entre replay e publicação ao vivo |
 | C03 | Client: excluir tópicos recebidos | C52 PASS local: --exclude-topic, count após filtros e ACKs QoS1/2 no wire | Filtro local não substitui ACL do broker; fase5 global pendente |
@@ -235,9 +235,9 @@ e somente então iniciar. Rollback exige compatibilidade da versão do estado;
 com migração incompatível, usar backup anterior, nunca sobrescrever estado
 ativo. Operações diretas sobre arquivos de estado (backup/verify/restore) são
 offline e precisam respeitar locks; backup/restore exigem broker parado.
-Operações administrativas online futuras usam exclusivamente o canal A09 e
-o ator do broker: não abrem o WAL nem adquirem um segundo writer. O CLI atual
-não oferece esse canal online; A04 aprovado sozinho não libera A05/A07.
+Operações administrativas online usam exclusivamente o canal A09 e o ator do
+broker: não abrem o WAL nem adquirem um segundo writer. O CLI independente
+oferece essas operações no socket local; o painel web segue leitura.
 
 Releases continuam experimentais. Produção/1.0 exige matriz normativa completa
 para o subconjunto anunciado, segurança e operação validadas, campanha longa,

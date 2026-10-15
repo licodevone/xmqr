@@ -1,5 +1,11 @@
 # XMQR
 
+O marco experimental 0.15.0 conclui a fase 5 no recorte local Linux/WSL:
+canal administrativo autenticado, política dinâmica aplicada online, auditoria
+rotacionável, diagnóstico e métricas. Veja o [aceite](docs/phase5-acceptance.md)
+e o [contrato do canal](docs/admin-channel.md). O client independente 0.13.0
+inclui os complementos de publicação/assinatura dessa fase.
+
 O marco experimental 0.14.0 acrescenta rotação TLS por SIGUSR1 (P100/B11) e
 usuários/ACL estáticos por endpoint mTLS (P101/B09), preservando um roteador,
 estado, limite e geração TLS comuns. Consulte [configuração](docs/architecture/configuration.md)
@@ -104,15 +110,15 @@ extraídos usam somente sua toolchain, sem Python/WSL/Docker para execução.
 Broker MQTT3.1.1 experimental em Rust2024/Tokio, licença MIT. Pacote mqtt-broker;
 binários mqtt-broker e mqtt-admin. O client é o projeto independente ../xmqr-client.
 O terceiro projeto [XMQR Admin](https://github.com/licodevone/xmqr-admin)
-fornece `xmqr-admin`0.1.0 independente, com CLI compatível e painel web local
+fornece `xmqr-admin`0.4.0 independente, com CLI online e painel web local
 autenticado de leitura. Não remove o `mqtt-admin` legado. [Registro P88](prompts/registros/P88-admin.md).
 Não há declaração de conformidade completa ou prontidão para produção.
 
 ## Versões
 
-Marco atual: [broker/admin legado v0.14.0](https://github.com/licodevone/xmqr/releases/tag/v0.14.0)
-e [client independente v0.12.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.12.0),
-prereleases experimentais da [fase 4 aceita](docs/phase4-acceptance.md).
+Marco atual: [broker/admin legado v0.15.0](https://github.com/licodevone/xmqr/releases/tag/v0.15.0)
+e [client independente v0.13.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.13.0),
+prereleases experimentais da [fase 5 aceita](docs/phase5-acceptance.md).
 Pacotes Ubuntu 26.04 amd64, imagens numeradas, manifests e SHA-256 estão nos
 assets de cada release. Admin independente mantém seu versionamento próprio.
 
