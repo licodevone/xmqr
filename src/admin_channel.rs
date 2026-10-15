@@ -368,6 +368,34 @@ mod linux {
                     Err(_) => error(&mut stream, &id, "unavailable").await,
                 }
             }
+            "audit_list"
+                if role == "operator"
+                    && expected_generation.is_none()
+                    && bundle_sha256.is_none()
+                    && target_request_id.is_none()
+                    && topic.is_none()
+                    && client_id.is_none() =>
+            {
+                let size = limit.unwrap_or(16);
+                let offset = match cursor.as_deref().unwrap_or("0").parse::<usize>() {
+                    Ok(value) if value <= 128 => value,
+                    _ => return error(&mut stream, &id, "invalid_request").await,
+                };
+                if size == 0 || size > 16 {
+                    return error(&mut stream, &id, "invalid_request").await;
+                }
+                match router.admin_audit_list(offset, usize::from(size)).await {
+                    Ok(page) => {
+                        reply(
+                            &mut stream,
+                            json!({"ok":true,"request_id":id,"items":page.items,
+                            "next_cursor":page.next_cursor}),
+                        )
+                        .await
+                    }
+                    Err(_) => error(&mut stream, &id, "unavailable").await,
+                }
+            }
             "reload"
                 if role == "operator"
                     && target_request_id.is_none()
@@ -391,6 +419,7 @@ mod linux {
                             && receipt.request_sha256 == digest
                             && receipt.expected_generation == expected
                         {
+                            router.note_admin_replay();
                             return reply(
                                 &mut stream,
                                 json!({"ok":true,"request_id":id,
@@ -416,11 +445,11 @@ mod linux {
                     .admin_reload(candidate, id.clone(), digest, expected, peer.uid())
                     .await
                 {
-                    Ok(applied) => {
+                    Ok((applied, replayed)) => {
                         reply(
                             &mut stream,
                             json!({"ok":true,"request_id":id,
-                        "applied_generation":applied,"replayed":false}),
+                        "applied_generation":applied,"replayed":replayed}),
                         )
                         .await
                     }
@@ -479,8 +508,8 @@ mod linux {
                     Err(reason) => error(&mut stream, &id, admin_code(&reason)).await,
                 }
             }
-            "sessions_list" | "retained_list" | "retained_delete" | "session_disconnect"
-            | "reload" => error(&mut stream, &id, "forbidden").await,
+            "sessions_list" | "retained_list" | "audit_list" | "retained_delete"
+            | "session_disconnect" | "reload" => error(&mut stream, &id, "forbidden").await,
             "status" | "receipt" => error(&mut stream, &id, "invalid_request").await,
             _ => error(&mut stream, &id, "unsupported_operation").await,
         }

@@ -75,6 +75,15 @@ continuam duráveis; sessão clean é removida. Recibo no mesmo commit evita
 segundo Will na repetição do ID. Sessão offline/ausente retorna `not_found`
 sem mutação. Esta ação não exclui a sessão persistente.
 
+`audit_list` exige operator e lista até 16 recibos por página. `cursor` é o
+índice decimal da primeira entrada; `next_cursor` aponta à próxima página.
+Cada item contém instante, request_id, UID, operação, resultado, hash do alvo
+e gerações; não contém payload, token, senha ou tópico/client ID do alvo.
+O registro é append-only dentro do documento MQTT v4 e validado na reabertura
+do WAL. A tabela tem 128 entradas, não expira nem remove IDs automaticamente;
+ao encher, o broker recusa novas mutações para preservar idempotência. Uma
+política segura de arquivamento/rotação ainda está em definição.
+
 O documento durável MQTT passa a **v4** no primeiro commit com este binário:
 leituras de v1/v2/v3 continuam aceitas, inclusive recibos P107 v3, mas o broker
 0.14.0 não abre v4 (nem v3). Para
@@ -84,8 +93,8 @@ isso perde alterações posteriores ao backup. Não converter ou apagar o WAL
 ativo para forçar downgrade. SIGHUP legado continua disponível, sem recibo
 administrativo.
 
-A09 permanece parcial: a CLI independente integra status/reload/receipt e
-inventários paginados, exclusão retained e desconexão de sessão. Ainda faltam
-consulta/retenção de auditoria ampliada e testes de concorrência e falha
-de armazenamento/concorrência. O [ADR 0001](adr/0001-admin-channel.md)
+A09 permanece parcial: a CLI independente integra status/reload/receipt,
+inventários paginados, auditoria consultável, exclusão retained e desconexão
+de sessão. Ainda faltam política de arquivamento/rotação e aceite de falhas
+em concorrência. O [ADR 0001](adr/0001-admin-channel.md)
 define o contrato alvo.

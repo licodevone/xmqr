@@ -65,6 +65,10 @@ observado; leituras atômicas relaxadas não formam snapshot transacional.
 | `xmqr_offline_messages`, `xmqr_inflight_messages` | filas persistentes agregadas |
 | `xmqr_delivery_messages_queued`, `xmqr_router_commands_queued` | filas observadas de entrega e comandos |
 | `xmqr_sessions`, `xmqr_retained_messages` | estado persistente agregado |
+| `xmqr_admin_mutations_committed_total` | mutações do canal administrativo concluídas pelo ator após commit |
+| `xmqr_admin_mutations_replayed_total` | IDs administrativos repetidos com mesmo corpo, incluindo reload resolvido no socket |
+| `xmqr_admin_mutations_refused_total` | comandos de mutação aceitos pelo ator e recusados; parser/autenticação recusados antes da fila não contam |
+| `xmqr_admin_receipts` | ocupação da tabela durável de recibos; limite atual 128, sem evicção automática |
 | `xmqr_ready` | último resultado do probe, inicialmente zero |
 | `xmqr_monitor_rejected_total` | rejeições HTTP contabilizadas pelo monitor |
 

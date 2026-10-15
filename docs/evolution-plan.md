@@ -104,6 +104,9 @@ Não significa conformidade MQTT integral ou produção.
 - [x] ~~Fase 5/A09 parcial: CLI independente aplica bundle e consulta recibos; P108 lista sessões/retained com paginação e sem payload.~~
 - [x] ~~Fase 5/A07 parcial: exclusão de retained por operator com recibo durável e deduplicação; documento MQTT v4 lê v3.~~
 - [x] ~~Fase 5/A07: inventário paginado, exclusão retained e desconexão de sessão ativa com Will/QoS2 e recibo no commit, provados com MQTT real e restart (P108/A08).~~
+- [x] ~~Fase 5/A02/A03: editor de grupo/papel/ACL, aplicação online e revogação de usuário com conexão encerrada, nova autenticação negada e inbound QoS2 preservado após restart (P110, laboratório local).~~
+- [x] ~~Fase 5/A05 parcial: auditoria paginada operator e consulta por ID, sem payload/segredos; retenção limitada a 128 sem descarte.~~
+- [x] ~~Fase 5/B13: monitor loopback inclui contadores administrativos de cardinalidade fixa e ocupação de recibos, sem labels privados.~~
 - [ ] Fase 5/A09: concorrência, auditoria consultável/retenção e aceite do canal.
 - [x] ~~Client: --ignore-retained/--retained-only na saída; count filtrado e ACKs QoS1/2 preservados (C41).~~
 - [x] ~~Fase 5/client C03: exclusão local de tópicos com count após filtros e ACKs preservados (C52).~~

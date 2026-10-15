@@ -129,6 +129,11 @@ struct Actor {
 }
 
 enum Command {
+    AdminAuditList {
+        offset: usize,
+        limit: usize,
+        reply: oneshot::Sender<AdminPage>,
+    },
     AdminSessionDisconnect {
         client_id: String,
         request_id: String,
@@ -157,7 +162,7 @@ enum Command {
         bundle_sha256: String,
         expected_generation: u64,
         actor_uid: u32,
-        reply: oneshot::Sender<Result<u64, AdminError>>,
+        reply: oneshot::Sender<Result<(u64, bool), AdminError>>,
     },
     #[cfg(test)]
     Inject {
@@ -281,6 +286,28 @@ impl Drop for ConnectionGuard {
 }
 
 impl Router {
+    pub(crate) fn note_admin_replay(&self) {
+        self.metrics
+            .admin_mutations_replayed
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub(crate) async fn admin_audit_list(
+        &self,
+        offset: usize,
+        limit: usize,
+    ) -> Result<AdminPage, AdminError> {
+        let (reply, result) = oneshot::channel();
+        self.sender
+            .try_send(Command::AdminAuditList {
+                offset,
+                limit,
+                reply,
+            })
+            .map_err(|_| AdminError::Unavailable)?;
+        result.await.map_err(|_| AdminError::Unavailable)
+    }
+
     pub(crate) async fn admin_session_disconnect(
         &self,
         client_id: String,
@@ -353,7 +380,7 @@ impl Router {
         bundle_sha256: String,
         expected_generation: u64,
         actor_uid: u32,
-    ) -> Result<u64, AdminError> {
+    ) -> Result<(u64, bool), AdminError> {
         let (reply, result) = oneshot::channel();
         self.sender
             .try_send(Command::AdminReload {
@@ -805,6 +832,14 @@ impl Actor {
     )]
     async fn handle(&mut self, command: Command) {
         match command {
+            Command::AdminAuditList {
+                offset,
+                limit,
+                reply,
+            } => {
+                let page = self.admin_audit_page(offset, limit);
+                let _ = reply.send(page);
+            }
             Command::AdminSessionDisconnect {
                 client_id,
                 request_id,
@@ -814,6 +849,7 @@ impl Actor {
                 let result = self
                     .admin_disconnect_session(&client_id, request_id, actor_uid)
                     .await;
+                self.count_admin_result(result.as_ref().map(|replayed| *replayed));
                 let _ = reply.send(result);
             }
             Command::AdminRetainedDelete {
@@ -825,6 +861,7 @@ impl Actor {
                 let result = self
                     .admin_delete_retained(topic, request_id, actor_uid)
                     .await;
+                self.count_admin_result(result.as_ref().map(|replayed| *replayed));
                 let _ = reply.send(result);
             }
             Command::AdminList {
@@ -862,6 +899,7 @@ impl Actor {
                         actor_uid,
                     )
                     .await;
+                self.count_admin_result(result.as_ref().map(|(_, replayed)| *replayed));
                 let _ = reply.send(result);
             }
             Command::Shutdown { .. } => unreachable!("shutdown handled by actor loop"),
@@ -959,6 +997,30 @@ impl Actor {
                 self.record_result(&result);
                 let _ = reply.send(result);
             }
+        }
+    }
+
+    fn admin_audit_page(&self, offset: usize, limit: usize) -> AdminPage {
+        let items = self
+            .state
+            .admin_receipts
+            .iter()
+            .skip(offset)
+            .take(limit)
+            .map(|receipt| {
+                serde_json::json!({
+                    "request_id":receipt.request_id,"operation":receipt.operation,
+                    "outcome":receipt.outcome,"request_sha256":receipt.request_sha256,
+                    "expected_generation":receipt.expected_generation,
+                    "applied_generation":receipt.applied_generation,
+                    "actor_uid":receipt.actor_uid,"timestamp_unix_ms":receipt.timestamp_unix_ms,
+                })
+            })
+            .collect();
+        let next = offset.saturating_add(limit);
+        AdminPage {
+            items,
+            next_cursor: (next < self.state.admin_receipts.len()).then(|| next.to_string()),
         }
     }
 
@@ -1120,7 +1182,7 @@ impl Actor {
         bundle_sha256: String,
         expected_generation: u64,
         actor_uid: u32,
-    ) -> Result<u64, AdminError> {
+    ) -> Result<(u64, bool), AdminError> {
         if let Some(receipt) = self
             .state
             .admin_receipts
@@ -1131,7 +1193,7 @@ impl Actor {
                 && receipt.request_sha256 == bundle_sha256
                 && receipt.expected_generation == expected_generation
             {
-                Ok(receipt.applied_generation)
+                Ok((receipt.applied_generation, true))
             } else {
                 Err(AdminError::Conflict)
             };
@@ -1160,7 +1222,17 @@ impl Actor {
         };
         self.reload_security_with_receipt(policy, Some(receipt))
             .await
+            .map(|generation| (generation, false))
             .map_err(|_| AdminError::CommitFailed)
+    }
+
+    fn count_admin_result(&self, result: Result<bool, &AdminError>) {
+        let counter = match result {
+            Ok(true) => &self.metrics.admin_mutations_replayed,
+            Ok(false) => &self.metrics.admin_mutations_committed,
+            Err(_) => &self.metrics.admin_mutations_refused,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
     }
 
     fn record_result<T>(&self, result: &Result<T, RouterError>) {
@@ -1187,6 +1259,9 @@ impl Actor {
         self.metrics
             .retained
             .store(count(self.state.retained.len()), Ordering::Relaxed);
+        self.metrics
+            .admin_receipts
+            .store(count(self.state.admin_receipts.len()), Ordering::Relaxed);
         self.metrics.offline.store(
             count(self.state.sessions.values().map(|s| s.offline.len()).sum()),
             Ordering::Relaxed,
@@ -1803,6 +1878,9 @@ mod tests {
             actor.state.admin_receipts[0].operation,
             "session_disconnect"
         );
+        let audit = actor.admin_audit_page(0, 1);
+        assert_eq!(audit.items[0]["operation"], "session_disconnect");
+        assert!(audit.items[0].get("client_id").is_none());
         assert!(
             actor
                 .admin_disconnect_session("device", id.clone(), 1000)

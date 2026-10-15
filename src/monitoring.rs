@@ -65,6 +65,10 @@ pub struct Metrics {
     pub(crate) commands_queued: AtomicU64,
     pub(crate) sessions: AtomicU64,
     pub(crate) retained: AtomicU64,
+    pub(crate) admin_mutations_committed: AtomicU64,
+    pub(crate) admin_mutations_replayed: AtomicU64,
+    pub(crate) admin_mutations_refused: AtomicU64,
+    pub(crate) admin_receipts: AtomicU64,
     pub(crate) actor_alive: AtomicBool,
     listener_ready: AtomicBool,
     ready: AtomicBool,
@@ -91,6 +95,7 @@ impl Metrics {
         self.actor_alive.store(true, Ordering::Relaxed);
         ActorMetric(self.clone())
     }
+    #[expect(clippy::too_many_lines, reason = "fixed-cardinality metric catalogue")]
     fn render_scalars(&self, s: &mut String) {
         for (name, kind, value) in [
             (
@@ -162,6 +167,26 @@ impl Metrics {
                 "xmqr_retained_messages",
                 "gauge",
                 self.retained.load(Ordering::Relaxed),
+            ),
+            (
+                "xmqr_admin_mutations_committed_total",
+                "counter",
+                self.admin_mutations_committed.load(Ordering::Relaxed),
+            ),
+            (
+                "xmqr_admin_mutations_replayed_total",
+                "counter",
+                self.admin_mutations_replayed.load(Ordering::Relaxed),
+            ),
+            (
+                "xmqr_admin_mutations_refused_total",
+                "counter",
+                self.admin_mutations_refused.load(Ordering::Relaxed),
+            ),
+            (
+                "xmqr_admin_receipts",
+                "gauge",
+                self.admin_receipts.load(Ordering::Relaxed),
             ),
             (
                 "xmqr_ready",
@@ -499,6 +524,8 @@ mod tests {
         );
         assert!(!rendered.contains("username"));
         assert!(!rendered.contains("topic"));
+        assert!(rendered.contains("xmqr_admin_mutations_committed_total 0"));
+        assert!(rendered.contains("xmqr_admin_receipts 0"));
     }
     async fn request(address: SocketAddr, path: &str) -> String {
         let mut stream = TcpStream::connect(address).await.unwrap();
