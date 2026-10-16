@@ -1,6 +1,15 @@
 # Imagem Docker do XMQR broker
 
-## Distribuição atual 0.11.6 — fase3 experimental
+## Distribuição atual 0.16.0 — MQTT 5 inicial experimental
+
+Imagens numeradas `lepinheiro100/xmqr-broker:0.16.0` e
+`lepinheiro100/xmqr-admin:0.16.0` publicadas com os digests, fontes e hashes
+registrados em [P117](../prompts/registros/P117-release-0.16.0.md). O admin
+desta imagem é o CLI legado do pacote broker; o `xmqr-admin` independente
+continua 0.4.0. A [prerelease](https://github.com/licodevone/xmqr/releases/tag/v0.16.0)
+contém os exports e checksums. Nenhum `latest` foi movido.
+
+## Histórico 0.11.6 — fase3 experimental
 
 Broker e mqtt-admin legado0.11.6 publicados no Hub; fonte dos artefatos
 abbe38ca6c041f7328e85054506a4eed22c74c41. Client0.9.0 tem imagem independente.

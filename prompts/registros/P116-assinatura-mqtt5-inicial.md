@@ -5,4 +5,4 @@
 - Ubuntu26/WSL: `cargo fmt --all -- --check` PASS; `cargo test --locked` PASS (132 testes de biblioteca, 6 ignored, integrações); `cargo clippy --locked --all-targets -- -D warnings` PASS; `cargo build --locked --bins` PASS.
 - Integração real: `scripts/verify_mqtt5_cross.py` PASS nas duas direções, incluindo retained/QoS1; `scripts/verify_interop.py` PASS (6 casos, Mosquitto mqttv5 como assinante e publicador).
 - Negativos: zero packet ID, propriedade/No Local/QoS2/payload vazio recusados em teste de codec. Rev2 corrigiu aceitação inicial de QoS2 antes do roteador; suíte repetida.
-- Aceite local PASS para este subconjunto. CI do commit remoto será registrada separadamente; fase6A integral permanece aberta.
+- Aceite PASS: commit `b8aebf0` e [CI](https://github.com/licodevone/xmqr/actions/runs/38951626762) concluída com sucesso, incluindo pacote Ubuntu26. Fase6A integral permanece aberta.
