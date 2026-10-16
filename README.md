@@ -35,8 +35,9 @@ Publicação registrada separadamente em P92;
 client0.9.0 e admin independente0.1.0 têm ciclos próprios.
 O [planejamento dos três sistemas](../xmqr-admin/docs/planejamento-tres-sistemas.md)
 inclui a futura administração de usuários, grupos, papéis e permissões.
-MQTT 5 possui publicação e assinatura QoS0/1 com sessão limpa
-em P115/P116/C57/C58. Propriedades avançadas seguem pendentes;
+MQTT 5 possui publicação, assinatura e cancelamento com sessão limpa.
+P122/C63 ampliam publicação e assinatura para QoS0/1/2 na árvore atual;
+propriedades avançadas e sessões persistentes seguem pendentes.
 veja o [estado MQTT 5](docs/conformance/mqtt5-status.md).
 
 Veja a [baseline de RAM, CPU e latência P62](docs/performance-baseline.md),

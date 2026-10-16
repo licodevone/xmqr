@@ -88,6 +88,24 @@ async fn denied_legacy_publish(stream: &mut TcpStream) {
     closed(stream).await;
 }
 
+async fn denied_mqtt5_qos2_publish(stream: &mut TcpStream) {
+    let mut packet = vec![0x34, 0, 0, 12];
+    packet.extend(b"denied/topic");
+    packet.extend([0, 6, 0, b'n']);
+    packet[1] = u8::try_from(packet.len() - 2).unwrap();
+    stream.write_all(&packet).await.unwrap();
+    let mut pubrec = [0; 6];
+    timeout(Duration::from_secs(3), stream.read_exact(&mut pubrec))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(pubrec, [0x50, 4, 0, 6, 0x87, 0]);
+}
+
+fn assert_commits(router: &Router, expected: u64) {
+    assert_eq!(router.metrics().commits.load(Ordering::Relaxed), expected);
+}
+
 async fn allowed_mqtt5_subscription(stream: &mut TcpStream) {
     let mut packet = vec![0x82, 0, 0, 5, 0, 0, 13];
     packet.extend(b"allowed/topic");
@@ -100,6 +118,44 @@ async fn allowed_mqtt5_subscription(stream: &mut TcpStream) {
         .unwrap()
         .unwrap();
     assert_eq!(suback, [0x90, 4, 0, 5, 0, 1]);
+}
+
+async fn mqtt5_publish_to_qos0_subscriber(stream: &mut TcpStream, qos: u8) {
+    match qos {
+        0 => stream
+            .write_all(&[0x30, 5, 0, 1, b'x', 0, b'y'])
+            .await
+            .unwrap(),
+        1 => {
+            stream
+                .write_all(&[0x32, 7, 0, 1, b'x', 0, 1, 0, b'y'])
+                .await
+                .unwrap();
+            let mut ack = [0; 4];
+            timeout(Duration::from_secs(3), stream.read_exact(&mut ack))
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(ack, [0x40, 2, 0, 1]);
+        }
+        2 => {
+            let publish = [0x34, 7, 0, 1, b'x', 0, 1, 0, b'y'];
+            stream.write_all(&publish).await.unwrap();
+            let mut ack = [0; 4];
+            timeout(Duration::from_secs(3), stream.read_exact(&mut ack))
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(ack, [0x50, 2, 0, 1]);
+            stream.write_all(&[0x62, 2, 0, 1]).await.unwrap();
+            timeout(Duration::from_secs(3), stream.read_exact(&mut ack))
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(ack, [0x70, 2, 0, 1]);
+        }
+        _ => unreachable!(),
+    }
 }
 
 async fn closed(stream: &mut TcpStream) {
@@ -178,8 +234,8 @@ async fn mqtt5_unsupported_session_options_refused_without_commit() {
 }
 
 #[tokio::test]
-async fn mqtt5_qos0_and_qos1_reach_mqtt311_subscriber() {
-    for qos in [0_u8, 1] {
+async fn mqtt5_qos0_qos1_qos2_reach_mqtt311_subscriber() {
+    for qos in [0_u8, 1, 2] {
         let directory = tempfile::tempdir().unwrap();
         let auth = Arc::new(AccessPolicy::open_lab());
         let router = Arc::new(Router::start(directory.path(), auth.clone()).await.unwrap());
@@ -227,29 +283,13 @@ async fn mqtt5_qos0_and_qos1_reach_mqtt311_subscriber() {
             .write_all(&connect(b"publisher", true, 5))
             .await
             .unwrap();
-        let mut ack5 = [0; 12];
+        let mut ack5 = [0; 10];
         timeout(Duration::from_secs(3), publisher.read_exact(&mut ack5))
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(ack5, [0x20, 10, 0, 0, 7, 0x24, 1, 0x27, 0, 1, 0, 0]);
-        if qos == 0 {
-            publisher
-                .write_all(&[0x30, 5, 0, 1, b'x', 0, b'y'])
-                .await
-                .unwrap();
-        } else {
-            publisher
-                .write_all(&[0x32, 7, 0, 1, b'x', 0, 1, 0, b'y'])
-                .await
-                .unwrap();
-            let mut puback = [0; 4];
-            timeout(Duration::from_secs(3), publisher.read_exact(&mut puback))
-                .await
-                .unwrap()
-                .unwrap();
-            assert_eq!(puback, [0x40, 2, 0, 1]);
-        }
+        assert_eq!(ack5, [0x20, 8, 0, 0, 5, 0x27, 0, 1, 0, 0]);
+        mqtt5_publish_to_qos0_subscriber(&mut publisher, qos).await;
         let mut delivered = [0; 6];
         timeout(
             Duration::from_secs(3),
@@ -309,19 +349,16 @@ async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
         .write_all(&authenticated_connect(b"publisher", 5))
         .await
         .unwrap();
-    let mut connack = [0; 12];
+    let mut connack = [0; 10];
     timeout(Duration::from_secs(3), publisher.read_exact(&mut connack))
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(connack[0..4], [0x20, 10, 0, 0]);
+    assert_eq!(connack[0..4], [0x20, 8, 0, 0]);
 
     let commits_before = router.metrics().commits.load(Ordering::Relaxed);
     denied_subscription(&mut publisher, 5, 3).await;
-    assert_eq!(
-        router.metrics().commits.load(Ordering::Relaxed),
-        commits_before
-    );
+    assert_commits(&router, commits_before);
     let mut denied = vec![0x33, 0, 0, 12];
     denied.extend(b"denied/topic");
     denied.extend([0, 1, 0, b'x']);
@@ -333,10 +370,10 @@ async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
         .unwrap()
         .unwrap();
     assert_eq!(refusal, [0x40, 4, 0, 1, 0x87, 0]);
-    assert_eq!(
-        router.metrics().commits.load(Ordering::Relaxed),
-        commits_before
-    );
+    assert_commits(&router, commits_before);
+
+    denied_mqtt5_qos2_publish(&mut publisher).await;
+    assert_commits(&router, commits_before);
 
     let mut allowed = vec![0x32, 0, 0, 13];
     allowed.extend(b"allowed/topic");
@@ -390,12 +427,12 @@ async fn mqtt5_unsubscribe_reports_each_filter_and_stops_delivery() {
     });
     let mut stream = TcpStream::connect(address).await.unwrap();
     stream.write_all(&connect(b"sub", true, 5)).await.unwrap();
-    let mut connack = [0; 12];
+    let mut connack = [0; 10];
     timeout(Duration::from_secs(3), stream.read_exact(&mut connack))
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(connack[0..4], [0x20, 10, 0, 0]);
+    assert_eq!(connack[0..4], [0x20, 8, 0, 0]);
 
     let subscribe = [
         0x82, 12, 0, 1, 0, 0, 6, b't', b'e', b's', b't', b'/', b'#', 1,
@@ -503,12 +540,12 @@ async fn mqtt5_subscriber_receives_retained_and_live_qos1_from_v311() {
         .write_all(&connect(b"subscriber", true, 5))
         .await
         .unwrap();
-    let mut ack5 = [0; 12];
+    let mut ack5 = [0; 10];
     timeout(Duration::from_secs(3), subscriber.read_exact(&mut ack5))
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(ack5[0..4], [0x20, 10, 0, 0]);
+    assert_eq!(ack5[0..4], [0x20, 8, 0, 0]);
     subscriber
         .write_all(&[0x82, 7, 0, 1, 0, 0, 1, b'x', 1])
         .await

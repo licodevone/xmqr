@@ -290,7 +290,12 @@ fn decode_for(
     mqtt5: bool,
 ) -> Result<Packet, Box<dyn std::error::Error + Send + Sync>> {
     let mut c = Cursor::new(body);
-    if mqtt5 && !matches!(header, 0x30..=0x3f | 0x40 | 0x82 | 0xa2 | 0xc0 | 0xe0) {
+    if mqtt5
+        && !matches!(
+            header,
+            0x30..=0x3f | 0x40 | 0x50 | 0x62 | 0x70 | 0x82 | 0xa2 | 0xc0 | 0xe0
+        )
+    {
         return Err("unsupported MQTT 5 packet in current subset".into());
     }
     let packet = match header {
@@ -380,9 +385,6 @@ fn decode_for(
                 let topic = TopicFilter::try_from(c.text()?)?;
                 // MQTT-3-8.3-4: QoS 3 and reserved option bits are malformed.
                 let qos = Qos::from_u8(c.byte()?)?;
-                if mqtt5 && qos == Qos::ExactlyOnce {
-                    return Err("MQTT 5 SUBSCRIBE QoS 2 not supported".into());
-                }
                 filters.push((topic, qos));
             }
             if filters.is_empty() {
@@ -419,9 +421,6 @@ fn decode_for(
         0x30..=0x3f => {
             // MQTT-3.3.1-4: QoS 3 is reserved and closes the connection.
             let qos = Qos::from_u8((header >> 1) & 0x03)?;
-            if mqtt5 && qos == Qos::ExactlyOnce {
-                return Err("MQTT 5 QoS 2 not supported in publication subset".into());
-            }
             let retain = header & 0x01 != 0;
             let dup = header & 0x08 != 0;
             // MQTT-3.3.1-2: QoS 0 PUBLISH may not set DUP.
@@ -500,9 +499,9 @@ pub(super) fn encode_connack(code: u8) -> [u8; 4] {
 pub(super) fn encode_mqtt5_connack(reason: u8) -> [u8; 5] {
     [0x20, 0x03, 0x00, reason, 0x00]
 }
-pub(super) fn encode_mqtt5_success_connack() -> [u8; 12] {
-    // Maximum QoS=1 (0x24), Maximum Packet Size=65536 (0x27).
-    [0x20, 0x0a, 0x00, 0x00, 0x07, 0x24, 0x01, 0x27, 0, 1, 0, 0]
+pub(super) fn encode_mqtt5_success_connack() -> [u8; 10] {
+    // Maximum QoS absent means 2; Maximum Packet Size=65536 (0x27).
+    [0x20, 0x08, 0x00, 0x00, 0x05, 0x27, 0, 1, 0, 0]
 }
 pub(super) fn encode_connack_with_session(
     code: u8,
@@ -541,6 +540,16 @@ pub(super) fn encode_mqtt5_puback_reason(packet_id: u16, reason: u8) -> [u8; 6] 
     // the zero property length makes the variable header unambiguous.
     [
         0x40,
+        0x04,
+        packet_id.to_be_bytes()[0],
+        packet_id.to_be_bytes()[1],
+        reason,
+        0,
+    ]
+}
+pub(super) fn encode_mqtt5_pubrec_reason(packet_id: u16, reason: u8) -> [u8; 6] {
+    [
+        0x50,
         0x04,
         packet_id.to_be_bytes()[0],
         packet_id.to_be_bytes()[1],
@@ -598,9 +607,6 @@ pub(super) fn encode_publish_for(
     packet_id: Option<u16>,
     mqtt5: bool,
 ) -> Result<Vec<u8>, &'static str> {
-    if mqtt5 && qos == Qos::ExactlyOnce {
-        return Err("MQTT 5 QoS 2 not supported");
-    }
     // MQTT-2.3.1-5 and MQTT-3.3.1-2: identifier and DUP follow QoS.
     match (qos, packet_id) {
         (Qos::AtMostOnce, None) if !dup => (),
@@ -648,7 +654,7 @@ mod tests {
         assert_eq!(encode_mqtt5_connack(0), [0x20, 3, 0, 0, 0]);
         assert_eq!(
             encode_mqtt5_success_connack(),
-            [0x20, 10, 0, 0, 7, 0x24, 1, 0x27, 0, 1, 0, 0]
+            [0x20, 8, 0, 0, 5, 0x27, 0, 1, 0, 0]
         );
     }
 
@@ -670,7 +676,6 @@ mod tests {
         for body in [
             &[0, 0, 0, 0, 1, b'x', 0][..],       // Zero packet ID.
             &[0, 1, 1, 0x26, 0, 1, b'x', 0][..], // Unsupported property.
-            &[0, 1, 0, 0, 1, b'x', 2][..],       // QoS 2.
             &[0, 1, 0, 0, 1, b'x', 4][..],       // No Local.
             &[0, 1, 0][..],                      // No filters.
         ] {
@@ -696,7 +701,43 @@ mod tests {
     }
 
     #[test]
-    fn mqtt5_rejects_unsupported_properties_and_qos_without_decoding_as_v311() {
+    fn mqtt5_qos2_vectors_keep_packet_identifiers_and_empty_properties() {
+        assert!(matches!(
+            decode_for(0x82, &[0, 3, 0, 0, 1, b'x', 2], true).unwrap(),
+            Packet::Subscribe { filters, .. } if filters[0].1 == Qos::ExactlyOnce
+        ));
+        assert!(matches!(
+            decode_for(0x34, &[0, 1, b'x', 0, 7, 0, b'y'], true).unwrap(),
+            Packet::Publish {
+                qos: Qos::ExactlyOnce,
+                packet_id: Some(7),
+                ..
+            }
+        ));
+        assert!(matches!(
+            decode_for(0x50, &[0, 7], true),
+            Ok(Packet::PubRec(7))
+        ));
+        assert!(matches!(
+            decode_for(0x62, &[0, 7], true),
+            Ok(Packet::PubRel(7))
+        ));
+        assert!(matches!(
+            decode_for(0x70, &[0, 7], true),
+            Ok(Packet::PubComp(7))
+        ));
+        assert_eq!(
+            encode_publish_for("x", b"y", Qos::ExactlyOnce, false, false, Some(7), true).unwrap(),
+            [0x34, 7, 0, 1, b'x', 0, 7, 0, b'y']
+        );
+        assert_eq!(
+            encode_mqtt5_pubrec_reason(7, 0x87),
+            [0x50, 4, 0, 7, 0x87, 0]
+        );
+    }
+
+    #[test]
+    fn mqtt5_rejects_unsupported_properties_without_decoding_as_v311() {
         let connect = [
             0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 30, 5, 0x11, 0, 0, 0, 0, 0, 1, b'a',
         ];
@@ -722,7 +763,14 @@ mod tests {
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x21, 0, 5]).is_err());
         assert!(!mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10]).unwrap());
         assert!(decode_for(0x32, &[0, 1, b'a', 0, 1, 1, 0x23, b'x'], true).is_err());
-        assert!(decode_for(0x34, &[0, 1, b'a', 0, 1, 0, b'x'], true).is_err());
+        assert!(matches!(
+            decode_for(0x34, &[0, 1, b'a', 0, 1, 0, b'x'], true).unwrap(),
+            Packet::Publish {
+                qos: Qos::ExactlyOnce,
+                packet_id: Some(1),
+                ..
+            }
+        ));
         assert!(decode_for(0x82, &[0, 1, 0, 1, b'a', 0], true).is_err());
     }
 

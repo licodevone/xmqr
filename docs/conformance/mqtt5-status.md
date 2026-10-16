@@ -1,12 +1,12 @@
-# MQTT 5 — publicação e assinatura iniciais da fase 6A
+# MQTT 5 — subconjunto da fase 6A
 
 P115 aceita `CONNECT` MQTT 5 com Clean Start=1, Session Expiry ausente ou zero,
 Receive Maximum válido opcional, sem Will e sem outras propriedades. Autenticação, ACL, limites e transporte
-existentes continuam aplicados. O `CONNACK` de sucesso anuncia Maximum QoS=1 e
-Maximum Packet Size=65536. `PUBLISH` sem propriedades em QoS 0/1, retained,
+existentes continuam aplicados. Após P122, o `CONNACK` de sucesso omite Maximum QoS,
+indicando o padrão 2, e anuncia Maximum Packet Size=65536. `PUBLISH` sem propriedades em QoS 0/1/2, retained,
 `PUBACK`, `PINGREQ` e `DISCONNECT` simples funcionam; uma publicação MQTT 5
 chega a assinantes MQTT 3.1.1. P116 aceita SUBSCRIBE MQTT 5 com propriedades
-vazias, opções padrão e QoS0/1, responde SUBACK com reason code por filtro e
+vazias, opções padrão e QoS0/1/2, responde SUBACK com reason code por filtro e
 envia PUBLISH MQTT 5 para mensagens vivas/retained. PUBACK de entrega QoS1 é
 processado. C57/C58 disponibilizam `pub` e `sub --protocol-version 5`, mantendo
 o padrão 3.1.1.
@@ -23,12 +23,16 @@ P121 aceita UNSUBSCRIBE MQTT 5 com propriedades vazias e responde UNSUBACK
 com motivo por filtro na ordem recebida: `0x00` removido ou `0x11` inexistente.
 Remoções são confirmadas após commit; cancelamento sem alteração não grava.
 C62 aguarda UNSUBACK para cada filtro antes do DISCONNECT após `sub --count`.
+P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
+assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
+sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
+PUBREC/PUBCOMP com código. O estado QoS2 existente continua durável.
 Receive Maximum pode constar no CONNECT, mas o controle completo de fluxo de
 entrega ainda depende da fase 6C; não se declara conformidade MQTT 5 integral.
 
 O broker recusa Clean Start=0, Will e propriedades de CONNECT fora de Session
 Expiry=0/Receive Maximum válido com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
-subconjunto encerram a conexão. Ainda não há QoS 2,
+subconjunto encerram a conexão. Ainda não há
 propriedades de publicação, sessão persistente/expiração, Will Delay, flow
 control, Topic Alias ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. O formato durável v5 não muda.
@@ -45,6 +49,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P120](../../prompts/registros/P120-suback-mqtt5-acl.md) e
 [C61](../../../xmqr-client/prompts/registros/C61-connack-mqtt5-reason.md),
 [P121](../../prompts/registros/P121-unsubscribe-mqtt5.md) e
-[C62](../../../xmqr-client/prompts/registros/C62-unsubscribe-mqtt5.md).
+[C62](../../../xmqr-client/prompts/registros/C62-unsubscribe-mqtt5.md),
+[P122](../../prompts/registros/P122-qos2-mqtt5.md) e
+[C63](../../../xmqr-client/prompts/registros/C63-qos2-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

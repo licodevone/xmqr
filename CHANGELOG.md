@@ -2,6 +2,7 @@
 
 ## Não publicado — fase 6A em evolução
 
+- P122: PUBLISH/SUBSCRIBE MQTT 5 QoS2 com ciclo PUBREC/PUBREL/PUBCOMP e entrega cruzada; CONNACK omite Maximum QoS (padrão 2). ACL negada em QoS2 responde PUBREC `0x87` sem commit.
 - P121: UNSUBSCRIBE MQTT 5 sem propriedades e UNSUBACK com motivo por filtro (`0x00` removido, `0x11` inexistente); remoção confirma somente após commit, ausência não grava estado. MQTT 3.1.1 preservado.
 - P120: SUBACK MQTT 5 usa `0x87` para filtro negado por ACL, sem commit quando todos os filtros são recusados; MQTT 3.1.1 mantém `0x80`.
 - P119: recusa ACL de PUBLISH MQTT 5 QoS 1 retorna PUBACK `0x87` sem commit; a conexão continua disponível para publicação permitida. MQTT 3.1.1 mantém o fechamento anterior.
