@@ -374,6 +374,87 @@ async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
 }
 
 #[tokio::test]
+async fn mqtt5_unsubscribe_reports_each_filter_and_stops_delivery() {
+    let directory = tempfile::tempdir().unwrap();
+    let auth = Arc::new(AccessPolicy::open_lab());
+    let router = Arc::new(Router::start(directory.path(), auth.clone()).await.unwrap());
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let worker_router = router.clone();
+    let worker = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let connection = BrokerConnection::open_lab_for_test(stream).await.unwrap();
+        serve_connection(connection, auth, worker_router)
+            .await
+            .unwrap();
+    });
+    let mut stream = TcpStream::connect(address).await.unwrap();
+    stream.write_all(&connect(b"sub", true, 5)).await.unwrap();
+    let mut connack = [0; 12];
+    timeout(Duration::from_secs(3), stream.read_exact(&mut connack))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(connack[0..4], [0x20, 10, 0, 0]);
+
+    let subscribe = [
+        0x82, 12, 0, 1, 0, 0, 6, b't', b'e', b's', b't', b'/', b'#', 1,
+    ];
+    stream.write_all(&subscribe).await.unwrap();
+    let mut suback = [0; 6];
+    timeout(Duration::from_secs(3), stream.read_exact(&mut suback))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(suback, [0x90, 4, 0, 1, 0, 1]);
+    let unsubscribe = [
+        0xa2, 20, 0, 2, 0, 0, 6, b't', b'e', b's', b't', b'/', b'#', 0, 7, b'm', b'i', b's', b's',
+        b'i', b'n', b'g',
+    ];
+    stream.write_all(&unsubscribe).await.unwrap();
+    let mut unsuback = [0; 7];
+    timeout(Duration::from_secs(3), stream.read_exact(&mut unsuback))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(unsuback, [0xb0, 5, 0, 2, 0, 0, 0x11]);
+    let commits = router.metrics().commits.load(Ordering::Relaxed);
+
+    let missing = [0xa2, 11, 0, 3, 0, 0, 6, b't', b'e', b's', b't', b'/', b'#'];
+    stream.write_all(&missing).await.unwrap();
+    let mut missing_ack = [0; 6];
+    timeout(Duration::from_secs(3), stream.read_exact(&mut missing_ack))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(missing_ack, [0xb0, 4, 0, 3, 0, 0x11]);
+    assert_eq!(router.metrics().commits.load(Ordering::Relaxed), commits);
+
+    let publish = [
+        0x32, 12, 0, 6, b't', b'e', b's', b't', b'/', b'a', 0, 4, 0, b'x',
+    ];
+    stream.write_all(&publish).await.unwrap();
+    let mut puback = [0; 4];
+    timeout(Duration::from_secs(3), stream.read_exact(&mut puback))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(puback, [0x40, 2, 0, 4]);
+    let mut extra = [0];
+    assert!(
+        timeout(Duration::from_millis(150), stream.read(&mut extra))
+            .await
+            .is_err()
+    );
+    stream.write_all(&[0xe0, 0]).await.unwrap();
+    timeout(Duration::from_secs(3), worker)
+        .await
+        .unwrap()
+        .unwrap();
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn mqtt5_subscriber_receives_retained_and_live_qos1_from_v311() {
     let directory = tempfile::tempdir().unwrap();
     let auth = Arc::new(AccessPolicy::open_lab());

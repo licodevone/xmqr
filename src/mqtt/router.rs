@@ -218,7 +218,7 @@ enum Command {
         client_id: String,
         generation: u64,
         filters: Vec<TopicFilter>,
-        reply: oneshot::Sender<Result<(), RouterError>>,
+        reply: oneshot::Sender<Result<Vec<u8>, RouterError>>,
     },
     Publish {
         client_id: String,
@@ -686,7 +686,7 @@ impl Router {
         &self,
         session: &Session,
         filters: Vec<TopicFilter>,
-    ) -> Result<(), RouterError> {
+    ) -> Result<Vec<u8>, RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Unsubscribe {
             client_id: session.client_id.clone(),
@@ -1665,17 +1665,24 @@ impl Actor {
         client_id: &str,
         generation: u64,
         filters: Vec<TopicFilter>,
-    ) -> Result<(), RouterError> {
+    ) -> Result<Vec<u8>, RouterError> {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
         let session = candidate
             .sessions
             .get_mut(client_id)
             .ok_or(RouterError::Stale)?;
+        let mut codes = Vec::with_capacity(filters.len());
+        let mut changed = false;
         for filter in filters {
-            session.subscriptions.remove(&filter);
+            let removed = session.subscriptions.remove(&filter).is_some();
+            codes.push(if removed { 0x00 } else { 0x11 });
+            changed |= removed;
         }
-        self.commit(candidate).await
+        if changed {
+            self.commit(candidate).await?;
+        }
+        Ok(codes)
     }
 
     async fn publish(

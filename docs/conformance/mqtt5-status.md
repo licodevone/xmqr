@@ -19,12 +19,16 @@ C60 faz o client mostrar os códigos de recusa de PUBACK/SUBACK.
 P120 usa SUBACK `0x87` por filtro negado pela ACL em MQTT 5, sem commit se
 todos forem negados; MQTT 3.1.1 preserva SUBACK `0x80`. C61 exibe motivo e
 código de CONNACK recusado, por exemplo senha incorreta `0x86`.
+P121 aceita UNSUBSCRIBE MQTT 5 com propriedades vazias e responde UNSUBACK
+com motivo por filtro na ordem recebida: `0x00` removido ou `0x11` inexistente.
+Remoções são confirmadas após commit; cancelamento sem alteração não grava.
+C62 aguarda UNSUBACK para cada filtro antes do DISCONNECT após `sub --count`.
 Receive Maximum pode constar no CONNECT, mas o controle completo de fluxo de
 entrega ainda depende da fase 6C; não se declara conformidade MQTT 5 integral.
 
 O broker recusa Clean Start=0, Will e propriedades de CONNECT fora de Session
 Expiry=0/Receive Maximum válido com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
-subconjunto encerram a conexão. Ainda não há UNSUBSCRIBE MQTT 5, QoS 2,
+subconjunto encerram a conexão. Ainda não há QoS 2,
 propriedades de publicação, sessão persistente/expiração, Will Delay, flow
 control, Topic Alias ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. O formato durável v5 não muda.
@@ -39,6 +43,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P119](../../prompts/registros/P119-puback-mqtt5-acl.md) e
 [C60](../../../xmqr-client/prompts/registros/C60-diagnostico-reason-code-mqtt5.md),
 [P120](../../prompts/registros/P120-suback-mqtt5-acl.md) e
-[C61](../../../xmqr-client/prompts/registros/C61-connack-mqtt5-reason.md).
+[C61](../../../xmqr-client/prompts/registros/C61-connack-mqtt5-reason.md),
+[P121](../../prompts/registros/P121-unsubscribe-mqtt5.md) e
+[C62](../../../xmqr-client/prompts/registros/C62-unsubscribe-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

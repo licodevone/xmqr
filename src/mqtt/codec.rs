@@ -290,7 +290,7 @@ fn decode_for(
     mqtt5: bool,
 ) -> Result<Packet, Box<dyn std::error::Error + Send + Sync>> {
     let mut c = Cursor::new(body);
-    if mqtt5 && !matches!(header, 0x30..=0x3f | 0x40 | 0x82 | 0xc0 | 0xe0) {
+    if mqtt5 && !matches!(header, 0x30..=0x3f | 0x40 | 0x82 | 0xa2 | 0xc0 | 0xe0) {
         return Err("unsupported MQTT 5 packet in current subset".into());
     }
     let packet = match header {
@@ -394,6 +394,13 @@ fn decode_for(
             let packet_id = c.word()?;
             if packet_id == 0 {
                 return Err("zero UNSUBSCRIBE packet id".into());
+            }
+            if mqtt5 {
+                let property_length = c.variable_integer()?;
+                c.bytes(property_length)?;
+                if property_length != 0 {
+                    return Err("MQTT 5 UNSUBSCRIBE properties not supported".into());
+                }
             }
             let mut filters = Vec::new();
             while c.pos < body.len() {
@@ -553,6 +560,14 @@ pub(super) fn encode_pubcomp(packet_id: u16) -> [u8; 4] {
 pub(super) fn encode_unsuback(packet_id: u16) -> [u8; 4] {
     encode_ack(0xb0, packet_id)
 }
+pub(super) fn encode_mqtt5_unsuback(packet_id: u16, codes: &[u8]) -> Vec<u8> {
+    let mut out = vec![0xb0];
+    encode_length(3 + codes.len(), &mut out);
+    out.extend_from_slice(&packet_id.to_be_bytes());
+    out.push(0); // No UNSUBACK properties.
+    out.extend_from_slice(codes);
+    out
+}
 fn encode_ack(header: u8, packet_id: u16) -> [u8; 4] {
     [
         header,
@@ -661,6 +676,23 @@ mod tests {
         ] {
             assert!(decode_for(0x82, body, true).is_err());
         }
+    }
+
+    #[test]
+    fn mqtt5_unsubscribe_has_properties_and_reason_codes() {
+        assert!(matches!(
+            decode_for(0xa2, &[0, 9, 0, 0, 1, b'x'], true).unwrap(),
+            Packet::Unsubscribe { packet_id: 9, filters }
+                if filters.len() == 1 && filters[0].as_str() == "x"
+        ));
+        assert!(decode_for(0xa2, &[0, 9, 1, 0x26, 0, 1, b'x'], true).is_err());
+        assert!(decode_for(0xa2, &[0, 9, 0], true).is_err());
+        assert!(decode_for(0xa2, &[0, 9, 0, 0, 2, b'x'], true).is_err());
+        assert!(decode_for(0xa2, &[0, 9, 0, 0, 1, b'x'], false).is_err());
+        assert_eq!(
+            encode_mqtt5_unsuback(9, &[0, 0x11]),
+            [0xb0, 5, 0, 9, 0, 0, 0x11]
+        );
     }
 
     #[test]

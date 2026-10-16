@@ -235,8 +235,9 @@ async fn serve_mqtt(
                             for delivery in retained { send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?; }
                         }
                         Packet::Unsubscribe { packet_id, filters } => {
-                            router.unsubscribe(&session, filters).await?;
-                            connection.write_all_with_deadline(&encode_unsuback(packet_id), WRITE_TIMEOUT).await?;
+                            let codes = router.unsubscribe(&session, filters).await?;
+                            let ack = if mqtt5 { codec::encode_mqtt5_unsuback(packet_id, &codes) } else { encode_unsuback(packet_id).to_vec() };
+                            connection.write_all_with_deadline(&ack, WRITE_TIMEOUT).await?;
                         }
                         Packet::Publish { topic, payload, qos, retain, dup, packet_id } => {
                             // DUP is a PUBLISH retransmission hint, not an application dedup key.
