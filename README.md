@@ -35,9 +35,9 @@ Publicação registrada separadamente em P92;
 client0.9.0 e admin independente0.1.0 têm ciclos próprios.
 O [planejamento dos três sistemas](../xmqr-admin/docs/planejamento-tres-sistemas.md)
 inclui a futura administração de usuários, grupos, papéis e permissões.
-MQTT 5 permanece sem sessões aceitas. A primeira fatia 6A/P114 permite ao broker
-recusar `CONNECT` de nível 5 com `CONNACK` MQTT 5 `0x84` e fechar; veja o
-[estado MQTT 5](docs/conformance/mqtt5-status.md). O client ainda usa 3.1.1.
+MQTT 5 possui um subconjunto inicial de publicação QoS0/1 com sessão limpa
+em P115/C57. Assinaturas MQTT 5 e propriedades avançadas seguem pendentes;
+veja o [estado MQTT 5](docs/conformance/mqtt5-status.md).
 
 Veja a [baseline de RAM, CPU e latência P62](docs/performance-baseline.md),
 com parâmetros, três repetições, resultados e limites da medição Ubuntu/WSL.

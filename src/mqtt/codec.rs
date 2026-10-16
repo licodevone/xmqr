@@ -51,6 +51,7 @@ impl Qos {
 #[derive(Debug)]
 pub(super) enum Packet {
     Connect {
+        mqtt5: bool,
         client_id: String,
         clean_session: bool,
         keep_alive: u16,
@@ -80,11 +81,13 @@ pub(super) enum Packet {
     PubComp(u16),
     PingReq,
     Disconnect,
+    UnsupportedConnect5,
 }
 
 pub(super) struct FrameReader {
     buffer: Vec<u8>,
     partial_since: Option<Instant>,
+    mqtt5: bool,
 }
 
 impl FrameReader {
@@ -92,7 +95,12 @@ impl FrameReader {
         Self {
             buffer: initial,
             partial_since: None,
+            mqtt5: false,
         }
+    }
+
+    pub(super) fn set_mqtt5(&mut self) {
+        self.mqtt5 = true;
     }
 
     pub(super) async fn read_packet(
@@ -143,7 +151,7 @@ impl FrameReader {
             let header = self.buffer[0];
             self.buffer.drain(..header_len + remaining);
             self.partial_since = None;
-            return decode(header, &body).map(Some);
+            return decode_for(header, &body, self.mqtt5).map(Some);
         }
         Ok(None)
     }
@@ -189,6 +197,19 @@ impl<'a> Cursor<'a> {
     fn word(&mut self) -> Result<u16, &'static str> {
         Ok(u16::from_be_bytes([self.byte()?, self.byte()?]))
     }
+    fn variable_integer(&mut self) -> Result<usize, &'static str> {
+        let mut value = 0_usize;
+        let mut multiplier = 1_usize;
+        for _ in 0..4 {
+            let digit = self.byte()?;
+            value += usize::from(digit & 0x7f) * multiplier;
+            if digit & 0x80 == 0 {
+                return Ok(value);
+            }
+            multiplier *= 128;
+        }
+        Err("invalid MQTT variable integer")
+    }
     fn bytes(&mut self, len: usize) -> Result<&'a [u8], &'static str> {
         let end = self.pos.checked_add(len).ok_or("MQTT length overflow")?;
         let out = self
@@ -227,17 +248,32 @@ fn is_noncharacter(ch: char) -> bool {
     (0xfdd0..=0xfdef).contains(&x) || x & 0xffff == 0xfffe || x & 0xffff == 0xffff
 }
 
-#[allow(clippy::too_many_lines)] // One fixed-header dispatch keeps malformed forms centralized.
+#[cfg(test)]
 fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error + Send + Sync>> {
+    decode_for(header, body, false)
+}
+
+#[allow(clippy::too_many_lines)]
+fn decode_for(
+    header: u8,
+    body: &[u8],
+    mqtt5: bool,
+) -> Result<Packet, Box<dyn std::error::Error + Send + Sync>> {
     let mut c = Cursor::new(body);
+    if mqtt5 && !matches!(header, 0x30..=0x3f | 0xc0 | 0xe0) {
+        return Err("unsupported MQTT 5 packet in publication subset".into());
+    }
     let packet = match header {
         0x10 => {
             if c.text()? != "MQTT" {
                 return Err("unsupported MQTT protocol".into());
             }
             let level = c.byte()?;
-            if level != 4 {
+            if level != 4 && level != 5 {
                 return Err(UnsupportedProtocolLevel(level).into());
+            }
+            if mqtt5 {
+                return Err("duplicate MQTT 5 CONNECT".into());
             }
             let flags = c.byte()?;
             // MQTT-3.1.2-3/11/13/14/15: reserved and conditional Will flags.
@@ -249,11 +285,20 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
             }
             let has_username = flags & 0x80 != 0;
             let has_password = flags & 0x40 != 0;
-            if has_password && !has_username {
+            if level == 4 && has_password && !has_username {
                 return Err("password flag requires username flag".into());
             }
             let clean_session = flags & 0x02 != 0;
             let keep_alive = c.word()?;
+            if level == 5 {
+                let property_length = c.variable_integer()?;
+                let properties = c.bytes(property_length)?;
+                // Zero Session Expiry is equivalent to the default. All other
+                // properties require later MQTT 5 phases.
+                if !clean_session || has_will || !matches!(properties, [] | [0x11, 0, 0, 0, 0]) {
+                    return Ok(Packet::UnsupportedConnect5);
+                }
+            }
             let client_id = c.text()?;
             // MQTT-3.1.3-1: Will precedes username/password. Message is binary.
             let will = if has_will {
@@ -276,6 +321,7 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
                 .then(|| c.binary().map(<[u8]>::to_vec))
                 .transpose()?;
             Packet::Connect {
+                mqtt5: level == 5,
                 client_id,
                 clean_session,
                 keep_alive,
@@ -326,6 +372,9 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
         0x30..=0x3f => {
             // MQTT-3.3.1-4: QoS 3 is reserved and closes the connection.
             let qos = Qos::from_u8((header >> 1) & 0x03)?;
+            if mqtt5 && qos == Qos::ExactlyOnce {
+                return Err("MQTT 5 QoS 2 not supported in publication subset".into());
+            }
             let retain = header & 0x01 != 0;
             let dup = header & 0x08 != 0;
             // MQTT-3.3.1-2: QoS 0 PUBLISH may not set DUP.
@@ -343,6 +392,13 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
                 }
                 Some(id)
             };
+            if mqtt5 {
+                let property_length = c.variable_integer()?;
+                c.bytes(property_length)?;
+                if property_length != 0 {
+                    return Err("MQTT 5 PUBLISH properties not supported".into());
+                }
+            }
             let payload = c.bytes(body.len() - c.pos)?.to_vec();
             if payload.len() > MAX_PAYLOAD {
                 return Err("MQTT payload too large".into());
@@ -362,7 +418,7 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
         0x62 => Packet::PubRel(nonzero_ack_id(&mut c)?),
         0x70 => Packet::PubComp(nonzero_ack_id(&mut c)?),
         0xc0 if body.is_empty() => Packet::PingReq,
-        0xe0 if body.is_empty() => Packet::Disconnect,
+        0xe0 if body.is_empty() || mqtt5 && body == [0] => Packet::Disconnect,
         _ => return Err("unsupported MQTT packet type or flags".into()),
     };
     c.end()?;
@@ -394,9 +450,12 @@ pub(super) fn encode_connack(code: u8) -> [u8; 4] {
     [0x20, 0x02, 0x00, code]
 }
 
-/// MQTT 5 §3.2.2: refusal, Session Present=0, no properties.
-pub(super) fn encode_unsupported_mqtt5_connack() -> [u8; 5] {
-    [0x20, 0x03, 0x00, 0x84, 0x00]
+pub(super) fn encode_mqtt5_connack(reason: u8) -> [u8; 5] {
+    [0x20, 0x03, 0x00, reason, 0x00]
+}
+pub(super) fn encode_mqtt5_success_connack() -> [u8; 12] {
+    // Maximum QoS=1 (0x24), Maximum Packet Size=65536 (0x27).
+    [0x20, 0x0a, 0x00, 0x00, 0x07, 0x24, 0x01, 0x27, 0, 1, 0, 0]
 }
 pub(super) fn encode_connack_with_session(
     code: u8,
@@ -484,14 +543,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unsupported_connect_keeps_level_for_versioned_connack() {
+    fn mqtt5_connect_uses_versioned_connack() {
         let body = [0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 30, 0, 0, 0];
-        let error = decode(0x10, &body).unwrap_err();
+        assert!(matches!(
+            decode(0x10, &body).unwrap(),
+            Packet::Connect { mqtt5: true, .. }
+        ));
+        assert_eq!(encode_mqtt5_connack(0), [0x20, 3, 0, 0, 0]);
         assert_eq!(
-            error.downcast_ref::<UnsupportedProtocolLevel>().unwrap().0,
-            5
+            encode_mqtt5_success_connack(),
+            [0x20, 10, 0, 0, 7, 0x24, 1, 0x27, 0, 1, 0, 0]
         );
-        assert_eq!(encode_unsupported_mqtt5_connack(), [0x20, 3, 0, 0x84, 0]);
+    }
+
+    #[test]
+    fn mqtt5_rejects_unsupported_properties_and_qos_without_decoding_as_v311() {
+        let connect = [
+            0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 30, 5, 0x11, 0, 0, 0, 0, 0, 1, b'a',
+        ];
+        assert!(matches!(
+            decode(0x10, &connect).unwrap(),
+            Packet::Connect { mqtt5: true, .. }
+        ));
+        let mut nonzero_expiry = connect;
+        nonzero_expiry[15] = 1;
+        assert!(matches!(
+            decode(0x10, &nonzero_expiry).unwrap(),
+            Packet::UnsupportedConnect5
+        ));
+        assert!(decode_for(0x32, &[0, 1, b'a', 0, 1, 1, 0x23, b'x'], true).is_err());
+        assert!(decode_for(0x34, &[0, 1, b'a', 0, 1, 0, b'x'], true).is_err());
+        assert!(decode_for(0x82, &[0, 1, 0, 1, b'a', 0], true).is_err());
     }
 
     #[test]

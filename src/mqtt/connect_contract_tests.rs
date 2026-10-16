@@ -69,8 +69,8 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
     let mut stream = TcpStream::connect(address).await.unwrap();
     stream.write_all(&packet).await.unwrap();
     if let Some(code) = code {
-        let expected: &[u8] = if code == 0x84 {
-            &[0x20, 3, 0, 0x84, 0]
+        let expected: &[u8] = if code == 0x83 {
+            &[0x20, 3, 0, 0x83, 0]
         } else {
             &[0x20, 2, 0, code]
         };
@@ -112,10 +112,101 @@ async fn unsupported_level_receives_connack_one() {
 }
 
 #[tokio::test]
-async fn mqtt5_connect_receives_v5_unsupported_reason_and_closes_without_commit() {
-    let mut packet = connect(b"valid", true, 5);
+async fn mqtt5_unsupported_session_options_refused_without_commit() {
+    let mut packet = connect(b"valid", false, 5);
     packet.extend([0x31, 4, 0, 1, b'x', b'y']);
-    case(packet, Some(0x84)).await;
+    case(packet, Some(0x83)).await;
+}
+
+#[tokio::test]
+async fn mqtt5_qos0_and_qos1_reach_mqtt311_subscriber() {
+    for qos in [0_u8, 1] {
+        let directory = tempfile::tempdir().unwrap();
+        let auth = Arc::new(AccessPolicy::open_lab());
+        let router = Arc::new(Router::start(directory.path(), auth.clone()).await.unwrap());
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let worker = tokio::spawn(async move {
+            let mut handlers = Vec::new();
+            for _ in 0..2 {
+                let (stream, _) = listener.accept().await.unwrap();
+                let auth = auth.clone();
+                let router = router.clone();
+                handlers.push(tokio::spawn(async move {
+                    let connection = BrokerConnection::open_lab_for_test(stream).await.unwrap();
+                    serve_connection(connection, auth, router).await.unwrap();
+                }));
+            }
+            for handler in handlers {
+                handler.await.unwrap();
+            }
+        });
+        let mut subscriber = TcpStream::connect(address).await.unwrap();
+        subscriber
+            .write_all(&connect(b"subscriber", true, 4))
+            .await
+            .unwrap();
+        let mut ack4 = [0; 4];
+        timeout(Duration::from_secs(3), subscriber.read_exact(&mut ack4))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(ack4, [0x20, 2, 0, 0]);
+        subscriber
+            .write_all(&[0x82, 6, 0, 1, 0, 1, b'x', 0])
+            .await
+            .unwrap();
+        let mut suback = [0; 5];
+        timeout(Duration::from_secs(3), subscriber.read_exact(&mut suback))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(suback, [0x90, 3, 0, 1, 0]);
+
+        let mut publisher = TcpStream::connect(address).await.unwrap();
+        publisher
+            .write_all(&connect(b"publisher", true, 5))
+            .await
+            .unwrap();
+        let mut ack5 = [0; 12];
+        timeout(Duration::from_secs(3), publisher.read_exact(&mut ack5))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(ack5, [0x20, 10, 0, 0, 7, 0x24, 1, 0x27, 0, 1, 0, 0]);
+        if qos == 0 {
+            publisher
+                .write_all(&[0x30, 5, 0, 1, b'x', 0, b'y'])
+                .await
+                .unwrap();
+        } else {
+            publisher
+                .write_all(&[0x32, 7, 0, 1, b'x', 0, 1, 0, b'y'])
+                .await
+                .unwrap();
+            let mut puback = [0; 4];
+            timeout(Duration::from_secs(3), publisher.read_exact(&mut puback))
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(puback, [0x40, 2, 0, 1]);
+        }
+        let mut delivered = [0; 6];
+        timeout(
+            Duration::from_secs(3),
+            subscriber.read_exact(&mut delivered),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(delivered, [0x30, 4, 0, 1, b'x', b'y']);
+        publisher.write_all(&[0xe0, 0]).await.unwrap();
+        subscriber.write_all(&[0xe0, 0]).await.unwrap();
+        timeout(Duration::from_secs(3), worker)
+            .await
+            .unwrap()
+            .unwrap();
+    }
 }
 
 #[tokio::test]

@@ -2,10 +2,13 @@
 
 ## Em desenvolvimento — início da fase 6A
 
+- P115: broker aceita publicação MQTT 5 QoS0/1 com sessão limpa e propriedades
+  vazias; CONNACK anuncia QoS máximo 1 e pacote máximo 64 KiB. Teste cruzado
+  com assinante 3.1.1; demais recursos MQTT 5 seguem pendentes.
 - P114: um `CONNECT` MQTT 5 recebe recusa parseável `CONNACK 0x84` no formato
-  MQTT 5 e a conexão é fechada sem criar sessão ou alterar o estado.
-- MQTT 3.1.1 e o documento durável v5 permanecem iguais. Ainda não há sessões
-  MQTT 5 nem opções MQTT 5 no client; esta mudança isolada não tem nova tag.
+  MQTT 5 e a conexão é fechada sem criar sessão ou alterar o estado. Esse
+  comportamento histórico foi substituído por P115.
+- MQTT 3.1.1 e o documento durável v5 permanecem iguais. Sem nova tag isolada.
 
 ## 0.15.0 — operação administrativa local, experimental
 

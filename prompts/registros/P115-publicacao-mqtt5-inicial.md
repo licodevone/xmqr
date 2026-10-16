@@ -1,0 +1,8 @@
+# P115 — publicação MQTT 5 inicial
+
+- Prompt: [P115 rev3](../broker/115-publicacao-mqtt5-inicial.md), criado antes do código. Entrada: `main` em `8fdd92b`, broker 0.15.0.
+- Contrato: `CONNECT` 5 com Clean Start=1, Session Expiry ausente/zero, sem Will/outras propriedades; `CONNACK` anuncia QoS máximo1 e pacote máximo65536. `PUBLISH` sem propriedades QoS0/1 usa ACL, router e retained existentes; QoS1 recebe PUBACK. PINGREQ/DISCONNECT simples. Subscriptions5 e demais recursos continuam pendentes.
+- Rejeições: CONNECT5 fora do subconjunto recebe `0x83` antes de autenticação/registro; níveis desconhecidos continuam com CONNACK3.1.1 `0x01`. O contrato histórico de recusa geral P114 foi substituído.
+- Ubuntu26/WSL: `cargo test --locked` PASS (biblioteca 130 PASS/6 campanhas ignored; admin4, broker8, integrações11 e documentação PASS); `cargo clippy --locked --all-targets -- -D warnings` PASS; `cargo build --locked --bin mqtt-broker` PASS; `cargo fmt --all -- --check` PASS. `python3 scripts/license_inventory.py --check` PASS. `git diff --check` no Git do Windows PASS; no Git WSL apontou CRLF preexistente de arquivos fora do diff, portanto não é gate comparável nesta cópia.
+- Teste wire P115: CONNECT5 e CONNACK5, QoS0/1 publicados a assinante3.1.1, PUBACK, opções de sessão recusadas sem commit, propriedades/QoS2/SUBSCRIBE5 não interpretados como 3.1.1. `python3 scripts/verify_mqtt5_cross.py` PASS com binários reais broker+client: duas mensagens entregues ao client3.1.1.
+- Sem alteração de formato durável, configuração ou versão. Mosquitto externo não instalado nesta máquina; interop externa MQTT5 permanece pendente. Sem tag/release isolada. CI GitHub e commit: pendentes de verificação.

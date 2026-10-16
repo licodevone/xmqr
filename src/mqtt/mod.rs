@@ -1,6 +1,6 @@
 //! MQTT 3.1.1 session handler with bounded `QoS` 0/1/2, retained messages
 //! and durable CleanSession=0 state. Topic filters support MQTT 3.1.1 `+` and
-//! `#`, with durable Last Will; full conformance remains a separate gate.
+//! `#`, with durable Last Will. MQTT 5 has an initial publication-only subset.
 
 mod codec;
 #[cfg(all(test, unix))]
@@ -48,7 +48,7 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 /// # Errors
 ///
 /// Malformed packets, ACL violations, I/O failures and uncertain durable
-/// commits close the connection. Refused MQTT 5 emits `CONNACK 0x84`;
+/// commits close the connection. Unsupported MQTT 5 options emit `0x83`;
 /// other unsupported protocol levels emit `CONNACK 0x01`,
 /// refused client identifiers `0x02`, and authentication failures `0x05`.
 pub async fn serve_connection(
@@ -83,21 +83,23 @@ async fn serve_mqtt(
                 .downcast_ref::<codec::UnsupportedProtocolLevel>()
                 .expect("checked unsupported protocol error")
                 .0;
-            // MQTT 5 clients require a MQTT 5 CONNACK; older levels keep
-            // the 3.1.1 refusal established by P93.
-            let response: &[u8] = if level == 5 {
-                &codec::encode_unsupported_mqtt5_connack()
-            } else {
-                &encode_connack(1)
-            };
+            // Unknown levels keep the 3.1.1 refusal established by P93.
+            let _ = level;
             connection
-                .write_all_with_deadline(response, WRITE_TIMEOUT)
+                .write_all_with_deadline(&encode_connack(1), WRITE_TIMEOUT)
                 .await?;
             return Ok(());
         }
         Err(error) => return Err(error),
     };
+    if matches!(connect, Packet::UnsupportedConnect5) {
+        connection
+            .write_all_with_deadline(&codec::encode_mqtt5_connack(0x83), WRITE_TIMEOUT)
+            .await?;
+        return Ok(());
+    }
     let Packet::Connect {
+        mqtt5,
         client_id,
         clean_session,
         keep_alive,
@@ -108,6 +110,13 @@ async fn serve_mqtt(
     else {
         return Err("first MQTT packet must be CONNECT".into());
     };
+    let refusal = |legacy: u8, v5: u8| -> Vec<u8> {
+        if mqtt5 {
+            codec::encode_mqtt5_connack(v5).to_vec()
+        } else {
+            encode_connack(legacy).to_vec()
+        }
+    };
 
     // MQTT-3.1.3-8/9: XMQR refuses empty IDs rather than assigning one.
     // The 256-byte ceiling is a local quota shared with durable validation.
@@ -116,14 +125,14 @@ async fn serve_mqtt(
     if client_id.is_empty() || client_id.len() > store::MAX_CLIENT_ID_BYTES {
         metrics.reject(Rejection::Quota);
         connection
-            .write_all_with_deadline(&encode_connack(2), WRITE_TIMEOUT)
+            .write_all_with_deadline(&refusal(2, 0x85), WRITE_TIMEOUT)
             .await?;
         return Ok(());
     }
     let Some(client_id) = auth.scoped_client_id(&client_id) else {
         metrics.reject(Rejection::Quota);
         connection
-            .write_all_with_deadline(&encode_connack(2), WRITE_TIMEOUT)
+            .write_all_with_deadline(&refusal(2, 0x85), WRITE_TIMEOUT)
             .await?;
         return Ok(());
     };
@@ -140,7 +149,7 @@ async fn serve_mqtt(
     let Some(principal) = principal else {
         metrics.reject(Rejection::Authentication);
         connection
-            .write_all_with_deadline(&encode_connack(5), WRITE_TIMEOUT)
+            .write_all_with_deadline(&refusal(5, 0x86), WRITE_TIMEOUT)
             .await?;
         return Ok(());
     };
@@ -157,14 +166,18 @@ async fn serve_mqtt(
         Ok(session) => session,
         Err(RouterError::PrincipalMismatch | RouterError::WillDenied | RouterError::Security) => {
             connection
-                .write_all_with_deadline(&encode_connack(5), WRITE_TIMEOUT)
+                .write_all_with_deadline(&refusal(5, 0x87), WRITE_TIMEOUT)
                 .await?;
             return Ok(());
         }
         Err(error) => return Err(error.into()),
     };
     let mut guard = router.connection_guard(&session);
-    let connack = encode_connack_with_session(0, session.resumed)?;
+    let connack = if mqtt5 {
+        codec::encode_mqtt5_success_connack().to_vec()
+    } else {
+        encode_connack_with_session(0, session.resumed)?.to_vec()
+    };
     if let Err(error) = connection
         .write_all_with_deadline(&connack, WRITE_TIMEOUT)
         .await
@@ -177,6 +190,9 @@ async fn serve_mqtt(
         connection_id = connection.id(),
         "MQTT client accepted by access policy"
     );
+    if mqtt5 {
+        reader.set_mqtt5();
+    }
 
     let mut graceful = false;
     let mut last_inbound = Instant::now();
@@ -251,7 +267,7 @@ async fn serve_mqtt(
                         }
                         Packet::PingReq => connection.write_all_with_deadline(&encode_pingresp(), WRITE_TIMEOUT).await?,
                         Packet::Disconnect => { graceful = true; break; },
-                        Packet::Connect { .. } => return Err("duplicate CONNECT".into()),
+                        Packet::Connect { .. } | Packet::UnsupportedConnect5 => return Err("duplicate CONNECT".into()),
                     }
                 }
                 outbound = session.outbound.recv() => {

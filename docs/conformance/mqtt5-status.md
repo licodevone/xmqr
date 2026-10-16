@@ -1,22 +1,24 @@
-# MQTT 5 — estado inicial da fase 6A
+# MQTT 5 — subconjunto inicial da fase 6A
 
-O XMQR ainda **não aceita sessões MQTT 5**. O broker implementa apenas a recusa
-explícita P114 do nível 5: ao receber `CONNECT` com nome `MQTT` e nível 5,
-responde `CONNACK` `20 03 00 84 00` (Session Present 0, Unsupported Protocol
-Version, propriedades vazias) e fecha a conexão. O pacote é limitado a 64 KiB,
-mantém o prazo de leitura existente e não chega à autenticação ou ao ator.
+P115 aceita `CONNECT` MQTT 5 com Clean Start=1, Session Expiry ausente ou zero,
+sem Will e sem outras propriedades. Autenticação, ACL, limites e transporte
+existentes continuam aplicados. O `CONNACK` de sucesso anuncia Maximum QoS=1 e
+Maximum Packet Size=65536. `PUBLISH` sem propriedades em QoS 0/1, retained,
+`PUBACK`, `PINGREQ` e `DISCONNECT` simples funcionam; uma publicação MQTT 5
+chega a assinantes MQTT 3.1.1. A opção `--protocol-version 5` do client C57
+usa apenas `pub` QoS 0/1 e mantém o default 3.1.1.
 
-O caminho MQTT 3.1.1 (nível 4) permanece aceito; níveis 0/3/255 seguem com
-`CONNACK` 3.1.1 `20 02 00 01`. O teste P114 usa bytes independentes do encoder,
-confere a resposta, fechamento e ausência de commit mesmo com um `PUBLISH` em
-pipeline. Isso não valida todas as propriedades nem a estrutura completa de um
-`CONNECT` MQTT 5, pois nenhuma sessão dessa versão é admitida.
+O broker recusa Clean Start=0, Will e propriedades de CONNECT fora de Session
+Expiry=0 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
+subconjunto encerram a conexão. Ainda não há assinatura MQTT 5, QoS 2,
+propriedades de publicação, sessão persistente/expiração, Will Delay, flow
+control, Topic Alias ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
+permanecem pendentes. O formato durável v5 não muda.
 
-Permanecem pendentes em 6A: codec completo de `CONNECT`/`CONNACK`, propriedades,
-reason codes de sucesso e erro, coexistência de sessões 3.1.1/5 e opção de
-protocolo no client. Expiração, flow control, assinaturas e AUTH pertencem às
-fatias 6B–6D. Nenhum formato durável, configuração ou versão mudou em P114.
+Historicamente, P114 recusava todo `CONNECT` 5 com `CONNACK 0x84`; esse contrato
+foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
+`20 02 00 01`. Evidências: [P114](../../prompts/registros/P114-recusa-connect-mqtt5.md),
+[P115](../../prompts/registros/P115-publicacao-mqtt5-inicial.md) e
+[C57](../../../xmqr-client/prompts/registros/C57-publicacao-mqtt5-inicial.md).
 
-Fonte normativa: [OASIS MQTT 5 §3.1.2 e §3.2.2](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).
-Escopo e evidência: [prompt P114](../../prompts/broker/114-recusa-connect-mqtt5.md)
-e [registro P114](../../prompts/registros/P114-recusa-connect-mqtt5.md).
+Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).
