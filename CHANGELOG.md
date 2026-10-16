@@ -1,6 +1,6 @@
 # Histórico de versões
 
-## Em desenvolvimento — início da fase 6A
+## 0.16.0 — MQTT 5 inicial, experimental
 
 - P116: SUBSCRIBE MQTT 5 QoS0/1 sem propriedades avançadas, SUBACK com
   reason code por filtro e entrega de mensagens vivas/retained em PUBLISH 5;
@@ -12,7 +12,8 @@
 - P114: um `CONNECT` MQTT 5 recebe recusa parseável `CONNACK 0x84` no formato
   MQTT 5 e a conexão é fechada sem criar sessão ou alterar o estado. Esse
   comportamento histórico foi substituído por P115.
-- MQTT 3.1.1 e o documento durável v5 permanecem iguais. Sem nova tag isolada.
+- MQTT 3.1.1 e o documento durável v5 permanecem iguais. A fase 6A integral
+  continua aberta.
 
 ## 0.15.0 — operação administrativa local, experimental
 

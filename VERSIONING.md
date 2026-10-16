@@ -1,5 +1,15 @@
 # Versionamento
 
+## P117 — marco MQTT 5 inicial
+
+Broker e `mqtt-admin` legado 0.16.0 acrescentam o subconjunto MQTT 5 P115/P116:
+sessão limpa, publicação e assinatura QoS0/1 sem propriedades avançadas,
+com entrega viva/retained e interop Mosquitto. Client independente 0.14.0
+C57/C58 acompanha o contrato. Fase6A, QoS2 e propriedades continuam abertos.
+Documento durável v5 e formato 3.1.1 não mudam; rollback para broker 0.15.0
+exige encerrar o serviço e preservar backup offline do diretório de estado.
+Distribuição experimental conforme [nota](docs/releases/0.16.0.md).
+
 ## P113 — fechamento experimental da fase 5
 
 Broker e `mqtt-admin` legado 0.15.0 acrescentam canal local autenticado,
