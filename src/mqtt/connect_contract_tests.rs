@@ -45,6 +45,14 @@ fn connect(id: &[u8], clean: bool, level: u8) -> Vec<u8> {
     packet
 }
 
+fn connect5_with_properties(properties: &[u8]) -> Vec<u8> {
+    let mut packet = connect(b"valid", true, 5);
+    packet[12] = u8::try_from(properties.len()).unwrap();
+    packet.splice(13..13, properties.iter().copied());
+    packet[1] = u8::try_from(packet.len() - 2).unwrap();
+    packet
+}
+
 fn authenticated_connect(id: &[u8], level: u8) -> Vec<u8> {
     let mut packet = connect(id, true, level);
     packet[9] = 0xc2; // Username, password and Clean Start/Clean Session.
@@ -184,7 +192,9 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
     let mut stream = TcpStream::connect(address).await.unwrap();
     stream.write_all(&packet).await.unwrap();
     if let Some(code) = code {
-        let expected: &[u8] = if code == 0x83 {
+        let expected: &[u8] = if code == 0 && packet[8] == 5 {
+            &[0x20, 8, 0, 0, 5, 0x27, 0, 1, 0, 0]
+        } else if code == 0x83 {
             &[0x20, 3, 0, 0x83, 0]
         } else {
             &[0x20, 2, 0, code]
@@ -231,6 +241,28 @@ async fn mqtt5_unsupported_session_options_refused_without_commit() {
     let mut packet = connect(b"valid", false, 5);
     packet.extend([0x31, 4, 0, 1, b'x', b'y']);
     case(packet, Some(0x83)).await;
+}
+
+#[tokio::test]
+async fn mqtt5_connect_informational_properties_accept_and_reject_before_commit() {
+    case(
+        connect5_with_properties(&[
+            0x17, 0, 0x19, 1, 0x22, 0, 3, 0x26, 0, 1, b'a', 0, 1, b'b', 0x26, 0, 1, b'a', 0, 1,
+            b'c',
+        ]),
+        Some(0),
+    )
+    .await;
+    for properties in [
+        &[0x17, 2][..],
+        &[0x19, 0, 0x19, 1][..],
+        &[0x22, 0, 0, 0x22, 0, 1][..],
+        &[0x26, 0, 1, 0xff, 0, 1, b'b'][..],
+        &[0x26, 0, 1, b'a', 0, 2, b'b'][..],
+    ] {
+        case(connect5_with_properties(properties), None).await;
+    }
+    case(connect5_with_properties(&[0x27, 0, 0, 1, 0]), Some(0x83)).await;
 }
 
 #[tokio::test]

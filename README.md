@@ -37,8 +37,9 @@ O [planejamento dos três sistemas](../xmqr-admin/docs/planejamento-tres-sistema
 inclui a futura administração de usuários, grupos, papéis e permissões.
 MQTT 5 possui publicação, assinatura e cancelamento com sessão limpa.
 P122/C63 ampliam publicação e assinatura para QoS0/1/2 na árvore atual;
-propriedades avançadas e sessões persistentes seguem pendentes.
-veja o [estado MQTT 5](docs/conformance/mqtt5-status.md).
+P123/C64 acrescentam propriedades informativas no CONNECT. Propriedades de
+publicação e sessões persistentes seguem pendentes. Veja o
+[estado MQTT 5](docs/conformance/mqtt5-status.md).
 
 Veja a [baseline de RAM, CPU e latência P62](docs/performance-baseline.md),
 com parâmetros, três repetições, resultados e limites da medição Ubuntu/WSL.

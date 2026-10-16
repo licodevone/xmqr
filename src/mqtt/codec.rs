@@ -247,6 +247,9 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<bool, &'static str> 
     let mut properties = Cursor::new(raw);
     let mut expiry_seen = false;
     let mut receive_seen = false;
+    let mut problem_seen = false;
+    let mut response_seen = false;
+    let mut alias_seen = false;
     while properties.pos < raw.len() {
         match properties.byte()? {
             0x11 => {
@@ -266,6 +269,29 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<bool, &'static str> 
                 if properties.word()? == 0 {
                     return Err("zero MQTT 5 Receive Maximum");
                 }
+            }
+            0x17 => {
+                if problem_seen || properties.byte()? > 1 {
+                    return Err("invalid MQTT 5 Request Problem Information");
+                }
+                problem_seen = true;
+            }
+            0x19 => {
+                if response_seen || properties.byte()? > 1 {
+                    return Err("invalid MQTT 5 Request Response Information");
+                }
+                response_seen = true;
+            }
+            0x22 => {
+                if alias_seen {
+                    return Err("duplicate MQTT 5 Topic Alias Maximum");
+                }
+                alias_seen = true;
+                let _ = properties.word()?;
+            }
+            0x26 => {
+                let _ = properties.text()?;
+                let _ = properties.text()?;
             }
             _ => return Ok(false),
         }
@@ -761,6 +787,24 @@ mod tests {
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x11, 0, 0, 0, 0]).unwrap());
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 0]).is_err());
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x21, 0, 5]).is_err());
+        assert!(
+            mqtt5_connect_properties_supported(&[
+                0x17, 0, 0x19, 1, 0x22, 0, 4, 0x26, 0, 1, b'a', 0, 1, b'b', 0x26, 0, 1, b'a', 0, 1,
+                b'c',
+            ])
+            .unwrap()
+        );
+        for invalid in [
+            &[0x17, 2][..],
+            &[0x17, 0, 0x17, 1][..],
+            &[0x19, 2][..],
+            &[0x19, 0, 0x19, 1][..],
+            &[0x22, 0, 0, 0x22, 0, 1][..],
+            &[0x26, 0, 1, 0xff, 0, 1, b'b'][..],
+            &[0x26, 0, 1, b'a', 0, 2, b'b'][..],
+        ] {
+            assert!(mqtt5_connect_properties_supported(invalid).is_err());
+        }
         assert!(!mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10]).unwrap());
         assert!(decode_for(0x32, &[0, 1, b'a', 0, 1, 1, 0x23, b'x'], true).is_err());
         assert!(matches!(

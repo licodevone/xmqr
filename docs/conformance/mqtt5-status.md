@@ -1,7 +1,11 @@
 # MQTT 5 — subconjunto da fase 6A
 
 P115 aceita `CONNECT` MQTT 5 com Clean Start=1, Session Expiry ausente ou zero,
-Receive Maximum válido opcional, sem Will e sem outras propriedades. Autenticação, ACL, limites e transporte
+Receive Maximum válido opcional, sem Will. P123 acrescenta Request Problem
+Information, Request Response Information, Topic Alias Maximum e User Property
+no CONNECT. O broker valida valores e pares, mas não ecoa nem armazena essas
+propriedades e não envia aliases ou informações opcionais de resposta.
+Autenticação, ACL, limites e transporte
 existentes continuam aplicados. Após P122, o `CONNACK` de sucesso omite Maximum QoS,
 indicando o padrão 2, e anuncia Maximum Packet Size=65536. `PUBLISH` sem propriedades em QoS 0/1/2, retained,
 `PUBACK`, `PINGREQ` e `DISCONNECT` simples funcionam; uma publicação MQTT 5
@@ -30,8 +34,8 @@ PUBREC/PUBCOMP com código. O estado QoS2 existente continua durável.
 Receive Maximum pode constar no CONNECT, mas o controle completo de fluxo de
 entrega ainda depende da fase 6C; não se declara conformidade MQTT 5 integral.
 
-O broker recusa Clean Start=0, Will e propriedades de CONNECT fora de Session
-Expiry=0/Receive Maximum válido com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
+O broker recusa Clean Start=0, Will e propriedades de CONNECT fora do subconjunto
+P123 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há
 propriedades de publicação, sessão persistente/expiração, Will Delay, flow
 control, Topic Alias ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
@@ -51,6 +55,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P121](../../prompts/registros/P121-unsubscribe-mqtt5.md) e
 [C62](../../../xmqr-client/prompts/registros/C62-unsubscribe-mqtt5.md),
 [P122](../../prompts/registros/P122-qos2-mqtt5.md) e
-[C63](../../../xmqr-client/prompts/registros/C63-qos2-mqtt5.md).
+[C63](../../../xmqr-client/prompts/registros/C63-qos2-mqtt5.md),
+[P123](../../prompts/registros/P123-connect-properties-mqtt5.md) e
+[C64](../../../xmqr-client/prompts/registros/C64-connect-properties-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).
