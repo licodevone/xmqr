@@ -243,6 +243,36 @@ impl<'a> Cursor<'a> {
     }
 }
 
+fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<bool, &'static str> {
+    let mut properties = Cursor::new(raw);
+    let mut expiry_seen = false;
+    let mut receive_seen = false;
+    while properties.pos < raw.len() {
+        match properties.byte()? {
+            0x11 => {
+                if expiry_seen {
+                    return Err("duplicate MQTT 5 Session Expiry");
+                }
+                expiry_seen = true;
+                if properties.bytes(4)? != [0, 0, 0, 0] {
+                    return Ok(false);
+                }
+            }
+            0x21 => {
+                if receive_seen {
+                    return Err("duplicate MQTT 5 Receive Maximum");
+                }
+                receive_seen = true;
+                if properties.word()? == 0 {
+                    return Err("zero MQTT 5 Receive Maximum");
+                }
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
 fn is_noncharacter(ch: char) -> bool {
     let x = ch as u32;
     (0xfdd0..=0xfdef).contains(&x) || x & 0xffff == 0xfffe || x & 0xffff == 0xffff
@@ -293,9 +323,9 @@ fn decode_for(
             if level == 5 {
                 let property_length = c.variable_integer()?;
                 let properties = c.bytes(property_length)?;
-                // Zero Session Expiry is equivalent to the default. All other
-                // properties require later MQTT 5 phases.
-                if !clean_session || has_will || !matches!(properties, [] | [0x11, 0, 0, 0, 0]) {
+                // Receive Maximum is vacuous for this publish-only session;
+                // zero Session Expiry is equivalent to the default.
+                if !clean_session || has_will || !mqtt5_connect_properties_supported(properties)? {
                     return Ok(Packet::UnsupportedConnect5);
                 }
             }
@@ -571,6 +601,17 @@ mod tests {
             decode(0x10, &nonzero_expiry).unwrap(),
             Packet::UnsupportedConnect5
         ));
+        let mosquitto = [
+            0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 60, 3, 0x21, 0, 20, 0, 1, b'a',
+        ];
+        assert!(matches!(
+            decode(0x10, &mosquitto).unwrap(),
+            Packet::Connect { mqtt5: true, .. }
+        ));
+        assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x11, 0, 0, 0, 0]).unwrap());
+        assert!(mqtt5_connect_properties_supported(&[0x21, 0, 0]).is_err());
+        assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x21, 0, 5]).is_err());
+        assert!(!mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10]).unwrap());
         assert!(decode_for(0x32, &[0, 1, b'a', 0, 1, 1, 0x23, b'x'], true).is_err());
         assert!(decode_for(0x34, &[0, 1, b'a', 0, 1, 0, b'x'], true).is_err());
         assert!(decode_for(0x82, &[0, 1, 0, 1, b'a', 0], true).is_err());

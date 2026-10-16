@@ -68,7 +68,9 @@ class Broker:
                 "-t", topic, "-m", payload, "-q", str(qos)]
         if retain:
             args.append("-r")
-        subprocess.run(args, check=True, capture_output=True, timeout=TIMEOUT)
+        result = subprocess.run(args, capture_output=True, text=True, timeout=TIMEOUT)
+        if result.returncode != 0:
+            raise AssertionError(f"mosquitto_pub {version} exited {result.returncode}: {result.stderr.strip()}")
 
 
 class Subscriber:

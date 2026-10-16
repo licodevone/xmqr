@@ -1,7 +1,7 @@
 # MQTT 5 — subconjunto inicial da fase 6A
 
 P115 aceita `CONNECT` MQTT 5 com Clean Start=1, Session Expiry ausente ou zero,
-sem Will e sem outras propriedades. Autenticação, ACL, limites e transporte
+Receive Maximum válido opcional, sem Will e sem outras propriedades. Autenticação, ACL, limites e transporte
 existentes continuam aplicados. O `CONNACK` de sucesso anuncia Maximum QoS=1 e
 Maximum Packet Size=65536. `PUBLISH` sem propriedades em QoS 0/1, retained,
 `PUBACK`, `PINGREQ` e `DISCONNECT` simples funcionam; uma publicação MQTT 5
@@ -9,7 +9,7 @@ chega a assinantes MQTT 3.1.1. A opção `--protocol-version 5` do client C57
 usa apenas `pub` QoS 0/1 e mantém o default 3.1.1.
 
 O broker recusa Clean Start=0, Will e propriedades de CONNECT fora de Session
-Expiry=0 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
+Expiry=0/Receive Maximum válido com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há assinatura MQTT 5, QoS 2,
 propriedades de publicação, sessão persistente/expiração, Will Delay, flow
 control, Topic Alias ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
