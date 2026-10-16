@@ -1639,6 +1639,9 @@ impl Actor {
                     .or_insert(qos);
             }
         }
+        if codes.iter().all(|code| *code == 0x80) {
+            return Ok((codes, Vec::new()));
+        }
         let mut deliveries = Vec::with_capacity(retained_matches.len());
         for (topic, maximum) in retained_matches {
             let mut delivered = candidate

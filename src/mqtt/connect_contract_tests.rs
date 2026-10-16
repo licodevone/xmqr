@@ -56,6 +56,52 @@ fn authenticated_connect(id: &[u8], level: u8) -> Vec<u8> {
     packet
 }
 
+async fn denied_subscription(stream: &mut TcpStream, level: u8, packet_id: u8) {
+    let mut packet = vec![0x82, 0, 0, packet_id];
+    if level == 5 {
+        packet.push(0); // Empty MQTT 5 properties.
+    }
+    packet.extend([0, 12]);
+    packet.extend(b"denied/topic");
+    packet.push(1);
+    packet[1] = u8::try_from(packet.len() - 2).unwrap();
+    stream.write_all(&packet).await.unwrap();
+    let expected = if level == 5 {
+        vec![0x90, 4, 0, packet_id, 0, 0x87]
+    } else {
+        vec![0x90, 3, 0, packet_id, 0x80]
+    };
+    let mut received = vec![0; expected.len()];
+    timeout(Duration::from_secs(3), stream.read_exact(&mut received))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(received, expected);
+}
+
+async fn denied_legacy_publish(stream: &mut TcpStream) {
+    let mut packet = vec![0x32, 0, 0, 12];
+    packet.extend(b"denied/topic");
+    packet.extend([0, 3, b'z']);
+    packet[1] = u8::try_from(packet.len() - 2).unwrap();
+    stream.write_all(&packet).await.unwrap();
+    closed(stream).await;
+}
+
+async fn allowed_mqtt5_subscription(stream: &mut TcpStream) {
+    let mut packet = vec![0x82, 0, 0, 5, 0, 0, 13];
+    packet.extend(b"allowed/topic");
+    packet.push(1);
+    packet[1] = u8::try_from(packet.len() - 2).unwrap();
+    stream.write_all(&packet).await.unwrap();
+    let mut suback = [0; 6];
+    timeout(Duration::from_secs(3), stream.read_exact(&mut suback))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(suback, [0x90, 4, 0, 5, 0, 1]);
+}
+
 async fn closed(stream: &mut TcpStream) {
     let mut byte = [0];
     match timeout(Duration::from_secs(3), stream.read(&mut byte))
@@ -239,7 +285,7 @@ async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
     .unwrap();
     fs::write(
         &acl,
-        "[[rules]]\nusername = 'student'\npublish = ['allowed/topic']\nsubscribe = []\n",
+        "[[rules]]\nusername = 'student'\npublish = ['allowed/topic']\nsubscribe = ['allowed/topic']\n",
     )
     .unwrap();
     let auth = Arc::new(AccessPolicy::acl_lab(
@@ -271,6 +317,11 @@ async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
     assert_eq!(connack[0..4], [0x20, 10, 0, 0]);
 
     let commits_before = router.metrics().commits.load(Ordering::Relaxed);
+    denied_subscription(&mut publisher, 5, 3).await;
+    assert_eq!(
+        router.metrics().commits.load(Ordering::Relaxed),
+        commits_before
+    );
     let mut denied = vec![0x33, 0, 0, 12];
     denied.extend(b"denied/topic");
     denied.extend([0, 1, 0, b'x']);
@@ -298,6 +349,7 @@ async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
         .unwrap()
         .unwrap();
     assert_eq!(accepted, [0x40, 2, 0, 2]);
+    allowed_mqtt5_subscription(&mut publisher).await;
     publisher.write_all(&[0xe0, 0]).await.unwrap();
 
     let mut legacy = TcpStream::connect(address).await.unwrap();
@@ -311,12 +363,8 @@ async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
         .unwrap()
         .unwrap();
     assert_eq!(connack4, [0x20, 2, 0, 0]);
-    let mut denied4 = vec![0x32, 0, 0, 12];
-    denied4.extend(b"denied/topic");
-    denied4.extend([0, 3, b'z']);
-    denied4[1] = u8::try_from(denied4.len() - 2).unwrap();
-    legacy.write_all(&denied4).await.unwrap();
-    closed(&mut legacy).await;
+    denied_subscription(&mut legacy, 4, 4).await;
+    denied_legacy_publish(&mut legacy).await;
 
     timeout(Duration::from_secs(3), worker)
         .await

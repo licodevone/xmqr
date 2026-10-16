@@ -220,7 +220,16 @@ async fn serve_mqtt(
                                 let granted = auth.allowed_subscribe(&principal, filter.as_str()).then_some(qos.as_u8());
                                 (filter, granted)
                             }).collect();
-                            let (codes, retained) = router.subscribe(&session, requested).await?;
+                            let (mut codes, retained) = router.subscribe(&session, requested).await?;
+                            if mqtt5 {
+                                // The router uses the MQTT 3.1.1 failure code for ACL denial.
+                                // MQTT 5 can report the precise reason to each filter.
+                                for code in &mut codes {
+                                    if *code == 0x80 {
+                                        *code = 0x87;
+                                    }
+                                }
+                            }
                             let ack = if mqtt5 { codec::encode_mqtt5_suback(packet_id, &codes) } else { encode_suback(packet_id, &codes) };
                             connection.write_all_with_deadline(&ack, WRITE_TIMEOUT).await?;
                             for delivery in retained { send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?; }
