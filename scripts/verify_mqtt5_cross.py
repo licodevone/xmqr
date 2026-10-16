@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the broker and independent client together for the P115/C57 subset."""
+"""Run both MQTT 5 directions through the broker and independent client."""
 import json
 import os
 from pathlib import Path
@@ -76,6 +76,33 @@ def main():
                 if [item.get("payload_bytes") for item in publications] != [[111, 110, 101], [116, 119, 111]]:
                     raise AssertionError(f"unexpected cross-protocol deliveries: {publications}")
                 print("PASS: MQTT 5 QoS 0/1 -> MQTT 3.1.1 subscriber (two deliveries)")
+                retained = subprocess.run(
+                    [client_binary, "pub", "--open-lab", "--port", str(port),
+                     "--topic", "y", "--message", "retained", "--qos", "1",
+                     "--retain", "true", "--client-id", "cross-retained"],
+                    capture_output=True, text=True, timeout=8)
+                if retained.returncode != 0:
+                    raise RuntimeError(f"retained setup failed: {retained.stderr}")
+                subscriber = subprocess.Popen(
+                    [client_binary, "sub", "--open-lab", "--protocol-version", "5",
+                     "--port", str(port), "--topic", "y", "--qos", "1",
+                     "--count", "2", "--output", "jsonl", "--client-id", "cross-v5-sub"],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                subscription_ready(subscriber)
+                live = subprocess.run(
+                    [client_binary, "pub", "--open-lab", "--port", str(port),
+                     "--topic", "y", "--message", "live", "--qos", "1",
+                     "--client-id", "cross-v311-pub"],
+                    capture_output=True, text=True, timeout=8)
+                if live.returncode != 0:
+                    raise RuntimeError(f"live MQTT 3.1.1 publication failed: {live.stderr}")
+                output, errors = subscriber.communicate(timeout=8)
+                if subscriber.returncode != 0:
+                    raise RuntimeError(f"MQTT 5 subscriber failed: {errors}")
+                publications = [json.loads(line) for line in output.splitlines()]
+                if [bytes(item.get("payload_bytes", [])).decode() for item in publications] != ["retained", "live"]:
+                    raise AssertionError(f"unexpected MQTT 5 deliveries: {publications}")
+                print("PASS: MQTT 3.1.1 -> MQTT 5 subscriber (retained and live QoS 1)")
             finally:
                 if subscriber is not None and subscriber.poll() is None:
                     subscriber.terminate()

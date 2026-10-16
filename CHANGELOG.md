@@ -2,6 +2,9 @@
 
 ## Em desenvolvimento — início da fase 6A
 
+- P116: SUBSCRIBE MQTT 5 QoS0/1 sem propriedades avançadas, SUBACK com
+  reason code por filtro e entrega de mensagens vivas/retained em PUBLISH 5;
+  PUBACK de assinante QoS1, testes cruzados e Mosquitto externo.
 - P115: broker aceita publicação MQTT 5 QoS0/1 com sessão limpa, Receive
   Maximum opcional no CONNECT e PUBLISH sem propriedades; CONNACK anuncia
   QoS máximo 1 e pacote máximo 64 KiB. Teste cruzado

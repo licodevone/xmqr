@@ -290,8 +290,8 @@ fn decode_for(
     mqtt5: bool,
 ) -> Result<Packet, Box<dyn std::error::Error + Send + Sync>> {
     let mut c = Cursor::new(body);
-    if mqtt5 && !matches!(header, 0x30..=0x3f | 0xc0 | 0xe0) {
-        return Err("unsupported MQTT 5 packet in publication subset".into());
+    if mqtt5 && !matches!(header, 0x30..=0x3f | 0x40 | 0x82 | 0xc0 | 0xe0) {
+        return Err("unsupported MQTT 5 packet in current subset".into());
     }
     let packet = match header {
         0x10 => {
@@ -365,6 +365,13 @@ fn decode_for(
             if packet_id == 0 {
                 return Err("zero SUBSCRIBE packet id".into());
             }
+            if mqtt5 {
+                let property_length = c.variable_integer()?;
+                c.bytes(property_length)?;
+                if property_length != 0 {
+                    return Err("MQTT 5 SUBSCRIBE properties not supported".into());
+                }
+            }
             let mut filters = Vec::new();
             while c.pos < body.len() {
                 if filters.len() >= MAX_SUBSCRIPTIONS {
@@ -373,6 +380,9 @@ fn decode_for(
                 let topic = TopicFilter::try_from(c.text()?)?;
                 // MQTT-3-8.3-4: QoS 3 and reserved option bits are malformed.
                 let qos = Qos::from_u8(c.byte()?)?;
+                if mqtt5 && qos == Qos::ExactlyOnce {
+                    return Err("MQTT 5 SUBSCRIBE QoS 2 not supported".into());
+                }
                 filters.push((topic, qos));
             }
             if filters.is_empty() {
@@ -507,6 +517,14 @@ pub(super) fn encode_suback(packet_id: u16, codes: &[u8]) -> Vec<u8> {
     out.extend_from_slice(codes);
     out
 }
+pub(super) fn encode_mqtt5_suback(packet_id: u16, codes: &[u8]) -> Vec<u8> {
+    let mut out = vec![0x90];
+    encode_length(3 + codes.len(), &mut out);
+    out.extend_from_slice(&packet_id.to_be_bytes());
+    out.push(0); // No SUBACK properties.
+    out.extend_from_slice(codes);
+    out
+}
 pub(super) fn encode_puback(packet_id: u16) -> [u8; 4] {
     encode_ack(0x40, packet_id)
 }
@@ -531,6 +549,7 @@ fn encode_ack(header: u8, packet_id: u16) -> [u8; 4] {
     ]
 }
 
+#[cfg(test)]
 pub(super) fn encode_publish(
     topic: &str,
     payload: &[u8],
@@ -539,6 +558,21 @@ pub(super) fn encode_publish(
     dup: bool,
     packet_id: Option<u16>,
 ) -> Result<Vec<u8>, &'static str> {
+    encode_publish_for(topic, payload, qos, retain, dup, packet_id, false)
+}
+
+pub(super) fn encode_publish_for(
+    topic: &str,
+    payload: &[u8],
+    qos: Qos,
+    retain: bool,
+    dup: bool,
+    packet_id: Option<u16>,
+    mqtt5: bool,
+) -> Result<Vec<u8>, &'static str> {
+    if mqtt5 && qos == Qos::ExactlyOnce {
+        return Err("MQTT 5 QoS 2 not supported");
+    }
     // MQTT-2.3.1-5 and MQTT-3.3.1-2: identifier and DUP follow QoS.
     match (qos, packet_id) {
         (Qos::AtMostOnce, None) if !dup => (),
@@ -549,7 +583,8 @@ pub(super) fn encode_publish(
         return Err("invalid outbound MQTT topic or payload");
     }
     let name = topic.as_bytes();
-    let len = 2 + name.len() + usize::from(packet_id.is_some()) * 2 + payload.len();
+    let len =
+        2 + name.len() + usize::from(packet_id.is_some()) * 2 + usize::from(mqtt5) + payload.len();
     if name.len() > u16::MAX as usize {
         return Err("outbound MQTT packet too large");
     }
@@ -563,6 +598,9 @@ pub(super) fn encode_publish(
     out.extend_from_slice(name);
     if let Some(id) = packet_id {
         out.extend_from_slice(&id.to_be_bytes());
+    }
+    if mqtt5 {
+        out.push(0); // No PUBLISH properties.
     }
     out.extend_from_slice(payload);
     Ok(out)
@@ -584,6 +622,28 @@ mod tests {
             encode_mqtt5_success_connack(),
             [0x20, 10, 0, 0, 7, 0x24, 1, 0x27, 0, 1, 0, 0]
         );
+    }
+
+    #[test]
+    fn mqtt5_subscribe_and_delivery_have_versioned_wire_format() {
+        assert!(matches!(
+            decode_for(0x82, &[0, 1, 0, 0, 1, b'x', 1], true).unwrap(),
+            Packet::Subscribe { packet_id: 1, .. }
+        ));
+        assert_eq!(encode_mqtt5_suback(1, &[0, 1]), [0x90, 5, 0, 1, 0, 0, 1]);
+        assert_eq!(
+            encode_publish_for("x", b"y", Qos::AtMostOnce, false, false, None, true).unwrap(),
+            [0x30, 5, 0, 1, b'x', 0, b'y']
+        );
+        for body in [
+            &[0, 0, 0, 0, 1, b'x', 0][..],       // Zero packet ID.
+            &[0, 1, 1, 0x26, 0, 1, b'x', 0][..], // Unsupported property.
+            &[0, 1, 0, 0, 1, b'x', 2][..],       // QoS 2.
+            &[0, 1, 0, 0, 1, b'x', 4][..],       // No Local.
+            &[0, 1, 0][..],                      // No filters.
+        ] {
+            assert!(decode_for(0x82, body, true).is_err());
+        }
     }
 
     #[test]

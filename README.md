@@ -35,8 +35,8 @@ Publicação registrada separadamente em P92;
 client0.9.0 e admin independente0.1.0 têm ciclos próprios.
 O [planejamento dos três sistemas](../xmqr-admin/docs/planejamento-tres-sistemas.md)
 inclui a futura administração de usuários, grupos, papéis e permissões.
-MQTT 5 possui um subconjunto inicial de publicação QoS0/1 com sessão limpa
-em P115/C57. Assinaturas MQTT 5 e propriedades avançadas seguem pendentes;
+MQTT 5 possui publicação e assinatura QoS0/1 com sessão limpa
+em P115/P116/C57/C58. Propriedades avançadas seguem pendentes;
 veja o [estado MQTT 5](docs/conformance/mqtt5-status.md).
 
 Veja a [baseline de RAM, CPU e latência P62](docs/performance-baseline.md),
@@ -354,8 +354,8 @@ QoS0/1/2, retained, sessões persistentes, SUBSCRIBE/UNSUBSCRIBE, filtros +/#,
 Last Will durável, TLS/mTLS, senha Argon2id e ACL deny-by-default.
 Persistência por WAL/snapshot e ator dedicado, commit durável antes de ACKs
 pertinentes. SIGTERM/SIGINT coordenam listener, Wills e shutdown do writer.
-Sessões MQTT 5, WebSockets e bridge não implementados; apenas a recusa
-`CONNACK 0x84` de CONNECT MQTT 5 está disponível desde P114.
+Sessões persistentes MQTT 5, WebSockets e bridge não implementados; o
+subconjunto MQTT 5 de sessão limpa está descrito no estado de conformidade.
 
 Limites:64 conexões/sessões,256 assinaturas por sessão,64 mensagens offline,
 32 inflight,1024 bytes UTF-8 por tópico/filtro,4096 bytes por payload e64KiB

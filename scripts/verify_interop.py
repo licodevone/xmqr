@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Luis E. S. Pinheiro
-"""Bounded MQTT 3.1.1 and MQTT 5 publication checks with Mosquitto clients.
+"""Bounded MQTT 3.1.1 and MQTT 5 checks with Mosquitto clients.
 
 Run after cargo build --locked --bins:
 python3 scripts/verify_interop.py --broker /path/to/debug/mqtt-broker
@@ -74,9 +74,9 @@ class Broker:
 
 
 class Subscriber:
-    def __init__(self, broker, filters, qos=0):
+    def __init__(self, broker, filters, qos=0, version="mqttv311"):
         args = ["mosquitto_sub", "-h", "127.0.0.1", "-p", str(broker.port),
-                "-V", "mqttv311", "-i", f"interop-sub-{uuid.uuid4().hex[:12]}",
+                "-V", version, "-i", f"interop-sub-{uuid.uuid4().hex[:12]}",
                 "-q", str(qos), "-d", "-F", "DATA|%t|%q|%r|%p"]
         for topic_filter in filters:
             args.extend(["-t", topic_filter])
@@ -215,6 +215,13 @@ class Interoperability(unittest.TestCase):
         self.broker.publish("v5/retained", "saved", qos=1, retain=True, version="mqttv5")
         with Subscriber(self.broker, ["v5/retained"], 1) as subscriber:
             self.assertEqual(subscriber.message(), ("v5/retained", 1, True, "saved"))
+
+    def test_mqtt5_subscription_retained_and_live_from_v311(self):
+        self.broker.publish("v5/sub", "saved", qos=1, retain=True)
+        with Subscriber(self.broker, ["v5/sub"], 1, version="mqttv5") as subscriber:
+            self.assertEqual(subscriber.message(), ("v5/sub", 1, True, "saved"))
+            self.broker.publish("v5/sub", "live", qos=1)
+            self.assertEqual(subscriber.message(), ("v5/sub", 1, False, "live"))
 
     def test_retained_recovery_and_system_namespace(self):
         # MQTT-3.3.1-6/8/9; MQTT-4.7.2-1.

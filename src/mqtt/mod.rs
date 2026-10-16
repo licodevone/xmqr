@@ -33,8 +33,7 @@ use crate::{
 };
 use codec::{
     FrameReader, Packet, Qos, encode_connack, encode_connack_with_session, encode_pingresp,
-    encode_puback, encode_pubcomp, encode_publish, encode_pubrec, encode_pubrel, encode_suback,
-    encode_unsuback,
+    encode_puback, encode_pubcomp, encode_pubrec, encode_pubrel, encode_suback, encode_unsuback,
 };
 use router::{AckKind, Delivery, RouterError};
 use std::sync::atomic::Ordering;
@@ -198,7 +197,7 @@ async fn serve_mqtt(
     let mut last_inbound = Instant::now();
     let result: Result<(), HandlerError> = async {
         for delivery in session.replay.drain(..) {
-            send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+            send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
         }
         loop {
             // MQTT-3.1.2-24: disconnect after 1.5 times the advertised keep-alive.
@@ -222,8 +221,9 @@ async fn serve_mqtt(
                                 (filter, granted)
                             }).collect();
                             let (codes, retained) = router.subscribe(&session, requested).await?;
-                            connection.write_all_with_deadline(&encode_suback(packet_id, &codes), WRITE_TIMEOUT).await?;
-                            for delivery in retained { send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?; }
+                            let ack = if mqtt5 { codec::encode_mqtt5_suback(packet_id, &codes) } else { encode_suback(packet_id, &codes) };
+                            connection.write_all_with_deadline(&ack, WRITE_TIMEOUT).await?;
+                            for delivery in retained { send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?; }
                         }
                         Packet::Unsubscribe { packet_id, filters } => {
                             router.unsubscribe(&session, filters).await?;
@@ -252,17 +252,17 @@ async fn serve_mqtt(
                         }
                         Packet::PubAck(id) => {
                             for delivery in router.ack(&session, AckKind::Ack, id).await? {
-                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
                             }
                         }
                         Packet::PubRec(id) => {
                             for delivery in router.ack(&session, AckKind::Rec, id).await? {
-                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
                             }
                         }
                         Packet::PubComp(id) => {
                             for delivery in router.ack(&session, AckKind::Comp, id).await? {
-                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
                             }
                         }
                         Packet::PingReq => connection.write_all_with_deadline(&encode_pingresp(), WRITE_TIMEOUT).await?,
@@ -272,7 +272,7 @@ async fn serve_mqtt(
                 }
                 outbound = session.outbound.recv() => {
                     let Some(delivery) = outbound else { break; };
-                    send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation).await?;
+                    send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
                 }
             }
         }
@@ -296,6 +296,7 @@ async fn send_delivery(
     auth: &AccessPolicy,
     principal: &str,
     security_generation: u64,
+    mqtt5: bool,
 ) -> Result<(), HandlerError> {
     if auth.security_generation() != security_generation {
         return Err("security generation changed".into());
@@ -311,13 +312,14 @@ async fn send_delivery(
             message,
             packet_id,
             dup,
-        } => encode_publish(
+        } => codec::encode_publish_for(
             message.topic.as_str(),
             &message.payload,
             Qos::from_u8(message.qos)?,
             message.retain,
             dup,
             packet_id,
+            mqtt5,
         )?,
         Delivery::PubRel(id) => encode_pubrel(id).to_vec(),
     };
