@@ -2,6 +2,8 @@
 //! Independent CONNECT bytes exercise real TCP admission into the MQTT actor.
 
 use super::*;
+use argon2::password_hash::{PasswordHasher, SaltString};
+use std::fs;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -40,6 +42,17 @@ fn connect(id: &[u8], clean: bool, level: u8) -> Vec<u8> {
         }
     }
     packet.extend(body);
+    packet
+}
+
+fn authenticated_connect(id: &[u8], level: u8) -> Vec<u8> {
+    let mut packet = connect(id, true, level);
+    packet[9] = 0xc2; // Username, password and Clean Start/Clean Session.
+    packet.extend([0, 7]);
+    packet.extend(b"student");
+    packet.extend([0, 12]);
+    packet.extend(b"correct-pass");
+    packet[1] = u8::try_from(packet.len() - 2).unwrap();
     packet
 }
 
@@ -207,6 +220,109 @@ async fn mqtt5_qos0_and_qos1_reach_mqtt311_subscriber() {
             .unwrap()
             .unwrap();
     }
+}
+
+#[tokio::test]
+async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
+    let directory = tempfile::tempdir().unwrap();
+    let users = directory.path().join("users.toml");
+    let acl = directory.path().join("acl.toml");
+    let salt = SaltString::encode_b64(b"sixteen-byte-salt").unwrap();
+    let hash = crate::auth::argon2_context()
+        .hash_password(b"correct-pass", &salt)
+        .unwrap()
+        .to_string();
+    fs::write(
+        &users,
+        format!("[[users]]\nusername = 'student'\npassword_hash = '{hash}'\n"),
+    )
+    .unwrap();
+    fs::write(
+        &acl,
+        "[[rules]]\nusername = 'student'\npublish = ['allowed/topic']\nsubscribe = []\n",
+    )
+    .unwrap();
+    let auth = Arc::new(AccessPolicy::acl_lab(
+        crate::auth::AuthPolicy::load_passwords_with_acl(&users, &acl).unwrap(),
+    ));
+    let router = Arc::new(Router::start(directory.path(), auth.clone()).await.unwrap());
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let worker_router = router.clone();
+    let worker = tokio::spawn(async move {
+        for _ in 0..2 {
+            let (stream, _) = listener.accept().await.unwrap();
+            let connection = BrokerConnection::open_lab_for_test(stream).await.unwrap();
+            serve_connection(connection, auth.clone(), worker_router.clone())
+                .await
+                .unwrap();
+        }
+    });
+    let mut publisher = TcpStream::connect(address).await.unwrap();
+    publisher
+        .write_all(&authenticated_connect(b"publisher", 5))
+        .await
+        .unwrap();
+    let mut connack = [0; 12];
+    timeout(Duration::from_secs(3), publisher.read_exact(&mut connack))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(connack[0..4], [0x20, 10, 0, 0]);
+
+    let commits_before = router.metrics().commits.load(Ordering::Relaxed);
+    let mut denied = vec![0x33, 0, 0, 12];
+    denied.extend(b"denied/topic");
+    denied.extend([0, 1, 0, b'x']);
+    denied[1] = u8::try_from(denied.len() - 2).unwrap();
+    publisher.write_all(&denied).await.unwrap();
+    let mut refusal = [0; 6];
+    timeout(Duration::from_secs(3), publisher.read_exact(&mut refusal))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(refusal, [0x40, 4, 0, 1, 0x87, 0]);
+    assert_eq!(
+        router.metrics().commits.load(Ordering::Relaxed),
+        commits_before
+    );
+
+    let mut allowed = vec![0x32, 0, 0, 13];
+    allowed.extend(b"allowed/topic");
+    allowed.extend([0, 2, 0, b'y']);
+    allowed[1] = u8::try_from(allowed.len() - 2).unwrap();
+    publisher.write_all(&allowed).await.unwrap();
+    let mut accepted = [0; 4];
+    timeout(Duration::from_secs(3), publisher.read_exact(&mut accepted))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(accepted, [0x40, 2, 0, 2]);
+    publisher.write_all(&[0xe0, 0]).await.unwrap();
+
+    let mut legacy = TcpStream::connect(address).await.unwrap();
+    legacy
+        .write_all(&authenticated_connect(b"legacy", 4))
+        .await
+        .unwrap();
+    let mut connack4 = [0; 4];
+    timeout(Duration::from_secs(3), legacy.read_exact(&mut connack4))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(connack4, [0x20, 2, 0, 0]);
+    let mut denied4 = vec![0x32, 0, 0, 12];
+    denied4.extend(b"denied/topic");
+    denied4.extend([0, 3, b'z']);
+    denied4[1] = u8::try_from(denied4.len() - 2).unwrap();
+    legacy.write_all(&denied4).await.unwrap();
+    closed(&mut legacy).await;
+
+    timeout(Duration::from_secs(3), worker)
+        .await
+        .unwrap()
+        .unwrap();
+    router.shutdown().await.unwrap();
 }
 
 #[tokio::test]

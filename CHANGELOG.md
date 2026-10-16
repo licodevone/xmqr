@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## Não publicado — fase 6A em evolução
+
+- P119: recusa ACL de PUBLISH MQTT 5 QoS 1 retorna PUBACK `0x87` sem commit; a conexão continua disponível para publicação permitida. MQTT 3.1.1 mantém o fechamento anterior.
+- P118: falha intermitente `AlreadyOpen` em teste de snapshot investigada; rerun remoto e repetições locais passaram, sem mudança de persistência.
+
 ## 0.16.0 — MQTT 5 inicial, experimental
 
 - P116: SUBSCRIBE MQTT 5 QoS0/1 sem propriedades avançadas, SUBACK com

@@ -3,7 +3,8 @@
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-16.
 Versões publicadas atuais: broker/admin legado0.16.0, client independente0.14.0
 e xmqr-admin independente0.4.0. Fases1–5 aceitas em seus recortes documentados;
-a fase6A avançou para publicação e assinatura MQTT5 QoS0/1 P115/P116/C57/C58; segue aberta.
+a fase6A avançou para publicação, assinatura e diagnósticos MQTT5 QoS0/1
+P115/P116/P119/C57/C58/C60; segue aberta.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42/P86/P88, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
@@ -136,6 +137,8 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P115/C57 parcial: CONNECT5 limpo e publicação QoS0/1 sem propriedades no broker/client, entrega cruzada a assinante 3.1.1.~~ [Estado](conformance/mqtt5-status.md), [broker](../prompts/registros/P115-publicacao-mqtt5-inicial.md) e [client](../../xmqr-client/prompts/registros/C57-publicacao-mqtt5-inicial.md).
 - [x] ~~Fase 6A/P116/C58 parcial: SUBSCRIBE/SUBACK MQTT5 QoS0/1 sem propriedades avançadas, entrega viva/retained e PUBACK; client sub5, integração cruzada e Mosquitto.~~ [Broker](../prompts/registros/P116-assinatura-mqtt5-inicial.md) e [client](../../xmqr-client/prompts/registros/C58-assinatura-mqtt5-inicial.md).
 - [x] ~~Distribuição experimental do subconjunto P115/P116/C57/C58: tags independentes v0.16.0/v0.14.0, pacotes Ubuntu26, imagens numeradas e prereleases com SHA-256/rollback.~~ [P117](../prompts/registros/P117-release-0.16.0.md) e [C59](../../xmqr-client/prompts/registros/C59-release-0.14.0.md).
+- [x] ~~P118: investigar falha intermitente de lock no teste de snapshot e restaurar gate CI de `main`.~~ [Triagem](../prompts/registros/P118-investigar-lock-snapshot-ci.md); causa não reproduzida, monitorar recorrência.
+- [ ] Fase 6A/P119/C60 parcial: PUBACK MQTT 5 `0x87` para ACL negada em QoS1 sem commit; client mostra motivos de PUBACK/SUBACK. Implementação e gates locais PASS; CI dos commits pendente. [Broker](../prompts/registros/P119-puback-mqtt5-acl.md) e [client](../../xmqr-client/prompts/registros/C60-diagnostico-reason-code-mqtt5.md).
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

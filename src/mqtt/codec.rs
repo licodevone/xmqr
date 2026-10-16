@@ -528,6 +528,19 @@ pub(super) fn encode_mqtt5_suback(packet_id: u16, codes: &[u8]) -> Vec<u8> {
 pub(super) fn encode_puback(packet_id: u16) -> [u8; 4] {
     encode_ack(0x40, packet_id)
 }
+
+pub(super) fn encode_mqtt5_puback_reason(packet_id: u16, reason: u8) -> [u8; 6] {
+    // MQTT 5 §3.4.2: a non-success reason requires the reason byte;
+    // the zero property length makes the variable header unambiguous.
+    [
+        0x40,
+        0x04,
+        packet_id.to_be_bytes()[0],
+        packet_id.to_be_bytes()[1],
+        reason,
+        0,
+    ]
+}
 pub(super) fn encode_pubrec(packet_id: u16) -> [u8; 4] {
     encode_ack(0x50, packet_id)
 }
@@ -631,6 +644,10 @@ mod tests {
             Packet::Subscribe { packet_id: 1, .. }
         ));
         assert_eq!(encode_mqtt5_suback(1, &[0, 1]), [0x90, 5, 0, 1, 0, 0, 1]);
+        assert_eq!(
+            encode_mqtt5_puback_reason(1, 0x87),
+            [0x40, 4, 0, 1, 0x87, 0]
+        );
         assert_eq!(
             encode_publish_for("x", b"y", Qos::AtMostOnce, false, false, None, true).unwrap(),
             [0x30, 5, 0, 1, b'x', 0, b'y']

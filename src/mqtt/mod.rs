@@ -234,6 +234,11 @@ async fn serve_mqtt(
                             let _ = dup;
                             if !auth.allowed_publish(&principal, topic.as_str()) {
                                 metrics.reject(Rejection::Authorization);
+                                if mqtt5 && qos == Qos::AtLeastOnce {
+                                    let id = packet_id.ok_or("QoS 1 PUBLISH without identifier")?;
+                                    connection.write_all_with_deadline(&codec::encode_mqtt5_puback_reason(id, 0x87), WRITE_TIMEOUT).await?;
+                                    continue;
+                                }
                                 warn!(connection_id=connection.id(), "unauthorized publish; closing client");
                                 break;
                             }

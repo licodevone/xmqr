@@ -11,6 +11,12 @@ envia PUBLISH MQTT 5 para mensagens vivas/retained. PUBACK de entrega QoS1 é
 processado. C57/C58 disponibilizam `pub` e `sub --protocol-version 5`, mantendo
 o padrão 3.1.1.
 
+P119 acrescenta PUBACK MQTT 5 com reason code `0x87` e propriedades vazias
+quando uma publicação QoS 1 é recusada pela ACL. A mensagem não entra no
+roteador nem é confirmada como aceita; a conexão continua apta a uma publicação
+permitida. A recusa QoS 0 continua encerrando a conexão neste subconjunto.
+C60 faz o client mostrar os códigos de recusa de PUBACK/SUBACK.
+
 O broker recusa Clean Start=0, Will e propriedades de CONNECT fora de Session
 Expiry=0/Receive Maximum válido com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há UNSUBSCRIBE MQTT 5, QoS 2,
@@ -24,6 +30,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P115](../../prompts/registros/P115-publicacao-mqtt5-inicial.md) e
 [C57](../../../xmqr-client/prompts/registros/C57-publicacao-mqtt5-inicial.md),
 [P116](../../prompts/registros/P116-assinatura-mqtt5-inicial.md) e
-[C58](../../../xmqr-client/prompts/registros/C58-assinatura-mqtt5-inicial.md).
+[C58](../../../xmqr-client/prompts/registros/C58-assinatura-mqtt5-inicial.md),
+[P119](../../prompts/registros/P119-puback-mqtt5-acl.md) e
+[C60](../../../xmqr-client/prompts/registros/C60-diagnostico-reason-code-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).
