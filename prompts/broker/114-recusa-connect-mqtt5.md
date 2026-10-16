@@ -1,4 +1,4 @@
-# P114 rev3 — recusa explícita de CONNECT MQTT 5
+# P114 rev4 — recusa explícita de CONNECT MQTT 5
 
 Data: 2026-10-16. Estado de entrada: `main` limpo em `e4456a1`, broker/`mqtt-admin` legado 0.15.0, fase 5 aceita. O codec admite MQTT 3.1.1 (nível 4); qualquer outro nível recebe hoje `CONNACK` 3.1.1 com código `0x01`. O client independente permanece 0.13.0.
 
@@ -28,3 +28,5 @@ Testes de processo TCP com bytes independentes do encoder devem comprovar: `0x20
 Rev2: a primeira checagem de links falhou porque o registro P114 ainda não existia; criar o registro com os resultados já obtidos e repetir a checagem. Isso não altera o contrato wire ou os critérios de aceite.
 
 Rev3: após acrescentar o unitário do erro tipado, `cargo fmt --check` apontou somente a quebra de linha desse assert; aplicar rustfmt e repetir fmt/test/Clippy. Sem alteração de comportamento.
+
+Rev4: a CI do commit `3ed126e` falhou em `persistence::fault_tests::snapshot_boundary_failures_keep_all_previously_acknowledged_state` com `AlreadyOpen` após `drop(store)`, fora dos arquivos de código P114; suíte local WSL passou. Investigar concorrência/lock e repetir o caso em ambiente isolado antes de atribuir a falha ao wire ou alterar persistência. Registrar a CI original como FAIL, mesmo se uma nova tentativa passar. Não promover release enquanto a CI não tiver aceite.
