@@ -1,5 +1,21 @@
 # Histórico de versões
 
+## Em desenvolvimento — início da fase 6A
+
+- P114: um `CONNECT` MQTT 5 recebe recusa parseável `CONNACK 0x84` no formato
+  MQTT 5 e a conexão é fechada sem criar sessão ou alterar o estado.
+- MQTT 3.1.1 e o documento durável v5 permanecem iguais. Ainda não há sessões
+  MQTT 5 nem opções MQTT 5 no client; esta mudança isolada não tem nova tag.
+
+## 0.15.0 — operação administrativa local, experimental
+
+- P107–P112: canal Unix autenticado, aplicação online de bundle, recibos
+  duráveis, inventário/ações de sessão e retained, auditoria rotacionável e
+  métricas administrativas; [aceite da fase 5](docs/phase5-acceptance.md).
+- O documento durável MQTT v5 lê v1–v4; versões antigas não leem v5. Para
+  rollback, conservar backup offline anterior e diretório de estado separado.
+- P113: tag/prerelease `v0.15.0` com pacotes, hashes e limites publicados.
+
 ## 0.14.0 — rotação TLS e ACL estática por endpoint, experimental
 
 - P100/B11: SIGUSR1 valida certificado, chave, CA e CRL completos e publica

@@ -21,6 +21,9 @@ fn connect(id: &[u8], clean: bool, level: u8) -> Vec<u8> {
         0,
         30,
     ];
+    if level == 5 {
+        body.push(0); // MQTT 5 CONNECT Properties length.
+    }
     body.extend(u16::try_from(id.len()).unwrap().to_be_bytes());
     body.extend(id);
     let mut packet = vec![0x10];
@@ -66,13 +69,18 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
     let mut stream = TcpStream::connect(address).await.unwrap();
     stream.write_all(&packet).await.unwrap();
     if let Some(code) = code {
-        let mut actual = [0; 4];
+        let expected: &[u8] = if code == 0x84 {
+            &[0x20, 3, 0, 0x84, 0]
+        } else {
+            &[0x20, 2, 0, code]
+        };
+        let mut actual = vec![0; expected.len()];
         let result = timeout(Duration::from_secs(3), stream.read_exact(&mut actual)).await;
         assert!(
             matches!(result, Ok(Ok(_))),
             "required CONNACK missing: {result:?}"
         );
-        assert_eq!(actual, [0x20, 2, 0, code]);
+        assert_eq!(actual, expected);
         if code == 0 {
             stream.write_all(&[0xe0, 0]).await.unwrap();
         }
@@ -98,9 +106,16 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
 
 #[tokio::test]
 async fn unsupported_level_receives_connack_one() {
-    for level in [0, 3, 5, 255] {
+    for level in [0, 3, 255] {
         case(connect(b"valid", true, level), Some(1)).await;
     }
+}
+
+#[tokio::test]
+async fn mqtt5_connect_receives_v5_unsupported_reason_and_closes_without_commit() {
+    let mut packet = connect(b"valid", true, 5);
+    packet.extend([0x31, 4, 0, 1, b'x', b'y']);
+    case(packet, Some(0x84)).await;
 }
 
 #[tokio::test]

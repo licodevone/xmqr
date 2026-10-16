@@ -1,10 +1,9 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
-Planejamento original P53, 2026-10-11; acompanhamento atualizado em 2026-10-13
-por P80/C43/P81/P82/P83/P84/P85/C44/P86/P87/P88 e fechamentoP89–P95/C45–C46.
-Versões publicadas atuais: broker/admin legado0.11.6; client independente0.9.0;
-xmqr-admin independente0.1.0, com pin preservado. Fase3 aceita no recorte finito;
-[aceite e distribuição](phase3-acceptance.md). MQTT5 continua fase6 futura.
+Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-16.
+Versões publicadas atuais: broker/admin legado0.15.0, client independente0.13.0
+e xmqr-admin independente0.4.0. Fases1–5 aceitas em seus recortes documentados;
+a fase6A começou com a recusa MQTT5 P114, sem aceitar sessões MQTT5.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42/P86/P88, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
@@ -133,6 +132,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 
 ### Fases 6–9 e distribuição — pendentes
 
+- [x] ~~Fase 6A/P114 parcial: recusa de CONNECT nível 5 com CONNACK MQTT 5 `0x84`, fechamento e ausência de commit; MQTT 5 ainda não é aceito.~~ [Estado](conformance/mqtt5-status.md) e [evidência](../prompts/registros/P114-recusa-connect-mqtt5.md).
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
@@ -153,10 +153,10 @@ e o link do registro. Manter itens em validação desmarcados e indicar seu bloq
 | Configuração e quotas | ~~TOML e quotas globais configuráveis aceitos na fase1~~ | Limites por identidade/listener; rate limits e timeouts adicionais conforme contrato |
 | Capacidade | ~~Baseline RAM/CPU/PUBACK QoS1 medida em P62~~; sem teto de produção medido | Ampliar QoS/fan-out/TLS e saturação; relatório de capacidade |
 | Robustez | Recuperação e backup existentes, cobertura incompleta | Disco cheio, erro de escrita, pressão de filas, fuzzing, testes prolongados e matriz3.1.1 |
-| Listeners | Um listener por processo/perfil | Múltiplos listeners, políticas por listener e TLS com senha sem exigir certificado cliente quando configurado |
-| Administração | CRUD/backup legado; novo xmqr-admin0.1.0 com CLI e painel autenticado de agregados; bundle/SIGHUP no broker | Gestão segura de grupos/papéis/ACL, auditoria e contrato administrativo; plugins são trilha posterior |
-| Métricas/logs | Monitor básico e tracing | Métricas operacionais, formatos/exportação definidos e decidir suporte MQTT $SYS |
-| MQTT5 | Ausente | Codec/propriedades, negociação, sessões/expiração, fluxo, assinaturas e autenticação estendida |
+| Listeners | Até três endpoints mTLS adicionais, políticas por endpoint, TLS-senha e rotação aceitos na fase4 | Ampliar além do limite atual somente com nova demanda e validação |
+| Administração | Canal local autenticado, bundle, ações, auditoria e diagnóstico aceitos na fase5; painel somente leitura | Administração remota e plugins permanecem fora do escopo atual |
+| Métricas/logs | Monitor loopback e contadores administrativos de cardinalidade fixa; `$SYS` não gerado por decisão B14 | Exportação adicional conforme demanda |
+| MQTT5 | P114 recusa nível5 com CONNACK5 `0x84`; sessões5 indisponíveis | Codec/propriedades, negociação de sessões, expiração, fluxo, assinaturas e autenticação estendida |
 | WebSocket | Ausente | WS/WSS no broker e conexão correspondente no client |
 | Bridge | Ausente | Ligação entre brokers com TLS, reconexão, mapeamento de tópicos e proteção de loops |
 | Distribuição | Deb26 amd64; sem APT próprio | Ubuntu24 validado, arm64, repositório APT assinado e política de upgrade |
@@ -178,7 +178,7 @@ para igualar um broker Mosquitto isolado.
 | 3 | Semanas5–7 | Falhas de disco, fuzzing, pressão de filas e fechamento da matriz MQTT3.1.1 | Reconexão/backoff, cancelamento, diagnóstico e testes contra Mosquitto | Recuperação comprovada nos cenários; negativos; interop automatizada; pendências normativas listadas |
 | 4 | Semanas8–10 | Listeners com políticas por endpoint, modos TLS e reload de certificados definido | Perfis de conexão, rotação e erros de certificado/credenciais | Isolamento de ACL; TLS/mTLS; rotação/rollback; nenhum laboratório remoto implicitamente habilitado |
 | 5 | Semanas11–12 | Administração de bundle, auditoria, métricas e ciclo de release | Paridade prioritária pub/sub e documentação sincronizada | Operação sem editar segredos manualmente em casos cobertos; release com anexos/checksums e rollback |
-| 6A | Semanas13–15 | Desenho MQTT5, codec, validação de propriedades e reason codes | Escolha explícita3.1.1/5; vetores e testes de negociação | Negativos normativos e coexistência3.1.1; apenas subconjunto5 anunciado |
+| 6A | Semanas13–15 | P114 recusa nível5 no wire; seguem desenho MQTT5, codec, propriedades e reason codes | Escolha explícita3.1.1/5; vetores e testes de negociação pendentes | Negativos normativos e coexistência3.1.1; apenas subconjunto5 anunciado |
 | 6B | Semanas16–18 | Clean Start, Session Expiry, Message Expiry, Will Delay e estado versionado | Testes de expiração/reconexão; opções correspondentes | Crash/restart, migração e relógio/expiração tratados sem perda silenciosa |
 | 6C | Semanas19–21 | Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação | Flow control, User Properties, Content Type, Response Topic/Correlation Data | Negociação bilateral, limites, QoS0/1/2 e persistência testados |
 | 6D | Semanas22–24 | Opções de assinatura, Subscription Identifier, shared subscriptions e AUTH conforme contrato | No Local, Retain Handling/As Published, assinaturas compartilhadas e autenticação5 | Matriz5 por cláusula, interop externa, recursos ausentes declarados; sem alegação integral prematura |
@@ -211,9 +211,8 @@ Pode ser antecipado sem bloquear MQTT5 quando houver disponibilidade.
    testados, notas, hashes e procedimento de upgrade/rollback. Versões independentes.
 
 Fase2 encerrada por P85/C44, conforme [checklist de placa](esp32-phase2-checklist.md).
-Próxima etapa: preparar uma fatia da fase3 (robustez); não foi executada nesta
-campanha. SoftwareP80/C43 e placaP85 aceitos têm escopos/limitações próprios.
-~~P55 — quotas do estado~~ foi aceito em P61; não é mais a próxima entrega.
+O parágrafo anterior sobre a fase2 é histórico. A próxima entrega após P114
+continua na fase6A: negociação/codec MQTT5 com opções correspondentes no client.
 Não iniciar MQTT5, WebSocket e bridge juntos. Reavaliar este cronograma
 ao encerrar cada fase e registrar desvios nos prompts correspondentes.
 

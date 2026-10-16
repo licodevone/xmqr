@@ -48,7 +48,8 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
 /// # Errors
 ///
 /// Malformed packets, ACL violations, I/O failures and uncertain durable
-/// commits close the connection. Refused protocol levels emit `CONNACK 0x01`,
+/// commits close the connection. Refused MQTT 5 emits `CONNACK 0x84`;
+/// other unsupported protocol levels emit `CONNACK 0x01`,
 /// refused client identifiers `0x02`, and authentication failures `0x05`.
 pub async fn serve_connection(
     mut connection: BrokerConnection,
@@ -78,9 +79,19 @@ async fn serve_mqtt(
     {
         Ok(packet) => packet,
         Err(error) if error.is::<codec::UnsupportedProtocolLevel>() => {
-            // MQTT-3.1.2-2: explicit refusal before closing this connection.
+            let level = error
+                .downcast_ref::<codec::UnsupportedProtocolLevel>()
+                .expect("checked unsupported protocol error")
+                .0;
+            // MQTT 5 clients require a MQTT 5 CONNACK; older levels keep
+            // the 3.1.1 refusal established by P93.
+            let response: &[u8] = if level == 5 {
+                &codec::encode_unsupported_mqtt5_connack()
+            } else {
+                &encode_connack(1)
+            };
             connection
-                .write_all_with_deadline(&encode_connack(1), WRITE_TIMEOUT)
+                .write_all_with_deadline(response, WRITE_TIMEOUT)
                 .await?;
             return Ok(());
         }

@@ -35,7 +35,9 @@ Publicação registrada separadamente em P92;
 client0.9.0 e admin independente0.1.0 têm ciclos próprios.
 O [planejamento dos três sistemas](../xmqr-admin/docs/planejamento-tres-sistemas.md)
 inclui a futura administração de usuários, grupos, papéis e permissões.
-MQTT 5 permanece planejado na fase 6, não implementado por esta entrega.
+MQTT 5 permanece sem sessões aceitas. A primeira fatia 6A/P114 permite ao broker
+recusar `CONNECT` de nível 5 com `CONNACK` MQTT 5 `0x84` e fechar; veja o
+[estado MQTT 5](docs/conformance/mqtt5-status.md). O client ainda usa 3.1.1.
 
 Veja a [baseline de RAM, CPU e latência P62](docs/performance-baseline.md),
 com parâmetros, três repetições, resultados e limites da medição Ubuntu/WSL.
@@ -352,7 +354,8 @@ QoS0/1/2, retained, sessões persistentes, SUBSCRIBE/UNSUBSCRIBE, filtros +/#,
 Last Will durável, TLS/mTLS, senha Argon2id e ACL deny-by-default.
 Persistência por WAL/snapshot e ator dedicado, commit durável antes de ACKs
 pertinentes. SIGTERM/SIGINT coordenam listener, Wills e shutdown do writer.
-MQTT5, WebSockets e bridge não implementados.
+Sessões MQTT 5, WebSockets e bridge não implementados; apenas a recusa
+`CONNACK 0x84` de CONNECT MQTT 5 está disponível desde P114.
 
 Limites:64 conexões/sessões,256 assinaturas por sessão,64 mensagens offline,
 32 inflight,1024 bytes UTF-8 por tópico/filtro,4096 bytes por payload e64KiB

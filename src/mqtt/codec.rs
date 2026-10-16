@@ -18,8 +18,8 @@ const MAX_SUBSCRIPTIONS: usize = 256;
 const MAX_PARTIAL_FRAME_TIME: Duration = Duration::from_secs(30);
 
 #[derive(Debug, thiserror::Error)]
-#[error("unsupported MQTT protocol level")]
-pub(super) struct UnsupportedProtocolLevel;
+#[error("unsupported MQTT protocol level {0}")]
+pub(super) struct UnsupportedProtocolLevel(pub(super) u8);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
@@ -235,8 +235,9 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
             if c.text()? != "MQTT" {
                 return Err("unsupported MQTT protocol".into());
             }
-            if c.byte()? != 4 {
-                return Err(UnsupportedProtocolLevel.into());
+            let level = c.byte()?;
+            if level != 4 {
+                return Err(UnsupportedProtocolLevel(level).into());
             }
             let flags = c.byte()?;
             // MQTT-3.1.2-3/11/13/14/15: reserved and conditional Will flags.
@@ -392,6 +393,11 @@ fn encode_length(mut len: usize, output: &mut Vec<u8>) {
 pub(super) fn encode_connack(code: u8) -> [u8; 4] {
     [0x20, 0x02, 0x00, code]
 }
+
+/// MQTT 5 §3.2.2: refusal, Session Present=0, no properties.
+pub(super) fn encode_unsupported_mqtt5_connack() -> [u8; 5] {
+    [0x20, 0x03, 0x00, 0x84, 0x00]
+}
 pub(super) fn encode_connack_with_session(
     code: u8,
     session_present: bool,
@@ -476,6 +482,18 @@ pub(super) fn encode_publish(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unsupported_connect_keeps_level_for_versioned_connack() {
+        let body = [0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 30, 0, 0, 0];
+        let error = decode(0x10, &body).unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<UnsupportedProtocolLevel>().unwrap().0,
+            5
+        );
+        assert_eq!(encode_unsupported_mqtt5_connack(), [0x20, 3, 0, 0x84, 0]);
+    }
+
     #[test]
     fn packet_quota_counts_complete_header_before_waiting_for_body() {
         // OASIS §2.2.3: Remaining Length excludes its bytes. 64 KiB is local.
