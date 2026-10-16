@@ -1,5 +1,14 @@
 # Versionamento
 
+## P124 — marco MQTT 5 ampliado
+
+Broker e `mqtt-admin` legado 0.17.0 incluem P119–P123: QoS2 MQTT 5,
+UNSUBSCRIBE, motivos ACL e propriedades informativas de CONNECT. P125 libera
+explicitamente o lock do armazenamento no encerramento. Client independente
+0.15.0 C60–C64 acompanha o subconjunto. Fases 6A–6D e conformidade MQTT 5
+integral continuam abertas. Documento durável v5 inalterado. Distribuição
+experimental e rollback em [nota](docs/releases/0.17.0.md).
+
 ## P117 — marco MQTT 5 inicial
 
 Broker e `mqtt-admin` legado 0.16.0 acrescentam o subconjunto MQTT 5 P115/P116:

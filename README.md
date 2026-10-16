@@ -1,5 +1,10 @@
 # XMQR
 
+O marco experimental 0.17.0 amplia o subconjunto MQTT 5 para QoS2,
+UNSUBSCRIBE, motivos ACL e propriedades informativas de CONNECT. Consulte
+[estado de conformidade](docs/conformance/mqtt5-status.md) e
+[nota de release](docs/releases/0.17.0.md). As fases 6A–6D ainda estão abertas.
+
 O marco experimental 0.15.0 conclui a fase 5 no recorte local Linux/WSL:
 canal administrativo autenticado, política dinâmica aplicada online, auditoria
 rotacionável, diagnóstico e métricas. Veja o [aceite](docs/phase5-acceptance.md)
