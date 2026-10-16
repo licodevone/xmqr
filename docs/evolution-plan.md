@@ -133,7 +133,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 ### Fases 6–9 e distribuição — pendentes
 
 - [x] ~~Fase 6A/P114 parcial: recusa de CONNECT nível 5 com CONNACK MQTT 5 `0x84`, fechamento e ausência de commit; MQTT 5 ainda não é aceito.~~ [Estado](conformance/mqtt5-status.md) e [evidência](../prompts/registros/P114-recusa-connect-mqtt5.md).
-- [ ] Fase 6A/P115/C57 parcial: CONNECT5 limpo e publicação QoS0/1 sem propriedades no broker/client, entrega cruzada a assinante 3.1.1; em validação. [Estado](conformance/mqtt5-status.md).
+- [x] ~~Fase 6A/P115/C57 parcial: CONNECT5 limpo e publicação QoS0/1 sem propriedades no broker/client, entrega cruzada a assinante 3.1.1.~~ [Estado](conformance/mqtt5-status.md), [broker](../prompts/registros/P115-publicacao-mqtt5-inicial.md) e [client](../../xmqr-client/prompts/registros/C57-publicacao-mqtt5-inicial.md).
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

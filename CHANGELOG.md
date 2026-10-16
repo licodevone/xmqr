@@ -2,8 +2,9 @@
 
 ## Em desenvolvimento — início da fase 6A
 
-- P115: broker aceita publicação MQTT 5 QoS0/1 com sessão limpa e propriedades
-  vazias; CONNACK anuncia QoS máximo 1 e pacote máximo 64 KiB. Teste cruzado
+- P115: broker aceita publicação MQTT 5 QoS0/1 com sessão limpa, Receive
+  Maximum opcional no CONNECT e PUBLISH sem propriedades; CONNACK anuncia
+  QoS máximo 1 e pacote máximo 64 KiB. Teste cruzado
   com assinante 3.1.1; demais recursos MQTT 5 seguem pendentes.
 - P114: um `CONNECT` MQTT 5 recebe recusa parseável `CONNACK 0x84` no formato
   MQTT 5 e a conexão é fechada sem criar sessão ou alterar o estado. Esse
