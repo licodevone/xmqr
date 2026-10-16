@@ -13,3 +13,5 @@ Preservar o PUBACK abreviado de sucesso, quotas, autenticação e deny-by-defaul
 Fonte normativa: <https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html>, §3.4.2 e tabela 3-4.
 
 Rev2: `cargo test --locked` passou, mas Clippy all-targets recusou o novo teste de integração por 103 linhas (limite 100). Extrair a construção repetida de CONNECT autenticado em helper de teste, sem suprimir lint, e repetir os gates.
+
+Rev3: revisão final achou comentário de módulo ainda descrevendo MQTT 5 como somente publicação, embora P116 já inclua assinatura. Corrigir o comentário sem ampliar o contrato MQTT 5; a negociação completa de Receive Maximum continua na fase 6C.

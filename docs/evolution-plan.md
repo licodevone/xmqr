@@ -138,7 +138,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P116/C58 parcial: SUBSCRIBE/SUBACK MQTT5 QoS0/1 sem propriedades avançadas, entrega viva/retained e PUBACK; client sub5, integração cruzada e Mosquitto.~~ [Broker](../prompts/registros/P116-assinatura-mqtt5-inicial.md) e [client](../../xmqr-client/prompts/registros/C58-assinatura-mqtt5-inicial.md).
 - [x] ~~Distribuição experimental do subconjunto P115/P116/C57/C58: tags independentes v0.16.0/v0.14.0, pacotes Ubuntu26, imagens numeradas e prereleases com SHA-256/rollback.~~ [P117](../prompts/registros/P117-release-0.16.0.md) e [C59](../../xmqr-client/prompts/registros/C59-release-0.14.0.md).
 - [x] ~~P118: investigar falha intermitente de lock no teste de snapshot e restaurar gate CI de `main`.~~ [Triagem](../prompts/registros/P118-investigar-lock-snapshot-ci.md); causa não reproduzida, monitorar recorrência.
-- [ ] Fase 6A/P119/C60 parcial: PUBACK MQTT 5 `0x87` para ACL negada em QoS1 sem commit; client mostra motivos de PUBACK/SUBACK. Implementação e gates locais PASS; CI dos commits pendente. [Broker](../prompts/registros/P119-puback-mqtt5-acl.md) e [client](../../xmqr-client/prompts/registros/C60-diagnostico-reason-code-mqtt5.md).
+- [x] ~~Fase 6A/P119/C60 parcial: PUBACK MQTT 5 `0x87` para ACL negada em QoS1 sem commit; client mostra motivos de PUBACK/SUBACK.~~ [Broker](../prompts/registros/P119-puback-mqtt5-acl.md) e [client](../../xmqr-client/prompts/registros/C60-diagnostico-reason-code-mqtt5.md); gates locais, integração real e CIs PASS.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
@@ -162,12 +162,12 @@ e o link do registro. Manter itens em validação desmarcados e indicar seu bloq
 | Listeners | Até três endpoints mTLS adicionais, políticas por endpoint, TLS-senha e rotação aceitos na fase4 | Ampliar além do limite atual somente com nova demanda e validação |
 | Administração | Canal local autenticado, bundle, ações, auditoria e diagnóstico aceitos na fase5; painel somente leitura | Administração remota e plugins permanecem fora do escopo atual |
 | Métricas/logs | Monitor loopback e contadores administrativos de cardinalidade fixa; `$SYS` não gerado por decisão B14 | Exportação adicional conforme demanda |
-| MQTT5 | P115/P116/C57/C58: pub/sub QoS0/1 sem propriedades avançadas com sessão limpa | Codec/propriedades completos, negociação de sessões, expiração, fluxo, opções de assinatura e autenticação estendida |
+| MQTT5 | P115/P116/P119/C57/C58/C60: pub/sub QoS0/1 com sessão limpa e diagnóstico parcial de reason codes | Codec/propriedades completos, negociação de sessões, expiração, fluxo, opções de assinatura e autenticação estendida |
 | WebSocket | Ausente | WS/WSS no broker e conexão correspondente no client |
 | Bridge | Ausente | Ligação entre brokers com TLS, reconexão, mapeamento de tópicos e proteção de loops |
 | Distribuição | Deb26 amd64; sem APT próprio | Ubuntu24 validado, arm64, repositório APT assinado e política de upgrade |
 | Windows nativo | Não homologado | Persistência/locks/CRUD/sinais adaptados, serviço Windows, instalador e testes |
-| Clients | CLI própria; ~~keepalive/timeout e limites aceitos~~; sem paridade exaustiva | Perfis, saída/filtros, repetição e MQTT5; validar firmware ESP32 como consumidor |
+| Clients | CLI própria com perfis, saída/filtros, repetição e MQTT5 parcial; sem paridade exaustiva | Completar MQTT5 e validar firmware ESP32 como consumidor nos novos contratos |
 | Extensibilidade | Sem API de plugins equivalente | Avaliar hooks de autenticação/ACL e integração externa depois de estabilizar o núcleo |
 
 TLS PSK, sockets Unix, opções avançadas de TLS/logs, API de controle e políticas
@@ -184,7 +184,7 @@ para igualar um broker Mosquitto isolado.
 | 3 | Semanas5–7 | Falhas de disco, fuzzing, pressão de filas e fechamento da matriz MQTT3.1.1 | Reconexão/backoff, cancelamento, diagnóstico e testes contra Mosquitto | Recuperação comprovada nos cenários; negativos; interop automatizada; pendências normativas listadas |
 | 4 | Semanas8–10 | Listeners com políticas por endpoint, modos TLS e reload de certificados definido | Perfis de conexão, rotação e erros de certificado/credenciais | Isolamento de ACL; TLS/mTLS; rotação/rollback; nenhum laboratório remoto implicitamente habilitado |
 | 5 | Semanas11–12 | Administração de bundle, auditoria, métricas e ciclo de release | Paridade prioritária pub/sub e documentação sincronizada | Operação sem editar segredos manualmente em casos cobertos; release com anexos/checksums e rollback |
-| 6A | Semanas13–15 | P115/P116 aceitam publicação/assinatura MQTT5 QoS0/1; codec/propriedades completos pendentes | C57/C58 selecionam3.1.1/5 para pub/sub | Negativos normativos e coexistência3.1.1; apenas subconjunto5 anunciado |
+| 6A | Semanas13–15 | P115/P116/P119 aceitam pub/sub MQTT5 QoS0/1 e recusa ACL via PUBACK; codec/propriedades completos pendentes | C57/C58/C60 selecionam3.1.1/5 e exibem motivos de recusa | Negativos normativos e coexistência3.1.1; apenas subconjunto5 anunciado |
 | 6B | Semanas16–18 | Clean Start, Session Expiry, Message Expiry, Will Delay e estado versionado | Testes de expiração/reconexão; opções correspondentes | Crash/restart, migração e relógio/expiração tratados sem perda silenciosa |
 | 6C | Semanas19–21 | Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação | Flow control, User Properties, Content Type, Response Topic/Correlation Data | Negociação bilateral, limites, QoS0/1/2 e persistência testados |
 | 6D | Semanas22–24 | Opções de assinatura, Subscription Identifier, shared subscriptions e AUTH conforme contrato | No Local, Retain Handling/As Published, assinaturas compartilhadas e autenticação5 | Matriz5 por cláusula, interop externa, recursos ausentes declarados; sem alegação integral prematura |
@@ -217,8 +217,8 @@ Pode ser antecipado sem bloquear MQTT5 quando houver disponibilidade.
    testados, notas, hashes e procedimento de upgrade/rollback. Versões independentes.
 
 Fase2 encerrada por P85/C44, conforme [checklist de placa](esp32-phase2-checklist.md).
-O parágrafo anterior sobre a fase2 é histórico. Após P116/C58, a próxima
-entrega continua na fase6A: ampliar reason codes e propriedades MQTT5
+O parágrafo anterior sobre a fase2 é histórico. Após P119/C60, a próxima
+entrega continua na fase6A: ampliar propriedades e demais reason codes MQTT5
 no broker e no client.
 Não iniciar MQTT5, WebSocket e bridge juntos. Reavaliar este cronograma
 ao encerrar cada fase e registrar desvios nos prompts correspondentes.

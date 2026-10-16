@@ -1,6 +1,6 @@
 //! MQTT 3.1.1 session handler with bounded `QoS` 0/1/2, retained messages
 //! and durable CleanSession=0 state. Topic filters support MQTT 3.1.1 `+` and
-//! `#`, with durable Last Will. MQTT 5 has an initial publication-only subset.
+//! `#`, with durable Last Will. MQTT 5 has an initial pub/sub subset.
 
 mod codec;
 #[cfg(all(test, unix))]

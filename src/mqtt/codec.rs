@@ -323,8 +323,8 @@ fn decode_for(
             if level == 5 {
                 let property_length = c.variable_integer()?;
                 let properties = c.bytes(property_length)?;
-                // Receive Maximum is vacuous for this publish-only session;
-                // zero Session Expiry is equivalent to the default.
+                // Zero Session Expiry is equivalent to the default. Full
+                // outbound Receive Maximum flow control remains in phase 6C.
                 if !clean_session || has_will || !mqtt5_connect_properties_supported(properties)? {
                     return Ok(Packet::UnsupportedConnect5);
                 }

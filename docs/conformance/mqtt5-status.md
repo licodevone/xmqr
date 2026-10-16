@@ -16,6 +16,8 @@ quando uma publicação QoS 1 é recusada pela ACL. A mensagem não entra no
 roteador nem é confirmada como aceita; a conexão continua apta a uma publicação
 permitida. A recusa QoS 0 continua encerrando a conexão neste subconjunto.
 C60 faz o client mostrar os códigos de recusa de PUBACK/SUBACK.
+Receive Maximum pode constar no CONNECT, mas o controle completo de fluxo de
+entrega ainda depende da fase 6C; não se declara conformidade MQTT 5 integral.
 
 O broker recusa Clean Start=0, Will e propriedades de CONNECT fora de Session
 Expiry=0/Receive Maximum válido com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
