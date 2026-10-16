@@ -71,7 +71,7 @@ pub enum StorageError {
 /// prevents another broker instance from opening the same directory.
 pub struct Store {
     directory: PathBuf,
-    _lock: File,
+    lock: File,
     wal: File,
     state: BTreeMap<Vec<u8>, Vec<u8>>,
     state_bytes: usize,
@@ -79,6 +79,14 @@ pub struct Store {
     poisoned: bool,
     #[cfg(test)]
     faults: faults::Faults,
+}
+
+impl Drop for Store {
+    fn drop(&mut self) {
+        // Release the writer lease before closing its file descriptor, so the
+        // next Store can immediately take ownership after this one is dropped.
+        let _ = FileExt::unlock(&self.lock);
+    }
 }
 
 impl Store {
@@ -158,7 +166,7 @@ impl Store {
 
         Ok(Self {
             directory,
-            _lock: lock,
+            lock,
             wal,
             state,
             state_bytes,
@@ -698,6 +706,20 @@ mod tests {
             Store::open(directory.path()),
             Err(StorageError::AlreadyOpen)
         ));
+    }
+
+    #[test]
+    fn releases_writer_lock_before_immediate_reopen() {
+        let directory = tempdir().expect("tempdir");
+        for _ in 0..100 {
+            let store = Store::open(directory.path()).expect("open writer");
+            assert!(matches!(
+                Store::open(directory.path()),
+                Err(StorageError::AlreadyOpen)
+            ));
+            drop(store);
+        }
+        Store::open(directory.path()).expect("reopen after drop");
     }
 
     #[test]
