@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Luis E. S. Pinheiro
-"""Bounded MQTT 3.1.1 checks against a real XMQR process and Mosquitto clients.
+"""Bounded MQTT 3.1.1 and MQTT 5 publication checks with Mosquitto clients.
 
 Run after cargo build --locked --bins:
 python3 scripts/verify_interop.py --broker /path/to/debug/mqtt-broker
@@ -62,9 +62,9 @@ class Broker:
             self.process.stderr.close()
             self.process = None
 
-    def publish(self, topic, payload, qos=0, retain=False):
+    def publish(self, topic, payload, qos=0, retain=False, version="mqttv311"):
         args = ["mosquitto_pub", "-h", "127.0.0.1", "-p", str(self.port),
-                "-V", "mqttv311", "-i", f"interop-pub-{uuid.uuid4().hex[:12]}",
+                "-V", version, "-i", f"interop-pub-{uuid.uuid4().hex[:12]}",
                 "-t", topic, "-m", payload, "-q", str(qos)]
         if retain:
             args.append("-r")
@@ -204,6 +204,15 @@ class Interoperability(unittest.TestCase):
                     self.broker.publish("sensors/one/value", "24", qos)
                     self.assertEqual(subscriber.message(), ("sensors/one/value", qos, False, "24"))
                     self.assertIsNone(subscriber.message(timeout=0.2), "duplicate fan-out")
+
+    def test_mqtt5_publication_qos0_qos1_and_retained_to_v311(self):
+        with Subscriber(self.broker, ["v5/#"], 0) as subscriber:
+            for qos in (0, 1):
+                self.broker.publish("v5/value", f"q{qos}", qos=qos, version="mqttv5")
+                self.assertEqual(subscriber.message(), ("v5/value", 0, False, f"q{qos}"))
+        self.broker.publish("v5/retained", "saved", qos=1, retain=True, version="mqttv5")
+        with Subscriber(self.broker, ["v5/retained"], 1) as subscriber:
+            self.assertEqual(subscriber.message(), ("v5/retained", 1, True, "saved"))
 
     def test_retained_recovery_and_system_namespace(self):
         # MQTT-3.3.1-6/8/9; MQTT-4.7.2-1.

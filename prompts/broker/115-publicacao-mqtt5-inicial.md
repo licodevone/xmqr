@@ -22,3 +22,5 @@ Norma: <https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html>.
 Rev2: o CONNACK de sucesso anuncia Maximum QoS=1 e Maximum Packet Size=65536, pois os defaults MQTT 5 não refletiriam os limites reais do subconjunto. Session Expiry=0 explícito no CONNECT é aceito como o default.
 
 Rev3: incluir script de verificação reproduzível em Ubuntu/WSL que execute os dois binários reais em loopback isolado, com assinante 3.1.1 e duas publicações MQTT 5 QoS0/1. Registrar o resultado cruzado no aceite.
+
+Rev4: estender a suíte de interoperabilidade já executada na CI, usando `mosquitto_pub -V mqttv5` como publicador independente e `mosquitto_sub -V mqttv311` como assinante. Cobrir QoS0/1 e retained; a máquina local não possui o pacote Mosquitto e o gate externo ocorrerá na CI que já o instala.
