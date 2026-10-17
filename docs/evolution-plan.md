@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado0.22.0, client independente0.20.0
+Versões publicadas atuais: broker/admin legado0.23.0, client independente0.21.0
 e xmqr-admin independente0.4.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
@@ -167,7 +167,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6C/C80 parcial: `sub --protocol-version 5 --output jsonl` exibe metadados PUBLISH, com binário hexadecimal e pares de usuário ordenados; QoS0/1/2, retained/restart, Mosquitto e CI PASS.~~ [Evidência](../../xmqr-client/prompts/registros/C80-subscriber-publish-metadata-mqtt5.md). O fluxo de envio ainda requer revisão; fase 6C global aberta.
 - [x] ~~Fase 6C/P144 parcial: CONNACK MQTT 5 anuncia Receive Maximum inbound 1..32 conforme quota configurada quando cabe; negativos de excesso, restart, Mosquitto e CI PASS.~~ [Evidência](../prompts/registros/P144-connack-receive-maximum-mqtt5.md). Nos limites de pacote 5..7 e 10..15 a propriedade é omitida para preservar o fallback anterior; fase 6C global aberta.
 - [x] ~~Fase 6C/C81 parcial: client repete PUBLISH MQTT 5 com confirmação sequencial, propriedades preservadas, negativos de recusa/timeout, broker XMQR, Mosquitto e CI PASS.~~ [Evidência](../../xmqr-client/prompts/registros/C81-repeat-publish-mqtt5.md). Não há mensagens MQTT 5 simultâneas nem Topic Alias compacto; fase 6C global aberta.
-- [ ] Distribuição P145/C82: broker 0.23.0 e client 0.21.0 com pacotes, imagens numeradas, ciclo de upgrade/rollback, checksums, tags e prereleases. [Broker](../prompts/registros/P145-release-0.23.0.md) e [client](../../xmqr-client/prompts/registros/C82-release-0.21.0.md). Em preparação; não publicada.
+- [x] ~~Distribuição P145/C82: broker 0.23.0 e client 0.21.0 com pacotes, imagens numeradas, ciclo de upgrade/rollback, checksums, tags e prereleases.~~ [Broker](../prompts/registros/P145-release-0.23.0.md) e [client](../../xmqr-client/prompts/registros/C82-release-0.21.0.md). Fases 6A–6D e 7–9 continuam abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
