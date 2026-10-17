@@ -1,7 +1,9 @@
 # Histórico de versões
 
-## Não publicado — fase 6A em evolução
+## 0.18.0 — sessões MQTT 5, experimental
 
+- P128: Session Expiry finita com deadline durável, remoção automática e migração do documento v5 para v6; leitura v1–v5. Crash com conexão ativa inicia o intervalo na recuperação para não descartar dados aceitos sem instante de fechamento conhecido.
+- P127: Clean Start separado de Session Expiry zero/infinita; Session Present real, assinatura e QoS offline recuperados após restart.
 - P126: ACKs de sucesso PUBACK/PUBREC/PUBREL/PUBCOMP e DISCONNECT normal MQTT 5 aceitam Reason Code `0x00` explícito e comprimento de propriedades zero, preservando as formas abreviadas. Motivos de erro e propriedades continuam fora do subconjunto.
 
 ## 0.17.0 — MQTT 5 ampliado, experimental

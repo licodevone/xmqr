@@ -1,5 +1,13 @@
 # Versionamento
 
+## P129 — marco de sessões MQTT 5
+
+Broker e `mqtt-admin` legado 0.18.0 incluem P126–P128: ACKs de sucesso em formas
+normativas, Clean Start e Session Expiry zero/finita/infinita. Client independente
+0.16.0 acompanha. O documento durável migra de v5 para v6 na próxima gravação;
+rollback para 0.17.0 exige restaurar backup privado v5 anterior à migração.
+Fases 6A–6D continuam abertas. Veja [nota](docs/releases/0.18.0.md).
+
 ## P124 — marco MQTT 5 ampliado
 
 Broker e `mqtt-admin` legado 0.17.0 incluem P119–P123: QoS2 MQTT 5,

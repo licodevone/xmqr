@@ -1,5 +1,10 @@
 # XMQR
 
+O marco experimental 0.18.0 acrescenta Clean Start e Session Expiry
+zero, finita ou infinita ao subconjunto MQTT 5. O estado durável passa a v6;
+faça backup offline antes de atualizar e leia a
+[nota de release](docs/releases/0.18.0.md) para rollback.
+
 O marco experimental 0.17.0 amplia o subconjunto MQTT 5 para QoS2,
 UNSUBSCRIBE, motivos ACL e propriedades informativas de CONNECT. Consulte
 [estado de conformidade](docs/conformance/mqtt5-status.md) e
