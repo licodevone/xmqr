@@ -34,6 +34,10 @@ pub(super) struct TopicAliasInvalid;
 #[error("malformed MQTT Remaining Length")]
 pub(super) struct MalformedRemainingLength;
 
+#[derive(Debug, thiserror::Error)]
+#[error("invalid MQTT fixed header flags")]
+pub(super) struct FixedHeaderFlagsInvalid;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -470,6 +474,9 @@ fn decode_for(
     mqtt5: bool,
 ) -> Result<Packet, Box<dyn std::error::Error + Send + Sync>> {
     let mut c = Cursor::new(body);
+    if mqtt5 && matches!(header >> 4, 12 | 14) && header & 0x0f != 0 {
+        return Err(FixedHeaderFlagsInvalid.into());
+    }
     if mqtt5
         && !matches!(
             header,
@@ -2953,6 +2960,14 @@ mod tests {
             .is_err()
         );
         assert!(frame_header(&[0x30, 0x80, 0x80, 0x80, 0x80]).is_err());
+        for header in [0xc1, 0xe1] {
+            assert!(
+                decode_for(header, &[], true)
+                    .unwrap_err()
+                    .is::<FixedHeaderFlagsInvalid>()
+            );
+            assert!(decode_for(header, &[], false).is_err());
+        }
     }
 
     #[test]
