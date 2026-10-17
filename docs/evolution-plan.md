@@ -186,6 +186,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6D/P154 parcial: grupos compartilhados MQTT 5 persistentes no estado v13, fila offline e retomada QoS2; testes e CI PASS.~~ Admin A16 distribuído; AUTH e recomendação de redistribuição QoS1 após término da sessão seguem pendentes. [Registro](../prompts/registros/P154-durable-shared-subscriptions-mqtt5.md).
 - [x] ~~Distribuição P155/C90/A16: broker 0.26.0, client 0.24.0 e admin independente 0.8.0, com estado v13; CI, pacotes, imagens, rollback, tags e prereleases verificados.~~ [Broker](../prompts/registros/P155-release-0.26.0.md), [client](../../xmqr-client/prompts/registros/C90-release-0.24.0.md), [admin](../../xmqr-admin/prompts/registros/A16-core-v13-release-0.8.md). Fases 6A–6D e 7–9 seguem abertas.
 - [ ] Fase 6D/P156: redistribuir QoS1 não reconhecido após término da sessão compartilhada, com origem durável e compatibilidade admin. [Prompt](../prompts/broker/156-shared-qos1-redistribution.md).
+- [ ] Distribuição P157/A18: broker/admin legado 0.27.0 e admin independente compatível com estado v14, após CI, pacote, rollback, imagens, tags e prereleases. [Prompt P157](../prompts/broker/157-release-0.27.0.md).
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
