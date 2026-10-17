@@ -2,7 +2,7 @@
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
 Versões publicadas atuais: broker/admin legado0.23.0, client independente0.21.0
-e xmqr-admin independente0.4.0. Fases1–5 aceitas em seus recortes documentados;
+e xmqr-admin independente0.5.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
 segue aberta.
@@ -171,6 +171,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6C/C83 parcial: Topic Alias compacto no publisher MQTT 5 em repetição, com limite negociado e interop XMQR/Mosquitto; CI PASS.~~ [Evidência](../../xmqr-client/prompts/registros/C83-publish-topic-alias-mqtt5.md). Fase 6C global aberta.
 - [x] ~~Fase 6C/P146 parcial: sessão QoS2 retomada com quota durável cheia responde PUBREC 0x97 sem perder mensagem anterior; TCP real e CI PASS.~~ [Evidência](../prompts/registros/P146-qos2-resume-quota-mqtt5.md). Fase 6C global aberta.
 - [x] ~~Fase 6D/P147/C84 parcial: Retain Handling 0/1/2 por filtro, sessão persistente/restart, interop Mosquitto e CIs PASS.~~ [Broker](../prompts/registros/P147-retain-handling-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C84-retain-handling-mqtt5.md). Fase 6D global aberta.
+- [x] ~~Admin A12/A13: core broker 0.23.0 e estado v10 aceitos; admin independente 0.5.0 distribuído com pacotes, imagem numerada, tag e prerelease verificadas.~~ [A12](../../xmqr-admin/prompts/registros/A12-core-broker-0.23-compat.md) e [A13](../../xmqr-admin/prompts/registros/A13-release-core-0.23.md). Painel de escrita e fase 9 seguem abertos.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
