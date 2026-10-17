@@ -1,6 +1,6 @@
 # Histórico de versões
 
-## Em desenvolvimento após 0.20.0
+## 0.21.0 — Topic Alias MQTT 5, experimental
 
 - P138: Topic Alias de entrada MQTT 5 por conexão, com máximo anunciado de 16 quando o CONNACK cabe; alias inválido ou não estabelecido fecha a conexão sem publicar.
 - P139: Topic Alias de saída MQTT 5 limitado pelo máximo anunciado pelo assinante (e pelo teto local de 16); primeira entrega estabelece o alias e as seguintes usam tópico vazio. Associação reinicia por conexão, inclusive após restart; sem alias em MQTT 3.1.1 ou máximo zero. O Mosquitto 2.0.22 encerra após a forma abreviada válida, reproduzida isoladamente.

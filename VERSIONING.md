@@ -1,5 +1,13 @@
 # Versionamento
 
+## P140 — marco de Topic Alias MQTT 5
+
+Broker e `mqtt-admin` legado 0.21.0 incluem P138/P139: Topic Alias de entrada
+e saída por conexão. Client independente 0.19.0 acompanha. Não há nova
+migração do documento v8. O Mosquitto 2.0.22 rejeita a forma abreviada válida
+em fixture isolada; essa direção não está homologada. Fases 6A–6D permanecem
+abertas. [Nota de release](docs/releases/0.21.0.md).
+
 ## P137 — marco de limites MQTT 5
 
 Broker e `mqtt-admin` legado 0.20.0 incluem P134/P136: Receive Maximum e

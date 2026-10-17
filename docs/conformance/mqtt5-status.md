@@ -65,8 +65,8 @@ enviados pelo broker ao client nessa conexão. O CONNACK omite a propriedade
 informativa de tamanho se ela não couber. PUBLISH grande demais é descartado
 e sua obrigação QoS é concluída no estado durável, inclusive em replay; um
 pacote essencial grande demais encerra a conexão. O broker continua anunciando
-seu teto de entrada de 65536 bytes quando o CONNACK completo cabe. P138, ainda
-não distribuído em 0.20.0, anuncia Topic Alias Maximum=16 quando há ao menos
+seu teto de entrada de 65536 bytes quando o CONNACK completo cabe. P138,
+distribuído a partir de 0.21.0, anuncia Topic Alias Maximum=16 quando há ao menos
 13 bytes de limite de saída e aceita alias de entrada 1..16 por conexão. Um
 PUBLISH com nome define/redefine o alias; nome vazio o usa. Alias inválido,
 desconhecido, duplicado ou truncado fecha a conexão sem publicar. A tabela não

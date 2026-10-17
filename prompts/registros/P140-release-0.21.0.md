@@ -1,0 +1,4 @@
+# P140 — prerelease experimental broker 0.21.0
+
+- [Prompt P140](../broker/140-release-0.21.0.md) criado antes do bump. Base funcional P139 `9dcfd0a36371cf1a219140e398cc27cd5dc5306b` com [CI PASS](https://github.com/licodevone/xmqr/actions/runs/38998032565) e C75 `9a9b47296f951a73f5d956226fee65e4acda9294` com [CI PASS](https://github.com/licodevone/xmqr-client/actions/runs/38998054722).
+- Cargo/lock, Dockerfile, changelog, README, VERSIONING, plano e nota de release preparados para 0.21.0. Ubuntu26/WSL: fmt, 160 testes principais PASS/6 ignorados, demais suítes Rust PASS, Clippy `-D warnings`, release build de broker/admin, inventário de licenças e `mqtt-broker`/`mqtt-admin --version` PASS. Integrações P138/P139/P134/P136 com client C75 PASS. Pacote, imagens, tag e prerelease: pendentes até gates da fonte exata. Fases 6A–6D abertas; documento durável v8.

@@ -1,8 +1,10 @@
 # XMQR
 
-Na fonte `main` após 0.20.0, P138 aceita Topic Alias de entrada MQTT 5 com
-máximo 16 por conexão. O broker ainda envia PUBLISH com nome completo; este
-recorte não integra a prerelease 0.20.0 e não fecha a fase 6C.
+O marco experimental 0.21.0 aceita Topic Alias MQTT 5 de entrada e saída
+(P138/P139), limitado a 16 por conexão e ao máximo anunciado pelo assinante.
+O client 0.19.0 recebe a forma abreviada. O Mosquitto 2.0.22 fecha a conexão
+ao recebê-la em fixture isolada; essa direção externa não está homologada.
+Veja a [nota de release](docs/releases/0.21.0.md). A fase 6C segue aberta.
 
 O marco experimental 0.20.0 acrescenta Receive Maximum e Maximum Packet Size
 do assinante MQTT 5, inclusive entrega retida/offline e replay após reinício.
