@@ -497,9 +497,12 @@ async fn serve_mqtt(
                                 _ => return Err("invalid PUBLISH identifier".into()),
                             }
                         }
-                        Packet::PubRel(id) => {
-                            router.pubrel(&session, id).await?;
-                            write_limited(connection, &encode_pubcomp(id), outbound_maximum).await?;
+                        Packet::PubRel { packet_id, reason_code } => {
+                            if reason_code == 0x92 {
+                                warn!(connection_id=connection.id(), reason_code, "MQTT 5 publisher reported unknown QoS2 identifier in PUBREL");
+                            }
+                            router.pubrel(&session, packet_id).await?;
+                            write_limited(connection, &encode_pubcomp(packet_id), outbound_maximum).await?;
                         }
                         Packet::PubAck { packet_id, reason_code } => {
                             if reason_code >= 0x80 {
@@ -520,8 +523,11 @@ async fn serve_mqtt(
                                 send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?;
                             }
                         }
-                        Packet::PubComp(id) => {
-                            for delivery in router.ack(&session, AckKind::Comp, id).await? {
+                        Packet::PubComp { packet_id, reason_code } => {
+                            if reason_code == 0x92 {
+                                warn!(connection_id=connection.id(), reason_code, "MQTT 5 subscriber reported unknown QoS2 identifier in PUBCOMP");
+                            }
+                            for delivery in router.ack(&session, AckKind::Comp, packet_id).await? {
                                 send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?;
                             }
                         }

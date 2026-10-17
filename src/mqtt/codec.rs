@@ -99,8 +99,14 @@ pub(super) enum Packet {
         packet_id: u16,
         reason_code: u8,
     },
-    PubRel(u16),
-    PubComp(u16),
+    PubRel {
+        packet_id: u16,
+        reason_code: u8,
+    },
+    PubComp {
+        packet_id: u16,
+        reason_code: u8,
+    },
     PingReq,
     Auth {
         method: String,
@@ -864,8 +870,20 @@ fn decode_for(
             }
         }
         // MQTT-3.6.1-1: PUBREL low nibble must be 0010.
-        0x62 => Packet::PubRel(success_ack_id(&mut c, mqtt5)?),
-        0x70 => Packet::PubComp(success_ack_id(&mut c, mqtt5)?),
+        0x62 => {
+            let (packet_id, reason_code) = decode_qos2_completion_ack(&mut c, mqtt5)?;
+            Packet::PubRel {
+                packet_id,
+                reason_code,
+            }
+        }
+        0x70 => {
+            let (packet_id, reason_code) = decode_qos2_completion_ack(&mut c, mqtt5)?;
+            Packet::PubComp {
+                packet_id,
+                reason_code,
+            }
+        }
         0xc0 if body.is_empty() => Packet::PingReq,
         0xf0 if mqtt5 => {
             if c.byte()? != 0x19 {
@@ -936,14 +954,6 @@ fn nonzero_ack_id(c: &mut Cursor<'_>) -> Result<u16, &'static str> {
     Ok(id)
 }
 
-fn success_ack_id(c: &mut Cursor<'_>, mqtt5: bool) -> Result<u16, &'static str> {
-    let id = nonzero_ack_id(c)?;
-    if mqtt5 {
-        mqtt5_optional_success_and_empty_properties(c)?;
-    }
-    Ok(id)
-}
-
 fn decode_client_publish_ack(c: &mut Cursor<'_>, mqtt5: bool) -> Result<(u16, u8), &'static str> {
     let packet_id = nonzero_ack_id(c)?;
     let reason_code = if mqtt5 && c.pos < c.input.len() {
@@ -978,14 +988,35 @@ fn decode_client_publish_ack(c: &mut Cursor<'_>, mqtt5: bool) -> Result<(u16, u8
     Ok((packet_id, reason_code))
 }
 
-fn mqtt5_optional_success_and_empty_properties(c: &mut Cursor<'_>) -> Result<(), &'static str> {
-    if c.pos < c.input.len() && c.byte()? != 0 {
-        return Err("MQTT 5 reason code outside the supported success subset");
+fn decode_qos2_completion_ack(c: &mut Cursor<'_>, mqtt5: bool) -> Result<(u16, u8), &'static str> {
+    let packet_id = nonzero_ack_id(c)?;
+    let reason_code = if mqtt5 && c.pos < c.input.len() {
+        c.byte()?
+    } else {
+        0
+    };
+    if !matches!(reason_code, 0x00 | 0x92) {
+        return Err("invalid MQTT 5 QoS 2 completion reason code");
     }
-    if c.pos < c.input.len() && c.byte()? != 0 {
-        return Err("MQTT 5 packet properties not supported");
+    if mqtt5 && c.pos < c.input.len() {
+        let property_length = c.variable_integer()?;
+        let mut properties = Cursor::new(c.bytes(property_length)?);
+        let mut reason_seen = false;
+        while properties.pos < properties.input.len() {
+            match properties.byte()? {
+                0x1f if !reason_seen => {
+                    let _ = properties.text()?;
+                    reason_seen = true;
+                }
+                0x26 => {
+                    let _ = properties.text()?;
+                    let _ = properties.text()?;
+                }
+                _ => return Err("duplicate or unsupported MQTT 5 QoS 2 completion property"),
+            }
+        }
     }
-    Ok(())
+    Ok((packet_id, reason_code))
 }
 
 fn encode_length(mut len: usize, output: &mut Vec<u8>) {
@@ -2207,11 +2238,17 @@ mod tests {
         ));
         assert!(matches!(
             decode_for(0x62, &[0, 7], true),
-            Ok(Packet::PubRel(7))
+            Ok(Packet::PubRel {
+                packet_id: 7,
+                reason_code: 0
+            })
         ));
         assert!(matches!(
             decode_for(0x70, &[0, 7], true),
-            Ok(Packet::PubComp(7))
+            Ok(Packet::PubComp {
+                packet_id: 7,
+                reason_code: 0
+            })
         ));
         assert_eq!(
             encode_publish_for("x", b"y", Qos::ExactlyOnce, false, false, Some(7), true).unwrap(),
@@ -2224,9 +2261,19 @@ mod tests {
     }
 
     #[test]
-    fn mqtt5_accepts_only_success_pubrel_pubcomp_and_normal_disconnect_forms() {
+    fn mqtt5_accepts_qos2_completion_reasons_and_diagnostics() {
         for header in [0x62, 0x70] {
-            for body in [&[0, 7][..], &[0, 7, 0][..], &[0, 7, 0, 0][..]] {
+            let diagnostic = [
+                0, 7, 0x92, 12, 0x1f, 0, 2, b'n', b'o', 0x26, 0, 1, b'k', 0, 1, b'v',
+            ];
+            for body in [
+                &[0, 7][..],
+                &[0, 7, 0][..],
+                &[0, 7, 0, 0][..],
+                &[0, 7, 0x92][..],
+                &[0, 7, 0x92, 0][..],
+                &diagnostic[..],
+            ] {
                 assert!(decode_for(header, body, true).is_ok(), "header {header:#x}");
             }
             for body in [
@@ -2234,6 +2281,9 @@ mod tests {
                 &[0, 7, 0x80][..],
                 &[0, 7, 0, 1][..],
                 &[0, 7, 0, 0, 0][..],
+                &[0, 7, 0x92, 1, 0x11][..],
+                &[0, 7, 0x92, 1, 0x1f][..],
+                &[0, 7, 0x92, 8, 0x1f, 0, 1, b'a', 0x1f, 0, 1, b'b'][..],
             ] {
                 assert!(
                     decode_for(header, body, true).is_err(),
@@ -2242,6 +2292,20 @@ mod tests {
             }
             assert!(decode_for(header, &[0, 7, 0], false).is_err());
         }
+        assert!(matches!(
+            decode_for(0x62, &[0, 7, 0x92], true),
+            Ok(Packet::PubRel {
+                packet_id: 7,
+                reason_code: 0x92
+            })
+        ));
+        assert!(matches!(
+            decode_for(0x70, &[0, 7, 0x92], true),
+            Ok(Packet::PubComp {
+                packet_id: 7,
+                reason_code: 0x92
+            })
+        ));
         for body in [&[][..], &[0][..], &[0, 0][..]] {
             assert!(matches!(
                 decode_for(0xe0, body, true),
@@ -2827,8 +2891,20 @@ mod tests {
                 reason_code: 0
             }
         ));
-        assert!(matches!(decode(0x62, &[0, 2]).unwrap(), Packet::PubRel(2)));
-        assert!(matches!(decode(0x70, &[0, 2]).unwrap(), Packet::PubComp(2)));
+        assert!(matches!(
+            decode(0x62, &[0, 2]).unwrap(),
+            Packet::PubRel {
+                packet_id: 2,
+                reason_code: 0
+            }
+        ));
+        assert!(matches!(
+            decode(0x70, &[0, 2]).unwrap(),
+            Packet::PubComp {
+                packet_id: 2,
+                reason_code: 0
+            }
+        ));
         assert!(decode(0x6a, &[0, 2]).is_err());
         assert!(decode(0x62, &[0, 2, 0]).is_err());
         assert!(encode_publish("a", b"x", Qos::AtMostOnce, false, true, None).is_err());
