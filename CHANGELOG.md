@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Em desenvolvimento — PUBACK negativo MQTT 5
+
+- P169: PUBACK negativo válido do assinante MQTT 5 conclui a tentativa QoS1, libera inflight e preserva a conexão; parser aceita Reason String única e User Property repetida, rejeita códigos/propriedades inválidos. Sem tag/release isolada.
+
 ## 0.30.0 — Client Identifier atribuído no MQTT 5 (experimental)
 
 - P166: CONNECT MQTT 5 com Client Identifier vazio recebe ID aleatório exclusivo e propriedade obrigatória `0x12` no CONNACK; colisão é resolvida no ator e limite de pacote insuficiente recusa antes do commit. MQTT 3.1.1 continua recusando ID vazio. C97–C99 formam o fluxo de CLI e reconexão manual.

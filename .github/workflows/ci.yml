@@ -26,6 +26,7 @@ jobs:
       - run: python3 scripts/verify_interop.py --broker target/debug/mqtt-broker
       - run: python3 -m pip install --disable-pip-version-check --target "$RUNNER_TEMP/xmqr-paho" paho-mqtt==2.1.0
       - run: PYTHONPATH="$RUNNER_TEMP/xmqr-paho" python3 scripts/verify_paho_mqtt5.py --broker target/debug/mqtt-broker
+      - run: python3 scripts/verify_mqtt5_negative_puback.py
       - run: python3 scripts/verify_shutdown.py --broker target/debug/mqtt-broker
 
   ubuntu-package:

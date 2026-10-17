@@ -91,7 +91,10 @@ pub(super) enum Packet {
         correlation_data: Option<Vec<u8>>,
         user_properties: Vec<(String, String)>,
     },
-    PubAck(u16),
+    PubAck {
+        packet_id: u16,
+        reason_code: u8,
+    },
     PubRec(u16),
     PubRel(u16),
     PubComp(u16),
@@ -843,7 +846,7 @@ fn decode_for(
                 user_properties,
             }
         }
-        0x40 => Packet::PubAck(success_ack_id(&mut c, mqtt5)?),
+        0x40 => decode_puback(&mut c, mqtt5)?,
         0x50 => Packet::PubRec(success_ack_id(&mut c, mqtt5)?),
         // MQTT-3.6.1-1: PUBREL low nibble must be 0010.
         0x62 => Packet::PubRel(success_ack_id(&mut c, mqtt5)?),
@@ -924,6 +927,43 @@ fn success_ack_id(c: &mut Cursor<'_>, mqtt5: bool) -> Result<u16, &'static str> 
         mqtt5_optional_success_and_empty_properties(c)?;
     }
     Ok(id)
+}
+
+fn decode_puback(c: &mut Cursor<'_>, mqtt5: bool) -> Result<Packet, &'static str> {
+    let packet_id = nonzero_ack_id(c)?;
+    let reason_code = if mqtt5 && c.pos < c.input.len() {
+        c.byte()?
+    } else {
+        0
+    };
+    if !matches!(
+        reason_code,
+        0x00 | 0x80 | 0x83 | 0x87 | 0x90 | 0x91 | 0x97 | 0x99
+    ) {
+        return Err("invalid client PUBACK reason code");
+    }
+    if mqtt5 && c.pos < c.input.len() {
+        let property_length = c.variable_integer()?;
+        let mut properties = Cursor::new(c.bytes(property_length)?);
+        let mut reason_seen = false;
+        while properties.pos < properties.input.len() {
+            match properties.byte()? {
+                0x1f if !reason_seen => {
+                    let _ = properties.text()?;
+                    reason_seen = true;
+                }
+                0x26 => {
+                    let _ = properties.text()?;
+                    let _ = properties.text()?;
+                }
+                _ => return Err("duplicate or unsupported MQTT 5 PUBACK property"),
+            }
+        }
+    }
+    Ok(Packet::PubAck {
+        packet_id,
+        reason_code,
+    })
 }
 
 fn mqtt5_optional_success_and_empty_properties(c: &mut Cursor<'_>) -> Result<(), &'static str> {
@@ -2169,8 +2209,8 @@ mod tests {
     }
 
     #[test]
-    fn mqtt5_accepts_only_success_ack_and_normal_disconnect_forms() {
-        for header in [0x40, 0x50, 0x62, 0x70] {
+    fn mqtt5_accepts_only_success_qos2_ack_and_normal_disconnect_forms() {
+        for header in [0x50, 0x62, 0x70] {
             for body in [&[0, 7][..], &[0, 7, 0][..], &[0, 7, 0, 0][..]] {
                 assert!(decode_for(header, body, true).is_ok(), "header {header:#x}");
             }
@@ -2199,6 +2239,51 @@ mod tests {
             assert!(decode_for(0xe0, body, true).is_err());
         }
         assert!(decode_for(0xe0, &[0], false).is_err());
+    }
+
+    #[test]
+    fn mqtt5_puback_accepts_client_rejections_and_strict_diagnostic_properties() {
+        for reason in [0, 0x80, 0x83, 0x87, 0x90, 0x91, 0x97, 0x99] {
+            assert!(matches!(
+                decode_for(0x40, &[0, 7, reason], true),
+                Ok(Packet::PubAck { packet_id: 7, reason_code }) if reason_code == reason
+            ));
+        }
+        for body in [&[0, 7][..], &[0, 7, 0][..], &[0, 7, 0, 0][..]] {
+            assert!(matches!(
+                decode_for(0x40, body, true),
+                Ok(Packet::PubAck {
+                    packet_id: 7,
+                    reason_code: 0
+                })
+            ));
+        }
+        assert!(matches!(
+            decode_for(0x40, &[0, 7, 0x80, 5, 0x1f, 0, 2, b'n', b'o'], true),
+            Ok(Packet::PubAck {
+                packet_id: 7,
+                reason_code: 0x80
+            })
+        ));
+        assert!(matches!(
+            decode_for(0x40, &[0, 7, 0x87, 7, 0x26, 0, 1, b'k', 0, 1, b'v'], true),
+            Ok(Packet::PubAck {
+                packet_id: 7,
+                reason_code: 0x87
+            })
+        ));
+        for body in [
+            &[0, 0][..],
+            &[0, 7, 0x10][..],
+            &[0, 7, 0x81][..],
+            &[0, 7, 0x80, 1, 0x11][..],
+            &[0, 7, 0x80, 1, 0x1f][..],
+            &[0, 7, 0x80, 6, 0x1f, 0, 0, 0x1f, 0, 0][..],
+            &[0, 7, 0x80, 0, 0][..],
+        ] {
+            assert!(decode_for(0x40, body, true).is_err(), "{body:?}");
+        }
+        assert!(decode_for(0x40, &[0, 7, 0x80], false).is_err());
     }
 
     #[test]
@@ -2668,7 +2753,13 @@ mod tests {
         assert_eq!(encode_pubrec(2), [0x50, 2, 0, 2]);
         assert_eq!(encode_pubrel(2), [0x62, 2, 0, 2]);
         assert_eq!(encode_pubcomp(2), [0x70, 2, 0, 2]);
-        assert!(matches!(decode(0x40, &[0, 1]).unwrap(), Packet::PubAck(1)));
+        assert!(matches!(
+            decode(0x40, &[0, 1]).unwrap(),
+            Packet::PubAck {
+                packet_id: 1,
+                reason_code: 0
+            }
+        ));
         assert!(matches!(decode(0x50, &[0, 2]).unwrap(), Packet::PubRec(2)));
         assert!(matches!(decode(0x62, &[0, 2]).unwrap(), Packet::PubRel(2)));
         assert!(matches!(decode(0x70, &[0, 2]).unwrap(), Packet::PubComp(2)));

@@ -1,5 +1,11 @@
 # XMQR
 
+A árvore após 0.30.0 acrescenta P169: um assinante MQTT 5 pode responder a
+PUBLISH QoS1 com PUBACK negativo válido, inclusive Reason String e User
+Property. O broker conclui a tentativa, libera a quota e mantém a conexão;
+registra só o código, sem payload. Outros ACKs negativos ainda não pertencem
+a este recorte. [Prompt P169](prompts/broker/169-negative-puback-mqtt5.md).
+
 A release experimental broker/admin legado 0.30.0 distribui P166: o broker atribui um
 Client Identifier exclusivo a CONNECT MQTT 5 com ID vazio e anuncia `0x12`
 no CONNACK. O client 0.27.0/C97–C99 é o par para receber e reutilizar o ID.
