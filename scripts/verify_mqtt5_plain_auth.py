@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """P159: bounded SASL PLAIN initial authentication on an isolated TLS listener."""
 import argparse
+import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import secrets
@@ -9,17 +11,18 @@ import socket
 import ssl
 import subprocess
 import tempfile
-import time
 
 from verify_mqtt5_sessions import packet
-from verify_multi_endpoint import free_port, hash_fixture, wait_port
+from verify_multi_endpoint import free_port, hash_fixture, wait_port, wait_subscription
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def connect(port, ca, identity, password, maximum=None, method=b"PLAIN"):
+def connect(port, ca, identity, password, maximum=None, method=b"PLAIN", cert=None):
     context = ssl.create_default_context(cafile=str(ca))
+    if cert:
+        context.load_cert_chain(str(cert[0]), str(cert[1]))
     stream = context.wrap_socket(socket.create_connection(("127.0.0.1", port), timeout=4),
                                  server_hostname="127.0.0.1")
     stream.settimeout(4)
@@ -93,6 +96,13 @@ def main():
                                       secret.encode(), 15)
                 with stream:
                     assert ack[1] == 0 and b"\x15\x00\x05PLAIN" in ack and len(ack) == 13, ack
+                for identity, password, method, reason in (
+                    (b"", secret.encode(), b"PLAIN", 0x86),
+                    (b"fixture-device", secret.encode(), b"OTHER", 0x8c),
+                ):
+                    stream, ack = connect(port, root / "ca.crt", identity, password, method=method)
+                    with stream:
+                        assert ack[1] == reason, (reason, ack)
                 if args.client:
                     password_file = root / "password"
                     password_file.write_text(secret + "\n")
@@ -103,17 +113,19 @@ def main():
                               "--username", "fixture-device", "--password-file",
                               str(password_file)]
                     subscriber = subprocess.Popen([common[0], "sub", *common[1:], "--topic",
-                                                   "p159/value", "--count", "1"],
+                                                   "p159/value", "--count", "1", "--output", "jsonl"],
                                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                                   text=True)
                     try:
-                        time.sleep(0.5)
+                        wait_subscription(subscriber)
                         published = subprocess.run([common[0], "pub", *common[1:], "--topic",
                                                     "p159/value", "--message", "plain-ok"],
                                                    capture_output=True, text=True, timeout=12)
                         assert published.returncode == 0, published.stderr
                         output, errors = subscriber.communicate(timeout=12)
-                        assert subscriber.returncode == 0 and "plain-ok" in output, (output, errors)
+                        assert subscriber.returncode == 0, errors
+                        event = json.loads(output.strip())
+                        assert bytes(event["payload_bytes"]) == b"plain-ok", event
                     finally:
                         if subscriber.poll() is None:
                             subscriber.terminate()
@@ -127,8 +139,37 @@ def main():
                 if broker.poll() is None:
                     broker.terminate()
                     assert broker.wait(timeout=12) == 0
+        der = ssl.PEM_cert_to_DER_cert((root / "client.crt").read_text())
+        fingerprint = hashlib.sha256(der).hexdigest()
+        (root / "users.toml").write_text(
+            "[[users]]\nusername='fixture-device'\n"
+            f"password_hash='{hash_fixture(args.admin, secret)}'\n"
+            f"cert_sha256='sha256:{fingerprint}'\n")
+        mtls_port = free_port()
+        (root / "broker.toml").write_text(
+            'version=1\n[broker]\nmode="secure-mtls"\n'
+            f'bind="127.0.0.1:{mtls_port}"\nstate_dir="state-mtls"\n'
+            '[tls]\nserver_cert="server.crt"\nserver_key="server.key"\nclient_ca="ca.crt"\n'
+            '[security]\nusers_file="users.toml"\nacl_file="acl.toml"\n')
+        with (root / "broker-mtls.log").open("wb") as log:
+            broker = subprocess.Popen([str(args.broker)], env=environment, stdout=log, stderr=log)
+            try:
+                wait_port(broker, mtls_port)
+                cert = (root / "client.crt", root / "client.key")
+                stream, ack = connect(mtls_port, root / "ca.crt", b"fixture-device",
+                                      secret.encode(), cert=cert)
+                with stream:
+                    assert ack[1] == 0 and b"\x15\x00\x05PLAIN" in ack, ack
+                stream, ack = connect(mtls_port, root / "ca.crt", b"fixture-device",
+                                      b"wrong-password", cert=cert)
+                with stream:
+                    assert ack[1] == 0x86, ack
+            finally:
+                if broker.poll() is None:
+                    broker.terminate()
+                    assert broker.wait(timeout=12) == 0
     scope = " and client interop" if args.client else ""
-    print(f"P159_TLS_PASS initial PLAIN, bad password, packet budget, TLS{scope}")
+    print(f"P159_TLS_PASS initial PLAIN, bad password, packet budget, TLS, mTLS{scope}")
 
 
 if __name__ == "__main__":
