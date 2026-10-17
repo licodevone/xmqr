@@ -3,7 +3,9 @@
 P166, ainda na árvore de desenvolvimento, aceita Client Identifier vazio no
 CONNECT MQTT 5, atribui ID exclusivo e o devolve em CONNACK `0x12`. O pacote
 é recusado antes de registrar sessão se o limite anunciado não comportar a
-propriedade obrigatória. MQTT 3.1.1 mantém a recusa. C97 é o par de CLI;
+propriedade obrigatória. MQTT 3.1.1 mantém a recusa. C97 é o par de CLI; C98
+permite reutilizar o ID de 37 bytes e C99 criar uma sessão com expiração
+configurada para posterior reconexão manual. O client não persiste estado QoS local;
 esta parcela não encerra o aceite global da fase 6A.
 
 P115 iniciou `CONNECT` MQTT 5 com Clean Start=1 e Session Expiry ausente ou zero.
