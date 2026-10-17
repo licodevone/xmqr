@@ -120,6 +120,13 @@ membro ativo pode ser descartado. Uma entrega QoS1 atribuída e não confirmada
 aguarda reconexão da mesma sessão; quando a sessão termina, ela não é
 redistribuída neste recorte. AUTH continua fora da fase 6D.
 
+P156, ainda na árvore de desenvolvimento, guarda o grupo e Retain original de
+cópias compartilhadas QoS1 em documento v14. Após término definitivo da sessão
+escolhida, tenta outro membro elegível, aplicando a ACL, QoS, RAP, Subscription
+Identifier e quotas do destinatário. Sem membro elegível/capacidade, descarta
+a obrigação; QoS2 continua vinculado à sessão escolhida. Fonte v14 ainda não
+foi distribuída nem validada pelo admin independente 0.8.0.
+
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
 P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há
@@ -130,7 +137,8 @@ gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
 backup privado anterior à migração. P130 migra o documento de v6 para v7;
 P132 migra de v7 para v8. P141, distribuído em 0.22.0, migra de v8
 para v9 na próxima gravação; P142 migra de v9 para v10; P148 migra de v10
-para v11; P150 migra de v11 para v12 e P154 de v12 para v13. O admin independente 0.8.0 lê v13;
+para v11; P150 migra de v11 para v12, P154 de v12 para v13 e P156 da árvore de
+desenvolvimento de v13 para v14. O admin independente 0.8.0 lê v13, mas não v14;
 0.7.0 lê v12, mas não abre v13; 0.5.0 não abre v11 e 0.6.0 não abre v12. Preserve backup privado
 v12 antes da primeira gravação v13 para rollback a broker 0.25.0; v11 é
 necessário para voltar a broker 0.24.0, ou v10 para

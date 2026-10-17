@@ -1,3 +1,4 @@
 # P156 — redistribuição QoS1 após término de sessão compartilhada
 
-- [Prompt P156](../broker/156-shared-qos1-redistribution.md) criado antes da implementação. Código, testes, migração, compatibilidade admin e aceite pendentes.
+- [Prompt P156](../broker/156-shared-qos1-redistribution.md) commitado antes da implementação (`413dc1b`). Código candidato: cópias QoS1 compartilhadas carregam grupo/Retain original em documento v14; ao término da sessão, o ator escolhe outro membro com ACL e quotas atuais, refaz QoS/RAP/identificador e confirma a transição antes de entregar. Sem membro elegível/capacidade, descarta a cópia; QoS2 permanece vinculado. Migração lê v1–v13.
+- Gates locais: 7 testes focados de ator PASS para PUBACK, encerramento, expiração, recuperação, fila cheia e falha de WAL; suíte completa de biblioteca 183 PASS/6 ignorados antes do último teste focado, demais alvos PASS; fmt, Clippy, build release, inventário de licenças e seis contratos de distribuição PASS. TCP `P156_TCP_PASS`; regressão P154/C89 PASS. CI do commit exato, admin v14 e distribuição ainda pendentes neste registro.

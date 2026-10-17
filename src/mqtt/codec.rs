@@ -496,6 +496,7 @@ fn decode_for(
                     correlation_data: None,
                     user_properties: Vec::new(),
                     subscription_identifiers: Vec::new(),
+                    shared_origin: None,
                 })
             } else {
                 None

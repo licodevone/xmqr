@@ -19,7 +19,7 @@ use std::sync::{Arc, atomic::Ordering};
 use super::StateLimits;
 use super::store::{
     AdminReceipt, DurableSession, DurableState, InboundQos2, MAX_ADMIN_RECEIPTS, MqttStore,
-    OutboundInflight, OutboundStage, PendingWill, StateError, StoredMessage,
+    OutboundInflight, OutboundStage, PendingWill, SharedOrigin, StateError, StoredMessage,
 };
 use super::topic::{TopicFilter, TopicName};
 
@@ -82,8 +82,19 @@ pub(super) struct SessionPolicy {
 fn reconcile_recovered_sessions(
     state: &mut DurableState,
     auth: &AccessPolicy,
+    limits: StateLimits,
 ) -> Result<(), RouterError> {
     let now = unix_ms()?;
+    let ended: Vec<_> = state
+        .sessions
+        .values()
+        .filter(|session| {
+            !session.persistent
+                || session_expired(session, now)
+                || !auth.contains_principal(&session.principal)
+        })
+        .cloned()
+        .collect();
     state.sessions.retain(|_, session| {
         session.persistent
             && !session_expired(session, now)
@@ -125,6 +136,14 @@ fn reconcile_recovered_sessions(
         });
         // Accepted inbound QoS2 remains owned after later ACL changes.
     }
+    reassign_ended_shared_qos1(
+        limits,
+        state,
+        &BTreeMap::new(),
+        auth,
+        ended,
+        &mut Vec::new(),
+    )?;
     Ok(())
 }
 
@@ -172,6 +191,10 @@ pub(super) enum RouterError {
 
 /// A packet to send to a connected subscriber after the durable transition.
 #[derive(Clone, Debug)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "bounded delivery channel avoids heap allocation on the publish path"
+)]
 pub(super) enum Delivery {
     Publish {
         message: StoredMessage,
@@ -626,7 +649,7 @@ impl Router {
     ) -> Result<Self, HandlerError> {
         let (store, mut state) = MqttStore::open_with_limits(directory, limits).await?;
         let before = state.clone();
-        if let Err(error) = reconcile_recovered_sessions(&mut state, &auth) {
+        if let Err(error) = reconcile_recovered_sessions(&mut state, &auth, limits) {
             store.shutdown().await?;
             return Err(error.into());
         }
@@ -1071,9 +1094,18 @@ impl Actor {
                 .any(|s| s.offline.iter().any(|m| message_expired(m, now)));
         if expired_sessions || expired_messages || !due_wills.is_empty() {
             let mut candidate = self.state.clone();
-            candidate
+            let expired_ids: Vec<_> = candidate
                 .sessions
-                .retain(|id, session| self.live.contains_key(id) || !session_expired(session, now));
+                .iter()
+                .filter(|(id, session)| {
+                    !self.live.contains_key(*id) && session_expired(session, now)
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+            let ended: Vec<_> = expired_ids
+                .iter()
+                .filter_map(|id| candidate.sessions.remove(id))
+                .collect();
             candidate
                 .retained
                 .retain(|_, message| !message_expired(message, now));
@@ -1083,6 +1115,14 @@ impl Actor {
                     .retain(|message| !message_expired(message, now));
             }
             let mut deliveries = Vec::new();
+            reassign_ended_shared_qos1(
+                self.limits,
+                &mut candidate,
+                &self.live,
+                &self.auth,
+                ended,
+                &mut deliveries,
+            )?;
             let mut published = 0;
             for id in due_wills {
                 let will = candidate
@@ -1116,7 +1156,21 @@ impl Actor {
         // Publish all Wills against an offline view so durable subscribers
         // retain deliveries instead of losing them with the closing sockets.
         let mut candidate = self.state.clone();
+        let ended: Vec<_> = candidate
+            .sessions
+            .values()
+            .filter(|session| !session.persistent)
+            .cloned()
+            .collect();
         candidate.sessions.retain(|_, session| session.persistent);
+        reassign_ended_shared_qos1(
+            self.limits,
+            &mut candidate,
+            &BTreeMap::new(),
+            &self.auth,
+            ended,
+            &mut Vec::new(),
+        )?;
         let now = unix_ms()?;
         for session in candidate.sessions.values_mut() {
             if let Some(seconds) = session.expiry_interval_seconds
@@ -1177,6 +1231,12 @@ impl Actor {
         }
         let view = dynamic.view(policy.clone());
         let mut candidate = self.state.clone();
+        let ended: Vec<_> = candidate
+            .sessions
+            .values()
+            .filter(|session| !session.persistent)
+            .cloned()
+            .collect();
         candidate.sessions.retain(|_, s| s.persistent);
         let now = unix_ms()?;
         for session in candidate.sessions.values_mut() {
@@ -1215,6 +1275,14 @@ impl Actor {
                 .retain(|m| view.allowed_delivery(&session.principal, m.message.topic.as_str()));
             // Accepted inbound QoS2 remains owned, even while credentials are revoked.
         }
+        reassign_ended_shared_qos1(
+            self.limits,
+            &mut candidate,
+            &BTreeMap::new(),
+            &view,
+            ended,
+            &mut Vec::new(),
+        )?;
         let mut published = 0;
         for (client_id, mut will) in std::mem::take(&mut candidate.pending_wills) {
             if view.allowed_publish(&will.principal, will.message.topic.as_str()) {
@@ -2040,8 +2108,9 @@ impl Actor {
         let previous_will = candidate.pending_wills.remove(&client_id);
         let mut prior_deliveries = Vec::new();
         let mut prior_will_published = false;
+        let mut ended = Vec::new();
         if clean || !session_present {
-            candidate.sessions.remove(&client_id);
+            ended.extend(candidate.sessions.remove(&client_id));
             if let Some(prior) = previous_will
                 && self
                     .auth
@@ -2064,8 +2133,16 @@ impl Actor {
             .get(&client_id)
             .is_some_and(|session| session_expired(session, now))
         {
-            candidate.sessions.remove(&client_id);
+            ended.extend(candidate.sessions.remove(&client_id));
         }
+        reassign_ended_shared_qos1(
+            self.limits,
+            &mut candidate,
+            &self.live,
+            &self.auth,
+            ended,
+            &mut prior_deliveries,
+        )?;
         if !session_present {
             candidate.sessions.insert(
                 client_id.clone(),
@@ -2608,16 +2685,26 @@ impl Actor {
         {
             session.expires_at_unix_ms = Some(expiry_deadline(now, seconds)?);
         }
-        if !candidate
+        let ended = if candidate
             .sessions
             .get(client_id)
             .is_some_and(|s| s.persistent)
         {
-            candidate.sessions.remove(client_id);
-        }
+            Vec::new()
+        } else {
+            candidate.sessions.remove(client_id).into_iter().collect()
+        };
         let mut remaining_live = self.live.clone();
         remaining_live.remove(client_id);
         let mut deliveries = Vec::new();
+        reassign_ended_shared_qos1(
+            self.limits,
+            &mut candidate,
+            &remaining_live,
+            &self.auth,
+            ended,
+            &mut deliveries,
+        )?;
         let mut published = false;
         if let Some(mut will) = will.filter(|_| !graceful)
             && self
@@ -2848,7 +2935,7 @@ fn apply_shared_deliveries(
     }
     let turn = state.shared_cursor;
     state.shared_cursor = state.shared_cursor.wrapping_add(1);
-    for members in groups.values() {
+    for (filter, members) in groups {
         let active: Vec<_> = members.iter().filter(|member| member.active).collect();
         let choices = if active.is_empty() {
             members.iter().collect::<Vec<_>>()
@@ -2864,6 +2951,10 @@ fn apply_shared_deliveries(
             .ok_or(RouterError::Stale)?;
         let mut outbound = message.clone();
         outbound.qos = outbound.qos.min(choice.qos);
+        outbound.shared_origin = (outbound.qos == 1).then(|| SharedOrigin {
+            filter: filter.clone(),
+            retained: message.retain,
+        });
         outbound.retain &= choice.preserve_retain;
         outbound.subscription_identifiers = choice.identifier.into_iter().collect();
         let Some(connection) = live.get(&choice.client_id) else {
@@ -2893,6 +2984,141 @@ fn apply_shared_deliveries(
         } else {
             let delivery = prepare_delivery(limits, session, outbound)?;
             deliveries.push((choice.client_id.clone(), delivery));
+        }
+    }
+    Ok(())
+}
+
+/// Reassign only unacknowledged shared `QoS1` copies owned by sessions that have
+/// ended. The source PUBLISH Retain bit is kept separately from the old
+/// member's RAP choice, so the new member receives its own options and ID.
+#[expect(
+    clippy::too_many_lines,
+    reason = "candidate selection and durable routing share one transition"
+)]
+fn reassign_ended_shared_qos1(
+    limits: StateLimits,
+    state: &mut DurableState,
+    live: &BTreeMap<String, Live>,
+    auth: &AccessPolicy,
+    ended: Vec<DurableSession>,
+    deliveries: &mut Vec<(String, Delivery)>,
+) -> Result<(), RouterError> {
+    let now = unix_ms()?;
+    for session in ended {
+        let pending = session
+            .outbound
+            .into_iter()
+            .filter(|entry| entry.stage == OutboundStage::AwaitPubAck)
+            .map(|entry| entry.message)
+            .chain(session.offline);
+        for mut message in pending {
+            let Some(origin) = message.shared_origin.clone() else {
+                continue;
+            };
+            if message_expired(&message, now) {
+                continue;
+            }
+            let Some(inner) = super::topic::shared_inner(origin.filter.as_str()) else {
+                return Err(StateError::Malformed.into());
+            };
+            let mut active = Vec::new();
+            let mut offline = Vec::new();
+            for (client_id, member) in &state.sessions {
+                if !member.shared_filters.contains(&origin.filter)
+                    || !super::topic::matches_filter(inner, message.topic.as_str())
+                    || !auth.allowed_delivery(&member.principal, message.topic.as_str())
+                    || !auth.allowed_subscribe(&member.principal, inner)
+                {
+                    continue;
+                }
+                let Some(&qos) = member.subscriptions.get(&origin.filter) else {
+                    continue;
+                };
+                let connection = live.get(client_id);
+                let outgoing_qos = message.qos.min(qos);
+                let queued = deliveries
+                    .iter()
+                    .filter(|(recipient, delivery)| {
+                        recipient == client_id
+                            && matches!(
+                                delivery,
+                                Delivery::Publish {
+                                    packet_id: Some(_),
+                                    ..
+                                }
+                            )
+                    })
+                    .count();
+                let immediate = connection.is_some_and(|connection| {
+                    outgoing_qos == 0
+                        || (member.outbound.len() < limits.max_inflight
+                            && connection.sent_unacked.len() + queued < connection.receive_maximum)
+                });
+                let can_queue = outgoing_qos > 0
+                    && (connection.is_some() || member.persistent)
+                    && member.offline.len() < limits.max_offline;
+                if !immediate && !can_queue {
+                    continue;
+                }
+                let choice = SharedCandidate {
+                    client_id: client_id.clone(),
+                    active: connection.is_some(),
+                    qos,
+                    preserve_retain: member
+                        .subscription_options
+                        .get(&origin.filter)
+                        .is_some_and(|bits| bits & 0x08 != 0),
+                    identifier: member.subscription_identifiers.get(&origin.filter).copied(),
+                };
+                if choice.active {
+                    active.push(choice);
+                } else {
+                    offline.push(choice);
+                }
+            }
+            let choices = if active.is_empty() { &offline } else { &active };
+            if choices.is_empty() {
+                // No eligible member or capacity: the recommendation is best
+                // effort, and ending the source session cannot retain its copy.
+                continue;
+            }
+            let modulus = u64::try_from(choices.len()).unwrap_or(u64::MAX);
+            let index = usize::try_from(state.shared_cursor % modulus).unwrap_or_default();
+            state.shared_cursor = state.shared_cursor.wrapping_add(1);
+            let choice = &choices[index];
+            message.qos = message.qos.min(choice.qos);
+            message.retain = origin.retained && choice.preserve_retain;
+            message.subscription_identifiers = choice.identifier.into_iter().collect();
+            message.shared_origin = (message.qos == 1).then_some(origin);
+            let member = state
+                .sessions
+                .get_mut(&choice.client_id)
+                .ok_or(RouterError::Stale)?;
+            let connection = live.get(&choice.client_id);
+            let queued = deliveries
+                .iter()
+                .filter(|(recipient, delivery)| {
+                    recipient == &choice.client_id
+                        && matches!(
+                            delivery,
+                            Delivery::Publish {
+                                packet_id: Some(_),
+                                ..
+                            }
+                        )
+                })
+                .count();
+            if connection.is_some_and(|connection| {
+                message.qos == 0
+                    || (member.outbound.len() < limits.max_inflight
+                        && connection.sent_unacked.len() + queued < connection.receive_maximum)
+            }) {
+                let delivery = prepare_delivery(limits, member, message)?;
+                deliveries.push((choice.client_id.clone(), delivery));
+            } else {
+                member.offline.push_back(message);
+            }
         }
     }
     Ok(())
@@ -3584,6 +3810,7 @@ mod tests {
             correlation_data: None,
             user_properties: Vec::new(),
             subscription_identifiers: Vec::new(),
+            shared_origin: None,
         };
         let second = StoredMessage {
             topic: super::super::topic::TopicName::try_from("test/second".to_owned()).unwrap(),
@@ -3597,6 +3824,7 @@ mod tests {
             correlation_data: None,
             user_properties: Vec::new(),
             subscription_identifiers: Vec::new(),
+            shared_origin: None,
         };
         prepare_delivery(limits, &mut session, first.clone()).unwrap();
         assert!(prepare_delivery(limits, &mut session, second.clone()).is_err());
@@ -4226,8 +4454,400 @@ mod tests {
         );
         actor.store.shutdown().await.unwrap();
         let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
-        reconcile_recovered_sessions(&mut recovered, &actor.auth).unwrap();
+        reconcile_recovered_sessions(&mut recovered, &actor.auth, actor.limits).unwrap();
         assert!(recovered.sessions.is_empty());
+        store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_qos1_unacked_moves_to_surviving_member_only_until_puback() {
+        let (_directory, mut actor) = actor().await;
+        let mut first = actor
+            .register("alpha".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut second = actor
+            .register("beta".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let group = filter("$share/g/test/state");
+        for (session, identifier, options) in [(&first, 7, 0), (&second, 9, 0x08)] {
+            let (codes, retained) = actor
+                .subscribe_with_shared(
+                    &session.client_id,
+                    session.generation,
+                    vec![(group.clone(), Some(1), 0, options)],
+                    Some(identifier),
+                    true,
+                )
+                .await
+                .unwrap();
+            assert_eq!(codes, [1]);
+            assert!(retained.is_empty());
+        }
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 1, true, b"move-once"),
+                Some(21),
+            )
+            .await
+            .unwrap();
+        let Delivery::Publish {
+            packet_id: Some(_),
+            message,
+            ..
+        } = first.outbound.try_recv().unwrap()
+        else {
+            panic!("first shared member must receive QoS1");
+        };
+        assert_eq!(message.subscription_identifiers, [7]);
+        assert!(message.shared_origin.is_some());
+        assert!(second.outbound.try_recv().is_err());
+        actor.unregister("alpha", first.generation).await.unwrap();
+        let Delivery::Publish {
+            packet_id: Some(id),
+            message,
+            ..
+        } = second.outbound.try_recv().unwrap()
+        else {
+            panic!("surviving member must receive reassigned QoS1");
+        };
+        assert_eq!(message.payload, b"move-once");
+        assert_eq!(message.subscription_identifiers, [9]);
+        assert!(
+            message.retain,
+            "survivor's RAP restores the original Retain bit"
+        );
+        assert_eq!(message.shared_origin.unwrap().filter, group);
+        actor
+            .ack("beta", second.generation, AckKind::Ack, id)
+            .await
+            .unwrap();
+        assert_eq!(actor.state.sessions["beta"].outbound.len(), 0);
+        actor.unregister("beta", second.generation).await.unwrap();
+        assert!(!actor.state.sessions.contains_key("beta"));
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_qos1_reassigns_temporary_member_after_recovery() {
+        let (directory, mut actor) = actor().await;
+        let mut first = actor
+            .register("alpha".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let second = actor
+            .register("beta".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let group = filter("$share/g/test/state");
+        for session in [&first, &second] {
+            actor
+                .subscribe_with_shared(
+                    &session.client_id,
+                    session.generation,
+                    vec![(group.clone(), Some(1), 0, 0)],
+                    None,
+                    true,
+                )
+                .await
+                .unwrap();
+        }
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 1, false, b"after-crash"),
+                Some(22),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            first.outbound.try_recv(),
+            Ok(Delivery::Publish {
+                packet_id: Some(_),
+                ..
+            })
+        ));
+        actor.store.shutdown().await.unwrap();
+        let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
+        reconcile_recovered_sessions(&mut recovered, &actor.auth, actor.limits).unwrap();
+        assert!(!recovered.sessions.contains_key("alpha"));
+        assert_eq!(recovered.sessions["beta"].offline.len(), 1);
+        assert_eq!(
+            recovered.sessions["beta"].offline[0].payload,
+            b"after-crash"
+        );
+        assert_eq!(
+            recovered.sessions["beta"].offline[0]
+                .shared_origin
+                .as_ref()
+                .unwrap()
+                .filter,
+            group
+        );
+        store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_qos1_reassigns_when_finite_session_expires() {
+        let (_directory, mut actor) = actor().await;
+        let mut first = actor
+            .register_with_policy("alpha".into(), "user".into(), true, true, Some(1), None)
+            .await
+            .unwrap();
+        let mut second = actor
+            .register("beta".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for session in [&first, &second] {
+            actor
+                .subscribe_with_shared(
+                    &session.client_id,
+                    session.generation,
+                    vec![(filter("$share/g/test/state"), Some(1), 0, 0)],
+                    None,
+                    true,
+                )
+                .await
+                .unwrap();
+        }
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 1, false, b"expire"),
+                Some(23),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            first.outbound.try_recv(),
+            Ok(Delivery::Publish {
+                packet_id: Some(_),
+                ..
+            })
+        ));
+        actor.unregister("alpha", first.generation).await.unwrap();
+        assert!(second.outbound.try_recv().is_err());
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        actor.expire_sessions().await.unwrap();
+        assert!(!actor.state.sessions.contains_key("alpha"));
+        assert!(matches!(second.outbound.try_recv(),
+            Ok(Delivery::Publish { message, packet_id: Some(_), .. }) if message.payload == b"expire"));
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_qos1_explicit_expiry_zero_moves_to_active_member() {
+        let (_directory, mut actor) = actor().await;
+        let mut first = actor
+            .register("alpha".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let mut second = actor
+            .register("beta".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for session in [&first, &second] {
+            actor
+                .subscribe_with_shared(
+                    &session.client_id,
+                    session.generation,
+                    vec![(filter("$share/g/test/state"), Some(1), 0, 0)],
+                    None,
+                    true,
+                )
+                .await
+                .unwrap();
+        }
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 1, false, b"override"),
+                Some(25),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            first.outbound.try_recv(),
+            Ok(Delivery::Publish {
+                packet_id: Some(_),
+                ..
+            })
+        ));
+        actor
+            .unregister_with_receipt("alpha", first.generation, true, Some(0), None)
+            .await
+            .unwrap();
+        assert!(!actor.state.sessions.contains_key("alpha"));
+        assert!(matches!(second.outbound.try_recv(),
+            Ok(Delivery::Publish { message, packet_id: Some(_), .. }) if message.payload == b"override"));
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_qos1_ended_last_member_discards_unacked_copy() {
+        let (_directory, mut actor) = actor().await;
+        let mut first = actor
+            .register("alpha".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .subscribe_with_shared(
+                "alpha",
+                first.generation,
+                vec![(filter("$share/g/test/state"), Some(1), 0, 0)],
+                None,
+                true,
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 1, false, b"orphan"),
+                Some(26),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            first.outbound.try_recv(),
+            Ok(Delivery::Publish {
+                packet_id: Some(_),
+                ..
+            })
+        ));
+        actor.unregister("alpha", first.generation).await.unwrap();
+        assert!(!actor.state.sessions.contains_key("alpha"));
+        assert_eq!(actor.state.sessions["source"].outbound.len(), 0);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_qos1_full_survivor_queue_is_skipped_without_partial_state() {
+        let (_directory, mut actor) = actor().await;
+        let group = filter("$share/g/test/state");
+        let mut survivor = DurableSession::new("user".into(), true);
+        survivor.subscriptions.insert(group.clone(), 1);
+        survivor.shared_filters.insert(group.clone());
+        survivor
+            .offline
+            .push_back(message("queue/full", 1, false, b"prior"));
+        actor.state.sessions.insert("survivor".into(), survivor);
+        let mut ended = DurableSession::new("user".into(), false);
+        let mut unacked = message("test/state", 1, false, b"unacked");
+        unacked.shared_origin = Some(SharedOrigin {
+            filter: group,
+            retained: false,
+        });
+        ended.outbound.push(OutboundInflight {
+            packet_id: 1,
+            message: unacked,
+            stage: OutboundStage::AwaitPubAck,
+        });
+        let before = actor.state.clone();
+        let mut deliveries = Vec::new();
+        let limits = StateLimits::new(64, 256, 256, 1, 32).unwrap();
+        reassign_ended_shared_qos1(
+            limits,
+            &mut actor.state,
+            &BTreeMap::new(),
+            &actor.auth,
+            vec![ended],
+            &mut deliveries,
+        )
+        .unwrap();
+        assert_eq!(actor.state, before);
+        assert_eq!(deliveries.len(), 0);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_qos1_redistribution_commit_failure_is_atomic() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (directory, mut actor) = actor().await;
+        let mut first = actor
+            .register("alpha".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut second = actor
+            .register("beta".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for session in [&first, &second] {
+            actor
+                .subscribe_with_shared(
+                    &session.client_id,
+                    session.generation,
+                    vec![(filter("$share/g/test/state"), Some(1), 0, 0)],
+                    None,
+                    true,
+                )
+                .await
+                .unwrap();
+        }
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 1, false, b"atomic"),
+                Some(24),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            first.outbound.try_recv(),
+            Ok(Delivery::Publish {
+                packet_id: Some(_),
+                ..
+            })
+        ));
+        let before = actor.state.clone();
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(actor.unregister("alpha", first.generation).await.is_err());
+        assert_eq!(actor.state, before);
+        assert!(second.outbound.try_recv().is_err());
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        let mut persisted = before;
+        persisted.shared_cursor = 0;
+        assert_eq!(recovered, persisted);
         store.shutdown().await.unwrap();
     }
 
@@ -4377,7 +4997,7 @@ mod tests {
         );
         actor.store.shutdown().await.unwrap();
         let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
-        reconcile_recovered_sessions(&mut recovered, &actor.auth).unwrap();
+        reconcile_recovered_sessions(&mut recovered, &actor.auth, actor.limits).unwrap();
         assert!(
             recovered.sessions["durable"]
                 .shared_filters
@@ -4444,7 +5064,7 @@ mod tests {
         assert!(second.outbound.try_recv().is_err());
         actor.store.shutdown().await.unwrap();
         let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
-        reconcile_recovered_sessions(&mut recovered, &actor.auth).unwrap();
+        reconcile_recovered_sessions(&mut recovered, &actor.auth, actor.limits).unwrap();
         actor.store = store;
         actor.state = recovered;
         actor.live.clear();
@@ -4720,6 +5340,7 @@ mod tests {
             correlation_data: None,
             user_properties: Vec::new(),
             subscription_identifiers: Vec::new(),
+            shared_origin: None,
         }
     }
 

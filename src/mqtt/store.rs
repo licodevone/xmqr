@@ -20,7 +20,7 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 13;
+const FORMAT_VERSION: u16 = 14;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -169,6 +169,17 @@ pub(super) struct StoredMessage {
     /// Assigned only to subscriber deliveries, never accepted from publishers.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub subscription_identifiers: Vec<u32>,
+    /// Group whose unacknowledged `QoS1` copy can be reassigned if this session ends.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared_origin: Option<SharedOrigin>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SharedOrigin {
+    pub filter: TopicFilter,
+    /// Original PUBLISH Retain bit, before the selected member's RAP option.
+    pub retained: bool,
 }
 
 /// An inbound `QoS` 2 PUBLISH has been committed before PUBREC; PUBREL must
@@ -384,6 +395,10 @@ fn validate_shared_filters(session: &DurableSession) -> Result<(), StateError> {
     Ok(())
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one pass validates the bounded durable aggregate"
+)]
 pub(super) fn validate_with_limits(
     state: &DurableState,
     limits: StateLimits,
@@ -397,10 +412,11 @@ pub(super) fn validate_with_limits(
     }
     for (client_id, will) in &state.pending_wills {
         validate_message(&will.message)?;
-        if state
-            .sessions
-            .get(client_id)
-            .is_none_or(|s| s.principal != will.principal)
+        if will.message.shared_origin.is_some()
+            || state
+                .sessions
+                .get(client_id)
+                .is_none_or(|s| s.principal != will.principal)
         {
             return Err(StateError::Malformed);
         }
@@ -463,7 +479,7 @@ pub(super) fn validate_with_limits(
                 return Err(StateError::Malformed);
             }
             validate_message(&entry.message)?;
-            if entry.message.qos != 2 {
+            if entry.message.qos != 2 || entry.message.shared_origin.is_some() {
                 return Err(StateError::Malformed);
             }
         }
@@ -482,7 +498,11 @@ pub(super) fn validate_with_limits(
     }
     for (topic, message) in &state.retained {
         validate_message(message)?;
-        if topic != &message.topic || message.payload.is_empty() || !message.retain {
+        if topic != &message.topic
+            || message.payload.is_empty()
+            || !message.retain
+            || message.shared_origin.is_some()
+        {
             return Err(StateError::Malformed);
         }
     }
@@ -502,6 +522,11 @@ fn validate_message(message: &StoredMessage) -> Result<(), StateError> {
             .iter()
             .any(|id| !(1..=268_435_455).contains(id))
     {
+        return Err(StateError::Malformed);
+    }
+    if message.shared_origin.as_ref().is_some_and(|origin| {
+        message.qos != 1 || super::topic::shared_inner(origin.filter.as_str()).is_none()
+    }) {
         return Err(StateError::Malformed);
     }
     if message
@@ -742,6 +767,7 @@ mod tests {
             correlation_data: None,
             user_properties: Vec::new(),
             subscription_identifiers: Vec::new(),
+            shared_origin: None,
         }
     }
 
@@ -939,8 +965,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_to_v12_and_commits_v13_without_losing_retained() {
-        for version in 1..=12 {
+    async fn reads_v1_to_v13_and_commits_v14_without_losing_retained() {
+        for version in 1..=13 {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -965,13 +991,13 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 13);
+            assert_eq!(envelope.version, 14);
             assert_eq!(envelope.state, expected);
         }
     }
 
     #[tokio::test]
-    async fn reads_v7_will_without_delay_fields_and_commits_v13() {
+    async fn reads_v7_will_without_delay_fields_and_commits_v14() {
         let directory = tempdir().unwrap();
         let mut expected = state();
         expected.pending_wills.insert(
@@ -1000,7 +1026,7 @@ mod tests {
         let writer = Store::open(directory.path()).unwrap();
         let bytes = writer.get(KEY).unwrap();
         let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-        assert_eq!(envelope.version, 13);
+        assert_eq!(envelope.version, 14);
         assert_eq!(envelope.state, expected);
     }
 

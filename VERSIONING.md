@@ -1,5 +1,15 @@
 # Versionamento
 
+## P156 — redistribuição QoS1 e documento v14 (árvore em validação)
+
+Cópias QoS1 compartilhadas guardam grupo de origem e bit Retain original em
+documento v14 para serem oferecidas a outro membro elegível após término da
+sessão escolhida. O broker lê v1–v13 e escreve v14 no próximo commit. A família
+publicada 0.26.0 e o admin independente 0.8.0 não reabrem v14; preserve backup
+privado v13 antes da primeira gravação para rollback. P156 ainda exige CI,
+compatibilidade admin e distribuição antes de nova release.
+[Registro P156](prompts/registros/P156-shared-qos1-redistribution.md).
+
 ## P155 — marco 0.26.0 e estado v13 (experimental publicado)
 
 P153/P154 acrescentam grupos compartilhados MQTT 5, com associação persistente

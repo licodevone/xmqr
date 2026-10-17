@@ -1,5 +1,11 @@
 # XMQR
 
+A árvore de desenvolvimento após 0.26.0 prepara P156: redistribuição de cópias
+compartilhadas QoS1 não reconhecidas quando a sessão escolhida termina. A
+proveniência da cópia migra o documento durável de v13 para v14 na próxima
+gravação. **Ainda não há release v14**; admin independente 0.8.0 lê v13, mas
+não abre v14. Preserve backup privado v13 antes de testar esta árvore.
+
 A versão publicada experimental 0.26.0 inclui P153/P154: distribui
 `$share/{grupo}/{filtro}` MQTT 5 entre sessões ativas e acrescenta sessão persistente,
 fila QoS1/2 sem membro online e retomada QoS2 à sessão escolhida, migrando o
