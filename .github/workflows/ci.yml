@@ -30,6 +30,7 @@ jobs:
       - run: python3 scripts/verify_mqtt5_negative_pubrec.py
       - run: python3 scripts/verify_mqtt5_qos2_completion_reasons.py
       - run: python3 scripts/verify_mqtt5_disconnect_with_will.py
+      - run: python3 scripts/verify_mqtt5_client_disconnect_reasons.py
       - run: python3 scripts/verify_shutdown.py --broker target/debug/mqtt-broker
 
   ubuntu-package:

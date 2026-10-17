@@ -560,6 +560,9 @@ async fn serve_mqtt(
                                 return Err("DISCONNECT cannot extend zero Session Expiry".into());
                             }
                             disconnect_expiry = expiry_interval;
+                            if reason_code != 0 {
+                                warn!(connection_id=connection.id(), reason_code, "MQTT 5 client disconnected with reason");
+                            }
                             graceful = reason_code == 0;
                             break;
                         },

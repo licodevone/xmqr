@@ -920,7 +920,7 @@ fn decode_for(
             } else {
                 0
             };
-            if !matches!(reason_code, 0x00 | 0x04) {
+            if !matches!(reason_code, 0x00 | 0x04 | 0x80..=0x83 | 0x90 | 0x93..=0x99) {
                 return Err("MQTT 5 DISCONNECT reason outside supported subset".into());
             }
             let mut expiry_interval = None;
@@ -2330,7 +2330,7 @@ mod tests {
                 })
             ));
         }
-        for body in [&[0x80][..], &[0, 1][..], &[0, 0, 0][..]] {
+        for body in [&[0x87][..], &[0, 1][..], &[0, 0, 0][..]] {
             assert!(decode_for(0xe0, body, true).is_err());
         }
         assert!(decode_for(0xe0, &[0], false).is_err());
@@ -2467,7 +2467,7 @@ mod tests {
             }
         ));
         for invalid in [
-            &[0x80][..],
+            &[0x87][..],
             &[0, 5, 0x11, 0, 0][..],
             &[0, 1, 0x26][..],
             &[0, 10, 0x11, 0, 0, 0, 1, 0x11, 0, 0, 0, 2][..],
@@ -2477,6 +2477,27 @@ mod tests {
             assert!(decode_for(0xe0, invalid, true).is_err(), "{invalid:?}");
         }
         assert!(decode_for(0xe0, &[0, 0], false).is_err());
+    }
+
+    #[test]
+    fn mqtt5_disconnect_accepts_client_reasons_only() {
+        for reason in [
+            0x00, 0x04, 0x80, 0x81, 0x82, 0x83, 0x90, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99,
+        ] {
+            assert!(
+                matches!(decode_for(0xe0, &[reason], true), Ok(Packet::Disconnect { reason_code, expiry_interval: None }) if reason_code == reason)
+            );
+            assert!(
+                matches!(decode_for(0xe0, &[reason, 0], true), Ok(Packet::Disconnect { reason_code, expiry_interval: None }) if reason_code == reason)
+            );
+        }
+        for reason in [
+            0x01, 0x10, 0x84, 0x87, 0x89, 0x8b, 0x8d, 0x8e, 0x8f, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e,
+            0x9f, 0xa0, 0xa1, 0xa2, 0xff,
+        ] {
+            assert!(decode_for(0xe0, &[reason], true).is_err(), "{reason:#x}");
+        }
+        assert!(decode_for(0xe0, &[0x80], false).is_err());
     }
 
     #[test]
