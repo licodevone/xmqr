@@ -21,7 +21,7 @@ use super::store::{
     AdminReceipt, DurableSession, DurableState, InboundQos2, MAX_ADMIN_RECEIPTS, MqttStore,
     OutboundInflight, OutboundStage, PendingWill, StateError, StoredMessage,
 };
-use super::topic::TopicFilter;
+use super::topic::{TopicFilter, TopicName};
 
 const COMMAND_CAPACITY: usize = 256;
 const DELIVERY_CAPACITY: usize = 64;
@@ -307,6 +307,7 @@ enum Command {
         client_id: String,
         generation: u64,
         filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
+        identifier: Option<u32>,
         reply: oneshot::Sender<SubscribeResult>,
     },
     Unsubscribe {
@@ -861,16 +862,27 @@ impl Router {
         .await
     }
 
+    #[cfg(test)]
     pub(super) async fn subscribe_with_handling(
         &self,
         session: &Session,
         filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
+    ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
+        self.subscribe_with_identifier(session, filters, None).await
+    }
+
+    pub(super) async fn subscribe_with_identifier(
+        &self,
+        session: &Session,
+        filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
+        identifier: Option<u32>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Subscribe {
             client_id: session.client_id.clone(),
             generation: session.generation,
             filters,
+            identifier,
             reply,
         })
         .await?;
@@ -1153,6 +1165,9 @@ impl Actor {
                 .subscription_options
                 .retain(|filter, _| session.subscriptions.contains_key(filter));
             session
+                .subscription_identifiers
+                .retain(|filter, _| session.subscriptions.contains_key(filter));
+            session
                 .offline
                 .retain(|m| view.allowed_delivery(&session.principal, m.topic.as_str()));
             session
@@ -1354,10 +1369,11 @@ impl Actor {
                 client_id,
                 generation,
                 filters,
+                identifier,
                 reply,
             } => {
                 let result = self
-                    .subscribe_with_handling(&client_id, generation, filters)
+                    .subscribe_with_identifier(&client_id, generation, filters, identifier)
                     .await;
                 self.record_result(&result);
                 let _ = reply.send(result);
@@ -2120,16 +2136,28 @@ impl Actor {
         .await
     }
 
+    #[cfg(test)]
     async fn subscribe_with_handling(
         &mut self,
         client_id: &str,
         generation: u64,
         filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
+        self.subscribe_with_identifier(client_id, generation, filters, None)
+            .await
+    }
+
+    async fn subscribe_with_identifier(
+        &mut self,
+        client_id: &str,
+        generation: u64,
+        filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
+        identifier: Option<u32>,
+    ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
         let mut codes = Vec::with_capacity(filters.len());
-        let mut retained_matches = BTreeMap::new();
+        let mut retained_matches = BTreeMap::<_, (u8, Vec<u32>)>::new();
         for (filter, granted, retain_handling, subscription_flags) in filters {
             let principal = &self
                 .state
@@ -2152,6 +2180,7 @@ impl Actor {
                 &filter,
                 qos,
                 subscription_flags,
+                identifier,
             );
             codes.push(qos);
             if retain_handling == 2 || retain_handling == 1 && already_existed {
@@ -2160,10 +2189,7 @@ impl Actor {
             for topic in candidate.retained.keys().filter(|topic| {
                 filter.matches(topic) && self.auth.allowed_delivery(principal, topic.as_str())
             }) {
-                retained_matches
-                    .entry(topic.clone())
-                    .and_modify(|maximum: &mut u8| *maximum = (*maximum).max(qos))
-                    .or_insert(qos);
+                add_retained_match(&mut retained_matches, topic, qos, identifier);
             }
         }
         if codes.iter().all(|code| *code == 0x80) {
@@ -2175,13 +2201,14 @@ impl Actor {
             .get(client_id)
             .ok_or(RouterError::Stale)?
             .receive_maximum;
-        for (topic, maximum) in retained_matches {
+        for (topic, (maximum, identifiers)) in retained_matches {
             let mut delivered = candidate
                 .retained
                 .get(&topic)
                 .cloned()
                 .ok_or(RouterError::Stale)?;
             delivered.qos = delivered.qos.min(maximum);
+            delivered.subscription_identifiers = identifiers;
             let session = candidate
                 .sessions
                 .get_mut(client_id)
@@ -2240,6 +2267,7 @@ impl Actor {
         for filter in filters {
             let removed = session.subscriptions.remove(&filter).is_some();
             session.subscription_options.remove(&filter);
+            session.subscription_identifiers.remove(&filter);
             codes.push(if removed { 0x00 } else { 0x11 });
             changed |= removed;
         }
@@ -2610,17 +2638,38 @@ impl Actor {
     }
 }
 
+fn add_retained_match(
+    matches: &mut BTreeMap<TopicName, (u8, Vec<u32>)>,
+    topic: &TopicName,
+    qos: u8,
+    identifier: Option<u32>,
+) {
+    let (maximum, ids) = matches
+        .entry(topic.clone())
+        .or_insert_with(|| (qos, Vec::new()));
+    *maximum = (*maximum).max(qos);
+    if let Some(id) = identifier {
+        ids.push(id);
+    }
+}
+
 fn update_subscription(
     session: &mut DurableSession,
     filter: &TopicFilter,
     qos: u8,
     flags: u8,
+    identifier: Option<u32>,
 ) -> bool {
     let existed = session.subscriptions.insert(filter.clone(), qos).is_some();
     if flags == 0 {
         session.subscription_options.remove(filter);
     } else {
         session.subscription_options.insert(filter.clone(), flags);
+    }
+    if let Some(id) = identifier {
+        session.subscription_identifiers.insert(filter.clone(), id);
+    } else {
+        session.subscription_identifiers.remove(filter);
     }
     existed
 }
@@ -2661,12 +2710,16 @@ fn apply_message(
         });
         let mut maximum = None;
         let mut preserve_retain = false;
+        let mut identifiers = Vec::new();
         for (filter, qos) in matching {
             maximum = Some(maximum.map_or(*qos, |value: u8| value.max(*qos)));
             preserve_retain |= session
                 .subscription_options
                 .get(filter)
                 .is_some_and(|bits| bits & 0x08 != 0);
+            if let Some(id) = session.subscription_identifiers.get(filter) {
+                identifiers.push(*id);
+            }
         }
         let Some(maximum) = maximum else {
             continue;
@@ -2674,6 +2727,7 @@ fn apply_message(
         let mut outbound = message.clone();
         outbound.qos = outbound.qos.min(maximum);
         outbound.retain &= preserve_retain;
+        outbound.subscription_identifiers = identifiers;
         if let Some(connection) = live.get(client_id) {
             if outbound.qos > 0
                 && (session.outbound.len() >= limits.max_inflight
@@ -3376,6 +3430,7 @@ mod tests {
             response_topic: None,
             correlation_data: None,
             user_properties: Vec::new(),
+            subscription_identifiers: Vec::new(),
         };
         let second = StoredMessage {
             topic: super::super::topic::TopicName::try_from("test/second".to_owned()).unwrap(),
@@ -3388,6 +3443,7 @@ mod tests {
             response_topic: None,
             correlation_data: None,
             user_properties: Vec::new(),
+            subscription_identifiers: Vec::new(),
         };
         prepare_delivery(limits, &mut session, first.clone()).unwrap();
         assert!(prepare_delivery(limits, &mut session, second.clone()).is_err());
@@ -4180,6 +4236,7 @@ mod tests {
             response_topic: None,
             correlation_data: None,
             user_properties: Vec::new(),
+            subscription_identifiers: Vec::new(),
         }
     }
 

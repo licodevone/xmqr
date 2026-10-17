@@ -580,6 +580,7 @@ fn message(topic: &str, payload: Vec<u8>, qos: u8, retain: bool) -> StoredMessag
         response_topic: None,
         correlation_data: None,
         user_properties: Vec::new(),
+        subscription_identifiers: Vec::new(),
     }
 }
 

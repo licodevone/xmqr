@@ -278,12 +278,12 @@ async fn serve_mqtt(
                 incoming = reader.read_packet(connection, deadline) => {
                     last_inbound = Instant::now();
                     match incoming? {
-                        Packet::Subscribe { packet_id, filters } => {
+                        Packet::Subscribe { packet_id, filters, subscription_identifier } => {
                             let requested = filters.into_iter().map(|(filter,qos,retain_handling,subscription_flags)| {
                                 let granted = auth.allowed_subscribe(&principal, filter.as_str()).then_some(qos.as_u8());
                                 (filter, granted, retain_handling, subscription_flags)
                             }).collect();
-                            let (mut codes, retained) = router.subscribe_with_handling(&session, requested).await?;
+                            let (mut codes, retained) = router.subscribe_with_identifier(&session, requested, subscription_identifier).await?;
                             if mqtt5 {
                                 // The router uses the MQTT 3.1.1 failure code for ACL denial.
                                 // MQTT 5 can report the precise reason to each filter.
@@ -318,7 +318,7 @@ async fn serve_mqtt(
                                 break;
                             }
                             let expiry_at_unix_ms = expiry_interval.map(router::message_expiry_deadline).transpose()?;
-                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms, payload_format_indicator, content_type, response_topic, correlation_data, user_properties };
+                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms, payload_format_indicator, content_type, response_topic, correlation_data, user_properties, subscription_identifiers: Vec::new() };
                             match router.publish(&session, message, packet_id).await {
                                 Err(RouterError::InboundQos2Quota) if mqtt5 && qos == Qos::ExactlyOnce => {
                                     let id = packet_id.ok_or("QoS 2 PUBLISH without identifier")?;
@@ -457,8 +457,13 @@ async fn send_delivery(
             } else {
                 &[]
             };
+            let subscription_identifiers = if mqtt5 {
+                message.subscription_identifiers.as_slice()
+            } else {
+                &[]
+            };
             let alias_mode = aliases.candidate(topic);
-            let mut encoded = codec::encode_publish_with_properties(
+            let mut encoded = codec::encode_publish_with_subscription_ids(
                 topic,
                 &message.payload,
                 Qos::from_u8(message.qos)?,
@@ -473,12 +478,13 @@ async fn send_delivery(
                 response_topic,
                 correlation_data,
                 user_properties,
+                subscription_identifiers,
             )?;
             if matches!(alias_mode, TopicAliasMode::Establish(_))
                 && encoded.len() > outbound_maximum
             {
                 // Do not establish an alias with a packet the peer cannot receive.
-                encoded = codec::encode_publish_with_properties(
+                encoded = codec::encode_publish_with_subscription_ids(
                     topic,
                     &message.payload,
                     Qos::from_u8(message.qos)?,
@@ -493,6 +499,7 @@ async fn send_delivery(
                     response_topic,
                     correlation_data,
                     user_properties,
+                    subscription_identifiers,
                 )?;
             } else if let TopicAliasMode::Establish(alias) = alias_mode {
                 pending_alias = Some((topic.to_owned(), alias));

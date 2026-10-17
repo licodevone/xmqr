@@ -1,6 +1,10 @@
 # Histórico de versões
 
-## 0.24.0 — opções de assinatura MQTT 5 e estado v11 (candidato experimental)
+## Em desenvolvimento após 0.24.0
+
+- P150: SUBSCRIBE MQTT 5 aceita Subscription Identifier 1..268435455; guarda o valor por filtro no documento durável v12 e envia os IDs correspondentes nos PUBLISH QoS0/1/2, retained, offline e após restart. Filtros sobrepostos preservam IDs duplicados. Client não pode enviar a propriedade em PUBLISH. O admin independente 0.6.0 ainda não abre v12; rollback exige backup privado v11 anterior à migração.
+
+## 0.24.0 — opções de assinatura MQTT 5 e estado v11 (experimental)
 
 - P146: sessão MQTT 5 retomada com quota durável QoS2 cheia responde PUBREC `0x97` a novo packet ID sem perder a transação anterior; duplicata já aceita e PUBREL continuam, e uma publicação nova passa após liberar a vaga. O documento durável segue v10.
 - P147: SUBSCRIBE MQTT 5 aceita Retain Handling 0/1/2 por filtro; o valor 1 consulta a existência da assinatura na sessão persistida e 2 não envia retained no SUBSCRIBE. No Local e Retain As Published continuam fora do recorte. Sem migração do estado v10.

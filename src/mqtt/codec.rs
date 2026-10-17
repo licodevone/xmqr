@@ -68,6 +68,7 @@ pub(super) enum Packet {
     Subscribe {
         packet_id: u16,
         filters: Vec<(TopicFilter, Qos, u8, u8)>,
+        subscription_identifier: Option<u32>,
     },
     Unsubscribe {
         packet_id: u16,
@@ -494,6 +495,7 @@ fn decode_for(
                     response_topic: None,
                     correlation_data: None,
                     user_properties: Vec::new(),
+                    subscription_identifiers: Vec::new(),
                 })
             } else {
                 None
@@ -522,11 +524,27 @@ fn decode_for(
             if packet_id == 0 {
                 return Err("zero SUBSCRIBE packet id".into());
             }
+            let mut subscription_identifier = None;
             if mqtt5 {
                 let property_length = c.variable_integer()?;
-                c.bytes(property_length)?;
-                if property_length != 0 {
-                    return Err("MQTT 5 SUBSCRIBE properties not supported".into());
+                let raw = c.bytes(property_length)?;
+                let mut properties = Cursor::new(raw);
+                while properties.pos < raw.len() {
+                    match properties.byte()? {
+                        0x0b if subscription_identifier.is_none() => {
+                            let value = properties.variable_integer()?;
+                            if value == 0 {
+                                return Err("zero MQTT 5 Subscription Identifier".into());
+                            }
+                            subscription_identifier = Some(
+                                u32::try_from(value)
+                                    .map_err(|_| "invalid MQTT 5 Subscription Identifier")?,
+                            );
+                        }
+                        _ => {
+                            return Err("unsupported or duplicate MQTT 5 SUBSCRIBE property".into());
+                        }
+                    }
                 }
             }
             let mut filters = Vec::new();
@@ -558,7 +576,11 @@ fn decode_for(
             if filters.is_empty() {
                 return Err("empty SUBSCRIBE".into());
             }
-            Packet::Subscribe { packet_id, filters }
+            Packet::Subscribe {
+                packet_id,
+                filters,
+                subscription_identifier,
+            }
         }
         0xa2 => {
             let packet_id = c.word()?;
@@ -1000,6 +1022,7 @@ pub(super) fn encode_publish_with_expiry_alias(
     )
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // One packet boundary validates all MQTT 5 PUBLISH properties and size limits.
 pub(super) fn encode_publish_with_properties(
     topic: &str,
@@ -1017,6 +1040,43 @@ pub(super) fn encode_publish_with_properties(
     correlation_data: Option<&[u8]>,
     user_properties: &[(String, String)],
 ) -> Result<Vec<u8>, &'static str> {
+    encode_publish_with_subscription_ids(
+        topic,
+        payload,
+        qos,
+        retain,
+        dup,
+        packet_id,
+        mqtt5,
+        expiry_interval,
+        alias_mode,
+        payload_format_indicator,
+        content_type,
+        response_topic,
+        correlation_data,
+        user_properties,
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // One packet boundary validates all MQTT 5 PUBLISH properties and size limits.
+pub(super) fn encode_publish_with_subscription_ids(
+    topic: &str,
+    payload: &[u8],
+    qos: Qos,
+    retain: bool,
+    dup: bool,
+    packet_id: Option<u16>,
+    mqtt5: bool,
+    expiry_interval: Option<u32>,
+    alias_mode: TopicAliasMode,
+    payload_format_indicator: Option<u8>,
+    content_type: Option<&str>,
+    response_topic: Option<&str>,
+    correlation_data: Option<&[u8]>,
+    user_properties: &[(String, String)],
+    subscription_identifiers: &[u32],
+) -> Result<Vec<u8>, &'static str> {
     // MQTT-2.3.1-5 and MQTT-3.3.1-2: identifier and DUP follow QoS.
     match (qos, packet_id) {
         (Qos::AtMostOnce, None) if !dup => (),
@@ -1032,7 +1092,8 @@ pub(super) fn encode_publish_with_properties(
         || content_type.is_some()
         || response_topic.is_some()
         || correlation_data.is_some()
-        || !user_properties.is_empty())
+        || !user_properties.is_empty()
+        || !subscription_identifiers.is_empty())
         && !mqtt5
     {
         return Err("MQTT 5 property on MQTT 3.1.1 PUBLISH");
@@ -1073,6 +1134,13 @@ pub(super) fn encode_publish_with_properties(
     if user_property_bytes > 2048 {
         return Err("outbound MQTT 5 User Properties too large");
     }
+    if subscription_identifiers.len() > MAX_SUBSCRIPTIONS
+        || subscription_identifiers
+            .iter()
+            .any(|id| !(1..=268_435_455).contains(id))
+    {
+        return Err("invalid outbound MQTT 5 Subscription Identifier");
+    }
     let alias = match alias_mode {
         TopicAliasMode::None => None,
         TopicAliasMode::Establish(value) | TopicAliasMode::Use(value) => Some(value),
@@ -1091,7 +1159,15 @@ pub(super) fn encode_publish_with_properties(
         + content_type.map_or(0, |value| 3 + value.len())
         + response_topic.map_or(0, |value| 3 + value.len())
         + correlation_data.map_or(0, |value| 3 + value.len())
-        + user_property_bytes;
+        + user_property_bytes
+        + subscription_identifiers
+            .iter()
+            .map(|id| {
+                let mut encoded = Vec::new();
+                encode_length(*id as usize, &mut encoded);
+                1 + encoded.len()
+            })
+            .sum::<usize>();
     let mut properties_header = Vec::new();
     encode_length(properties_len, &mut properties_header);
     let len = 2
@@ -1154,6 +1230,10 @@ pub(super) fn encode_publish_with_properties(
                     .to_be_bytes(),
             );
             out.extend_from_slice(value.as_bytes());
+        }
+        for id in subscription_identifiers {
+            out.push(0x0b);
+            encode_length(*id as usize, &mut out);
         }
         if let Some(value) = content_type {
             out.push(0x03);
@@ -1581,6 +1661,103 @@ mod tests {
         ] {
             assert!(decode_for(0x82, body, true).is_err());
         }
+    }
+
+    #[test]
+    fn mqtt5_subscription_identifier_codec_accepts_one_and_rejects_invalid_properties() {
+        assert!(matches!(
+            decode_for(0x82, &[0, 1, 2, 0x0b, 17, 0, 1, b'x', 1], true).unwrap(),
+            Packet::Subscribe {
+                subscription_identifier: Some(17),
+                ..
+            }
+        ));
+        for properties in [&[0x0b, 0][..], &[0x0b, 17, 0x0b, 18][..], &[0x0b][..]] {
+            let mut body = vec![0, 1, u8::try_from(properties.len()).unwrap()];
+            body.extend_from_slice(properties);
+            body.extend_from_slice(&[0, 1, b'x', 0]);
+            assert!(decode_for(0x82, &body, true).is_err());
+        }
+        assert!(decode_for(0x30, &[0, 1, b'x', 2, 0x0b, 17, b'y'], true).is_err());
+        let encoded = encode_publish_with_subscription_ids(
+            "x",
+            b"y",
+            Qos::AtMostOnce,
+            false,
+            false,
+            None,
+            true,
+            None,
+            TopicAliasMode::None,
+            None,
+            None,
+            None,
+            None,
+            &[],
+            &[17, 17],
+        )
+        .unwrap();
+        assert_eq!(encoded, [0x30, 9, 0, 1, b'x', 4, 0x0b, 17, 0x0b, 17, b'y']);
+        assert!(
+            encode_publish_with_subscription_ids(
+                "x",
+                b"y",
+                Qos::AtMostOnce,
+                false,
+                false,
+                None,
+                true,
+                None,
+                TopicAliasMode::None,
+                None,
+                None,
+                None,
+                None,
+                &[],
+                &[0],
+            )
+            .is_err()
+        );
+        assert!(
+            encode_publish_with_subscription_ids(
+                "x",
+                b"y",
+                Qos::AtMostOnce,
+                false,
+                false,
+                None,
+                true,
+                None,
+                TopicAliasMode::None,
+                None,
+                None,
+                None,
+                None,
+                &[],
+                &vec![17; MAX_SUBSCRIPTIONS + 1],
+            )
+            .is_err()
+        );
+        assert!(
+            encode_publish_with_subscription_ids(
+                "x",
+                b"y",
+                Qos::AtMostOnce,
+                false,
+                false,
+                None,
+                false,
+                None,
+                TopicAliasMode::None,
+                None,
+                None,
+                None,
+                None,
+                &[],
+                &[17],
+            )
+            .is_err()
+        );
     }
 
     #[test]

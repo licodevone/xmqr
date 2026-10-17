@@ -1,5 +1,11 @@
 # XMQR
 
+Em desenvolvimento após 0.24.0, P150 aceita Subscription Identifier no
+SUBSCRIBE MQTT 5 e entrega os IDs correspondentes ao assinante, inclusive em
+fila durável e após reinício. O estado passa a v12 na próxima gravação; broker
+0.24.0 e admin independente 0.6.0 não reabrem v12. Preserve backup privado
+v11 antes de testar o candidato. [Registro P150](prompts/registros/P150-subscription-identifier-mqtt5.md).
+
 A versão experimental 0.24.0 reúne P146–P148, incluindo No Local e Retain As
 Published MQTT 5 com estado durável v11. Pacotes e imagens numeradas estão na
 [release 0.24.0](https://github.com/licodevone/xmqr/releases/tag/v0.24.0);

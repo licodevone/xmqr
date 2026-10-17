@@ -20,7 +20,7 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 11;
+const FORMAT_VERSION: u16 = 12;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -106,6 +106,9 @@ pub(super) struct DurableSession {
     /// Older documents default to both options disabled.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub subscription_options: BTreeMap<TopicFilter, u8>,
+    /// MQTT 5 Subscription Identifier for each filter; absent means no ID.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub subscription_identifiers: BTreeMap<TopicFilter, u32>,
     pub offline: VecDeque<StoredMessage>,
     pub inbound_qos2: Vec<InboundQos2>,
     pub outbound: Vec<OutboundInflight>,
@@ -121,6 +124,7 @@ impl DurableSession {
             expires_at_unix_ms: None,
             subscriptions: BTreeMap::new(),
             subscription_options: BTreeMap::new(),
+            subscription_identifiers: BTreeMap::new(),
             offline: VecDeque::new(),
             inbound_qos2: Vec::new(),
             outbound: Vec::new(),
@@ -155,6 +159,9 @@ pub(super) struct StoredMessage {
     pub correlation_data: Option<Vec<u8>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub user_properties: Vec<(String, String)>,
+    /// Assigned only to subscriber deliveries, never accepted from publishers.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subscription_identifiers: Vec<u32>,
 }
 
 /// An inbound `QoS` 2 PUBLISH has been committed before PUBREC; PUBREL must
@@ -346,6 +353,15 @@ fn validate_admin_receipts(state: &DurableState) -> Result<(), StateError> {
     Ok(())
 }
 
+fn validate_subscription_identifiers(session: &DurableSession) -> Result<(), StateError> {
+    for (filter, identifier) in &session.subscription_identifiers {
+        if !session.subscriptions.contains_key(filter) || !(1..=268_435_455).contains(identifier) {
+            return Err(StateError::Malformed);
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate_with_limits(
     state: &DurableState,
     limits: StateLimits,
@@ -403,6 +419,7 @@ pub(super) fn validate_with_limits(
                 return Err(StateError::Malformed);
             }
         }
+        validate_subscription_identifiers(session)?;
         if session.offline.len() > limits.max_offline {
             return Err(StateError::Limit("offline messages per session"));
         }
@@ -454,6 +471,14 @@ fn validate_message(message: &StoredMessage) -> Result<(), StateError> {
         return Err(StateError::Limit("payload bytes"));
     }
     if message.qos > 2 {
+        return Err(StateError::Malformed);
+    }
+    if message.subscription_identifiers.len() > 256
+        || message
+            .subscription_identifiers
+            .iter()
+            .any(|id| !(1..=268_435_455).contains(id))
+    {
         return Err(StateError::Malformed);
     }
     if message
@@ -693,6 +718,7 @@ mod tests {
             response_topic: None,
             correlation_data: None,
             user_properties: Vec::new(),
+            subscription_identifiers: Vec::new(),
         }
     }
 
@@ -710,6 +736,7 @@ mod tests {
                     2,
                 )]),
                 subscription_options: BTreeMap::new(),
+                subscription_identifiers: BTreeMap::new(),
                 offline: VecDeque::from([message(1)]),
                 inbound_qos2: vec![InboundQos2 {
                     packet_id: 7,
@@ -828,7 +855,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(12))
+            Err(StateError::UnsupportedVersion(13))
         ));
     }
 
@@ -888,8 +915,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_to_v10_and_commits_v11_without_losing_retained() {
-        for version in 1..=10 {
+    async fn reads_v1_to_v11_and_commits_v12_without_losing_retained() {
+        for version in 1..=11 {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -914,13 +941,13 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 11);
+            assert_eq!(envelope.version, 12);
             assert_eq!(envelope.state, expected);
         }
     }
 
     #[tokio::test]
-    async fn reads_v7_will_without_delay_fields_and_commits_v11() {
+    async fn reads_v7_will_without_delay_fields_and_commits_v12() {
         let directory = tempdir().unwrap();
         let mut expected = state();
         expected.pending_wills.insert(
@@ -949,7 +976,7 @@ mod tests {
         let writer = Store::open(directory.path()).unwrap();
         let bytes = writer.get(KEY).unwrap();
         let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-        assert_eq!(envelope.version, 11);
+        assert_eq!(envelope.version, 12);
         assert_eq!(envelope.state, expected);
     }
 
@@ -994,6 +1021,51 @@ mod tests {
             .insert(TopicFilter::try_from("orphan".to_owned()).unwrap(), 0x04);
         assert!(matches!(
             validate_with_limits(&expected, StateLimits::default()),
+            Err(StateError::Malformed)
+        ));
+    }
+
+    #[tokio::test]
+    async fn subscription_identifiers_v12_persist_and_reject_invalid_entries() {
+        let directory = tempdir().unwrap();
+        let mut expected = state();
+        let filter = TopicFilter::try_from("test/temperature".to_owned()).unwrap();
+        expected
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscription_identifiers
+            .insert(filter.clone(), 268_435_455);
+        let (store, _) = MqttStore::open(directory.path()).await.unwrap();
+        store.commit(&expected).await.unwrap();
+        store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, expected);
+        store.shutdown().await.unwrap();
+        expected
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscription_identifiers
+            .insert(filter, 0);
+        assert!(matches!(validate(&expected), Err(StateError::Malformed)));
+        expected
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscription_identifiers
+            .clear();
+        expected
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscription_identifiers
+            .insert(TopicFilter::try_from("orphan".to_owned()).unwrap(), 1);
+        assert!(matches!(validate(&expected), Err(StateError::Malformed)));
+        let mut outbound = message(1);
+        outbound.subscription_identifiers.push(0);
+        assert!(matches!(
+            validate_message(&outbound),
             Err(StateError::Malformed)
         ));
     }
