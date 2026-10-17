@@ -417,6 +417,7 @@ enum Command {
 pub(super) enum AckKind {
     Ack,
     Rec,
+    RecRejected,
     Comp,
 }
 
@@ -2621,6 +2622,7 @@ impl Actor {
         let mut actions = Vec::new();
         match (kind, stage) {
             (AckKind::Ack, OutboundStage::AwaitPubAck)
+            | (AckKind::RecRejected, OutboundStage::AwaitPubRec)
             | (AckKind::Comp, OutboundStage::AwaitPubComp) => {
                 session.outbound.remove(index);
                 if !has_pending_replay
@@ -4142,6 +4144,80 @@ mod tests {
         assert!(
             matches!(subscriber.outbound.try_recv(), Ok(Delivery::Publish { message, .. }) if message.payload == b"two")
         );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_negative_pubrec_finishes_qos2_without_pubrel_and_releases_quota() {
+        let (_directory, mut actor) = actor().await;
+        let mut subscriber = actor
+            .register_with_policy_and_delay(
+                "rx-qos2-reject".into(),
+                "user".into(),
+                SessionPolicy {
+                    clean: true,
+                    persistent: true,
+                    expiry_interval_seconds: None,
+                    will_delay_seconds: 0,
+                    will_message_expiry_seconds: None,
+                    receive_maximum: 1,
+                },
+                None,
+            )
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "rx-qos2-reject",
+                subscriber.generation,
+                vec![(filter("test/+"), Some(2))],
+            )
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source-reject".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for (id, payload) in [(1, b"reject".as_slice()), (2, b"next".as_slice())] {
+            actor
+                .publish(
+                    "source-reject",
+                    publisher.generation,
+                    message("test/qos2", 2, false, payload),
+                    Some(id),
+                )
+                .await
+                .unwrap();
+            actor
+                .pubrel("source-reject", publisher.generation, id)
+                .await
+                .unwrap();
+        }
+        let Delivery::Publish {
+            packet_id: Some(first_id),
+            ..
+        } = subscriber.outbound.try_recv().unwrap()
+        else {
+            panic!("expected first QoS 2 PUBLISH");
+        };
+        assert!(subscriber.outbound.try_recv().is_err());
+        assert!(
+            actor
+                .ack(
+                    "rx-qos2-reject",
+                    subscriber.generation,
+                    AckKind::RecRejected,
+                    first_id,
+                )
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(actor.state.sessions["rx-qos2-reject"].outbound.len(), 1);
+        assert!(matches!(
+            subscriber.outbound.try_recv(),
+            Ok(Delivery::Publish { message, .. }) if message.payload == b"next"
+        ));
         actor.store.shutdown().await.unwrap();
     }
 

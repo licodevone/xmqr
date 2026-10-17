@@ -78,7 +78,9 @@ equivalentes de DISCONNECT normal. Motivos de falha e propriedades não vazias
 recebidos nesses pacotes ainda fecham a conexão neste subconjunto, exceto
 PUBACK recebido após P169: códigos negativos válidos do client, Reason String
 única e User Property repetida concluem a tentativa QoS1 sem fechar a conexão.
-PUBREC/PUBREL/PUBCOMP negativos permanecem fora deste recorte.
+P170 também aceita PUBREC negativo válido do assinante: a tentativa QoS2 é
+removida do estado durável sem PUBREL e a quota é liberada. PUBREL/PUBCOMP
+negativos permanecem fora deste recorte.
 P134 aplica Receive Maximum do CONNECT MQTT 5 (padrão 65535) aos PUBLISH QoS1/2
 enviados pelo broker nesta conexão. A quota limita entregas vivas, retidas,
 offline e replay; PUBACK/PUBCOMP liberam vagas. QoS0 e PUBREL não consomem

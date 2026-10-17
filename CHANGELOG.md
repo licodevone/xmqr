@@ -1,7 +1,8 @@
 # Histórico de versões
 
-## Em desenvolvimento — PUBACK negativo MQTT 5
+## Em desenvolvimento — ACKs negativos MQTT 5
 
+- P170: PUBREC negativo válido do assinante MQTT 5 encerra a tentativa QoS2 sem PUBREL, libera quota e persiste a remoção; parser aceita diagnósticos opcionais e rejeita motivos/propriedades inválidos. Sem tag/release isolada.
 - P169: PUBACK negativo válido do assinante MQTT 5 conclui a tentativa QoS1, libera inflight e preserva a conexão; parser aceita Reason String única e User Property repetida, rejeita códigos/propriedades inválidos. Sem tag/release isolada.
 
 ## 0.30.0 — Client Identifier atribuído no MQTT 5 (experimental)

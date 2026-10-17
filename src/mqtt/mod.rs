@@ -509,8 +509,14 @@ async fn serve_mqtt(
                                 send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?;
                             }
                         }
-                        Packet::PubRec(id) => {
-                            for delivery in router.ack(&session, AckKind::Rec, id).await? {
+                        Packet::PubRec { packet_id, reason_code } => {
+                            let kind = if reason_code >= 0x80 {
+                                warn!(connection_id=connection.id(), reason_code, "MQTT 5 subscriber rejected QoS2 delivery");
+                                AckKind::RecRejected
+                            } else {
+                                AckKind::Rec
+                            };
+                            for delivery in router.ack(&session, kind, packet_id).await? {
                                 send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?;
                             }
                         }
