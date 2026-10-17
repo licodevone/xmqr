@@ -28,6 +28,7 @@ const DELIVERY_CAPACITY: usize = 64;
 
 struct SharedCandidate {
     client_id: String,
+    active: bool,
     qos: u8,
     preserve_retain: bool,
     identifier: Option<u32>,
@@ -96,10 +97,26 @@ fn reconcile_recovered_sessions(
         {
             session.expires_at_unix_ms = Some(expiry_deadline(now, seconds)?);
         }
+        let shared = &session.shared_filters;
+        session.subscriptions.retain(|filter, _| {
+            auth.allowed_subscribe(
+                &session.principal,
+                if shared.contains(filter) {
+                    super::topic::shared_inner(filter.as_str()).unwrap_or(filter.as_str())
+                } else {
+                    filter.as_str()
+                },
+            )
+        });
         session
-            .subscriptions
-            .retain(|filter, _| auth.allowed_subscribe(&session.principal, filter.as_str()));
-        session.shared_filters.clear();
+            .shared_filters
+            .retain(|filter| session.subscriptions.contains_key(filter));
+        session
+            .subscription_options
+            .retain(|filter, _| session.subscriptions.contains_key(filter));
+        session
+            .subscription_identifiers
+            .retain(|filter, _| session.subscriptions.contains_key(filter));
         session
             .offline
             .retain(|message| auth.allowed_delivery(&session.principal, message.topic.as_str()));
@@ -2197,15 +2214,6 @@ impl Actor {
             let inner = mqtt5_shared
                 .then(|| super::topic::shared_inner(filter.as_str()))
                 .flatten();
-            if inner.is_some()
-                && candidate
-                    .sessions
-                    .get(client_id)
-                    .is_some_and(|s| s.persistent)
-            {
-                codes.push(0x9e);
-                continue;
-            }
             let principal = &self
                 .state
                 .sessions
@@ -2754,7 +2762,7 @@ fn apply_message(
         if !auth.allowed_delivery(&session.principal, message.topic.as_str()) {
             continue;
         }
-        if live.contains_key(client_id) {
+        if live.contains_key(client_id) || session.persistent {
             for filter in &session.shared_filters {
                 let Some(inner) = super::topic::shared_inner(filter.as_str()) else {
                     continue;
@@ -2772,6 +2780,7 @@ fn apply_message(
                         .or_default()
                         .push(SharedCandidate {
                             client_id: client_id.clone(),
+                            active: live.contains_key(client_id),
                             qos,
                             preserve_retain,
                             identifier: session.subscription_identifiers.get(filter).copied(),
@@ -2840,18 +2849,29 @@ fn apply_shared_deliveries(
     let turn = state.shared_cursor;
     state.shared_cursor = state.shared_cursor.wrapping_add(1);
     for members in groups.values() {
-        let modulus = u64::try_from(members.len()).unwrap_or(u64::MAX);
+        let active: Vec<_> = members.iter().filter(|member| member.active).collect();
+        let choices = if active.is_empty() {
+            members.iter().collect::<Vec<_>>()
+        } else {
+            active
+        };
+        let modulus = u64::try_from(choices.len()).unwrap_or(u64::MAX);
         let index = usize::try_from(turn % modulus).unwrap_or_default();
-        let choice = &members[index];
+        let choice = choices[index];
         let session = state
             .sessions
             .get_mut(&choice.client_id)
             .ok_or(RouterError::Stale)?;
-        let connection = live.get(&choice.client_id).ok_or(RouterError::Stale)?;
         let mut outbound = message.clone();
         outbound.qos = outbound.qos.min(choice.qos);
         outbound.retain &= choice.preserve_retain;
         outbound.subscription_identifiers = choice.identifier.into_iter().collect();
+        let Some(connection) = live.get(&choice.client_id) else {
+            if outbound.qos > 0 && session.persistent {
+                session.offline.push_back(outbound);
+            }
+            continue;
+        };
         let queued = deliveries
             .iter()
             .filter(|(recipient, delivery)| {
@@ -4206,19 +4226,13 @@ mod tests {
         );
         actor.store.shutdown().await.unwrap();
         let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
-        assert!(
-            recovered
-                .sessions
-                .values()
-                .all(|session| session.shared_filters.is_empty())
-        );
         reconcile_recovered_sessions(&mut recovered, &actor.auth).unwrap();
         assert!(recovered.sessions.is_empty());
         store.shutdown().await.unwrap();
     }
 
     #[tokio::test]
-    async fn mqtt5_shared_rejects_persistent_and_keeps_normal_copy_independent() {
+    async fn mqtt5_shared_persistent_acl_and_normal_copy_are_independent() {
         let (directory, mut actor) = actor().await;
         actor.auth = Arc::new(AccessPolicy::acl_lab(policy(directory.path(), true)));
         let publisher = actor
@@ -4237,15 +4251,19 @@ mod tests {
             .subscribe_with_shared(
                 "persistent",
                 persistent.generation,
-                vec![(filter("$share/g/test/state"), Some(1), 0, 0)],
+                vec![(filter("$share/durable/test/state"), Some(1), 0, 0)],
                 None,
                 true,
             )
             .await
             .unwrap();
-        assert_eq!(codes, [0x9e]);
+        assert_eq!(codes, [1]);
         assert!(retained.is_empty());
-        assert!(actor.state.sessions["persistent"].subscriptions.is_empty());
+        assert!(
+            actor.state.sessions["persistent"]
+                .shared_filters
+                .contains(&filter("$share/durable/test/state"))
+        );
         let (codes, _) = actor
             .subscribe_with_shared(
                 "member",
@@ -4305,6 +4323,144 @@ mod tests {
         }
         ids.sort();
         assert_eq!(ids, [vec![3], vec![4]]);
+        assert!(
+            matches!(actor.state.sessions["persistent"].outbound.as_slice(),
+            [OutboundInflight { message, .. }] if message.payload == b"both")
+        );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_offline_qos2_replays_to_the_chosen_persistent_session() {
+        let (directory, mut actor) = actor().await;
+        let subscriber = actor
+            .register("durable".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let (codes, retained) = actor
+            .subscribe_with_shared(
+                "durable",
+                subscriber.generation,
+                vec![(filter("$share/workers/test/state"), Some(2), 0, 0)],
+                Some(17),
+                true,
+            )
+            .await
+            .unwrap();
+        assert_eq!(codes, [2]);
+        assert!(retained.is_empty());
+        actor
+            .unregister("durable", subscriber.generation)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 2, false, b"assigned"),
+                Some(7),
+            )
+            .await
+            .unwrap();
+        actor
+            .pubrel("source", publisher.generation, 7)
+            .await
+            .unwrap();
+        assert_eq!(actor.state.sessions["durable"].offline.len(), 1);
+        assert_eq!(
+            actor.state.sessions["durable"].offline[0].subscription_identifiers,
+            [17]
+        );
+        actor.store.shutdown().await.unwrap();
+        let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
+        reconcile_recovered_sessions(&mut recovered, &actor.auth).unwrap();
+        assert!(
+            recovered.sessions["durable"]
+                .shared_filters
+                .contains(&filter("$share/workers/test/state"))
+        );
+        actor.store = store;
+        actor.state = recovered;
+        actor.live.clear();
+        let resumed = actor
+            .register("durable".into(), "user".into(), false)
+            .await
+            .unwrap();
+        assert!(resumed.resumed);
+        assert!(matches!(resumed.replay.as_slice(),
+            [Delivery::Publish { message, packet_id: Some(_), .. }]
+                if message.payload == b"assigned" && message.subscription_identifiers == [17]));
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_inflight_qos2_stays_with_its_chosen_session_after_restart() {
+        let (directory, mut actor) = actor().await;
+        let mut first = actor
+            .register("first".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let mut second = actor
+            .register("second".into(), "user".into(), false)
+            .await
+            .unwrap();
+        for session in [&first, &second] {
+            actor
+                .subscribe_with_shared(
+                    &session.client_id,
+                    session.generation,
+                    vec![(filter("$share/workers/test/state"), Some(2), 0, 0)],
+                    None,
+                    true,
+                )
+                .await
+                .unwrap();
+        }
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 2, false, b"chosen"),
+                Some(9),
+            )
+            .await
+            .unwrap();
+        actor
+            .pubrel("source", publisher.generation, 9)
+            .await
+            .unwrap();
+        assert!(
+            matches!(first.outbound.try_recv(), Ok(Delivery::Publish { message, .. })
+            if message.payload == b"chosen")
+        );
+        assert!(second.outbound.try_recv().is_err());
+        actor.store.shutdown().await.unwrap();
+        let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
+        reconcile_recovered_sessions(&mut recovered, &actor.auth).unwrap();
+        actor.store = store;
+        actor.state = recovered;
+        actor.live.clear();
+        let other = actor
+            .register("second".into(), "user".into(), false)
+            .await
+            .unwrap();
+        assert!(other.replay.is_empty());
+        let chosen = actor
+            .register("first".into(), "user".into(), false)
+            .await
+            .unwrap();
+        assert!(
+            matches!(chosen.replay.as_slice(), [Delivery::Publish { message, dup: true, .. }]
+            if message.payload == b"chosen")
+        );
         actor.store.shutdown().await.unwrap();
     }
 

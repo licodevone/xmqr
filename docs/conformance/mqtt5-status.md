@@ -112,11 +112,13 @@ continuam legíveis com opções desativadas por padrão. P150 acrescenta
 Subscription Identifier por filtro no estado v12 e nas entregas MQTT 5,
 inclusive após restart. P153 admite compartilhamento apenas entre sessões
 MQTT 5 ativas e temporárias (Session Expiry=0): um destinatário por grupo/filtro,
-sem retained inicial e com cópia normal independente. O broker anuncia Shared
-Subscription Available=1, mas recusa filtro compartilhado em sessão persistente
-por SUBACK `0x9E`; não há retomada nem fila compartilhada durável. Filtros e
-contador de escolha temporários são omitidos do documento v12. AUTH continua
-fora deste recorte da fase 6D.
+sem retained inicial e com cópia normal independente. P154 acrescenta
+associação de sessão persistente no documento v13, seleção de membro offline
+persistente quando não há membro ativo e replay QoS2 à sessão escolhida após
+restart. O contador de escolha é transitório; a associação é durável. QoS0 sem
+membro ativo pode ser descartado. Uma entrega QoS1 atribuída e não confirmada
+aguarda reconexão da mesma sessão; quando a sessão termina, ela não é
+redistribuída neste recorte. AUTH continua fora da fase 6D.
 
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
 P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
@@ -128,9 +130,10 @@ gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
 backup privado anterior à migração. P130 migra o documento de v6 para v7;
 P132 migra de v7 para v8. P141, distribuído em 0.22.0, migra de v8
 para v9 na próxima gravação; P142 migra de v9 para v10; P148 migra de v10
-para v11; P150 migra de v11 para v12. O admin independente 0.7.0 lê v12,
-enquanto 0.5.0 não abre v11 e 0.6.0 não abre v12. Preserve backup privado
-v11 antes da primeira gravação v12 para rollback a broker 0.24.0, ou v10 para
+para v11; P150 migra de v11 para v12 e P154 de v12 para v13. O admin independente 0.7.0 lê v12,
+mas não abre v13; 0.5.0 não abre v11 e 0.6.0 não abre v12. Preserve backup privado
+v12 antes da primeira gravação v13 para rollback a broker 0.25.0; v11 é
+necessário para voltar a broker 0.24.0, ou v10 para
 rollback anterior a v11. P141 não reabre v10
 sem backup privado v9 anterior; 0.21.0 não reabre v9/v10 sem backup privado v8.
 A versão 0.18.0 não pode reabrir v7/v8 sem backup anterior.

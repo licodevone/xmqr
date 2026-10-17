@@ -20,7 +20,7 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 12;
+const FORMAT_VERSION: u16 = 13;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -47,7 +47,7 @@ pub(super) enum StateError {
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct DurableState {
-    /// Process-local shared subscription scheduler; omitted from the v12 document.
+    /// Process-local shared subscription scheduler; omitted from the document.
     #[serde(skip)]
     pub shared_cursor: u64,
     pub sessions: BTreeMap<String, DurableSession>,
@@ -112,9 +112,8 @@ pub(super) struct DurableSession {
     /// MQTT 5 Subscription Identifier for each filter; absent means no ID.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub subscription_identifiers: BTreeMap<TopicFilter, u32>,
-    /// Live MQTT 5 shared memberships are intentionally excluded from v12.
-    /// Only nonpersistent sessions may hold these filters.
-    #[serde(skip)]
+    /// MQTT 5 shared memberships; introduced in durable document v13.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub shared_filters: BTreeSet<TopicFilter>,
     pub offline: VecDeque<StoredMessage>,
     pub inbound_qos2: Vec<InboundQos2>,
@@ -370,6 +369,21 @@ fn validate_subscription_identifiers(session: &DurableSession) -> Result<(), Sta
     Ok(())
 }
 
+fn validate_shared_filters(session: &DurableSession) -> Result<(), StateError> {
+    for filter in &session.shared_filters {
+        if !session.subscriptions.contains_key(filter)
+            || super::topic::shared_inner(filter.as_str()).is_none()
+            || session
+                .subscription_options
+                .get(filter)
+                .is_some_and(|flags| flags & 0x04 != 0)
+        {
+            return Err(StateError::Malformed);
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate_with_limits(
     state: &DurableState,
     limits: StateLimits,
@@ -428,6 +442,7 @@ pub(super) fn validate_with_limits(
             }
         }
         validate_subscription_identifiers(session)?;
+        validate_shared_filters(session)?;
         if session.offline.len() > limits.max_offline {
             return Err(StateError::Limit("offline messages per session"));
         }
@@ -864,7 +879,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(13))
+            Err(StateError::UnsupportedVersion(version)) if version == FORMAT_VERSION + 1
         ));
     }
 
@@ -924,8 +939,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_to_v11_and_commits_v12_without_losing_retained() {
-        for version in 1..=11 {
+    async fn reads_v1_to_v12_and_commits_v13_without_losing_retained() {
+        for version in 1..=12 {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -950,13 +965,13 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 12);
+            assert_eq!(envelope.version, 13);
             assert_eq!(envelope.state, expected);
         }
     }
 
     #[tokio::test]
-    async fn reads_v7_will_without_delay_fields_and_commits_v12() {
+    async fn reads_v7_will_without_delay_fields_and_commits_v13() {
         let directory = tempdir().unwrap();
         let mut expected = state();
         expected.pending_wills.insert(
@@ -985,7 +1000,7 @@ mod tests {
         let writer = Store::open(directory.path()).unwrap();
         let bytes = writer.get(KEY).unwrap();
         let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-        assert_eq!(envelope.version, 12);
+        assert_eq!(envelope.version, 13);
         assert_eq!(envelope.state, expected);
     }
 
@@ -1077,6 +1092,54 @@ mod tests {
             validate_message(&outbound),
             Err(StateError::Malformed)
         ));
+    }
+
+    #[tokio::test]
+    async fn shared_membership_v13_persists_and_rejects_invalid_entries() {
+        let directory = tempdir().unwrap();
+        let mut expected = state();
+        let shared = TopicFilter::try_from("$share/workers/test/temperature".to_owned()).unwrap();
+        let session = expected.sessions.get_mut("sensor-1").unwrap();
+        session.subscriptions.insert(shared.clone(), 2);
+        session.shared_filters.insert(shared.clone());
+        session.subscription_identifiers.insert(shared.clone(), 17);
+        let (store, _) = MqttStore::open(directory.path()).await.unwrap();
+        store.commit(&expected).await.unwrap();
+        store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, expected);
+        store.shutdown().await.unwrap();
+
+        let mut invalid = expected.clone();
+        invalid
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscriptions
+            .remove(&shared);
+        assert!(matches!(validate(&invalid), Err(StateError::Malformed)));
+        let mut invalid = expected.clone();
+        invalid
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .shared_filters
+            .clear();
+        invalid
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .shared_filters
+            .insert(TopicFilter::try_from("$share/+/test/temperature".to_owned()).unwrap());
+        assert!(matches!(validate(&invalid), Err(StateError::Malformed)));
+        let mut invalid = expected;
+        invalid
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscription_options
+            .insert(shared, 0x04);
+        assert!(matches!(validate(&invalid), Err(StateError::Malformed)));
     }
 
     #[tokio::test]

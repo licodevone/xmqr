@@ -1,11 +1,14 @@
 # XMQR
 
-Em desenvolvimento após 0.25.0, P153 aceita `$share/{grupo}/{filtro}` MQTT 5
-para sessões ativas com Session Expiry=0. Cada publicação chega a um membro
-por grupo/filtro, sem retained inicial; um assinante normal recebe sua cópia
-separada. Sessões persistentes recebem SUBACK `0x9E` para filtros compartilhados.
-O estado v12 não armazena a associação temporária. A release 0.25.0, anterior
-a P153, ainda anuncia indisponibilidade e recusa `$share/` com DISCONNECT 0x9E.
+Em desenvolvimento após 0.25.0, P153 distribuiu `$share/{grupo}/{filtro}`
+MQTT 5 entre sessões temporárias ativas. P154 acrescenta sessão persistente,
+fila QoS1/2 sem membro online e retomada QoS2 à sessão escolhida, migrando o
+documento durável de v12 para v13 na próxima gravação. Cada grupo recebe uma
+cópia por publicação, sem retained inicial; assinatura normal recebe sua cópia
+separada. A release 0.25.0 ainda anuncia indisponibilidade e recusa `$share/`
+com DISCONNECT 0x9E. Preserve backup offline privado v12 antes de abrir v13:
+broker 0.25.0 e admin independente 0.7.0 não o reabrem. O admin atualizado
+e a distribuição desta mudança ainda estão em validação.
 
 A versão experimental 0.25.0 inclui P150: aceita Subscription Identifier no
 SUBSCRIBE MQTT 5 e entrega os IDs correspondentes ao assinante, inclusive em

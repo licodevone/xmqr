@@ -183,6 +183,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6D/C89 parcial: client valida `$share/grupo/filtro` MQTT 5, respeita CONNACK de indisponibilidade e passou com dois consumidores no Mosquitto 2.0.22 e CI.~~ [Evidência](../../xmqr-client/prompts/registros/C89-shared-subscriptions-mqtt5.md). No marco C89, broker XMQR 0.25.0 ainda não distribuía grupos; fase 6D global aberta.
 - [x] ~~Fase 6D/P152 parcial: broker 0.25.0 anuncia indisponibilidade de shared subscriptions e recusa `$share/` com 0x9E; TCP e CI PASS.~~ [Registro](../prompts/registros/P152-shared-subscription-capability.md). P153 substitui esse comportamento na árvore posterior; fase 6D global aberta.
 - [x] ~~Fase 6D/P153 parcial: distribuição compartilhada MQTT 5 entre sessões temporárias ativas, sem retained inicial; dois grupos, QoS0/1/2, client e CI PASS.~~ Sessões persistentes e AUTH ainda pendentes neste marco. [Registro](../prompts/registros/P153-live-shared-subscriptions-mqtt5.md).
+- [ ] Fase 6D/P154 parcial: persistência de grupos compartilhados MQTT 5 no estado v13, fila offline e retomada QoS2; testes/CI/admin compatível pendentes. [Registro](../prompts/registros/P154-durable-shared-subscriptions-mqtt5.md).
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
