@@ -1,5 +1,15 @@
 # Versionamento
 
+## P179 — broker/admin legado 0.32.0, estado v15
+
+P174–P178 ampliam os motivos de DISCONNECT MQTT 5 em cenários selecionados.
+O documento permanece v15; broker 0.31.0 e admin independente 0.10.0 ainda
+o leem. O client independente permanece 0.27.0. Para rollback, preservar
+backup privado; voltar a 0.28.0 ou anterior requer backup v14 anterior à
+migração. Publicar tag anotada e prerelease após CI do commit exato, pacote,
+imagens, hashes remotos e upgrade/rollback descartável. Fases 6A–6D e 7–9
+seguem abertas. [Nota](docs/releases/0.32.0.md).
+
 ## P173 — broker/admin legado 0.31.0 publicado, estado v15
 
 P168–P172 ampliam interop MQTT 5 e motivos de ACK/DISCONNECT, sem migração:

@@ -1,5 +1,15 @@
 # Histórico de versões
 
+## 0.32.0 — diagnósticos de encerramento MQTT 5 (experimental)
+
+- P174: DISCONNECT de erro permitido ao client encerra com Will; motivos exclusivos do servidor são recusados.
+- P175: quadro acima do teto local recebe DISCONNECT `0x95` após CONNACK MQTT 5.
+- P176: Topic Alias zero, acima do anunciado ou desconhecido recebe DISCONNECT `0x94` sem publicação.
+- P177: Remaining Length com quatro bytes de continuação recebe DISCONNECT `0x81`.
+- P178: flags fixas inválidas de PINGREQ/DISCONNECT recebem DISCONNECT `0x82`.
+
+O documento durável permanece v15; matriz normativa MQTT 5 e fases 6A–6D/7–9 continuam abertas.
+
 ## 0.31.0 — motivos MQTT 5 e interoperabilidade (experimental)
 
 - P172: DISCONNECT MQTT 5 `0x04` publica Will pela transição durável, incluindo atraso e restart; `0x00` continua cancelando.
