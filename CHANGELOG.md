@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## 0.27.0 — redistribuição QoS1 compartilhada e estado v14 (experimental)
+
+- P156: ao terminar a sessão escolhida, uma cópia QoS1 compartilhada ainda sem PUBACK pode ser entregue a outro membro elegível do grupo. A origem durável permite recalcular QoS, Retain As Published e Subscription Identifier para o novo membro. Sem outro membro ou capacidade, a cópia é descartada; QoS2 iniciado continua vinculado à sessão escolhida.
+- O documento durável migra de v13 para v14 na próxima gravação. Broker 0.26.0 e admin independente 0.8.0 não abrem v14; rollback requer backup privado v13 anterior à migração. O client independente 0.24.0 permanece parceiro. AUTH e fases globais 6A–6D/7–9 continuam abertas.
+
 ## 0.26.0 — shared subscriptions MQTT 5 e estado v13 (experimental)
 
 - P152: na base 0.25.0, CONNACK MQTT 5 anunciava Shared Subscription Available=0 (0x2A) e SUBSCRIBE `$share/` recebia DISCONNECT 0x9E; o anúncio exigia espaço no Maximum Packet Size.

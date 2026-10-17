@@ -33,7 +33,11 @@ old_client_version=$(dpkg-deb -f "$old_client" Version)
 new_broker_version=$(dpkg-deb -f "$new_broker" Version)
 new_client_version=$(dpkg-deb -f "$new_client" Version)
 dpkg --compare-versions "$new_broker_version" gt "$old_broker_version" || blocked "broker upgrade must increase Debian version"
-dpkg --compare-versions "$new_client_version" gt "$old_client_version" || blocked "client upgrade must increase Debian version"
+if dpkg --compare-versions "$new_client_version" eq "$old_client_version"; then
+    cmp -s "$old_client" "$new_client" || blocked "unchanged client version must use the identical package"
+else
+    dpkg --compare-versions "$new_client_version" gt "$old_client_version" || blocked "client version must stay unchanged or increase"
+fi
 for package in xmqr-broker xmqr-client; do
     if dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'install ok installed'; then
         blocked "$package already installed; use a fresh container"
