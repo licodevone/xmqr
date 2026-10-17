@@ -1,8 +1,8 @@
 # Histórico de versões
 
-## Em desenvolvimento — Client Identifier atribuído no MQTT 5
+## 0.30.0 — Client Identifier atribuído no MQTT 5 (experimental)
 
-- P166: CONNECT MQTT 5 com Client Identifier vazio recebe ID aleatório exclusivo e propriedade obrigatória `0x12` no CONNACK; colisão é resolvida no ator e limite de pacote insuficiente recusa antes do commit. MQTT 3.1.1 continua recusando ID vazio. Sem tag/release desta parcela.
+- P166: CONNECT MQTT 5 com Client Identifier vazio recebe ID aleatório exclusivo e propriedade obrigatória `0x12` no CONNACK; colisão é resolvida no ator e limite de pacote insuficiente recusa antes do commit. MQTT 3.1.1 continua recusando ID vazio. C97–C99 formam o fluxo de CLI e reconexão manual.
 
 ## 0.29.0 — Will MQTT 5 e estado v15 (experimental)
 
