@@ -12,7 +12,7 @@ posterior e reautenticação permanecem fora do recorte.
 [Prompt P159](prompts/broker/159-enhanced-plain-connect-mqtt5.md).
 
 A árvore após 0.27.0 aceita P158: CONNECT MQTT 5 com Authentication Method
-bem formado recebe 0x8C (método indisponível), sem criar sessão. AUTH e
+desconhecido recebe 0x8C (método indisponível), sem criar sessão. AUTH e
 reautenticação ainda não são implementados; esta fatia não tem release própria.
 [Registro P158](prompts/registros/P158-auth-method-refusal-mqtt5.md).
 

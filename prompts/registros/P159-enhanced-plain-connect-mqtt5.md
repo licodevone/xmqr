@@ -1,0 +1,6 @@
+# P159 — autenticação inicial MQTT 5 SASL PLAIN sobre TLS (aceito)
+
+- [Prompt P159](../broker/159-enhanced-plain-connect-mqtt5.md) commitado antes do código (`442a80c`). Fonte funcional `1f1b188b70a9692ba90bed4fcb9c86c536a90cd4`; fixture ampliada em `e94aadfba9db444bfeff33c95c2f2f4f9681d9eb`.
+- CONNECT MQTT 5 com Authentication Method `PLAIN` e dados RFC 4616 `NUL authcid NUL passwd` usa a política existente de usuário, senha, certificado e ACL. TLS é obrigatório; o CONNACK de sucesso confirma `PLAIN` dentro do Maximum Packet Size. Dados ausentes/malformados, combinação com Username/Password convencional, método diferente, transporte aberto, credenciais incorretas e resposta curta são recusados antes do registro da sessão. O estado durável continua v14.
+- 188 testes de biblioteca PASS/6 ignorados e demais alvos PASS; fmt, Clippy sem avisos, build release, inventário de licenças e seis contratos de distribuição PASS. `P159_TLS_PASS` cobre TLS-password, mTLS com certificado vinculado, erros de método/identidade/senha, limite de CONNACK e pub/sub com client C91 real. [CI da fonte e fixture PASS](https://github.com/licodevone/xmqr/actions/runs/39015724072), incluindo pacote Ubuntu 26.04.
+- Esta é uma parcela da fase 6D: AUTH posterior e reautenticação continuam ausentes. Não há tag/release isolada; broker publicado 0.27.0 ainda não inclui P159.

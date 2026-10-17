@@ -1,5 +1,12 @@
 # Versionamento
 
+P159 na árvore após 0.27.0 aceita `PLAIN` inicial em MQTT 5 sobre TLS com
+confirmação no CONNACK; o client C91 da árvore após 0.24.0 o exercita. O
+documento durável permanece v14, portanto o admin independente 0.9.0 continua
+compatível. A funcionalidade aguarda próximo marco de release; AUTH posterior,
+reautenticação e fases globais permanecem abertas.
+[Registro P159](prompts/registros/P159-enhanced-plain-connect-mqtt5.md).
+
 P158 na árvore após 0.27.0 classifica e recusa métodos AUTH ainda
 indisponíveis. A versão publicada 0.27.0 não recebe mudança retroativa;
 este comportamento passou no CI e aguarda marco posterior. M10/fase 6D
