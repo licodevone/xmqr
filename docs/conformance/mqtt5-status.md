@@ -33,6 +33,7 @@ acrescentam Message Expiry Interval do Will: o intervalo fica no Will pendente
 e o prazo começa na publicação efetiva, não no CONNECT. O documento passa de
 v14 para v15 na primeira gravação. Broker 0.29.0, client 0.26.0 e admin
 independente 0.10.0 distribuem esse recorte. Broker 0.28.0 não abre v15;
+broker 0.30.0 e client 0.27.0 distribuem também P166/C97–C99 sem nova migração;
 admin 0.9.0 ainda consegue transportar backup bruto, sem homologação como par.
 Se o processo cair com a conexão ainda ativa, o instante da queda não é
 durável; por segurança contra perda silenciosa, a contagem começa na recuperação.

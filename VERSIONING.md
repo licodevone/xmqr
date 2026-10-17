@@ -1,14 +1,14 @@
 # Versionamento
 
-## P167 — candidato broker/admin legado 0.30.0, estado v15
+## P167 — broker/admin legado 0.30.0 publicado, estado v15
 
 P166 acrescenta Client Identifier atribuído no MQTT 5 e CONNACK `0x12`.
 O client 0.27.0/C97–C99 pode pedir o ID, criar sessão durável e reconectar
 manualmente; não persiste o próprio estado QoS. O documento permanece v15,
 e o admin independente 0.10.0/A19 continua compatível sem nova release.
 Rollback do broker a 0.29.0 não exige conversão de estado, mas preserve backup
-privado antes do downgrade. Tag e prerelease só após CI, pacote, imagens e hashes
-verificados. Fases 6A–6D e 7–9 continuam abertas.
+privado antes do downgrade. Tag anotada e prerelease foram publicadas após
+CI, pacote, imagens e hashes remotos verificados. Fases 6A–6D e 7–9 continuam abertas.
 [Nota](docs/releases/0.30.0.md).
 
 ## P165 — candidato broker/admin legado 0.29.0, estado v15

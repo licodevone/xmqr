@@ -1,10 +1,10 @@
 # XMQR
 
-O candidato broker/admin legado 0.30.0 distribui P166: o broker atribui um
+A release experimental broker/admin legado 0.30.0 distribui P166: o broker atribui um
 Client Identifier exclusivo a CONNECT MQTT 5 com ID vazio e anuncia `0x12`
 no CONNACK. O client 0.27.0/C97–C99 é o par para receber e reutilizar o ID.
 O estado continua v15 e o admin independente 0.10.0 permanece compatível.
-As fases 6A–6D e 7–9 seguem abertas. [Nota do candidato](docs/releases/0.30.0.md).
+As fases 6A–6D e 7–9 seguem abertas. [Release 0.30.0](https://github.com/licodevone/xmqr/releases/tag/v0.30.0) e [aceite P167](prompts/registros/P167-release-0.30.0.md).
 
 A versão 0.30.0 acrescenta P166: CONNECT MQTT 5 com Client Identifier
 vazio recebe um identificador novo na propriedade CONNACK `0x12`, preservando

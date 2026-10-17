@@ -1,10 +1,10 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado 0.29.0, client independente 0.26.0
+Versões publicadas atuais: broker/admin legado 0.30.0, client independente 0.27.0
 e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
-a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
-propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
+a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
+propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
 segue aberta.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42/P86/P88, fecha o planejamento de funções, dependências e gates
@@ -200,6 +200,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P166/C97 parcial: Client Identifier atribuído pelo broker no MQTT 5 e pedido explícito na CLI; testes, integração e CIs PASS.~~ [Broker](../prompts/registros/P166-assigned-client-id-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C97-assigned-client-id-mqtt5.md). Aceite global 6A segue aberto.
 - [x] ~~Fase 6A/C98 parcial: reutilização manual de ID de 37 bytes atribuído pelo broker na CLI MQTT 5; testes, integração e CI PASS.~~ [Registro](../../xmqr-client/prompts/registros/C98-long-client-id-mqtt5.md). Aceite global 6A segue aberto.
 - [x] ~~Fases 6A/6B/C99 parciais: sessão durável criada pela CLI com ID atribuído, Session Present e reutilização manual; testes, integração e CIs PASS.~~ [Registro](../../xmqr-client/prompts/registros/C99-durable-assigned-client-id-mqtt5.md). Aceites globais seguem abertos.
+- [x] ~~Distribuição P167/C100: broker/admin legado 0.30.0 e client independente 0.27.0; CI, pacotes Ubuntu26, upgrade/rollback descartável, imagens numeradas, tags, prereleases e SHA-256 remotos verificados.~~ [Broker](../prompts/registros/P167-release-0.30.0.md) e [client](../../xmqr-client/prompts/registros/C100-release-0.27.0.md). Admin independente 0.10.0 permanece compatível com v15; fases 6A–6D e 7–9 abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
@@ -245,7 +246,7 @@ para igualar um broker Mosquitto isolado.
 | 3 | Semanas5–7 | Falhas de disco, fuzzing, pressão de filas e fechamento da matriz MQTT3.1.1 | Reconexão/backoff, cancelamento, diagnóstico e testes contra Mosquitto | Recuperação comprovada nos cenários; negativos; interop automatizada; pendências normativas listadas |
 | 4 | Semanas8–10 | Listeners com políticas por endpoint, modos TLS e reload de certificados definido | Perfis de conexão, rotação e erros de certificado/credenciais | Isolamento de ACL; TLS/mTLS; rotação/rollback; nenhum laboratório remoto implicitamente habilitado |
 | 5 | Semanas11–12 | Administração de bundle, auditoria, métricas e ciclo de release | Paridade prioritária pub/sub e documentação sincronizada | Operação sem editar segredos manualmente em casos cobertos; release com anexos/checksums e rollback |
-| 6A | Semanas13–15 | P115–P123 aceitam pub/sub MQTT5 QoS0/1/2, unsub, motivos ACL e CONNECT informativo; P162 negocia Server Keep Alive; codec/propriedades completos pendentes | C57–C64 selecionam3.1.1/5, exibem recusa, propriedades CONNECT e aguardam UNSUBACK/PUBCOMP; client 0.25.0 honra `0x13` | Negativos normativos e coexistência3.1.1; apenas subconjunto5 anunciado |
+| 6A | Semanas13–15 | P115–P123 aceitam pub/sub MQTT5 QoS0/1/2, unsub, motivos ACL e CONNECT informativo; P162 negocia Server Keep Alive; P166 atribui Client Identifier; codec/propriedades completos pendentes | C57–C64 selecionam3.1.1/5, exibem recusa, propriedades CONNECT e aguardam UNSUBACK/PUBCOMP; C97–C99 permitem receber/reutilizar ID manualmente | Negativos normativos e coexistência3.1.1; apenas subconjunto5 anunciado |
 | 6B | Semanas16–18 | P127/P128: Clean Start e Session Expiry; P130: Message Expiry; P131: DISCONNECT expiry; P132: Will Delay e documento v8 | C66/C67: opções de sessão; C69: Message Expiry; C70: Will Delay; retomada QoS do próprio client pendente | Crash/restart, migração e relógio/expiração tratados sem perda silenciosa |
 | 6C | Semanas19–21 | P134/P136 aceitos para Receive Maximum e Maximum Packet Size; P138/P139 aceitam alias de entrada/saída; P141/P142 aceitam metadados PUBLISH e documento v10; P144 anuncia quota inbound onde cabe; P146 trata quota QoS2 retomada | C72/C73 expõem limites de recebimento; C75 aceita alias recebido; C77/C78 publicam metadados; C80 os exibe em JSONL; C81 repete publicações em série; C83 usa alias compacto | Fluxo e tamanho validados em QoS0/1/2, retained e restart; Mosquitto 2.0.22 falha no alias abreviado de saída; aceite global da fase pendente |
 | 6D | Semanas22–24 | P147/P148/P150/P153/P154/P156 e P158–P160 aceitos; shared durável no estado v14, admin A18 distribuído e PLAIN sobre TLS/reautenticação explícita; desafio AUTH pendente | C84/C85/C87/C89/C91/C92 aceitos; PLAIN inicial e reautenticação única antes de I/O, sem reautenticação periódica | Matriz5 por cláusula, interop externa e recursos ausentes declarados; sem alegação integral prematura |
