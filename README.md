@@ -6,6 +6,12 @@ durável v10. O client parceiro 0.21.0 exibe metadados MQTT 5 em JSONL e repete
 publicações em série. [Nota de release](docs/releases/0.23.0.md). A fase 6C
 global segue aberta.
 
+Em desenvolvimento após 0.23.0, P146 mantém a sessão MQTT 5 ativa quando
+ela é retomada com a quota durável QoS2 cheia: um PUBLISH novo recebe PUBREC
+`0x97` (Quota exceeded), sem substituir o QoS2 antigo. A transação anterior
+continua por PUBREL e libera espaço para uma publicação posterior. O documento
+durável permanece v10 e o limite de recebimento por conexão ainda se aplica.
+
 No marco experimental 0.22.0, P141 preserva Payload Format
 Indicator e Content Type de PUBLISH MQTT 5; P142 acrescenta Response Topic,
 Correlation Data binária e User Property repetível em ordem. As propriedades

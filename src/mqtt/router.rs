@@ -127,6 +127,8 @@ pub(crate) enum AdminError {
 pub(super) enum RouterError {
     #[error(transparent)]
     Store(#[from] StateError),
+    #[error("inbound QoS 2 durable quota exhausted by an earlier session")]
+    InboundQos2Quota,
     #[error("security generation changed or reload unavailable")]
     Security,
     #[error("session identity does not match the stored owner")]
@@ -210,6 +212,7 @@ struct Live {
     receive_maximum: usize,
     pending_replay: VecDeque<Delivery>,
     sent_unacked: BTreeSet<u16>,
+    inbound_accepted: BTreeSet<u16>,
 }
 
 struct Actor {
@@ -1745,7 +1748,9 @@ impl Actor {
     fn record_result<T>(&self, result: &Result<T, RouterError>) {
         if let Err(error) = result {
             match error {
-                RouterError::Store(StateError::Limit(_)) => self.metrics.reject(Rejection::Quota),
+                RouterError::Store(StateError::Limit(_)) | RouterError::InboundQos2Quota => {
+                    self.metrics.reject(Rejection::Quota);
+                }
                 RouterError::WillDenied | RouterError::PrincipalMismatch => {
                     self.metrics.reject(Rejection::Authorization);
                 }
@@ -2054,6 +2059,7 @@ impl Actor {
                 receive_maximum: effective_maximum,
                 pending_replay,
                 sent_unacked,
+                inbound_accepted: BTreeSet::new(),
             },
         );
         Ok(Session {
@@ -2211,10 +2217,21 @@ impl Actor {
             {
                 return Ok(());
             }
+            if session.inbound_qos2.len() >= self.limits.max_inflight
+                && self
+                    .live
+                    .get(client_id)
+                    .is_some_and(|live| live.inbound_accepted.len() < self.limits.max_inflight)
+            {
+                return Err(RouterError::InboundQos2Quota);
+            }
             session
                 .inbound_qos2
                 .push(InboundQos2 { packet_id, message });
             self.commit(candidate).await?;
+            if let Some(live) = self.live.get_mut(client_id) {
+                live.inbound_accepted.insert(packet_id);
+            }
             self.metrics.received[qos].fetch_add(1, Ordering::Relaxed);
             return Ok(());
         }
@@ -2259,6 +2276,9 @@ impl Actor {
             &pending.message,
         )?;
         self.commit(candidate).await?;
+        if let Some(live) = self.live.get_mut(client_id) {
+            live.inbound_accepted.remove(&packet_id);
+        }
         self.deliver(deliveries);
         Ok(())
     }
@@ -3818,6 +3838,102 @@ mod tests {
                 commits_since_snapshot: 0,
             },
         )
+    }
+
+    #[tokio::test]
+    async fn resumed_qos2_full_quota_refuses_new_id_without_losing_old_transaction() {
+        let (directory, mut actor) = actor().await;
+        let limits = StateLimits {
+            max_inflight: 1,
+            ..actor.limits
+        };
+        actor.store.shutdown().await.unwrap();
+        let (store, state) = MqttStore::open_with_limits(directory.path(), limits)
+            .await
+            .unwrap();
+        actor.store = store;
+        actor.state = state;
+        actor.limits = limits;
+        let initial = actor
+            .register("publisher".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "publisher",
+                initial.generation,
+                message("test/state", 2, false, b"old"),
+                Some(10),
+            )
+            .await
+            .unwrap();
+        let excess = actor
+            .publish(
+                "publisher",
+                initial.generation,
+                message("test/state", 2, false, b"excess"),
+                Some(11),
+            )
+            .await;
+        assert!(
+            matches!(excess, Err(RouterError::Store(StateError::Limit(_)))),
+            "{excess:?}"
+        );
+        actor
+            .unregister("publisher", initial.generation)
+            .await
+            .unwrap();
+        let resumed = actor
+            .register("publisher".into(), "user".into(), false)
+            .await
+            .unwrap();
+        assert!(resumed.resumed);
+        let before = actor.state.clone();
+        assert!(matches!(
+            actor
+                .publish(
+                    "publisher",
+                    resumed.generation,
+                    message("test/state", 2, false, b"new"),
+                    Some(11),
+                )
+                .await,
+            Err(RouterError::InboundQos2Quota)
+        ));
+        assert_eq!(actor.state, before);
+        actor
+            .publish(
+                "publisher",
+                resumed.generation,
+                message("test/state", 2, false, b"duplicate"),
+                Some(10),
+            )
+            .await
+            .unwrap();
+        assert_eq!(actor.state, before);
+        actor
+            .pubrel("publisher", resumed.generation, 10)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "publisher",
+                resumed.generation,
+                message("test/state", 2, false, b"new"),
+                Some(11),
+            )
+            .await
+            .unwrap();
+        assert_eq!(actor.state.sessions["publisher"].inbound_qos2.len(), 1);
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open_with_limits(directory.path(), limits)
+            .await
+            .unwrap();
+        assert_eq!(
+            recovered.sessions["publisher"].inbound_qos2[0].packet_id,
+            11
+        );
+        store.shutdown().await.unwrap();
     }
 
     fn message(topic: &str, qos: u8, retain: bool, payload: &[u8]) -> StoredMessage {

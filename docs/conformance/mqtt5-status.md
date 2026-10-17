@@ -64,8 +64,11 @@ P144 anuncia no CONNACK MQTT 5 o limite de recepção QoS1/2 do broker (1..32)
 conforme a quota `MQTT_MAX_INFLIGHT`, quando os três bytes adicionais cabem.
 Com Maximum Packet Size do client 5..7 ou 10..15, a propriedade é omitida para
 preservar os fallbacks de CONNACK P136/P138; nesse caso o broker ainda recusa
-excesso de estado sem commit parcial. A retomada com quota inbound QoS2 durável
-cheia requer tratamento adicional para encerrar a fase 6C.
+excesso de estado sem commit parcial. P146 trata a retomada com quota inbound
+QoS2 durável cheia: novo packet ID recebe PUBREC `0x97` sem commit nem entrega,
+enquanto duplicata de packet ID anterior mantém PUBREC de sucesso; PUBREL da
+transação antiga libera a vaga. Dentro da mesma conexão, exceder a quota
+anunciada continua encerrando a conexão. A fase 6C global permanece aberta.
 P136/C73 aceitam Maximum Packet Size em CONNECT e limitam todos os pacotes
 enviados pelo broker ao client nessa conexão. O CONNACK omite a propriedade
 informativa de tamanho se ela não couber. PUBLISH grande demais é descartado
@@ -152,5 +155,6 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [C78](../../../xmqr-client/prompts/registros/C78-publish-request-properties-mqtt5.md) e
 [C80](../../../xmqr-client/prompts/registros/C80-subscriber-publish-metadata-mqtt5.md) e
 [P144](../../prompts/registros/P144-connack-receive-maximum-mqtt5.md).
+[P146](../../prompts/registros/P146-qos2-resume-quota-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

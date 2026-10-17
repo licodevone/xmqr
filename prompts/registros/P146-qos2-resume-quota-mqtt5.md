@@ -1,0 +1,6 @@
+# P146 — quota QoS2 persistente após retomada MQTT 5
+
+- [Prompt P146](../broker/146-qos2-resume-quota-mqtt5.md) criado antes do código. Base P144/C83 aceitos; fase 6C global aberta.
+- Implementação: o ator distingue quota de QoS2 aceita nesta conexão do estado QoS2 retomado. Com estado durável cheio por transação anterior, um packet ID novo recebe PUBREC MQTT 5 `0x97` sem commit/entrega; duplicata anterior recebe sucesso, PUBREL libera vaga e novo PUBLISH pode ser aceito. Excesso da quota na mesma conexão conserva fechamento anterior. MQTT 3.1.1 e documento durável v10 sem migração.
+- Gates locais: 165 testes principais PASS/6 ignorados, demais testes Rust PASS, Clippy `-D warnings`, fmt, build release e licenças PASS. [TCP real P146](../../scripts/verify_mqtt5_resumed_qos2_quota.py) PASS com restart, Session Present, Receive Maximum, recusa sem entrega, duplicata, PUBREL e nova publicação. Regressões P144 e C83 PASS. Sem ensaio físico ESP32.
+- Fonte e CI pendentes; sem release isolada ou aceite global da fase 6C.
