@@ -210,6 +210,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fases 6A/6B/P174 parciais: motivos de erro DISCONNECT válidos do client MQTT 5 encerram com Will, enquanto códigos exclusivos do servidor são recusados; testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P174-client-disconnect-reasons-mqtt5.md). Emissão dos motivos do servidor e aceites globais abertos.
 - [x] ~~Fases 6A/6C/P175 parciais: quadro MQTT 5 acima do limite recebe DISCONNECT `0x95` após CONNACK, com Will/fechamento e comparação MQTT 3.1.1; testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P175-oversize-disconnect-mqtt5.md). Outros motivos e aceites globais abertos.
 - [x] ~~Fase 6A/C101 parcial: client mostra código de DISCONNECT MQTT 5 enviado pelo broker sem ecoar Reason String remota; unitários, TCP e CI PASS.~~ [Registro](../../xmqr-client/prompts/registros/C101-server-disconnect-diagnostic-mqtt5.md). Aceite global aberto.
+- [x] ~~Fases 6A/6C/P176 parciais: Topic Alias MQTT 5 zero, excedente e não estabelecido recebem DISCONNECT `0x94` após CONNACK, sem entrega; regressão de alias válido, testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P176-topic-alias-disconnect-mqtt5.md). Matriz normativa e aceites globais abertos.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

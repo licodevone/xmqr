@@ -81,7 +81,9 @@ regras de Session Expiry. P174 aceita também os motivos de erro permitidos ao
 client pela tabela 3-10; esses motivos publicam o Will, se presente, e códigos
 exclusivos do servidor são recusados. P175 emite DISCONNECT `0x95` após CONNACK
 MQTT 5 quando o cabeçalho declara quadro maior que o limite local, antes de
-ler o corpo; MQTT 3.1.1 ainda fecha sem esse pacote. O broker não emite todos
+ler o corpo; MQTT 3.1.1 ainda fecha sem esse pacote. P176 emite DISCONNECT
+`0x94` para Topic Alias zero, acima do máximo ou não estabelecido, sem entrega.
+O broker não emite todos
 os demais motivos DISCONNECT que poderia emitir. PUBACK recebido após P169 aceita códigos
 negativos válidos do client, Reason String única e User Property repetida;
 conclui QoS1 sem fechar a conexão. P170 aceita PUBREC negativo válido do
@@ -113,7 +115,8 @@ seu teto de entrada de 65536 bytes quando o CONNACK completo cabe. P138,
 distribuído a partir de 0.21.0, anuncia Topic Alias Maximum=16 quando há ao menos
 13 bytes de limite de saída e aceita alias de entrada 1..16 por conexão. Um
 PUBLISH com nome define/redefine o alias; nome vazio o usa. Alias inválido,
-desconhecido, duplicado ou truncado fecha a conexão sem publicar. A tabela não
+desconhecido, duplicado ou truncado fecha a conexão sem publicar; P176 envia
+`0x94` somente nos casos zero, acima do máximo e não estabelecido. A tabela não
 é durável nem reaproveitada em reconnect/takeover. P139 acrescenta alias de
 saída quando o assinante anuncia Topic Alias Maximum positivo: até 16 tópicos
 por conexão, primeira entrega com nome completo e alias, próximas com nome
