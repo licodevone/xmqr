@@ -7,7 +7,7 @@
 //! involving a session, inflight packet and retained message atomic.
 
 use std::{
-    collections::{BTreeMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     path::Path,
 };
 
@@ -47,6 +47,9 @@ pub(super) enum StateError {
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct DurableState {
+    /// Process-local shared subscription scheduler; omitted from the v12 document.
+    #[serde(skip)]
+    pub shared_cursor: u64,
     pub sessions: BTreeMap<String, DurableSession>,
     pub retained: BTreeMap<TopicName, StoredMessage>,
     // Wills belong to accepted connections, including clean sessions.
@@ -109,6 +112,10 @@ pub(super) struct DurableSession {
     /// MQTT 5 Subscription Identifier for each filter; absent means no ID.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub subscription_identifiers: BTreeMap<TopicFilter, u32>,
+    /// Live MQTT 5 shared memberships are intentionally excluded from v12.
+    /// Only nonpersistent sessions may hold these filters.
+    #[serde(skip)]
+    pub shared_filters: BTreeSet<TopicFilter>,
     pub offline: VecDeque<StoredMessage>,
     pub inbound_qos2: Vec<InboundQos2>,
     pub outbound: Vec<OutboundInflight>,
@@ -125,6 +132,7 @@ impl DurableSession {
             subscriptions: BTreeMap::new(),
             subscription_options: BTreeMap::new(),
             subscription_identifiers: BTreeMap::new(),
+            shared_filters: BTreeSet::new(),
             offline: VecDeque::new(),
             inbound_qos2: Vec::new(),
             outbound: Vec::new(),
@@ -737,6 +745,7 @@ mod tests {
                 )]),
                 subscription_options: BTreeMap::new(),
                 subscription_identifiers: BTreeMap::new(),
+                shared_filters: BTreeSet::new(),
                 offline: VecDeque::from([message(1)]),
                 inbound_qos2: vec![InboundQos2 {
                     packet_id: 7,

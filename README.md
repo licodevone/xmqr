@@ -1,9 +1,11 @@
 # XMQR
 
-Em desenvolvimento após 0.25.0, P152 anuncia que shared subscriptions MQTT 5
-ainda não são oferecidas e recusa `$share/` com DISCONNECT 0x9E. O client C89
-já valida filtros compartilhados com Mosquitto 2.0.22; o broker XMQR ainda não
-distribui publicações entre membros do mesmo grupo.
+Em desenvolvimento após 0.25.0, P153 aceita `$share/{grupo}/{filtro}` MQTT 5
+para sessões ativas com Session Expiry=0. Cada publicação chega a um membro
+por grupo/filtro, sem retained inicial; um assinante normal recebe sua cópia
+separada. Sessões persistentes recebem SUBACK `0x9E` para filtros compartilhados.
+O estado v12 não armazena a associação temporária. A release 0.25.0, anterior
+a P153, ainda anuncia indisponibilidade e recusa `$share/` com DISCONNECT 0x9E.
 
 A versão experimental 0.25.0 inclui P150: aceita Subscription Identifier no
 SUBSCRIBE MQTT 5 e entrega os IDs correspondentes ao assinante, inclusive em

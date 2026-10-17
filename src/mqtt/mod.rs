@@ -145,8 +145,7 @@ async fn serve_mqtt(
         return Ok(());
     }
     if mqtt5 && outbound_maximum < 7 {
-        // An omitted Shared Subscription Available property would falsely
-        // advertise support. Refuse before creating durable session state.
+        // The negotiated Shared Subscription Available property must fit.
         write_limited(
             connection,
             &codec::encode_mqtt5_connack(0x95),
@@ -234,7 +233,7 @@ async fn serve_mqtt(
     } else if mqtt5 && outbound_maximum >= 12 {
         codec::encode_mqtt5_success_connack(session.resumed).to_vec()
     } else if mqtt5 {
-        codec::encode_mqtt5_shared_unavailable_connack(session.resumed).to_vec()
+        codec::encode_mqtt5_shared_available_connack(session.resumed).to_vec()
     } else {
         encode_connack_with_session(0, session.resumed)?.to_vec()
     };
@@ -288,15 +287,12 @@ async fn serve_mqtt(
                     last_inbound = Instant::now();
                     match incoming? {
                         Packet::Subscribe { packet_id, filters, subscription_identifier } => {
-                            if mqtt5 && filters.iter().any(|(filter, ..)| filter.as_str().starts_with("$share/")) {
-                                write_limited(connection, &[0xe0, 0x02, 0x9e, 0x00], outbound_maximum).await?;
-                                return Ok(());
-                            }
                             let requested = filters.into_iter().map(|(filter,qos,retain_handling,subscription_flags)| {
-                                let granted = auth.allowed_subscribe(&principal, filter.as_str()).then_some(qos.as_u8());
+                                let inner = if mqtt5 { topic::shared_inner(filter.as_str()) } else { None };
+                                let granted = auth.allowed_subscribe(&principal, inner.unwrap_or(filter.as_str())).then_some(qos.as_u8());
                                 (filter, granted, retain_handling, subscription_flags)
                             }).collect();
-                            let (mut codes, retained) = router.subscribe_with_identifier(&session, requested, subscription_identifier).await?;
+                            let (mut codes, retained) = router.subscribe_with_shared(&session, requested, subscription_identifier, mqtt5).await?;
                             if mqtt5 {
                                 // The router uses the MQTT 3.1.1 failure code for ACL denial.
                                 // MQTT 5 can report the precise reason to each filter.

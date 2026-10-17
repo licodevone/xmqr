@@ -26,7 +26,7 @@ def connect(port, identity, maximum, clean=True):
     if maximum < 7:
         assert ack == b"\x00\x95\x00", ack
         return stream
-    assert ack[1] == 0 and b"\x2a\x00" in ack, ack
+    assert ack[1] == 0 and b"\x2a\x01" in ack, ack
     assert len(ack) == (16 if maximum >= 18 else 13 if maximum >= 15 else 10 if maximum >= 12 else 8 if maximum >= 10 else 5), ack
     return stream
 

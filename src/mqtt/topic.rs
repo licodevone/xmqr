@@ -127,6 +127,20 @@ pub(crate) fn valid_topic_filter(value: &str) -> bool {
     validate_filter(value).is_ok()
 }
 
+/// Return the matching filter of a structurally valid MQTT 5 shared filter.
+pub(crate) fn shared_inner(value: &str) -> Option<&str> {
+    let shared = value.strip_prefix("$share/")?;
+    let (group, inner) = shared.split_once('/')?;
+    if group.is_empty()
+        || group.contains(['+', '#'])
+        || inner.is_empty()
+        || !valid_topic_filter(inner)
+    {
+        return None;
+    }
+    Some(inner)
+}
+
 fn validate_filter(value: &str) -> Result<(), TopicError> {
     validate_common(value)?;
     let mut levels = value.split('/').peekable();

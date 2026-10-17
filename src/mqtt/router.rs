@@ -26,6 +26,13 @@ use super::topic::{TopicFilter, TopicName};
 const COMMAND_CAPACITY: usize = 256;
 const DELIVERY_CAPACITY: usize = 64;
 
+struct SharedCandidate {
+    client_id: String,
+    qos: u8,
+    preserve_retain: bool,
+    identifier: Option<u32>,
+}
+
 fn unix_ms() -> Result<u64, RouterError> {
     unix_ms_from(SystemTime::now())
 }
@@ -92,6 +99,7 @@ fn reconcile_recovered_sessions(
         session
             .subscriptions
             .retain(|filter, _| auth.allowed_subscribe(&session.principal, filter.as_str()));
+        session.shared_filters.clear();
         session
             .offline
             .retain(|message| auth.allowed_delivery(&session.principal, message.topic.as_str()));
@@ -308,6 +316,7 @@ enum Command {
         generation: u64,
         filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
         identifier: Option<u32>,
+        mqtt5_shared: bool,
         reply: oneshot::Sender<SubscribeResult>,
     },
     Unsubscribe {
@@ -868,14 +877,16 @@ impl Router {
         session: &Session,
         filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
-        self.subscribe_with_identifier(session, filters, None).await
+        self.subscribe_with_shared(session, filters, None, false)
+            .await
     }
 
-    pub(super) async fn subscribe_with_identifier(
+    pub(super) async fn subscribe_with_shared(
         &self,
         session: &Session,
         filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
         identifier: Option<u32>,
+        mqtt5_shared: bool,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Subscribe {
@@ -883,6 +894,7 @@ impl Router {
             generation: session.generation,
             filters,
             identifier,
+            mqtt5_shared,
             reply,
         })
         .await?;
@@ -1158,9 +1170,20 @@ impl Actor {
             }
         }
         for session in candidate.sessions.values_mut() {
+            let shared = &session.shared_filters;
+            session.subscriptions.retain(|filter, _| {
+                view.allowed_subscribe(
+                    &session.principal,
+                    if shared.contains(filter) {
+                        super::topic::shared_inner(filter.as_str()).unwrap_or(filter.as_str())
+                    } else {
+                        filter.as_str()
+                    },
+                )
+            });
             session
-                .subscriptions
-                .retain(|filter, _| view.allowed_subscribe(&session.principal, filter.as_str()));
+                .shared_filters
+                .retain(|filter| session.subscriptions.contains_key(filter));
             session
                 .subscription_options
                 .retain(|filter, _| session.subscriptions.contains_key(filter));
@@ -1370,10 +1393,17 @@ impl Actor {
                 generation,
                 filters,
                 identifier,
+                mqtt5_shared,
                 reply,
             } => {
                 let result = self
-                    .subscribe_with_identifier(&client_id, generation, filters, identifier)
+                    .subscribe_with_shared(
+                        &client_id,
+                        generation,
+                        filters,
+                        identifier,
+                        mqtt5_shared,
+                    )
                     .await;
                 self.record_result(&result);
                 let _ = reply.send(result);
@@ -2143,46 +2173,68 @@ impl Actor {
         generation: u64,
         filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
-        self.subscribe_with_identifier(client_id, generation, filters, None)
+        self.subscribe_with_shared(client_id, generation, filters, None, false)
             .await
     }
 
-    async fn subscribe_with_identifier(
+    #[expect(
+        clippy::too_many_lines,
+        reason = "subscription validation, retained matching and one durable commit share an atomic transition"
+    )]
+    async fn subscribe_with_shared(
         &mut self,
         client_id: &str,
         generation: u64,
         filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
         identifier: Option<u32>,
+        mqtt5_shared: bool,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
         let mut codes = Vec::with_capacity(filters.len());
         let mut retained_matches = BTreeMap::<_, (u8, Vec<u32>)>::new();
         for (filter, granted, retain_handling, subscription_flags) in filters {
+            let inner = mqtt5_shared
+                .then(|| super::topic::shared_inner(filter.as_str()))
+                .flatten();
+            if inner.is_some()
+                && candidate
+                    .sessions
+                    .get(client_id)
+                    .is_some_and(|s| s.persistent)
+            {
+                codes.push(0x9e);
+                continue;
+            }
             let principal = &self
                 .state
                 .sessions
                 .get(client_id)
                 .ok_or(RouterError::Stale)?
                 .principal;
-            let Some(qos) =
-                granted.filter(|_| self.auth.allowed_subscribe(principal, filter.as_str()))
-            else {
+            let Some(qos) = granted.filter(|_| {
+                self.auth
+                    .allowed_subscribe(principal, inner.unwrap_or(filter.as_str()))
+            }) else {
                 self.metrics.reject(Rejection::Authorization);
                 codes.push(0x80);
                 continue;
             };
-            let already_existed = update_subscription(
-                candidate
-                    .sessions
-                    .get_mut(client_id)
-                    .ok_or(RouterError::Stale)?,
-                &filter,
-                qos,
-                subscription_flags,
-                identifier,
-            );
+            let session = candidate
+                .sessions
+                .get_mut(client_id)
+                .ok_or(RouterError::Stale)?;
+            let already_existed =
+                update_subscription(session, &filter, qos, subscription_flags, identifier);
+            if inner.is_some() {
+                session.shared_filters.insert(filter.clone());
+            } else {
+                session.shared_filters.remove(&filter);
+            }
             codes.push(qos);
+            if inner.is_some() {
+                continue;
+            }
             if retain_handling == 2 || retain_handling == 1 && already_existed {
                 continue;
             }
@@ -2192,7 +2244,7 @@ impl Actor {
                 add_retained_match(&mut retained_matches, topic, qos, identifier);
             }
         }
-        if codes.iter().all(|code| *code == 0x80) {
+        if codes.iter().all(|code| *code >= 0x80) {
             return Ok((codes, Vec::new()));
         }
         let mut deliveries = Vec::with_capacity(retained_matches.len());
@@ -2268,6 +2320,7 @@ impl Actor {
             let removed = session.subscriptions.remove(&filter).is_some();
             session.subscription_options.remove(&filter);
             session.subscription_identifiers.remove(&filter);
+            session.shared_filters.remove(&filter);
             codes.push(if removed { 0x00 } else { 0x11 });
             changed |= removed;
         }
@@ -2696,12 +2749,39 @@ fn apply_message(
         return Ok(Vec::new());
     }
     let mut deliveries = Vec::new();
+    let mut groups: BTreeMap<TopicFilter, Vec<SharedCandidate>> = BTreeMap::new();
     for (client_id, session) in &mut state.sessions {
         if !auth.allowed_delivery(&session.principal, message.topic.as_str()) {
             continue;
         }
+        if live.contains_key(client_id) {
+            for filter in &session.shared_filters {
+                let Some(inner) = super::topic::shared_inner(filter.as_str()) else {
+                    continue;
+                };
+                if !super::topic::matches_filter(inner, message.topic.as_str()) {
+                    continue;
+                }
+                if let Some(&qos) = session.subscriptions.get(filter) {
+                    let preserve_retain = session
+                        .subscription_options
+                        .get(filter)
+                        .is_some_and(|bits| bits & 0x08 != 0);
+                    groups
+                        .entry(filter.clone())
+                        .or_default()
+                        .push(SharedCandidate {
+                            client_id: client_id.clone(),
+                            qos,
+                            preserve_retain,
+                            identifier: session.subscription_identifiers.get(filter).copied(),
+                        });
+                }
+            }
+        }
         let matching = session.subscriptions.iter().filter(|(filter, _)| {
-            filter.matches(&message.topic)
+            !session.shared_filters.contains(*filter)
+                && filter.matches(&message.topic)
                 && !(publisher_id == Some(client_id.as_str())
                     && session
                         .subscription_options
@@ -2742,7 +2822,60 @@ fn apply_message(
             session.offline.push_back(outbound);
         }
     }
+    apply_shared_deliveries(limits, state, live, message, &groups, &mut deliveries)?;
     Ok(deliveries)
+}
+
+fn apply_shared_deliveries(
+    limits: StateLimits,
+    state: &mut DurableState,
+    live: &BTreeMap<String, Live>,
+    message: &StoredMessage,
+    groups: &BTreeMap<TopicFilter, Vec<SharedCandidate>>,
+    deliveries: &mut Vec<(String, Delivery)>,
+) -> Result<(), RouterError> {
+    if groups.is_empty() {
+        return Ok(());
+    }
+    let turn = state.shared_cursor;
+    state.shared_cursor = state.shared_cursor.wrapping_add(1);
+    for members in groups.values() {
+        let modulus = u64::try_from(members.len()).unwrap_or(u64::MAX);
+        let index = usize::try_from(turn % modulus).unwrap_or_default();
+        let choice = &members[index];
+        let session = state
+            .sessions
+            .get_mut(&choice.client_id)
+            .ok_or(RouterError::Stale)?;
+        let connection = live.get(&choice.client_id).ok_or(RouterError::Stale)?;
+        let mut outbound = message.clone();
+        outbound.qos = outbound.qos.min(choice.qos);
+        outbound.retain &= choice.preserve_retain;
+        outbound.subscription_identifiers = choice.identifier.into_iter().collect();
+        let queued = deliveries
+            .iter()
+            .filter(|(recipient, delivery)| {
+                recipient == &choice.client_id
+                    && matches!(
+                        delivery,
+                        Delivery::Publish {
+                            packet_id: Some(_),
+                            ..
+                        }
+                    )
+            })
+            .count();
+        if outbound.qos > 0
+            && (session.outbound.len() >= limits.max_inflight
+                || connection.sent_unacked.len() + queued >= connection.receive_maximum)
+        {
+            session.offline.push_back(outbound);
+        } else {
+            let delivery = prepare_delivery(limits, session, outbound)?;
+            deliveries.push((choice.client_id.clone(), delivery));
+        }
+    }
+    Ok(())
 }
 
 fn prepare_delivery(
@@ -3979,6 +4112,200 @@ mod tests {
                 commits_since_snapshot: 0,
             },
         )
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_routes_one_member_per_group_without_initial_retained() {
+        let (directory, mut actor) = actor().await;
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 0, true, b"retained"),
+                None,
+            )
+            .await
+            .unwrap();
+        let mut first = actor
+            .register("first".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut second = actor
+            .register("second".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut normal = actor
+            .register("normal".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for session in [&first, &second] {
+            let (codes, retained) = actor
+                .subscribe_with_shared(
+                    &session.client_id,
+                    session.generation,
+                    vec![(filter("$share/g/test/#"), Some(0), 0, 0)],
+                    Some(7),
+                    true,
+                )
+                .await
+                .unwrap();
+            assert_eq!(codes, [0]);
+            assert!(retained.is_empty());
+        }
+        let (codes, retained) = actor
+            .subscribe_with_shared(
+                "normal",
+                normal.generation,
+                vec![(filter("test/#"), Some(0), 0, 0)],
+                Some(8),
+                true,
+            )
+            .await
+            .unwrap();
+        assert_eq!(codes, [0]);
+        assert_eq!(retained.len(), 1);
+        for number in 0..4 {
+            actor
+                .publish(
+                    "source",
+                    publisher.generation,
+                    message("test/state", 0, false, &[number]),
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+        let mut first_count = 0;
+        let mut second_count = 0;
+        for receiver in [&mut first, &mut second] {
+            while let Ok(Delivery::Publish { message, .. }) = receiver.outbound.try_recv() {
+                assert_eq!(message.subscription_identifiers, [7]);
+                if receiver.client_id == "first" {
+                    first_count += 1;
+                } else {
+                    second_count += 1;
+                }
+            }
+        }
+        assert_eq!((first_count, second_count), (2, 2));
+        for _ in 0..4 {
+            assert!(matches!(normal.outbound.try_recv(),
+                Ok(Delivery::Publish { message, .. }) if message.subscription_identifiers == [8]));
+        }
+        assert!(normal.outbound.try_recv().is_err());
+        assert_eq!(
+            actor
+                .unsubscribe("first", first.generation, vec![filter("$share/g/test/#")])
+                .await
+                .unwrap(),
+            [0]
+        );
+        actor.store.shutdown().await.unwrap();
+        let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert!(
+            recovered
+                .sessions
+                .values()
+                .all(|session| session.shared_filters.is_empty())
+        );
+        reconcile_recovered_sessions(&mut recovered, &actor.auth).unwrap();
+        assert!(recovered.sessions.is_empty());
+        store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_shared_rejects_persistent_and_keeps_normal_copy_independent() {
+        let (directory, mut actor) = actor().await;
+        actor.auth = Arc::new(AccessPolicy::acl_lab(policy(directory.path(), true)));
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut member = actor
+            .register("member".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let persistent = actor
+            .register("persistent".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let (codes, retained) = actor
+            .subscribe_with_shared(
+                "persistent",
+                persistent.generation,
+                vec![(filter("$share/g/test/state"), Some(1), 0, 0)],
+                None,
+                true,
+            )
+            .await
+            .unwrap();
+        assert_eq!(codes, [0x9e]);
+        assert!(retained.is_empty());
+        assert!(actor.state.sessions["persistent"].subscriptions.is_empty());
+        let (codes, _) = actor
+            .subscribe_with_shared(
+                "member",
+                member.generation,
+                vec![(filter("$share/g/forbidden/#"), Some(1), 0, 0)],
+                None,
+                true,
+            )
+            .await
+            .unwrap();
+        assert_eq!(codes, [0x80]);
+        assert!(actor.state.sessions["member"].shared_filters.is_empty());
+        actor
+            .subscribe_with_shared(
+                "member",
+                member.generation,
+                vec![(filter("$share/g/test/state"), Some(1), 0, 0)],
+                Some(3),
+                true,
+            )
+            .await
+            .unwrap();
+        actor
+            .subscribe_with_shared(
+                "member",
+                member.generation,
+                vec![(filter("test/state"), Some(1), 0, 0)],
+                Some(4),
+                true,
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 1, false, b"both"),
+                Some(10),
+            )
+            .await
+            .unwrap();
+        let mut ids = Vec::new();
+        for _ in 0..2 {
+            let Delivery::Publish {
+                message,
+                packet_id: Some(id),
+                ..
+            } = member.outbound.try_recv().unwrap()
+            else {
+                panic!("expected QoS1 delivery");
+            };
+            ids.push(message.subscription_identifiers);
+            actor
+                .ack("member", member.generation, AckKind::Ack, id)
+                .await
+                .unwrap();
+        }
+        ids.sort();
+        assert_eq!(ids, [vec![3], vec![4]]);
+        actor.store.shutdown().await.unwrap();
     }
 
     #[tokio::test]

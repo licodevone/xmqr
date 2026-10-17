@@ -555,6 +555,11 @@ fn decode_for(
                 let topic = TopicFilter::try_from(c.text()?)?;
                 let options = c.byte()?;
                 let retain_handling = if mqtt5 {
+                    if topic.as_str().starts_with("$share/")
+                        && super::topic::shared_inner(topic.as_str()).is_none()
+                    {
+                        return Err("invalid MQTT 5 shared subscription filter".into());
+                    }
                     if options & 0xc0 != 0 {
                         return Err("reserved MQTT 5 SUBSCRIBE option bit".into());
                     }
@@ -807,8 +812,8 @@ pub(super) fn encode_connack(code: u8) -> [u8; 4] {
 pub(super) fn encode_mqtt5_connack(reason: u8) -> [u8; 5] {
     [0x20, 0x03, 0x00, reason, 0x00]
 }
-pub(super) fn encode_mqtt5_shared_unavailable_connack(session_present: bool) -> [u8; 7] {
-    [0x20, 0x05, u8::from(session_present), 0, 2, 0x2a, 0]
+pub(super) fn encode_mqtt5_shared_available_connack(session_present: bool) -> [u8; 7] {
+    [0x20, 0x05, u8::from(session_present), 0, 2, 0x2a, 1]
 }
 pub(super) fn encode_mqtt5_success_connack(session_present: bool) -> [u8; 12] {
     // Maximum QoS absent means 2; Maximum Packet Size=65536 (0x27).
@@ -824,7 +829,7 @@ pub(super) fn encode_mqtt5_success_connack(session_present: bool) -> [u8; 12] {
         0,
         0,
         0x2a,
-        0,
+        1,
     ]
 }
 pub(super) fn encode_mqtt5_alias_connack(session_present: bool) -> [u8; 15] {
@@ -844,7 +849,7 @@ pub(super) fn encode_mqtt5_alias_connack(session_present: bool) -> [u8; 15] {
         0,
         MAX_TOPIC_ALIAS,
         0x2a,
-        0,
+        1,
     ]
 }
 
@@ -1356,7 +1361,7 @@ mod tests {
         assert!(reader.try_take_packet().is_err());
         assert_eq!(
             encode_mqtt5_alias_connack(false),
-            [0x20, 0x0d, 0, 0, 10, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 0]
+            [0x20, 0x0d, 0, 0, 10, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 1]
         );
     }
 
@@ -1630,18 +1635,18 @@ mod tests {
         ));
         assert_eq!(encode_mqtt5_connack(0), [0x20, 3, 0, 0, 0]);
         assert_eq!(
-            encode_mqtt5_shared_unavailable_connack(false),
-            [0x20, 5, 0, 0, 2, 0x2a, 0]
+            encode_mqtt5_shared_available_connack(false),
+            [0x20, 5, 0, 0, 2, 0x2a, 1]
         );
         assert_eq!(
             encode_mqtt5_success_connack(false),
-            [0x20, 10, 0, 0, 7, 0x27, 0, 1, 0, 0, 0x2a, 0]
+            [0x20, 10, 0, 0, 7, 0x27, 0, 1, 0, 0, 0x2a, 1]
         );
         assert_eq!(encode_mqtt5_success_connack(true)[2], 1);
         assert_eq!(
             append_mqtt5_receive_maximum(encode_mqtt5_alias_connack(true).to_vec(), 1),
             [
-                0x20, 0x10, 1, 0, 0x0d, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 0, 0x21, 0, 1
+                0x20, 0x10, 1, 0, 0x0d, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 1, 0x21, 0, 1
             ]
         );
         assert_eq!(
@@ -1803,6 +1808,34 @@ mod tests {
             .is_err()
         );
         assert!(decode_for(0x82, &[0, 1, 0, 1, b'x', 0x20], false).is_err());
+    }
+
+    #[test]
+    fn mqtt5_shared_filter_requires_group_inner_filter_and_no_local_clear() {
+        for valid in ["$share/g/test/#", "$share/grupo/+/value"] {
+            let mut body = vec![0, 1, 0];
+            body.extend_from_slice(&u16::try_from(valid.len()).unwrap().to_be_bytes());
+            body.extend_from_slice(valid.as_bytes());
+            body.push(2);
+            assert!(matches!(
+                decode_for(0x82, &body, true),
+                Ok(Packet::Subscribe { .. })
+            ));
+            *body.last_mut().unwrap() = 0x06;
+            assert!(decode_for(0x82, &body, true).is_err());
+        }
+        for invalid in [
+            "$share//test/#",
+            "$share/g/",
+            "$share/+/test",
+            "$share/g/test/#/tail",
+        ] {
+            let mut body = vec![0, 1, 0];
+            body.extend_from_slice(&u16::try_from(invalid.len()).unwrap().to_be_bytes());
+            body.extend_from_slice(invalid.as_bytes());
+            body.push(0);
+            assert!(decode_for(0x82, &body, true).is_err(), "{invalid}");
+        }
     }
 
     #[test]

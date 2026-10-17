@@ -11,7 +11,7 @@ use tokio::{
 };
 
 const MQTT5_SUCCESS_CONNACK: [u8; 18] = [
-    0x20, 16, 0, 0, 13, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 0, 0x21, 0, 32,
+    0x20, 16, 0, 0, 13, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 1, 0x21, 0, 32,
 ];
 
 fn connect(id: &[u8], clean: bool, level: u8) -> Vec<u8> {
