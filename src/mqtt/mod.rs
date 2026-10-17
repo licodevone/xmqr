@@ -144,6 +144,17 @@ async fn serve_mqtt(
         // Even the minimal MQTT 5 CONNACK cannot fit. No session was created.
         return Ok(());
     }
+    if mqtt5 && outbound_maximum < 7 {
+        // An omitted Shared Subscription Available property would falsely
+        // advertise support. Refuse before creating durable session state.
+        write_limited(
+            connection,
+            &codec::encode_mqtt5_connack(0x95),
+            outbound_maximum,
+        )
+        .await?;
+        return Ok(());
+    }
     let refusal = |legacy: u8, v5: u8| -> Vec<u8> {
         if mqtt5 {
             codec::encode_mqtt5_connack(v5).to_vec()
@@ -213,19 +224,17 @@ async fn serve_mqtt(
         Err(error) => return Err(error.into()),
     };
     let mut guard = router.connection_guard(&session);
-    let advertised_alias_maximum = if mqtt5 && outbound_maximum >= 13 {
+    let advertised_alias_maximum = if mqtt5 && outbound_maximum >= 15 {
         u16::from(codec::MAX_TOPIC_ALIAS)
     } else {
         0
     };
     let mut connack = if advertised_alias_maximum != 0 {
         codec::encode_mqtt5_alias_connack(session.resumed).to_vec()
-    } else if mqtt5 && outbound_maximum >= 10 {
+    } else if mqtt5 && outbound_maximum >= 12 {
         codec::encode_mqtt5_success_connack(session.resumed).to_vec()
     } else if mqtt5 {
-        let mut minimal = codec::encode_mqtt5_connack(0);
-        minimal[2] = u8::from(session.resumed);
-        minimal.to_vec()
+        codec::encode_mqtt5_shared_unavailable_connack(session.resumed).to_vec()
     } else {
         encode_connack_with_session(0, session.resumed)?.to_vec()
     };
@@ -279,6 +288,10 @@ async fn serve_mqtt(
                     last_inbound = Instant::now();
                     match incoming? {
                         Packet::Subscribe { packet_id, filters, subscription_identifier } => {
+                            if mqtt5 && filters.iter().any(|(filter, ..)| filter.as_str().starts_with("$share/")) {
+                                write_limited(connection, &[0xe0, 0x02, 0x9e, 0x00], outbound_maximum).await?;
+                                return Ok(());
+                            }
                             let requested = filters.into_iter().map(|(filter,qos,retain_handling,subscription_flags)| {
                                 let granted = auth.allowed_subscribe(&principal, filter.as_str()).then_some(qos.as_u8());
                                 (filter, granted, retain_handling, subscription_flags)

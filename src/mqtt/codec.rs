@@ -807,29 +807,34 @@ pub(super) fn encode_connack(code: u8) -> [u8; 4] {
 pub(super) fn encode_mqtt5_connack(reason: u8) -> [u8; 5] {
     [0x20, 0x03, 0x00, reason, 0x00]
 }
-pub(super) fn encode_mqtt5_success_connack(session_present: bool) -> [u8; 10] {
+pub(super) fn encode_mqtt5_shared_unavailable_connack(session_present: bool) -> [u8; 7] {
+    [0x20, 0x05, u8::from(session_present), 0, 2, 0x2a, 0]
+}
+pub(super) fn encode_mqtt5_success_connack(session_present: bool) -> [u8; 12] {
     // Maximum QoS absent means 2; Maximum Packet Size=65536 (0x27).
     [
         0x20,
-        0x08,
+        0x0a,
         u8::from(session_present),
         0x00,
-        0x05,
+        0x07,
         0x27,
         0,
         1,
         0,
         0,
+        0x2a,
+        0,
     ]
 }
-pub(super) fn encode_mqtt5_alias_connack(session_present: bool) -> [u8; 13] {
+pub(super) fn encode_mqtt5_alias_connack(session_present: bool) -> [u8; 15] {
     // The server accepts only inbound aliases 1..=16 for this connection.
     [
         0x20,
-        0x0b,
+        0x0d,
         u8::from(session_present),
         0,
-        0x08,
+        0x0a,
         0x27,
         0,
         1,
@@ -838,6 +843,8 @@ pub(super) fn encode_mqtt5_alias_connack(session_present: bool) -> [u8; 13] {
         0x22,
         0,
         MAX_TOPIC_ALIAS,
+        0x2a,
+        0,
     ]
 }
 
@@ -1349,7 +1356,7 @@ mod tests {
         assert!(reader.try_take_packet().is_err());
         assert_eq!(
             encode_mqtt5_alias_connack(false),
-            [0x20, 0x0b, 0, 0, 8, 0x27, 0, 1, 0, 0, 0x22, 0, 16]
+            [0x20, 0x0d, 0, 0, 10, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 0]
         );
     }
 
@@ -1623,14 +1630,18 @@ mod tests {
         ));
         assert_eq!(encode_mqtt5_connack(0), [0x20, 3, 0, 0, 0]);
         assert_eq!(
+            encode_mqtt5_shared_unavailable_connack(false),
+            [0x20, 5, 0, 0, 2, 0x2a, 0]
+        );
+        assert_eq!(
             encode_mqtt5_success_connack(false),
-            [0x20, 8, 0, 0, 5, 0x27, 0, 1, 0, 0]
+            [0x20, 10, 0, 0, 7, 0x27, 0, 1, 0, 0, 0x2a, 0]
         );
         assert_eq!(encode_mqtt5_success_connack(true)[2], 1);
         assert_eq!(
             append_mqtt5_receive_maximum(encode_mqtt5_alias_connack(true).to_vec(), 1),
             [
-                0x20, 0x0e, 1, 0, 0x0b, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x21, 0, 1
+                0x20, 0x10, 1, 0, 0x0d, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 0, 0x21, 0, 1
             ]
         );
         assert_eq!(

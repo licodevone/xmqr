@@ -22,8 +22,12 @@ def connect(port, identity, maximum, clean=True):
             + len(identity).to_bytes(2, "big") + identity)
     stream.sendall(bytes([0x10, len(body)]) + body)
     header, ack = packet(stream)
-    assert header == 0x20 and ack[1] == 0, (header, ack)
-    assert len(ack) == (14 if maximum >= 16 else 11 if maximum >= 13 else 8 if maximum >= 10 else 6 if maximum >= 8 else 3), ack
+    assert header == 0x20, (header, ack)
+    if maximum < 7:
+        assert ack == b"\x00\x95\x00", ack
+        return stream
+    assert ack[1] == 0 and b"\x2a\x00" in ack, ack
+    assert len(ack) == (16 if maximum >= 18 else 13 if maximum >= 15 else 10 if maximum >= 12 else 8 if maximum >= 10 else 5), ack
     return stream
 
 
@@ -73,11 +77,13 @@ def main():
             port = probe.getsockname()[1]
         broker = start(port, state)
         try:
-            short = connect(port, b"small-connack", 5)
-            subscribe_body = b"\x00\x01\x00" + len(TOPIC).to_bytes(2, "big") + TOPIC + b"\x01"
-            short.sendall(bytes([0x82, len(subscribe_body)]) + subscribe_body)
-            assert short.recv(1) == b"", "SUBACK above the negotiated maximum was sent"
-            short.close()
+            for maximum in (5, 6):
+                short = connect(port, b"small-connack", maximum)
+                assert short.recv(1) == b"", "connection accepted without shared capability announcement"
+                short.close()
+            for maximum in (7, 12, 15, 18):
+                accepted = connect(port, f"connack-{maximum}".encode(), maximum)
+                accepted.close()
 
             subscriber = connect(port, b"packet-subscriber", 32)
             subscribe(subscriber)

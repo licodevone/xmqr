@@ -1,12 +1,19 @@
 # Versionamento
 
+## P152 — capacidade compartilhada indisponível
+
+CONNACK MQTT 5 anuncia explicitamente `Shared Subscription Available=0` até o
+roteamento compartilhado ser implementado e aceito. Não há mudança no formato
+durável v12; a família 0.25.0 publicada continua inalterada. P152 é fonte em
+desenvolvimento, sem tag própria.
+
 ## P151 — marco 0.25.0 e estado v12 (experimental publicado)
 
 P150 Subscription Identifier MQTT 5 acrescenta mapa por filtro e IDs nas entregas
 duráveis, com leitura de v1..v11 e gravação v12. Broker 0.24.0/admin
 independente 0.6.0 não reabrem v12; rollback exige backup privado v11 anterior
 à primeira gravação, broker parado e pacote anterior. A distribuição P151 foi
-aceita; o pin do admin independente requer A15. Fases 6A–6D e 7–9 seguem abertas.
+aceita; o admin independente 0.7.0 foi pinado e aceito em A15. Fases 6A–6D e 7–9 seguem abertas.
 [Nota de release](docs/releases/0.25.0.md).
 
 ## P149 — marco de opções de assinatura MQTT 5 (experimental publicado)

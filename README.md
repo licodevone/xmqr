@@ -1,9 +1,14 @@
 # XMQR
 
+Em desenvolvimento após 0.25.0, P152 anuncia que shared subscriptions MQTT 5
+ainda não são oferecidas e recusa `$share/` com DISCONNECT 0x9E. O client C89
+já valida filtros compartilhados com Mosquitto 2.0.22; o broker XMQR ainda não
+distribui publicações entre membros do mesmo grupo.
+
 A versão experimental 0.25.0 inclui P150: aceita Subscription Identifier no
 SUBSCRIBE MQTT 5 e entrega os IDs correspondentes ao assinante, inclusive em
 fila durável e após reinício. O estado passa a v12 na próxima gravação; broker
-0.24.0 e admin independente 0.6.0 não reabrem v12. Preserve backup privado
+0.24.0 e admin independente 0.6.0 não reabrem v12; admin 0.7.0 o lê. Preserve backup privado
 v11 antes de iniciar esta versão. [Release 0.25.0](https://github.com/licodevone/xmqr/releases/tag/v0.25.0) e [aceite P151](prompts/registros/P151-release-0.25.0.md).
 
 A versão experimental 0.24.0 reúne P146–P148, incluindo No Local e Retain As

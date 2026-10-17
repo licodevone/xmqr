@@ -10,8 +10,8 @@ use tokio::{
     time::timeout,
 };
 
-const MQTT5_SUCCESS_CONNACK: [u8; 16] = [
-    0x20, 14, 0, 0, 11, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x21, 0, 32,
+const MQTT5_SUCCESS_CONNACK: [u8; 18] = [
+    0x20, 16, 0, 0, 13, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 0, 0x21, 0, 32,
 ];
 
 fn connect(id: &[u8], clean: bool, level: u8) -> Vec<u8> {
@@ -368,7 +368,7 @@ async fn mqtt5_qos0_qos1_qos2_reach_mqtt311_subscriber() {
             .write_all(&connect(b"publisher", true, 5))
             .await
             .unwrap();
-        let mut ack5 = [0; 16];
+        let mut ack5 = [0; 18];
         timeout(Duration::from_secs(3), publisher.read_exact(&mut ack5))
             .await
             .unwrap()
@@ -434,7 +434,7 @@ async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
         .write_all(&authenticated_connect(b"publisher", 5))
         .await
         .unwrap();
-    let mut connack = [0; 16];
+    let mut connack = [0; 18];
     timeout(Duration::from_secs(3), publisher.read_exact(&mut connack))
         .await
         .unwrap()
@@ -514,7 +514,7 @@ async fn mqtt5_unsubscribe_reports_each_filter_and_stops_delivery() {
     });
     let mut stream = TcpStream::connect(address).await.unwrap();
     stream.write_all(&connect(b"sub", true, 5)).await.unwrap();
-    let mut connack = [0; 16];
+    let mut connack = [0; 18];
     timeout(Duration::from_secs(3), stream.read_exact(&mut connack))
         .await
         .unwrap()
@@ -627,7 +627,7 @@ async fn mqtt5_subscriber_receives_retained_and_live_qos1_from_v311() {
         .write_all(&connect(b"subscriber", true, 5))
         .await
         .unwrap();
-    let mut ack5 = [0; 16];
+    let mut ack5 = [0; 18];
     timeout(Duration::from_secs(3), subscriber.read_exact(&mut ack5))
         .await
         .unwrap()

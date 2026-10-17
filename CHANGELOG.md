@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Em desenvolvimento após 0.25.0
+
+- P152: CONNACK MQTT 5 anuncia Shared Subscription Available=0 (0x2A); SUBSCRIBE `$share/` recebe DISCONNECT 0x9E sem registrar filtros. Limites Maximum Packet Size que não comportam o anúncio recusam CONNECT antes de criar sessão. O roteamento compartilhado permanece futuro.
+
 ## 0.25.0 — Subscription Identifier MQTT 5 (experimental)
 
 - P150: SUBSCRIBE MQTT 5 aceita Subscription Identifier 1..268435455; guarda o valor por filtro no documento durável v12 e envia os IDs correspondentes nos PUBLISH QoS0/1/2, retained, offline e após restart. Filtros sobrepostos preservam IDs duplicados. Client não pode enviar a propriedade em PUBLISH. O admin independente 0.6.0 ainda não abre v12; rollback exige backup privado v11 anterior à migração.
