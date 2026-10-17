@@ -1,5 +1,13 @@
 # Versionamento
 
+## P143 — marco de metadados de PUBLISH MQTT 5
+
+Broker e `mqtt-admin` legado 0.22.0 incluem P141/P142; client independente
+0.20.0 inclui C77/C78. O documento durável passa a v10; rollback ao broker
+0.21.0 exige backup privado v8 anterior à primeira gravação nova. O admin
+independente permanece 0.4.0. Fases 6A–6D e 7–9 continuam abertas.
+[Nota de release](docs/releases/0.22.0.md).
+
 ## P141 — aceito em main após 0.21.0
 
 Payload Format Indicator e Content Type MQTT 5 são preservados na mensagem
