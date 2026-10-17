@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
-Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-16.
-Versões publicadas atuais: broker/admin legado0.20.0, client independente0.18.0
+Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
+Versões publicadas atuais: broker/admin legado0.21.0, client independente0.19.0
 e xmqr-admin independente0.4.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
@@ -160,7 +160,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Distribuição P137/C74: tags v0.20.0/v0.18.0, pacotes Ubuntu26, imagens numeradas e prereleases com manifesto, SHA-256 e rollback.~~ [Broker](../prompts/registros/P137-release-0.20.0.md) e [client](../../xmqr-client/prompts/registros/C74-release-0.18.0.md). Fases 6A–6D ainda abertas.
 - [x] ~~Fase 6C/P138 parcial: Topic Alias de entrada MQTT 5 limitado a 16 por conexão, reset em reconnect, ACL sobre tópico resolvido e fallback de CONNACK sob limite de pacote; integração e CI PASS.~~ [Evidência](../prompts/registros/P138-topic-alias-entrada-mqtt5.md). Alias de saída e aceite global 6C pendentes.
 - [x] ~~Fase 6C/P139/C75 parcial: broker envia Topic Alias quando o assinante MQTT 5 anuncia suporte; client resolve tópico recebido; testes QoS0/1/2, retained, restart, limites e CIs PASS.~~ Mosquitto 2.0.22 rejeita o segundo pacote abreviado válido até em fixture isolada; essa direção externa não está homologada. [Broker](../prompts/registros/P139-topic-alias-saida-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C75-topic-alias-maximum-mqtt5.md). Propriedades de publicação e aceite global 6C pendentes.
-- [ ] Distribuição P140/C76 em validação: tags 0.21.0/0.19.0, pacotes Ubuntu26, imagens numeradas e prereleases com manifesto, SHA-256 e rollback. [Broker](../prompts/registros/P140-release-0.21.0.md) e [client](../../xmqr-client/prompts/registros/C76-release-0.19.0.md). Não marca fases 6A–6D como completas.
+- [x] ~~Distribuição P140/C76: tags 0.21.0/0.19.0, pacotes Ubuntu26, imagens numeradas e prereleases com manifesto, SHA-256 e rollback verificados.~~ [Broker](../prompts/registros/P140-release-0.21.0.md) e [client](../../xmqr-client/prompts/registros/C76-release-0.19.0.md). Fases 6A–6D seguem abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
