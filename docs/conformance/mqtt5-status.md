@@ -81,6 +81,10 @@ fora de contexto em SUBSCRIBE/UNSUBSCRIBE e `0x82` para Subscription Identifier
 duplicado em SUBSCRIBE, após CONNACK MQTT 5. O broker fecha e publica Will
 quando cabível, sem alterar a assinatura. Truncamento, UTF-8 inválido, quotas
 e os demais erros ainda não compartilham uma classificação completa.
+P183 responde com CONNACK `0x81` quando o identificador de propriedade de
+CONNECT ou Will está fora de contexto, antes de criar sessão/Will. O limite
+Maximum Packet Size conhecido é aplicado ao CONNACK. A classificação não se
+estende a truncamento, UTF-8 inválido, quotas ou outros erros semânticos.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
@@ -181,9 +185,9 @@ Identifier e quotas do destinatário. Sem membro elegível/capacidade, descarta
 a obrigação; QoS2 continua vinculado à sessão escolhida. Fonte v14 ainda não
 foi distribuída nem validada pelo admin independente 0.8.0.
 
-O broker recusa propriedades de CONNECT e Will fora do subconjunto
-P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
-subconjunto encerram a conexão. Ainda não há
+O broker recusa identificadores de propriedades de CONNECT e Will fora do
+contexto com `CONNACK` 5 `0x81` após P183, antes de criar sessão. Outros erros
+malformados ainda podem encerrar a conexão sem CONNACK. Ainda não há
 demais propriedades de publicação, fluxo de envio completo do client ou AUTH.
 Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. P128 migra o documento durável de v5 para v6 na próxima
