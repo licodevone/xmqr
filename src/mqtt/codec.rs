@@ -54,6 +54,7 @@ pub(super) enum Packet {
         mqtt5: bool,
         client_id: String,
         clean_session: bool,
+        session_expiry: u32,
         keep_alive: u16,
         will: Option<super::store::StoredMessage>,
         username: Option<String>,
@@ -243,9 +244,10 @@ impl<'a> Cursor<'a> {
     }
 }
 
-fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<bool, &'static str> {
+fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Option<u32>, &'static str> {
     let mut properties = Cursor::new(raw);
     let mut expiry_seen = false;
+    let mut expiry = 0;
     let mut receive_seen = false;
     let mut problem_seen = false;
     let mut response_seen = false;
@@ -257,8 +259,9 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<bool, &'static str> 
                     return Err("duplicate MQTT 5 Session Expiry");
                 }
                 expiry_seen = true;
-                if properties.bytes(4)? != [0, 0, 0, 0] {
-                    return Ok(false);
+                expiry = u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
+                if expiry != 0 && expiry != u32::MAX {
+                    return Ok(None);
                 }
             }
             0x21 => {
@@ -293,10 +296,10 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<bool, &'static str> 
                 let _ = properties.text()?;
                 let _ = properties.text()?;
             }
-            _ => return Ok(false),
+            _ => return Ok(None),
         }
     }
-    Ok(true)
+    Ok(Some(expiry))
 }
 
 fn is_noncharacter(ch: char) -> bool {
@@ -351,12 +354,16 @@ fn decode_for(
             }
             let clean_session = flags & 0x02 != 0;
             let keep_alive = c.word()?;
+            let mut session_expiry = 0;
             if level == 5 {
                 let property_length = c.variable_integer()?;
                 let properties = c.bytes(property_length)?;
-                // Zero Session Expiry is equivalent to the default. Full
-                // outbound Receive Maximum flow control remains in phase 6C.
-                if !clean_session || has_will || !mqtt5_connect_properties_supported(properties)? {
+                // Finite expiry and Will require timed state transitions not yet supported.
+                let Some(expiry) = mqtt5_connect_properties_supported(properties)? else {
+                    return Ok(Packet::UnsupportedConnect5);
+                };
+                session_expiry = expiry;
+                if has_will {
                     return Ok(Packet::UnsupportedConnect5);
                 }
             }
@@ -385,6 +392,7 @@ fn decode_for(
                 mqtt5: level == 5,
                 client_id,
                 clean_session,
+                session_expiry,
                 keep_alive,
                 will,
                 username,
@@ -548,9 +556,20 @@ pub(super) fn encode_connack(code: u8) -> [u8; 4] {
 pub(super) fn encode_mqtt5_connack(reason: u8) -> [u8; 5] {
     [0x20, 0x03, 0x00, reason, 0x00]
 }
-pub(super) fn encode_mqtt5_success_connack() -> [u8; 10] {
+pub(super) fn encode_mqtt5_success_connack(session_present: bool) -> [u8; 10] {
     // Maximum QoS absent means 2; Maximum Packet Size=65536 (0x27).
-    [0x20, 0x08, 0x00, 0x00, 0x05, 0x27, 0, 1, 0, 0]
+    [
+        0x20,
+        0x08,
+        u8::from(session_present),
+        0x00,
+        0x05,
+        0x27,
+        0,
+        1,
+        0,
+        0,
+    ]
 }
 pub(super) fn encode_connack_with_session(
     code: u8,
@@ -702,9 +721,10 @@ mod tests {
         ));
         assert_eq!(encode_mqtt5_connack(0), [0x20, 3, 0, 0, 0]);
         assert_eq!(
-            encode_mqtt5_success_connack(),
+            encode_mqtt5_success_connack(false),
             [0x20, 8, 0, 0, 5, 0x27, 0, 1, 0, 0]
         );
+        assert_eq!(encode_mqtt5_success_connack(true)[2], 1);
     }
 
     #[test]
@@ -838,7 +858,18 @@ mod tests {
             decode(0x10, &mosquitto).unwrap(),
             Packet::Connect { mqtt5: true, .. }
         ));
-        assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x11, 0, 0, 0, 0]).unwrap());
+        assert_eq!(
+            mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x11, 0, 0, 0, 0]).unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            mqtt5_connect_properties_supported(&[0x11, 255, 255, 255, 255]).unwrap(),
+            Some(u32::MAX)
+        );
+        assert_eq!(
+            mqtt5_connect_properties_supported(&[0x11, 0, 0, 0, 1]).unwrap(),
+            None
+        );
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 0]).is_err());
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x21, 0, 5]).is_err());
         assert!(
@@ -847,6 +878,7 @@ mod tests {
                 b'c',
             ])
             .unwrap()
+            .is_some()
         );
         for invalid in [
             &[0x17, 2][..],
@@ -859,7 +891,10 @@ mod tests {
         ] {
             assert!(mqtt5_connect_properties_supported(invalid).is_err());
         }
-        assert!(!mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10]).unwrap());
+        assert_eq!(
+            mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10]).unwrap(),
+            None
+        );
         assert!(decode_for(0x32, &[0, 1, b'a', 0, 1, 1, 0x23, b'x'], true).is_err());
         assert!(matches!(
             decode_for(0x34, &[0, 1, b'a', 0, 1, 0, b'x'], true).unwrap(),

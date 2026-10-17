@@ -1,6 +1,10 @@
 # MQTT 5 — subconjunto da fase 6A
 
-P115 aceita `CONNECT` MQTT 5 com Clean Start=1, Session Expiry ausente ou zero,
+P115 iniciou `CONNECT` MQTT 5 com Clean Start=1 e Session Expiry ausente ou zero.
+P127 acrescenta Clean Start=0/1 independente de Session Expiry=0/infinita (`0xFFFFFFFF`).
+O broker informa Session Present conforme o estado durável, conserva assinaturas
+e QoS offline após reinício para expiração infinita e remove a sessão ao encerrar
+a conexão com expiração zero. Intervalos finitos ainda são recusados com `0x83`.
 Receive Maximum válido opcional, sem Will. P123 acrescenta Request Problem
 Information, Request Response Information, Topic Alias Maximum e User Property
 no CONNECT. O broker valida valores e pares, mas não ecoa nem armazena essas
@@ -38,10 +42,10 @@ recebidos nesses pacotes ainda fecham a conexão neste subconjunto.
 Receive Maximum pode constar no CONNECT, mas o controle completo de fluxo de
 entrega ainda depende da fase 6C; não se declara conformidade MQTT 5 integral.
 
-O broker recusa Clean Start=0, Will e propriedades de CONNECT fora do subconjunto
-P123 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
+O broker recusa Will e propriedades de CONNECT fora do subconjunto
+P127 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há
-propriedades de publicação, sessão persistente/expiração, Will Delay, flow
+propriedades de publicação, expiração finita de sessão/mensagem, Will Delay, flow
 control, Topic Alias ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. O formato durável v5 não muda.
 
@@ -62,6 +66,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [C63](../../../xmqr-client/prompts/registros/C63-qos2-mqtt5.md),
 [P123](../../prompts/registros/P123-connect-properties-mqtt5.md) e
 [C64](../../../xmqr-client/prompts/registros/C64-connect-properties-mqtt5.md),
-[P126](../../prompts/registros/P126-ack-disconnect-mqtt5.md).
+[P126](../../prompts/registros/P126-ack-disconnect-mqtt5.md),
+[P127](../../prompts/registros/P127-sessao-mqtt5-zero-infinita.md) e
+[C66](../../../xmqr-client/prompts/registros/C66-sessao-mqtt5-zero-infinita.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

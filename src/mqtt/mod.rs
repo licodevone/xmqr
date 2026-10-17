@@ -101,6 +101,7 @@ async fn serve_mqtt(
         mqtt5,
         client_id,
         clean_session,
+        session_expiry,
         keep_alive,
         will,
         username,
@@ -153,10 +154,15 @@ async fn serve_mqtt(
         return Ok(());
     };
     let mut session = match router
-        .register_with_epoch(
+        .register_with_policy(
             client_id,
             principal.clone(),
             clean_session,
+            if mqtt5 {
+                session_expiry != 0
+            } else {
+                !clean_session
+            },
             will,
             Some(security_generation),
         )
@@ -173,7 +179,7 @@ async fn serve_mqtt(
     };
     let mut guard = router.connection_guard(&session);
     let connack = if mqtt5 {
-        codec::encode_mqtt5_success_connack().to_vec()
+        codec::encode_mqtt5_success_connack(session.resumed).to_vec()
     } else {
         encode_connack_with_session(0, session.resumed)?.to_vec()
     };

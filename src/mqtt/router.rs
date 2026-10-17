@@ -205,6 +205,7 @@ enum Command {
         client_id: String,
         principal: String,
         clean: bool,
+        persistent: bool,
         will: Option<StoredMessage>,
         reply: oneshot::Sender<Result<Session, RouterError>>,
     },
@@ -645,11 +646,32 @@ impl Router {
             .await
     }
 
+    #[cfg(test)]
     pub(super) async fn register_with_epoch(
         &self,
         client_id: String,
         principal: String,
         clean: bool,
+        will: Option<StoredMessage>,
+        security_generation: Option<u64>,
+    ) -> Result<Session, RouterError> {
+        self.register_with_policy(
+            client_id,
+            principal,
+            clean,
+            !clean,
+            will,
+            security_generation,
+        )
+        .await
+    }
+
+    pub(super) async fn register_with_policy(
+        &self,
+        client_id: String,
+        principal: String,
+        clean: bool,
+        persistent: bool,
         will: Option<StoredMessage>,
         security_generation: Option<u64>,
     ) -> Result<Session, RouterError> {
@@ -659,6 +681,7 @@ impl Router {
             client_id,
             principal,
             clean,
+            persistent,
             will,
             reply,
         })
@@ -980,6 +1003,7 @@ impl Actor {
                 client_id,
                 principal,
                 clean,
+                persistent,
                 will,
                 reply,
             } => {
@@ -987,7 +1011,7 @@ impl Actor {
                     if security_generation.is_some_and(|g| g != self.auth.security_generation()) {
                         Err(RouterError::Security)
                     } else {
-                        self.register_with_will(client_id, principal, clean, will)
+                        self.register_with_policy(client_id, principal, clean, persistent, will)
                             .await
                     };
                 self.record_result(&result);
@@ -1514,11 +1538,24 @@ impl Actor {
             .await
     }
 
+    #[cfg(test)]
     async fn register_with_will(
         &mut self,
         client_id: String,
         principal: String,
         clean: bool,
+        will: Option<StoredMessage>,
+    ) -> Result<Session, RouterError> {
+        self.register_with_policy(client_id, principal, clean, !clean, will)
+            .await
+    }
+
+    async fn register_with_policy(
+        &mut self,
+        client_id: String,
+        principal: String,
+        clean: bool,
+        persistent: bool,
         will: Option<StoredMessage>,
     ) -> Result<Session, RouterError> {
         let old = self.state.sessions.get(&client_id);
@@ -1542,9 +1579,12 @@ impl Actor {
         }
         let mut candidate = self.state.clone();
         if !session_present {
-            candidate
-                .sessions
-                .insert(client_id.clone(), DurableSession::new(principal, !clean));
+            candidate.sessions.insert(
+                client_id.clone(),
+                DurableSession::new(principal, persistent),
+            );
+        } else if let Some(session) = candidate.sessions.get_mut(&client_id) {
+            session.persistent = persistent;
         }
         if let Some(message) = will {
             candidate.pending_wills.insert(
@@ -3270,6 +3310,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn mqtt5_clean_start_and_expiry_control_independent_session_state() {
+        // MQTT-3.1.2.4 and MQTT-3.1.2.11.2: Clean Start chooses the initial
+        // state; Session Expiry decides whether it survives disconnection.
+        let (_directory, mut actor) = actor().await;
+        let fresh = actor
+            .register_with_policy("v5".into(), "user".into(), true, true, None)
+            .await
+            .unwrap();
+        assert!(!fresh.resumed);
+        actor
+            .subscribe(
+                "v5",
+                fresh.generation,
+                vec![(filter("test/state"), Some(1))],
+            )
+            .await
+            .unwrap();
+        actor.unregister("v5", fresh.generation).await.unwrap();
+        assert!(actor.state.sessions["v5"].persistent);
+
+        let resumed = actor
+            .register_with_policy("v5".into(), "user".into(), false, true, None)
+            .await
+            .unwrap();
+        assert!(resumed.resumed);
+        assert_eq!(actor.state.sessions["v5"].subscriptions.len(), 1);
+        actor.unregister("v5", resumed.generation).await.unwrap();
+
+        let expiring = actor
+            .register_with_policy("v5".into(), "user".into(), false, false, None)
+            .await
+            .unwrap();
+        assert!(expiring.resumed);
+        assert!(!actor.state.sessions["v5"].persistent);
+        actor.unregister("v5", expiring.generation).await.unwrap();
+        assert!(!actor.state.sessions.contains_key("v5"));
+
+        let empty = actor
+            .register_with_policy("v5".into(), "user".into(), false, true, None)
+            .await
+            .unwrap();
+        assert!(!empty.resumed);
+        actor.unregister("v5", empty.generation).await.unwrap();
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn retained_system_topics_require_explicit_filter_and_allowed_acl() {
         // MQTT-4.7.2-1 and MQTT-3.8.4-3: retained delivery uses the same matcher.
         let (directory, mut actor) = actor().await;
@@ -3842,6 +3929,7 @@ mod tests {
                 client_id: "stale".into(),
                 principal: "user".into(),
                 clean: true,
+                persistent: false,
                 will: None,
                 reply,
             })
