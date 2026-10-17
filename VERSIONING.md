@@ -1,12 +1,12 @@
 # Versionamento
 
-## P141 — em validação após 0.21.0
+## P141 — aceito em main após 0.21.0
 
 Payload Format Indicator e Content Type MQTT 5 são preservados na mensagem
 durável. O broker lê documentos v1–v8 e grava v9 na próxima transição.
 Rollback para 0.21.0 exige backup privado v8 anterior à migração; não abra
 estado v9 com 0.21.0. O client C77 publica essas propriedades. Sem tag/release
-para esta fatia enquanto os gates e a CI estiverem pendentes.
+para esta fatia isolada; testes, integração e CIs da fonte passaram.
 
 ## P140 — marco de Topic Alias MQTT 5
 

@@ -78,7 +78,7 @@ broker usa o nome completo sem alias quando couber. QoS0/1/2, retained e
 reinício foram testados em TCP real. O client XMQR C75 recebe e exibe o tópico
 resolvido. O Mosquitto 2.0.22 encerra a conexão ao receber a segunda forma
 abreviada válida, inclusive em fixture independente; esta direção externa
-não está homologada. P141, em validação após 0.21.0, aceita Payload Format
+não está homologada. P141, aceito em `main` após 0.21.0, aceita Payload Format
 Indicator `0x01` (0/1) e Content Type `0x03` (texto MQTT de até 256 bytes) em
 PUBLISH MQTT 5. Ambas são preservadas em QoS0/1/2, retained, offline e após
 restart, com documento durável v9 na próxima gravação. Em assinantes MQTT 3.1.1,
