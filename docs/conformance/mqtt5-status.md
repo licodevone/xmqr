@@ -74,13 +74,14 @@ sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
 PUBREC/PUBCOMP com código. O estado QoS2 existente continua durável.
 P126 aceita as três formas de sucesso dos ACKs MQTT 5 recebidos (ID apenas,
 motivo `0x00`, motivo `0x00` com comprimento de propriedades zero) e as formas
-equivalentes de DISCONNECT normal. Motivos de falha e propriedades não vazias
-recebidos nesses pacotes ainda fecham a conexão neste subconjunto, exceto
-PUBACK recebido após P169: códigos negativos válidos do client, Reason String
-única e User Property repetida concluem a tentativa QoS1 sem fechar a conexão.
-P170 também aceita PUBREC negativo válido do assinante: a tentativa QoS2 é
-removida do estado durável sem PUBREL e a quota é liberada. PUBREL/PUBCOMP
-negativos permanecem fora deste recorte.
+equivalentes de DISCONNECT normal. PUBACK recebido após P169 aceita códigos
+negativos válidos do client, Reason String única e User Property repetida;
+conclui QoS1 sem fechar a conexão. P170 aceita PUBREC negativo válido do
+assinante: a tentativa QoS2 é removida do estado durável sem PUBREL e a quota
+é liberada. P171 aceita `0x00`/`0x92` e essas propriedades diagnósticas em
+PUBREL/PUBCOMP. PUBREL sempre recebe PUBCOMP e PUBCOMP `0x92` conclui a
+tentativa de saída, liberando o identificador sem fechar a conexão. Motivos
+ou propriedades fora desses recortes continuam recusados.
 P134 aplica Receive Maximum do CONNECT MQTT 5 (padrão 65535) aos PUBLISH QoS1/2
 enviados pelo broker nesta conexão. A quota limita entregas vivas, retidas,
 offline e replay; PUBACK/PUBCOMP liberam vagas. QoS0 e PUBREL não consomem
