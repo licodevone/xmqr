@@ -116,7 +116,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | M03 | Broker/client: Clean Start e Session Expiry | Planejado | M02/A06; estado versionado, relógio e restart/crash, coexistência de sessões 3.1.1 |
 | M04 | Broker/client: Message Expiry e Will Delay | Planejado | M03; deadlines duráveis, reconexão/takeover e ausência de entrega após expiração |
 | M05 | Broker/client: Receive Maximum e Maximum Packet Size | Parcial P134/C72/P136/C73, CIs PASS | M03/B04; negociação e limites no lado assinante aceitos; revisar fluxo de envio do client antes do aceite global |
-| M06 | Broker/client: Topic Alias | Parcial P138 no broker (entrada por conexão, máximo 16); saída e client dedicados pendentes | M05; estado por conexão, reset após reconnect e alias inválido/borda recusados |
+| M06 | Broker/client: Topic Alias | Parcial P138/P139/C75, CIs PASS | M05; entrada/saída no broker e recepção no client aceitas; publicação com alias no client pendente; Mosquitto 2.0.22 rejeita forma abreviada válida |
 | M07 | Broker/client: metadados de publicação | Parcial P141/C77/P142/C78, CIs PASS | M02/M05; PFI, Content Type, Response Topic, Correlation Data e User Property no PUBLISH com persistência/budgets; subscriber ainda não exibe metadados |
 | M08 | Broker/client: opções de assinatura e identificadores | Planejado | M03/M07; No Local/Retain Handling/Retain As Published/Subscription Identifier, inclusive restore |
 | M09 | Broker: assinaturas compartilhadas | Planejado | M08/B04/A04; estratégia de distribuição, QoS, falha de membro e fairness em ADR |

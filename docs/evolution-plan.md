@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado0.21.0, client independente0.19.0
+Versões publicadas atuais: broker/admin legado0.22.0, client independente0.20.0
 e xmqr-admin independente0.4.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
@@ -163,7 +163,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Distribuição P140/C76: tags 0.21.0/0.19.0, pacotes Ubuntu26, imagens numeradas e prereleases com manifesto, SHA-256 e rollback verificados.~~ [Broker](../prompts/registros/P140-release-0.21.0.md) e [client](../../xmqr-client/prompts/registros/C76-release-0.19.0.md). Fases 6A–6D seguem abertas.
 - [x] ~~Fase 6C/P141/C77 parcial: Payload Format Indicator e Content Type no PUBLISH MQTT 5, documento v9, flags do publisher, TCP real, Mosquitto e CIs PASS.~~ [Broker](../prompts/registros/P141-publish-payload-format-content-type-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C77-publish-payload-format-content-type-mqtt5.md). Metadados adicionais P142/C78 aceitos depois; fase 6C global aberta.
 - [x] ~~Fase 6C/P142/C78 parcial: Response Topic, Correlation Data e User Property no PUBLISH MQTT 5, documento v10 e flags do publisher; TCP real, Mosquitto e CIs PASS.~~ [Broker](../prompts/registros/P142-publish-request-properties-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C78-publish-request-properties-mqtt5.md). Revisão global de flow control ainda pendente.
-- [ ] Distribuição P143/C79: preparar tags 0.22.0/0.20.0, pacotes Ubuntu26, imagens numeradas e prereleases com manifesto, SHA-256 e rollback. Gates de release em execução; ainda não publicada. [Broker](../prompts/registros/P143-release-0.22.0.md) e [client](../../xmqr-client/prompts/registros/C79-release-0.20.0.md).
+- [x] ~~Distribuição P143/C79: tags 0.22.0/0.20.0, pacotes Ubuntu26, imagens numeradas e prereleases com manifesto, SHA-256 e rollback verificados.~~ [Broker](../prompts/registros/P143-release-0.22.0.md) e [client](../../xmqr-client/prompts/registros/C79-release-0.20.0.md). Fases 6A–6D e 7–9 ainda abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
