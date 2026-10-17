@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Real TCP MQTT 5 Will Delay, cancellation, expiry and restart."""
-import os
-import signal
+import select
 import socket
 import subprocess
 import tempfile
@@ -88,6 +87,15 @@ def main():
             expect_silence(watcher, 0.4)
             expect_will(watcher, b"session-end")
 
+            source = connect_will(port, b"will-zero", 10, 0, b"zero-session")
+            source.close()
+            expect_will(watcher, b"zero-session")
+
+            source = connect_will(port, b"will-normal", 1, 0xFFFFFFFF, b"normal")
+            source.sendall(b"\xe0\x00")
+            source.close()
+            expect_silence(watcher, 1.2)
+
             source = connect_will(port, b"will-restart", 2, 0xFFFFFFFF, b"restart")
             source.close()
             time.sleep(0.2)
@@ -98,13 +106,24 @@ def main():
             subscribe(watcher)
             expect_will(watcher, b"restart")
 
+            source = connect_will(port, b"will-crash", 1, 0xFFFFFFFF, b"crash")
+            watcher.close()
+            broker.kill()
+            broker.wait(timeout=8)
+            source.close()
+            broker = start(port, state)
+            watcher, _ = connect(port, True, 0, b"will-watcher")
+            subscribe(watcher)
+            expect_will(watcher, b"crash")
+
             child = subprocess.Popen([
                 CLIENT, "sub", "--open-lab", "--protocol-version", "5",
-                "--port", str(port), "--topic", "will/idle", "--client-id", "will-client",
+                "--port", str(port), "--topic", "will/idle", "--client-id", "will-client", "--output", "jsonl",
                 "--session-expiry-seconds", "never", "--will-topic", "will/check",
                 "--will-message", "from-client", "--will-delay-seconds", "1",
             ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             try:
+                assert select.select([child.stderr], [], [], 5)[0], "client SUBACK readiness timeout"
                 ready = child.stderr.readline()
                 assert b"Assinatura ativa" in ready, ready
                 child.kill()
@@ -114,9 +133,26 @@ def main():
                 if child.poll() is None:
                     child.kill()
                     child.wait(timeout=4)
+            external = subprocess.Popen([
+                "mosquitto_sub", "-d", "-V", "mqttv5", "-i", "will-mosquitto",
+                "-h", "127.0.0.1", "-p", str(port), "-t", "will/idle",
+                "--will-topic", "will/check", "--will-payload", "from-mosquitto",
+                "-D", "will", "will-delay-interval", "1",
+                "-D", "connect", "session-expiry-interval", "10",
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            try:
+                time.sleep(0.5)
+                assert external.poll() is None, external.stderr.read()
+                external.kill()
+                external.wait(timeout=4)
+                expect_will(watcher, b"from-mosquitto")
+            finally:
+                if external.poll() is None:
+                    external.kill()
+                    external.wait(timeout=4)
             watcher.sendall(b"\xe0\x00")
             watcher.close()
-            print("PASS: MQTT 5 Will Delay, reconnect cancel, Clean Start, Session Expiry, restart and client C70")
+            print("PASS: MQTT 5 Will Delay, reconnect cancel, Clean Start, Session Expiry, restart, client C70 and Mosquitto")
         finally:
             if broker.poll() is None:
                 stop(broker)
