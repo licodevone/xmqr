@@ -237,8 +237,13 @@ async fn unsupported_level_receives_connack_one() {
 }
 
 #[tokio::test]
-async fn mqtt5_unsupported_session_options_refused_without_commit() {
-    case(connect5_with_properties(&[0x27, 0, 0, 0, 10]), Some(0x83)).await;
+async fn mqtt5_unsupported_auth_property_refused_without_commit() {
+    case(connect5_with_properties(&[0x15, 0, 1, b'x']), Some(0x83)).await;
+    case(
+        connect5_with_properties(&[0x27, 0, 0, 0, 1, 0x15, 0, 1, b'x']),
+        None,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -260,7 +265,15 @@ async fn mqtt5_connect_informational_properties_accept_and_reject_before_commit(
     ] {
         case(connect5_with_properties(properties), None).await;
     }
-    case(connect5_with_properties(&[0x27, 0, 0, 1, 0]), Some(0x83)).await;
+    case(connect5_with_properties(&[0x27, 0, 0, 1, 0]), Some(0)).await;
+    for properties in [
+        &[0x27, 0, 0, 0, 0][..],
+        &[0x27, 0, 0, 0][..],
+        &[0x27, 0, 0, 0, 10, 0x27, 0, 0, 0, 10][..],
+        &[0x27, 0, 0, 0, 4][..],
+    ] {
+        case(connect5_with_properties(properties), None).await;
+    }
 }
 
 #[tokio::test]

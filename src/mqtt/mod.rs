@@ -91,10 +91,15 @@ async fn serve_mqtt(
         }
         Err(error) => return Err(error),
     };
-    if matches!(connect, Packet::UnsupportedConnect5) {
-        connection
-            .write_all_with_deadline(&codec::encode_mqtt5_connack(0x83), WRITE_TIMEOUT)
-            .await?;
+    if let Packet::UnsupportedConnect5 {
+        maximum_packet_size,
+    } = connect
+    {
+        if maximum_packet_size.is_none_or(|size| size >= 5) {
+            connection
+                .write_all_with_deadline(&codec::encode_mqtt5_connack(0x83), WRITE_TIMEOUT)
+                .await?;
+        }
         return Ok(());
     }
     let Packet::Connect {
@@ -103,6 +108,7 @@ async fn serve_mqtt(
         clean_session,
         session_expiry,
         receive_maximum,
+        maximum_packet_size,
         keep_alive,
         will,
         will_delay_seconds,
@@ -112,6 +118,11 @@ async fn serve_mqtt(
     else {
         return Err("first MQTT packet must be CONNECT".into());
     };
+    let outbound_maximum = maximum_packet_size.map_or(usize::MAX, |value| value as usize);
+    if mqtt5 && outbound_maximum < 5 {
+        // Even the minimal MQTT 5 CONNACK cannot fit. No session was created.
+        return Ok(());
+    }
     let refusal = |legacy: u8, v5: u8| -> Vec<u8> {
         if mqtt5 {
             codec::encode_mqtt5_connack(v5).to_vec()
@@ -126,16 +137,12 @@ async fn serve_mqtt(
     // cannot mutate state or process a pipelined publication (3.1.4-5).
     if client_id.is_empty() || client_id.len() > store::MAX_CLIENT_ID_BYTES {
         metrics.reject(Rejection::Quota);
-        connection
-            .write_all_with_deadline(&refusal(2, 0x85), WRITE_TIMEOUT)
-            .await?;
+        write_limited(connection, &refusal(2, 0x85), outbound_maximum).await?;
         return Ok(());
     }
     let Some(client_id) = auth.scoped_client_id(&client_id) else {
         metrics.reject(Rejection::Quota);
-        connection
-            .write_all_with_deadline(&refusal(2, 0x85), WRITE_TIMEOUT)
-            .await?;
+        write_limited(connection, &refusal(2, 0x85), outbound_maximum).await?;
         return Ok(());
     };
 
@@ -150,9 +157,7 @@ async fn serve_mqtt(
         .await?;
     let Some(principal) = principal else {
         metrics.reject(Rejection::Authentication);
-        connection
-            .write_all_with_deadline(&refusal(5, 0x86), WRITE_TIMEOUT)
-            .await?;
+        write_limited(connection, &refusal(5, 0x86), outbound_maximum).await?;
         return Ok(());
     };
     let mut session = match router
@@ -181,26 +186,25 @@ async fn serve_mqtt(
     {
         Ok(session) => session,
         Err(RouterError::PrincipalMismatch | RouterError::WillDenied | RouterError::Security) => {
-            connection
-                .write_all_with_deadline(&refusal(5, 0x87), WRITE_TIMEOUT)
-                .await?;
+            write_limited(connection, &refusal(5, 0x87), outbound_maximum).await?;
             return Ok(());
         }
         Err(error) => return Err(error.into()),
     };
     let mut guard = router.connection_guard(&session);
-    let connack = if mqtt5 {
+    let connack = if mqtt5 && outbound_maximum >= 10 {
         codec::encode_mqtt5_success_connack(session.resumed).to_vec()
+    } else if mqtt5 {
+        let mut minimal = codec::encode_mqtt5_connack(0);
+        minimal[2] = u8::from(session.resumed);
+        minimal.to_vec()
     } else {
         encode_connack_with_session(0, session.resumed)?.to_vec()
     };
-    if let Err(error) = connection
-        .write_all_with_deadline(&connack, WRITE_TIMEOUT)
-        .await
-    {
+    if let Err(error) = write_limited(connection, &connack, outbound_maximum).await {
         let _ = router.unregister(&session, false).await;
         guard.disarm();
-        return Err(error.into());
+        return Err(error);
     }
     debug!(
         connection_id = connection.id(),
@@ -214,8 +218,8 @@ async fn serve_mqtt(
     let mut disconnect_expiry = None;
     let mut last_inbound = Instant::now();
     let result: Result<(), HandlerError> = async {
-        for delivery in session.replay.drain(..) {
-            send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
+        for delivery in std::mem::take(&mut session.replay) {
+            send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
         }
         loop {
             // MQTT-3.1.2-24: disconnect after 1.5 times the advertised keep-alive.
@@ -249,13 +253,13 @@ async fn serve_mqtt(
                                 }
                             }
                             let ack = if mqtt5 { codec::encode_mqtt5_suback(packet_id, &codes) } else { encode_suback(packet_id, &codes) };
-                            connection.write_all_with_deadline(&ack, WRITE_TIMEOUT).await?;
-                            for delivery in retained { send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?; }
+                            write_limited(connection, &ack, outbound_maximum).await?;
+                            for delivery in retained { send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?; }
                         }
                         Packet::Unsubscribe { packet_id, filters } => {
                             let codes = router.unsubscribe(&session, filters).await?;
                             let ack = if mqtt5 { codec::encode_mqtt5_unsuback(packet_id, &codes) } else { encode_unsuback(packet_id).to_vec() };
-                            connection.write_all_with_deadline(&ack, WRITE_TIMEOUT).await?;
+                            write_limited(connection, &ack, outbound_maximum).await?;
                         }
                         Packet::Publish { topic, payload, qos, retain, dup, packet_id, expiry_interval } => {
                             // DUP is a PUBLISH retransmission hint, not an application dedup key.
@@ -265,7 +269,7 @@ async fn serve_mqtt(
                                 if mqtt5 && qos != Qos::AtMostOnce {
                                     let id = packet_id.ok_or("QoS 1/2 PUBLISH without identifier")?;
                                     let ack = if qos == Qos::AtLeastOnce { codec::encode_mqtt5_puback_reason(id, 0x87) } else { codec::encode_mqtt5_pubrec_reason(id, 0x87) };
-                                    connection.write_all_with_deadline(&ack, WRITE_TIMEOUT).await?;
+                                    write_limited(connection, &ack, outbound_maximum).await?;
                                     continue;
                                 }
                                 warn!(connection_id=connection.id(), "unauthorized publish; closing client");
@@ -275,32 +279,32 @@ async fn serve_mqtt(
                             let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms };
                             router.publish(&session, message, packet_id).await?;
                             match (qos, packet_id) {
-                                (Qos::AtLeastOnce, Some(id)) => connection.write_all_with_deadline(&encode_puback(id), WRITE_TIMEOUT).await?,
-                                (Qos::ExactlyOnce, Some(id)) => connection.write_all_with_deadline(&encode_pubrec(id), WRITE_TIMEOUT).await?,
+                                (Qos::AtLeastOnce, Some(id)) => write_limited(connection, &encode_puback(id), outbound_maximum).await?,
+                                (Qos::ExactlyOnce, Some(id)) => write_limited(connection, &encode_pubrec(id), outbound_maximum).await?,
                                 (Qos::AtMostOnce, None) => {},
                                 _ => return Err("invalid PUBLISH identifier".into()),
                             }
                         }
                         Packet::PubRel(id) => {
                             router.pubrel(&session, id).await?;
-                            connection.write_all_with_deadline(&encode_pubcomp(id), WRITE_TIMEOUT).await?;
+                            write_limited(connection, &encode_pubcomp(id), outbound_maximum).await?;
                         }
                         Packet::PubAck(id) => {
                             for delivery in router.ack(&session, AckKind::Ack, id).await? {
-                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
                             }
                         }
                         Packet::PubRec(id) => {
                             for delivery in router.ack(&session, AckKind::Rec, id).await? {
-                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
                             }
                         }
                         Packet::PubComp(id) => {
                             for delivery in router.ack(&session, AckKind::Comp, id).await? {
-                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
                             }
                         }
-                        Packet::PingReq => connection.write_all_with_deadline(&encode_pingresp(), WRITE_TIMEOUT).await?,
+                        Packet::PingReq => write_limited(connection, &encode_pingresp(), outbound_maximum).await?,
                         Packet::Disconnect { expiry_interval } => {
                             if session_expiry == 0 && expiry_interval.is_some_and(|seconds| seconds != 0) {
                                 return Err("DISCONNECT cannot extend zero Session Expiry".into());
@@ -309,12 +313,12 @@ async fn serve_mqtt(
                             graceful = true;
                             break;
                         },
-                        Packet::Connect { .. } | Packet::UnsupportedConnect5 => return Err("duplicate CONNECT".into()),
+                        Packet::Connect { .. } | Packet::UnsupportedConnect5 { .. } => return Err("duplicate CONNECT".into()),
                     }
                 }
                 outbound = session.outbound.recv() => {
                     let Some(delivery) = outbound else { break; };
-                    send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5).await?;
+                    send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
                 }
             }
         }
@@ -333,6 +337,7 @@ async fn serve_mqtt(
     result
 }
 
+#[allow(clippy::too_many_arguments)] // The transport, security, session and negotiated limits remain explicit.
 async fn send_delivery(
     connection: &mut BrokerConnection,
     delivery: Delivery,
@@ -341,6 +346,9 @@ async fn send_delivery(
     principal: &str,
     security_generation: u64,
     mqtt5: bool,
+    outbound_maximum: usize,
+    router: &Router,
+    session: &router::Session,
 ) -> Result<(), HandlerError> {
     if auth.security_generation() != security_generation {
         return Err("security generation changed".into());
@@ -351,6 +359,10 @@ async fn send_delivery(
         return Err("delivery authorization revoked".into());
     }
 
+    let packet_id_to_discard = match &delivery {
+        Delivery::Publish { packet_id, .. } => *packet_id,
+        Delivery::PubRel(_) => None,
+    };
     let bytes = match delivery {
         Delivery::Publish {
             message,
@@ -375,11 +387,32 @@ async fn send_delivery(
         )?,
         Delivery::PubRel(id) => encode_pubrel(id).to_vec(),
     };
-    connection
-        .write_all_with_deadline(&bytes, WRITE_TIMEOUT)
-        .await?;
+    if bytes.len() > outbound_maximum {
+        if bytes[0] >> 4 != 3 {
+            return Err("essential MQTT packet exceeds client Maximum Packet Size".into());
+        }
+        if let Some(packet_id) = packet_id_to_discard {
+            router.discard_outbound(session, packet_id).await?;
+        }
+        return Ok(());
+    }
+    write_limited(connection, &bytes, outbound_maximum).await?;
     if bytes[0] >> 4 == 3 {
         metrics.sent[usize::from((bytes[0] >> 1) & 3)].fetch_add(1, Ordering::Relaxed);
     }
+    Ok(())
+}
+
+async fn write_limited(
+    connection: &mut BrokerConnection,
+    bytes: &[u8],
+    outbound_maximum: usize,
+) -> Result<(), HandlerError> {
+    if bytes.len() > outbound_maximum {
+        return Err("MQTT packet exceeds client Maximum Packet Size".into());
+    }
+    connection
+        .write_all_with_deadline(bytes, WRITE_TIMEOUT)
+        .await?;
     Ok(())
 }

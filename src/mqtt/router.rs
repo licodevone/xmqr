@@ -332,6 +332,12 @@ enum Command {
         packet_id: u16,
         reply: oneshot::Sender<Result<Vec<Delivery>, RouterError>>,
     },
+    DiscardOutbound {
+        client_id: String,
+        generation: u64,
+        packet_id: u16,
+        reply: oneshot::Sender<Result<(), RouterError>>,
+    },
     Unregister {
         client_id: String,
         generation: u64,
@@ -906,6 +912,22 @@ impl Router {
         result.await.map_err(|_| RouterError::Unavailable)?
     }
 
+    pub(super) async fn discard_outbound(
+        &self,
+        session: &Session,
+        packet_id: u16,
+    ) -> Result<(), RouterError> {
+        let (reply, result) = oneshot::channel();
+        self.send(Command::DiscardOutbound {
+            client_id: session.client_id.clone(),
+            generation: session.generation,
+            packet_id,
+            reply,
+        })
+        .await?;
+        result.await.map_err(|_| RouterError::Unavailable)?
+    }
+
     pub(super) async fn unregister(
         &self,
         session: &Session,
@@ -1340,6 +1362,18 @@ impl Actor {
                 reply,
             } => {
                 let result = self.ack(&client_id, generation, kind, packet_id).await;
+                self.record_result(&result);
+                let _ = reply.send(result);
+            }
+            Command::DiscardOutbound {
+                client_id,
+                generation,
+                packet_id,
+                reply,
+            } => {
+                let result = self
+                    .discard_outbound(&client_id, generation, packet_id)
+                    .await;
                 self.record_result(&result);
                 let _ = reply.send(result);
             }
@@ -2299,6 +2333,59 @@ impl Actor {
             _ => return Err(RouterError::Stale),
         }
         Ok(actions)
+    }
+
+    async fn discard_outbound(
+        &mut self,
+        client_id: &str,
+        generation: u64,
+        packet_id: u16,
+    ) -> Result<(), RouterError> {
+        self.current(client_id, generation)?;
+        let live = self.live.get(client_id).ok_or(RouterError::Stale)?;
+        if live.pending_replay.iter().any(|delivery| {
+            matches!(delivery, Delivery::Publish { packet_id: Some(id), .. } if *id == packet_id)
+        }) {
+            return Err(RouterError::Stale);
+        }
+        let receive_maximum = live.receive_maximum;
+        let has_pending_replay = !live.pending_replay.is_empty();
+        let replenishes_quota = live.sent_unacked.contains(&packet_id);
+        let mut candidate = self.state.clone();
+        let session = candidate
+            .sessions
+            .get_mut(client_id)
+            .ok_or(RouterError::Stale)?;
+        let index = session
+            .outbound
+            .iter()
+            .position(|item| item.packet_id == packet_id)
+            .ok_or(RouterError::Stale)?;
+        session.outbound.remove(index);
+        let mut actions = Vec::new();
+        if !has_pending_replay && (replenishes_quota || live.sent_unacked.len() < receive_maximum) {
+            drain_offline(
+                self.limits,
+                session,
+                &mut actions,
+                receive_maximum,
+                live.sent_unacked.len() - usize::from(replenishes_quota),
+            )?;
+        }
+        self.commit(candidate).await?;
+        if let Some(live) = self.live.get_mut(client_id)
+            && live.sent_unacked.remove(&packet_id)
+            && let Some(pending) = live.pending_replay.pop_front()
+        {
+            self.deliver(vec![(client_id.to_owned(), pending)]);
+        }
+        self.deliver(
+            actions
+                .into_iter()
+                .map(|delivery| (client_id.to_owned(), delivery))
+                .collect(),
+        );
+        Ok(())
     }
 
     #[cfg(test)]
@@ -3481,6 +3568,68 @@ mod tests {
             subscriber.outbound.try_recv(),
             Ok(Delivery::Publish { message, .. }) if message.payload == b"second" && message.retain
         ));
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_oversized_delivery_is_discarded_and_releases_quota() {
+        let (_directory, mut actor) = actor().await;
+        let mut subscriber = actor
+            .register_with_policy_and_delay(
+                "rx-size".into(),
+                "user".into(),
+                SessionPolicy {
+                    clean: true,
+                    persistent: true,
+                    expiry_interval_seconds: None,
+                    will_delay_seconds: 0,
+                    receive_maximum: 1,
+                },
+                None,
+            )
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "rx-size",
+                subscriber.generation,
+                vec![(filter("test/+"), Some(1))],
+            )
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for payload in [b"oversized".as_slice(), b"small".as_slice()] {
+            actor
+                .publish(
+                    "source",
+                    publisher.generation,
+                    message("test/size", 1, false, payload),
+                    Some(7),
+                )
+                .await
+                .unwrap();
+        }
+        let Delivery::Publish {
+            packet_id: Some(first_id),
+            ..
+        } = subscriber.outbound.try_recv().unwrap()
+        else {
+            panic!("expected first delivery");
+        };
+        assert!(subscriber.outbound.try_recv().is_err());
+        actor
+            .discard_outbound("rx-size", subscriber.generation, first_id)
+            .await
+            .unwrap();
+        assert!(matches!(
+            subscriber.outbound.try_recv(),
+            Ok(Delivery::Publish { message, .. }) if message.payload == b"small"
+        ));
+        assert_eq!(actor.state.sessions["rx-size"].outbound.len(), 1);
+        assert!(actor.state.sessions["rx-size"].offline.is_empty());
         actor.store.shutdown().await.unwrap();
     }
 

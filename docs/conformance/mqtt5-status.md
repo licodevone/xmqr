@@ -60,8 +60,14 @@ enviados pelo broker nesta conexão. A quota limita entregas vivas, retidas,
 offline e replay; PUBACK/PUBCOMP liberam vagas. QoS0 e PUBREL não consomem
 quota. O valor não é gravado na sessão e pode mudar na reconexão. C72 expõe
 `mqtt-client sub --protocol-version 5 --receive-maximum 1..65535`.
-Maximum Packet Size de entrada, Topic Alias e outras propriedades de publicação
-seguem pendentes; não se declara conformidade MQTT 5 integral.
+P136/C73 aceitam Maximum Packet Size em CONNECT e limitam todos os pacotes
+enviados pelo broker ao client nessa conexão. O CONNACK omite a propriedade
+informativa de tamanho se ela não couber. PUBLISH grande demais é descartado
+e sua obrigação QoS é concluída no estado durável, inclusive em replay; um
+pacote essencial grande demais encerra a conexão. O broker continua anunciando
+seu teto de entrada de 65536 bytes quando o CONNACK completo cabe. Topic Alias
+e outras propriedades de publicação seguem pendentes; não se declara
+conformidade MQTT 5 integral.
 
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
 P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
@@ -101,6 +107,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P132](../../prompts/registros/P132-will-delay-mqtt5.md) e
 [C70](../../../xmqr-client/prompts/registros/C70-will-delay-mqtt5.md),
 [P134](../../prompts/registros/P134-receive-maximum-mqtt5.md) e
-[C72](../../../xmqr-client/prompts/registros/C72-receive-maximum-mqtt5.md).
+[C72](../../../xmqr-client/prompts/registros/C72-receive-maximum-mqtt5.md),
+[P136](../../prompts/registros/P136-maximum-packet-size-mqtt5.md) e
+[C73](../../../xmqr-client/prompts/registros/C73-maximum-packet-size-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

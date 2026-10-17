@@ -56,6 +56,7 @@ pub(super) enum Packet {
         clean_session: bool,
         session_expiry: u32,
         receive_maximum: u16,
+        maximum_packet_size: Option<u32>,
         keep_alive: u16,
         will: Option<super::store::StoredMessage>,
         will_delay_seconds: u32,
@@ -87,7 +88,9 @@ pub(super) enum Packet {
     Disconnect {
         expiry_interval: Option<u32>,
     },
-    UnsupportedConnect5,
+    UnsupportedConnect5 {
+        maximum_packet_size: Option<u32>,
+    },
 }
 
 pub(super) struct FrameReader {
@@ -249,12 +252,25 @@ impl<'a> Cursor<'a> {
     }
 }
 
-fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Option<(u32, u16)>, &'static str> {
+#[derive(Debug, PartialEq, Eq)]
+enum Mqtt5ConnectProperties {
+    Supported {
+        expiry: u32,
+        receive_maximum: u16,
+        maximum_packet_size: Option<u32>,
+    },
+    Unsupported {
+        maximum_packet_size: Option<u32>,
+    },
+}
+
+fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Mqtt5ConnectProperties, &'static str> {
     let mut properties = Cursor::new(raw);
     let mut expiry_seen = false;
     let mut expiry = 0;
     let mut receive_seen = false;
     let mut receive_maximum = u16::MAX;
+    let mut maximum_packet_size = None;
     let mut problem_seen = false;
     let mut response_seen = false;
     let mut alias_seen = false;
@@ -276,6 +292,16 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Option<(u32, u16)>, 
                 if receive_maximum == 0 {
                     return Err("zero MQTT 5 Receive Maximum");
                 }
+            }
+            0x27 => {
+                if maximum_packet_size.is_some() {
+                    return Err("duplicate MQTT 5 Maximum Packet Size");
+                }
+                let maximum = u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
+                if maximum == 0 {
+                    return Err("zero MQTT 5 Maximum Packet Size");
+                }
+                maximum_packet_size = Some(maximum);
             }
             0x17 => {
                 if problem_seen || properties.byte()? > 1 {
@@ -300,10 +326,18 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Option<(u32, u16)>, 
                 let _ = properties.text()?;
                 let _ = properties.text()?;
             }
-            _ => return Ok(None),
+            _ => {
+                return Ok(Mqtt5ConnectProperties::Unsupported {
+                    maximum_packet_size,
+                });
+            }
         }
     }
-    Ok(Some((expiry, receive_maximum)))
+    Ok(Mqtt5ConnectProperties::Supported {
+        expiry,
+        receive_maximum,
+        maximum_packet_size,
+    })
 }
 
 fn is_noncharacter(ch: char) -> bool {
@@ -360,15 +394,28 @@ fn decode_for(
             let keep_alive = c.word()?;
             let mut session_expiry = 0;
             let mut receive_maximum = u16::MAX;
+            let mut maximum_packet_size = None;
             if level == 5 {
                 let property_length = c.variable_integer()?;
                 let properties = c.bytes(property_length)?;
-                let Some((expiry, receive)) = mqtt5_connect_properties_supported(properties)?
-                else {
-                    return Ok(Packet::UnsupportedConnect5);
-                };
-                session_expiry = expiry;
-                receive_maximum = receive;
+                match mqtt5_connect_properties_supported(properties)? {
+                    Mqtt5ConnectProperties::Supported {
+                        expiry,
+                        receive_maximum: receive,
+                        maximum_packet_size: maximum,
+                    } => {
+                        session_expiry = expiry;
+                        receive_maximum = receive;
+                        maximum_packet_size = maximum;
+                    }
+                    Mqtt5ConnectProperties::Unsupported {
+                        maximum_packet_size,
+                    } => {
+                        return Ok(Packet::UnsupportedConnect5 {
+                            maximum_packet_size,
+                        });
+                    }
+                }
             }
             let client_id = c.text()?;
             let mut will_delay_seconds = 0;
@@ -380,7 +427,9 @@ fn decode_for(
                     let mut properties = Cursor::new(raw);
                     if properties.pos < raw.len() {
                         if properties.byte()? != 0x18 {
-                            return Ok(Packet::UnsupportedConnect5);
+                            return Ok(Packet::UnsupportedConnect5 {
+                                maximum_packet_size,
+                            });
                         }
                         will_delay_seconds =
                             u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
@@ -412,6 +461,7 @@ fn decode_for(
                 clean_session,
                 session_expiry,
                 receive_maximum,
+                maximum_packet_size,
                 keep_alive,
                 will,
                 will_delay_seconds,
@@ -1040,28 +1090,40 @@ mod tests {
                 ..
             }
         ));
-        assert_eq!(
+        assert!(matches!(
             mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x11, 0, 0, 0, 0]).unwrap(),
-            Some((0, 20))
-        );
-        assert_eq!(
+            Mqtt5ConnectProperties::Supported {
+                expiry: 0,
+                receive_maximum: 20,
+                maximum_packet_size: None
+            }
+        ));
+        assert!(matches!(
             mqtt5_connect_properties_supported(&[0x11, 255, 255, 255, 255]).unwrap(),
-            Some((u32::MAX, u16::MAX))
-        );
-        assert_eq!(
+            Mqtt5ConnectProperties::Supported {
+                expiry: u32::MAX,
+                receive_maximum: u16::MAX,
+                maximum_packet_size: None
+            }
+        ));
+        assert!(matches!(
             mqtt5_connect_properties_supported(&[0x11, 0, 0, 0, 1]).unwrap(),
-            Some((1, u16::MAX))
-        );
+            Mqtt5ConnectProperties::Supported {
+                expiry: 1,
+                receive_maximum: u16::MAX,
+                maximum_packet_size: None
+            }
+        ));
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 0]).is_err());
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x21, 0, 5]).is_err());
-        assert!(
+        assert!(matches!(
             mqtt5_connect_properties_supported(&[
                 0x17, 0, 0x19, 1, 0x22, 0, 4, 0x26, 0, 1, b'a', 0, 1, b'b', 0x26, 0, 1, b'a', 0, 1,
                 b'c',
             ])
-            .unwrap()
-            .is_some()
-        );
+            .unwrap(),
+            Mqtt5ConnectProperties::Supported { .. }
+        ));
         for invalid in [
             &[0x17, 2][..],
             &[0x17, 0, 0x17, 1][..],
@@ -1073,10 +1135,6 @@ mod tests {
         ] {
             assert!(mqtt5_connect_properties_supported(invalid).is_err());
         }
-        assert_eq!(
-            mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10]).unwrap(),
-            None
-        );
         assert!(decode_for(0x32, &[0, 1, b'a', 0, 1, 1, 0x23, b'x'], true).is_err());
         assert!(matches!(
             decode_for(0x34, &[0, 1, b'a', 0, 1, 0, b'x'], true).unwrap(),
@@ -1087,6 +1145,29 @@ mod tests {
             }
         ));
         assert!(decode_for(0x82, &[0, 1, 0, 1, b'a', 0], true).is_err());
+    }
+
+    #[test]
+    fn mqtt5_maximum_packet_size_connect_property_is_unique_and_nonzero() {
+        assert!(matches!(
+            mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10]).unwrap(),
+            Mqtt5ConnectProperties::Supported {
+                expiry: 0,
+                receive_maximum: u16::MAX,
+                maximum_packet_size: Some(10)
+            }
+        ));
+        assert_eq!(
+            mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 1, 0x15]).unwrap(),
+            Mqtt5ConnectProperties::Unsupported {
+                maximum_packet_size: Some(1)
+            }
+        );
+        assert!(mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 0]).is_err());
+        assert!(mqtt5_connect_properties_supported(&[0x27, 0, 0, 0]).is_err());
+        assert!(
+            mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10, 0x27, 0, 0, 0, 5]).is_err()
+        );
     }
 
     #[test]
