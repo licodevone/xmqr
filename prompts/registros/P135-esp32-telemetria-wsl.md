@@ -1,0 +1,12 @@
+# P135 — ESP32 COM4 → broker e subscriber no WSL
+
+Prompt [P135 rev2](../broker/135-esp32-telemetria-wsl.md), preparado antes do firmware e do runner. Ensaio físico em 2026-10-16, Windows + Ubuntu 26/WSL, broker 0.19.0, client 0.17.0. Não alterou os pacotes `apt` instalados nem o serviço XMQR. Certificados temporários expirados do caso P85 foram renovados somente em `/tmp` do WSL, assinados pela CA privada do laboratório ainda válida; a CA, chave/certificado da placa e Wi-Fi existentes não foram publicados nem alterados.
+
+- COM4: CH340/ESP32-D0WD-V3/flash 4 MiB conferidos; dois backups originais completos de 4 MiB com hashes iguais; firmware ESP-IDF/Rust compilado em `release`, app dentro da partição factory de 1 MiB e gravação esptool verificada.
+- Pré-teste: broker isolado no WSL, ponte TCP Windows LAN → WSL, handshake mTLS com SAN e SUBACK do `mqtt-client sub` no WSL: PASS. Estado, certificados renovados e arquivo de senha exclusivos do ensaio em diretório temporário com modo 0700/0600.
+- Primeira execução: placa emitiu `P135_BOOT`, conectou por mTLS, recebeu cinco PUBACKs e concluiu `P135_PUBLISH_PASS`; assinatura não concluiu o teste. O timeout ocioso de 15 s na ponte era menor que a gravação e o boot. Resultado: FAIL_END_TO_END, sem chamar a primeira tentativa de aceite.
+- Repetição após ampliar o timeout para 180 s: firmware já verificado foi reiniciado com `--observe`, sem nova gravação. Cinco PUBACKs na COM4 e cinco mensagens JSON QoS 1 recebidas pelo client no WSL no tópico `xmqr/teste/ambiente`, sequência 1–5 e valores exatos: **PASS_PHYSICAL_WSL_TELEMETRY**. Os valores são sintéticos e cada payload contém `"source":"simulated"`; nenhum sensor de temperatura/umidade foi medido.
+- Gates: sintaxe do runner PASS; cross-build ESP-IDF 5.5.5, `cargo fmt --check` e Clippy `-D warnings` PASS; 94 testes Python do fixture com 93 PASS/1 SKIP por symlink sem privilégio. Uma tentativa da suíte com Python global falhou na importação de `pyserial`; a suíte foi repetida no ambiente ESP-IDF configurado e passou. `git diff --check` PASS.
+- Limpeza: sem listener 8883 nem diretório `xmqr-p135-*` residual no WSL; COM4 continua presente. O firmware de ensaio permanece na ESP32 até outra gravação ou restauração deliberada. Não há prova de sensor externo, longa duração ou aplicação de produção.
+
+[Resultado sanitizado](../../docs/results/p135-esp32-2026-10-16.json). Nenhuma tag/release específica: trata-se de validação de bancada, sem alteração no runtime publicado.

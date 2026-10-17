@@ -2,6 +2,16 @@
 use std::{env, fs, path::PathBuf};
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(telemetry_campaign)");
+    println!("cargo:rerun-if-env-changed=XMQR_TELEMETRY_CAMPAIGN");
+    let telemetry = match env::var("XMQR_TELEMETRY_CAMPAIGN").as_deref() {
+        Ok("1") => {
+            println!("cargo:rustc-cfg=telemetry_campaign");
+            true
+        }
+        Ok("0") | Err(_) => false,
+        _ => panic!("invalid telemetry campaign mode"),
+    };
     println!("cargo:rustc-check-cfg=cfg(e02_campaign)");
     println!("cargo:rerun-if-env-changed=XMQR_E02_CAMPAIGN");
     let e02 = match env::var("XMQR_E02_CAMPAIGN").as_deref() {
@@ -23,8 +33,12 @@ fn main() {
         _ => panic!("invalid physical campaign mode"),
     };
     assert!(
-        !(campaign && e02),
-        "E01 and E02 campaigns are mutually exclusive"
+        [campaign, e02, telemetry]
+            .iter()
+            .filter(|enabled| **enabled)
+            .count()
+            <= 1,
+        "E01, E02 and telemetry campaigns are mutually exclusive"
     );
     println!("cargo:rustc-check-cfg=cfg(e01_retained)");
     println!("cargo:rerun-if-env-changed=XMQR_E01_RETAINED");

@@ -2,6 +2,7 @@
 # Process-local environment only. Does not select EIM, install tools or flash.
 param(
     [Parameter(Mandatory=$true)][string]$PrivateDirectory,
+    [switch]$Clippy,
     [string]$IdfPath = 'C:/esp/v5.5.5/esp-idf',
     [string]$IdfPythonEnvironment = 'C:/Users/licod/.espressif/python_env/idf5.5_py3.13_env',
     [string]$IdfToolsPath = 'C:/Espressif/tools'
@@ -45,4 +46,8 @@ Push-Location -LiteralPath $fixtureRoot
 try {
     & cargo +esp build --locked --release
     if ($LASTEXITCODE -ne 0) { throw 'E01 firmware build failed; board not flashed' }
+    if ($Clippy) {
+        & cargo +esp clippy --locked --all-targets --release -- -D warnings
+        if ($LASTEXITCODE -ne 0) { throw 'E01 firmware Clippy failed; board not flashed' }
+    }
 } finally { Pop-Location }

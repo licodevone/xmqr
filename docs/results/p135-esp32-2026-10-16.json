@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "prompt": "P135",
+  "date_local": "2026-10-16",
+  "result": "PASS_PHYSICAL_WSL_TELEMETRY",
+  "broker_version": "0.19.0",
+  "client_version": "0.17.0",
+  "broker_location": "Ubuntu 26 WSL isolated process",
+  "subscriber_location": "Ubuntu 26 WSL isolated process",
+  "publisher_location": "ESP32 DevKit V1 on COM4",
+  "topic": "xmqr/teste/ambiente",
+  "qos": 1,
+  "source": "simulated",
+  "backup_copies_verified": 2,
+  "original_backup_bytes_each": 4194304,
+  "flash_verified": true,
+  "preflight_mtls": true,
+  "preflight_suback": true,
+  "first_attempt": "FAIL_END_TO_END: five board PUBACKs; subscriber connection expired in test relay",
+  "second_attempt": "PASS: --observe without another flash",
+  "board_pubacks": 5,
+  "subscriber_messages": 5,
+  "samples": [
+    {"seq": 1, "temperature_c": 23.1, "humidity_pct": 45.2},
+    {"seq": 2, "temperature_c": 23.3, "humidity_pct": 45.5},
+    {"seq": 3, "temperature_c": 23.4, "humidity_pct": 45.1},
+    {"seq": 4, "temperature_c": 23.2, "humidity_pct": 45.8},
+    {"seq": 5, "temperature_c": 23.5, "humidity_pct": 45.4}
+  ],
+  "temporary_wsl_listener_and_directory_removed": true,
+  "installed_apt_packages_changed": false,
+  "sensor_measurement_claimed": false
+}

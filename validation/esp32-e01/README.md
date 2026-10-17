@@ -4,6 +4,38 @@ Pacote Rust independente, código próprio MIT. Não faz parte do crate do broke
 não instala XMQR na placa e não substitui o aplicativo consumidor mqtt-broker.
 Alvo observado: ESP32 DevKitV1/ESP32-D0WD-V3/4MiB/COM4.
 
+## P135 — publicar da ESP32 para broker e subscriber no WSL
+
+Ensaio físico aceito em 2026-10-16: broker 0.19.0 e `mqtt-client` 0.17.0
+executados em processos isolados no Ubuntu 26/WSL, enquanto a ESP32 na COM4
+publicou cinco JSONs QoS 1 em `xmqr/teste/ambiente`. Os dois lados confirmaram
+as cinco sequências. Temperatura e umidade são valores **simulados**, declarados
+no campo `source`; a placa usada não tem sensor ambiental conectado. Veja
+[P135](../../prompts/registros/P135-esp32-telemetria-wsl.md).
+
+Os comandos abaixo usam o laboratório privado já preparado em `C:\x81` e os
+dois backups originais. O runner renova certificados temporários do servidor e
+assinante quando a CA ainda é válida, confirma o assinante antes da gravação e
+encerra os processos do teste. Não modifica pacotes instalados no WSL.
+
+```powershell
+cd D:\projects\my-project\acmebr-projects\acmebr-broker-client\xmqr\validation\esp32-e01
+$env:XMQR_TELEMETRY_CAMPAIGN = '1'
+$env:XMQR_E01_CAMPAIGN = '0'
+$env:XMQR_E02_CAMPAIGN = '0'
+$env:XMQR_E01_RETAINED = '0'
+.\build-windows.ps1 -PrivateDirectory C:\x81 -Clippy
+$python = 'C:\Users\licod\.espressif\python_env\idf5.5_py3.13_env\Scripts\python.exe'
+& $python .\run_telemetry.py --private-dir C:\x81 --backup-dir 'C:\Users\licod\AppData\Local\XMQR\esp32-lab' --serial-port COM4 --preflight
+& $python .\run_telemetry.py --private-dir C:\x81 --backup-dir 'C:\Users\licod\AppData\Local\XMQR\esp32-lab' --serial-port COM4 --flash
+```
+
+Após uma gravação verificada, `--observe` repete o ensaio reiniciando o firmware
+instalado sem gravá-lo novamente. O runner exibe `P135_PUBACK seq=1..5`,
+`P135_SUB_RECEIVED seq=1..5` e, somente após verificar ambos, o marcador
+`P135_PASS_PHYSICAL_WSL_TELEMETRY`. Certificados/CA vencidos, Wi-Fi ausente ou
+placa diferente encerram o teste sem alegação de sucesso.
+
 AtualP85/2026-10-13: campanha curta E01 ACCEPTED junto a softwareP80/C43.
 Will/quebra de link, reconexãoWi-Fi/broker, retained após restart/live/delete,
 duplicataQoS1, Mosquitto2.0.22/QoS2 e negativosCA/senha/ACL/SAN PASS.
