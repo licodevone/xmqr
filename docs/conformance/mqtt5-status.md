@@ -73,8 +73,14 @@ inclusive junto de Subscription Identifier no primeiro. Limites locais: 16
 pares, 2048 bytes codificados por pacote e 256 bytes por campo. Propriedade
 fora de contexto, UTF-8 inválido e truncamento são recusados antes de mudar
 assinaturas; os pares não entram no estado durável. C102 expõe as flags
-correspondentes no client em desenvolvimento. Esta parcela não fecha a matriz
+correspondentes no client em desenvolvimento e passou com Mosquitto 2.0.22.
+Esta parcela não fecha a matriz
 de propriedades MQTT 5 nem as fases 6A/6D.
+P181 passa a responder com DISCONNECT `0x81` para identificador de propriedade
+fora de contexto em SUBSCRIBE/UNSUBSCRIBE e `0x82` para Subscription Identifier
+duplicado em SUBSCRIBE, após CONNACK MQTT 5. O broker fecha e publica Will
+quando cabível, sem alterar a assinatura. Truncamento, UTF-8 inválido, quotas
+e os demais erros ainda não compartilham uma classificação completa.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa

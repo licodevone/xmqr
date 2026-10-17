@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 0.33.0 — propriedades de assinatura MQTT 5 (experimental)
+
+- P180: SUBSCRIBE/UNSUBSCRIBE aceitam User Property repetível com limites locais e rejeição atômica; o estado durável segue v15.
+- P181: após CONNACK MQTT 5, propriedade imprópria de assinatura envia DISCONNECT `0x81` e Subscription Identifier duplicado envia `0x82`.
+
+A matriz MQTT 5 e as fases 6A–6D/7–9 continuam abertas.
+
 ## 0.32.0 — diagnósticos de encerramento MQTT 5 (experimental)
 
 - P174: DISCONNECT de erro permitido ao client encerra com Will; motivos exclusivos do servidor são recusados.
