@@ -146,7 +146,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P123/C64 parcial: propriedades informativas de CONNECT MQTT 5 no broker/client, gates locais, integração e CIs PASS.~~ [Broker](../prompts/registros/P123-connect-properties-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C64-connect-properties-mqtt5.md).
 - [x] ~~P125: liberação explícita do lock de escritor após falha de snapshot e restauração da CI.~~ [Evidência](../prompts/registros/P125-liberacao-lock-store.md).
 - [x] ~~Distribuição P124/C65: tags independentes v0.17.0/v0.15.0, pacotes Ubuntu26, imagens numeradas e prereleases com SHA-256/rollback.~~ [Broker](../prompts/registros/P124-release-0.17.0.md) e [client](../../xmqr-client/prompts/registros/C65-release-0.15.0.md).
-- [ ] Fase 6A/P126 parcial: ACKs de sucesso e DISCONNECT normal MQTT 5 com motivo explícito/propriedades vazias; gates e CI em validação. [Evidência](../prompts/registros/P126-ack-disconnect-mqtt5.md).
+- [x] ~~Fase 6A/P126 parcial: ACKs de sucesso e DISCONNECT normal MQTT 5 com motivo explícito/propriedades vazias; gates locais, integração e CI PASS.~~ [Evidência](../prompts/registros/P126-ack-disconnect-mqtt5.md).
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
