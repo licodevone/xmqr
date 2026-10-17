@@ -62,6 +62,7 @@ pub(super) enum Packet {
         keep_alive: u16,
         will: Option<super::store::StoredMessage>,
         will_delay_seconds: u32,
+        will_message_expiry_seconds: Option<u32>,
         username: Option<String>,
         password: Option<Vec<u8>>,
         plain_authentication: Option<Vec<u8>>,
@@ -514,6 +515,7 @@ fn decode_for(
             }
             let client_id = c.text()?;
             let mut will_delay_seconds = 0;
+            let mut will_message_expiry_seconds = None;
             // MQTT-3.1.3-1: Will precedes username/password. Message is binary.
             let will = if has_will {
                 let mut payload_format_indicator = None;
@@ -533,6 +535,11 @@ fn decode_for(
                                 delay_seen = true;
                                 will_delay_seconds =
                                     u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
+                            }
+                            0x02 if will_message_expiry_seconds.is_none() => {
+                                will_message_expiry_seconds = Some(u32::from_be_bytes(
+                                    properties.bytes(4)?.try_into().unwrap(),
+                                ));
                             }
                             0x01 if payload_format_indicator.is_none() => {
                                 let value = properties.byte()?;
@@ -573,7 +580,7 @@ fn decode_for(
                                 }
                                 user_properties.push((key, value));
                             }
-                            0x18 | 0x01 | 0x03 | 0x08 | 0x09 => {
+                            0x18 | 0x02 | 0x01 | 0x03 | 0x08 | 0x09 => {
                                 return Err("duplicate MQTT 5 Will property".into());
                             }
                             _ => {
@@ -622,6 +629,7 @@ fn decode_for(
                 keep_alive,
                 will,
                 will_delay_seconds,
+                will_message_expiry_seconds,
                 username,
                 password,
                 plain_authentication,
@@ -1595,6 +1603,8 @@ mod tests {
             vec![0x01, 2],
             vec![0x01, 1, 0x01, 0],
             vec![0x18, 0, 0, 0, 1, 0x18, 0, 0, 0, 2],
+            vec![0x02, 0, 0, 0, 1, 0x02, 0, 0, 0, 2],
+            vec![0x02, 0, 0, 0],
             vec![0x08, 0, 1, b'#'],
             vec![0x09, 0, 2, 0],
         ] {
@@ -1605,8 +1615,15 @@ mod tests {
         }
         assert!(matches!(
             decode(0x10, &make_connect(&[0x02, 0, 0, 0, 1])).unwrap(),
-            Packet::UnsupportedConnect5 {
-                reason_code: 0x83,
+            Packet::Connect {
+                will_message_expiry_seconds: Some(1),
+                ..
+            }
+        ));
+        assert!(matches!(
+            decode(0x10, &make_connect(&[0x02, 0, 0, 0, 0])).unwrap(),
+            Packet::Connect {
+                will_message_expiry_seconds: Some(0),
                 ..
             }
         ));

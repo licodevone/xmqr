@@ -1,5 +1,14 @@
 # XMQR
 
+A árvore após 0.28.0 também acrescenta P164: `Message Expiry Interval` no
+Will MQTT 5 é persistido como intervalo até a publicação efetiva, inclusive
+se houver atraso ou recuperação após crash. A partir da publicação, vale o
+mesmo prazo de PUBLISH para retained e fila offline. O documento durável passa
+a v15 na primeira gravação; admin independente 0.9.0 e broker 0.28.0 não
+abrem v15. Preserve um backup privado v14 anterior para rollback. A
+compatibilidade do novo admin A19 ainda precisa ser aceita antes da release.
+[Prompt P164](prompts/broker/164-will-message-expiry-mqtt5.md).
+
 A árvore após 0.28.0 acrescenta P163: o broker aceita no Will MQTT 5
 Payload Format Indicator, Content Type, Response Topic, Correlation Data e
 User Property ordenada, combináveis com Will Delay. A entrega preserva os

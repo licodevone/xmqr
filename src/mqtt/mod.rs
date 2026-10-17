@@ -152,6 +152,7 @@ async fn serve_mqtt(
         keep_alive,
         will,
         will_delay_seconds,
+        will_message_expiry_seconds,
         username,
         password,
         plain_authentication,
@@ -287,6 +288,7 @@ async fn serve_mqtt(
                     None
                 },
                 will_delay_seconds,
+                will_message_expiry_seconds,
                 receive_maximum,
             },
             will,

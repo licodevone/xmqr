@@ -709,6 +709,7 @@ fn state_candidate(rng: &mut Rng) -> DurableState {
                     principal: PRINCIPAL.to_owned(),
                     message: message("fuzz/a", vec![1], 0, false),
                     delay_seconds: 0,
+                    message_expiry_interval_seconds: None,
                     publish_at_unix_ms: None,
                 },
             );

@@ -20,7 +20,7 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 14;
+const FORMAT_VERSION: u16 = 15;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -89,6 +89,8 @@ pub(super) struct PendingWill {
     pub message: StoredMessage,
     #[serde(default)]
     pub delay_seconds: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_expiry_interval_seconds: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub publish_at_unix_ms: Option<u64>,
 }
@@ -413,6 +415,7 @@ pub(super) fn validate_with_limits(
     for (client_id, will) in &state.pending_wills {
         validate_message(&will.message)?;
         if will.message.shared_origin.is_some()
+            || will.message.expiry_at_unix_ms.is_some()
             || state
                 .sessions
                 .get(client_id)
@@ -717,6 +720,7 @@ mod tests {
                 principal: "sensor".into(),
                 message: message(1),
                 delay_seconds: 0,
+                message_expiry_interval_seconds: None,
                 publish_at_unix_ms: None,
             },
         );
@@ -965,8 +969,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_to_v13_and_commits_v14_without_losing_retained() {
-        for version in 1..=13 {
+    async fn reads_v1_to_v14_and_commits_v15_without_losing_retained() {
+        for version in 1..=14 {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -991,14 +995,13 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 14);
+            assert_eq!(envelope.version, 15);
             assert_eq!(envelope.state, expected);
         }
     }
 
     #[tokio::test]
-    async fn reads_v7_will_without_delay_fields_and_commits_v14() {
-        let directory = tempdir().unwrap();
+    async fn reads_v7_and_v14_wills_without_expiry_and_commits_v15() {
         let mut expected = state();
         expected.pending_wills.insert(
             "sensor-1".into(),
@@ -1006,28 +1009,34 @@ mod tests {
                 principal: "sensor".into(),
                 message: message(1),
                 delay_seconds: 0,
+                message_expiry_interval_seconds: None,
                 publish_at_unix_ms: None,
             },
         );
-        {
-            let mut writer = Store::open(directory.path()).unwrap();
-            let old = toml::to_string(&Envelope {
-                version: 7,
-                state: expected.clone(),
-            })
-            .unwrap()
-            .replace("delay_seconds = 0\n", "");
-            writer.put(KEY, old.as_bytes()).unwrap();
+        for version in [7, 14] {
+            let directory = tempdir().unwrap();
+            {
+                let mut writer = Store::open(directory.path()).unwrap();
+                let mut old = toml::to_string(&Envelope {
+                    version,
+                    state: expected.clone(),
+                })
+                .unwrap();
+                if version == 7 {
+                    old = old.replace("delay_seconds = 0\n", "");
+                }
+                writer.put(KEY, old.as_bytes()).unwrap();
+            }
+            let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+            assert_eq!(recovered, expected);
+            store.commit(&recovered).await.unwrap();
+            store.shutdown().await.unwrap();
+            let writer = Store::open(directory.path()).unwrap();
+            let bytes = writer.get(KEY).unwrap();
+            let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
+            assert_eq!(envelope.version, 15);
+            assert_eq!(envelope.state, expected);
         }
-        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
-        assert_eq!(recovered, expected);
-        store.commit(&recovered).await.unwrap();
-        store.shutdown().await.unwrap();
-        let writer = Store::open(directory.path()).unwrap();
-        let bytes = writer.get(KEY).unwrap();
-        let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-        assert_eq!(envelope.version, 14);
-        assert_eq!(envelope.state, expected);
     }
 
     #[tokio::test]

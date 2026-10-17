@@ -20,10 +20,12 @@ primeiro; retomada Clean Start=0 antes do prazo e DISCONNECT normal cancelam.
 C70 expõe `--will-delay-seconds` no client. Após P163/C94, a árvore de
 desenvolvimento também aceita Payload Format Indicator, Content Type,
 Response Topic, Correlation Data e User Property ordenada no Will, inclusive
-com atraso, retained, fila offline e recuperação após reinício. O estado
-continua v14; Message Expiry Interval do Will ainda não é aceito, pois o prazo
-deve começar na publicação efetiva. Broker 0.28.0 e client 0.25.0 publicados
-não incluem P163/C94.
+com atraso, retained, fila offline e recuperação após reinício. P164/C95
+acrescentam Message Expiry Interval do Will: o intervalo fica no Will pendente
+e o prazo começa na publicação efetiva, não no CONNECT. O documento passa de
+v14 para v15 na primeira gravação. Broker 0.28.0, client 0.25.0 e admin
+independente 0.9.0 publicados não incluem P163/P164/C94/C95; A19 deve
+atualizar o pin do admin antes da próxima distribuição.
 Se o processo cair com a conexão ainda ativa, o instante da queda não é
 durável; por segurança contra perda silenciosa, a contagem começa na recuperação.
 P123 acrescenta Request Problem

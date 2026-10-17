@@ -65,6 +65,14 @@ fn message_expired(message: &StoredMessage, now: u64) -> bool {
         .is_some_and(|deadline| deadline <= now)
 }
 
+fn will_publication(will: &PendingWill, now: u64) -> Result<StoredMessage, RouterError> {
+    let mut message = will.message.clone();
+    if let Some(seconds) = will.message_expiry_interval_seconds {
+        message.expiry_at_unix_ms = Some(expiry_deadline(now, seconds)?);
+    }
+    Ok(message)
+}
+
 fn session_expired(session: &DurableSession, now: u64) -> bool {
     session
         .expires_at_unix_ms
@@ -76,6 +84,7 @@ pub(super) struct SessionPolicy {
     pub persistent: bool,
     pub expiry_interval_seconds: Option<u32>,
     pub will_delay_seconds: u32,
+    pub will_message_expiry_seconds: Option<u32>,
     pub receive_maximum: u16,
 }
 
@@ -347,6 +356,7 @@ enum Command {
         persistent: bool,
         expiry_interval_seconds: Option<u32>,
         will_delay_seconds: u32,
+        will_message_expiry_seconds: Option<u32>,
         receive_maximum: u16,
         will: Option<StoredMessage>,
         reply: oneshot::Sender<Result<Session, RouterError>>,
@@ -693,7 +703,7 @@ impl Router {
                     &mut state,
                     &BTreeMap::new(),
                     &auth,
-                    &will.message,
+                    &will_publication(&will, now)?,
                     None,
                 ) {
                     store.shutdown().await?;
@@ -875,6 +885,7 @@ impl Router {
                 persistent: !clean,
                 expiry_interval_seconds: None,
                 will_delay_seconds: 0,
+                will_message_expiry_seconds: None,
                 receive_maximum: u16::MAX,
             },
             will,
@@ -900,6 +911,7 @@ impl Router {
             persistent: policy.persistent,
             expiry_interval_seconds: policy.expiry_interval_seconds,
             will_delay_seconds: policy.will_delay_seconds,
+            will_message_expiry_seconds: policy.will_message_expiry_seconds,
             receive_maximum: policy.receive_maximum,
             will,
             reply,
@@ -1151,7 +1163,7 @@ impl Actor {
                         &mut candidate,
                         &self.live,
                         &self.auth,
-                        &will.message,
+                        &will_publication(&will, now)?,
                         None,
                     )?);
                     published += 1;
@@ -1212,7 +1224,7 @@ impl Actor {
                         &mut candidate,
                         &BTreeMap::new(),
                         &self.auth,
-                        &will.message,
+                        &will_publication(&will, now)?,
                         None,
                     )?;
                     published += 1;
@@ -1313,7 +1325,7 @@ impl Actor {
                         &mut candidate,
                         &BTreeMap::new(),
                         &view,
-                        &will.message,
+                        &will_publication(&will, now)?,
                         None,
                     )?;
                     published += 1;
@@ -1461,6 +1473,7 @@ impl Actor {
                 persistent,
                 expiry_interval_seconds,
                 will_delay_seconds,
+                will_message_expiry_seconds,
                 receive_maximum,
                 will,
                 reply,
@@ -1477,6 +1490,7 @@ impl Actor {
                                 persistent,
                                 expiry_interval_seconds,
                                 will_delay_seconds,
+                                will_message_expiry_seconds,
                                 receive_maximum,
                             },
                             will,
@@ -2068,6 +2082,7 @@ impl Actor {
                 persistent,
                 expiry_interval_seconds,
                 will_delay_seconds: 0,
+                will_message_expiry_seconds: None,
                 receive_maximum: u16::MAX,
             },
             will,
@@ -2091,6 +2106,7 @@ impl Actor {
             persistent,
             expiry_interval_seconds,
             will_delay_seconds,
+            will_message_expiry_seconds,
             receive_maximum,
         } = policy;
         let now = unix_ms()?;
@@ -2175,6 +2191,7 @@ impl Actor {
                     principal: candidate.sessions[&client_id].principal.clone(),
                     message,
                     delay_seconds: will_delay_seconds,
+                    message_expiry_interval_seconds: will_message_expiry_seconds,
                     publish_at_unix_ms: None,
                 },
             );
@@ -2737,7 +2754,7 @@ impl Actor {
                     &mut candidate,
                     &remaining_live,
                     &self.auth,
-                    &will.message,
+                    &will_publication(&will, now)?,
                     None,
                 ) {
                     Ok(deliveries) => deliveries,
@@ -3865,6 +3882,7 @@ mod tests {
                     persistent: true,
                     expiry_interval_seconds: None,
                     will_delay_seconds: 0,
+                    will_message_expiry_seconds: None,
                     receive_maximum: 1,
                 },
                 None,
@@ -3937,6 +3955,7 @@ mod tests {
             persistent: true,
             expiry_interval_seconds: None,
             will_delay_seconds: 0,
+            will_message_expiry_seconds: None,
             receive_maximum,
         };
         let mut subscriber = actor
@@ -4018,6 +4037,7 @@ mod tests {
                     persistent: true,
                     expiry_interval_seconds: None,
                     will_delay_seconds: 0,
+                    will_message_expiry_seconds: None,
                     receive_maximum: 1,
                 },
                 None,
@@ -4103,6 +4123,7 @@ mod tests {
                     persistent: true,
                     expiry_interval_seconds: None,
                     will_delay_seconds: 0,
+                    will_message_expiry_seconds: None,
                     receive_maximum: 1,
                 },
                 None,
@@ -4157,6 +4178,7 @@ mod tests {
                     persistent: true,
                     expiry_interval_seconds: None,
                     will_delay_seconds: 0,
+                    will_message_expiry_seconds: None,
                     receive_maximum: 1,
                 },
                 None,
@@ -5357,6 +5379,36 @@ mod tests {
         }
     }
 
+    #[test]
+    fn will_message_expiry_starts_at_publication_time() {
+        let mut will = PendingWill {
+            principal: "sensor".into(),
+            message: message("will/expiry", 1, true, b"bye"),
+            delay_seconds: 30,
+            message_expiry_interval_seconds: Some(2),
+            publish_at_unix_ms: Some(100_000),
+        };
+        assert_eq!(will.message.expiry_at_unix_ms, None);
+        assert_eq!(
+            will_publication(&will, 100_000).unwrap().expiry_at_unix_ms,
+            Some(102_000)
+        );
+        assert_eq!(
+            will_publication(&will, 120_000).unwrap().expiry_at_unix_ms,
+            Some(122_000)
+        );
+        will.message_expiry_interval_seconds = Some(0);
+        assert_eq!(
+            will_publication(&will, 120_000).unwrap().expiry_at_unix_ms,
+            Some(120_000)
+        );
+        will.message_expiry_interval_seconds = None;
+        assert_eq!(
+            will_publication(&will, 120_000).unwrap().expiry_at_unix_ms,
+            None
+        );
+    }
+
     fn filter(value: &str) -> TopicFilter {
         TopicFilter::try_from(value.to_owned()).unwrap()
     }
@@ -6032,6 +6084,7 @@ mod tests {
                     persistent: true,
                     expiry_interval_seconds: None,
                     will_delay_seconds: 10,
+                    will_message_expiry_seconds: None,
                     receive_maximum: u16::MAX,
                 },
                 Some(message("test/will", 0, false, b"survives")),
@@ -6086,6 +6139,7 @@ mod tests {
             persistent: expiry != 0,
             expiry_interval_seconds: (1..u32::MAX).contains(&expiry).then_some(expiry),
             will_delay_seconds: delay,
+            will_message_expiry_seconds: None,
             receive_maximum: u16::MAX,
         };
         let source = actor
@@ -6860,6 +6914,7 @@ mod tests {
                 persistent: false,
                 expiry_interval_seconds: None,
                 will_delay_seconds: 0,
+                will_message_expiry_seconds: None,
                 receive_maximum: u16::MAX,
                 will: None,
                 reply,
