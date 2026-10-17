@@ -62,6 +62,14 @@ pub(super) struct ControlPropertyMalformed;
 #[error("duplicate MQTT 5 control property")]
 pub(super) struct ControlPropertyDuplicate;
 
+#[derive(Debug, thiserror::Error)]
+#[error("MQTT 5 acknowledgment property is invalid for this packet")]
+pub(super) struct AckPropertyMalformed;
+
+#[derive(Debug, thiserror::Error)]
+#[error("duplicate MQTT 5 acknowledgment Reason String")]
+pub(super) struct AckPropertyDuplicate;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -1063,7 +1071,33 @@ fn nonzero_ack_id(c: &mut Cursor<'_>) -> Result<u16, &'static str> {
     Ok(id)
 }
 
-fn decode_client_publish_ack(c: &mut Cursor<'_>, mqtt5: bool) -> Result<(u16, u8), &'static str> {
+fn decode_ack_diagnostics(
+    c: &mut Cursor<'_>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let property_length = c.variable_integer()?;
+    let mut properties = Cursor::new(c.bytes(property_length)?);
+    let mut reason_seen = false;
+    while properties.pos < properties.input.len() {
+        match properties.byte()? {
+            0x1f if !reason_seen => {
+                let _ = properties.text()?;
+                reason_seen = true;
+            }
+            0x26 => {
+                let _ = properties.text()?;
+                let _ = properties.text()?;
+            }
+            0x1f => return Err(AckPropertyDuplicate.into()),
+            _ => return Err(AckPropertyMalformed.into()),
+        }
+    }
+    Ok(())
+}
+
+fn decode_client_publish_ack(
+    c: &mut Cursor<'_>,
+    mqtt5: bool,
+) -> Result<(u16, u8), Box<dyn std::error::Error + Send + Sync>> {
     let packet_id = nonzero_ack_id(c)?;
     let reason_code = if mqtt5 && c.pos < c.input.len() {
         c.byte()?
@@ -1074,30 +1108,18 @@ fn decode_client_publish_ack(c: &mut Cursor<'_>, mqtt5: bool) -> Result<(u16, u8
         reason_code,
         0x00 | 0x80 | 0x83 | 0x87 | 0x90 | 0x91 | 0x97 | 0x99
     ) {
-        return Err("invalid client PUBLISH acknowledgment reason code");
+        return Err("invalid client PUBLISH acknowledgment reason code".into());
     }
     if mqtt5 && c.pos < c.input.len() {
-        let property_length = c.variable_integer()?;
-        let mut properties = Cursor::new(c.bytes(property_length)?);
-        let mut reason_seen = false;
-        while properties.pos < properties.input.len() {
-            match properties.byte()? {
-                0x1f if !reason_seen => {
-                    let _ = properties.text()?;
-                    reason_seen = true;
-                }
-                0x26 => {
-                    let _ = properties.text()?;
-                    let _ = properties.text()?;
-                }
-                _ => return Err("duplicate or unsupported MQTT 5 PUBLISH acknowledgment property"),
-            }
-        }
+        decode_ack_diagnostics(c)?;
     }
     Ok((packet_id, reason_code))
 }
 
-fn decode_qos2_completion_ack(c: &mut Cursor<'_>, mqtt5: bool) -> Result<(u16, u8), &'static str> {
+fn decode_qos2_completion_ack(
+    c: &mut Cursor<'_>,
+    mqtt5: bool,
+) -> Result<(u16, u8), Box<dyn std::error::Error + Send + Sync>> {
     let packet_id = nonzero_ack_id(c)?;
     let reason_code = if mqtt5 && c.pos < c.input.len() {
         c.byte()?
@@ -1105,25 +1127,10 @@ fn decode_qos2_completion_ack(c: &mut Cursor<'_>, mqtt5: bool) -> Result<(u16, u
         0
     };
     if !matches!(reason_code, 0x00 | 0x92) {
-        return Err("invalid MQTT 5 QoS 2 completion reason code");
+        return Err("invalid MQTT 5 QoS 2 completion reason code".into());
     }
     if mqtt5 && c.pos < c.input.len() {
-        let property_length = c.variable_integer()?;
-        let mut properties = Cursor::new(c.bytes(property_length)?);
-        let mut reason_seen = false;
-        while properties.pos < properties.input.len() {
-            match properties.byte()? {
-                0x1f if !reason_seen => {
-                    let _ = properties.text()?;
-                    reason_seen = true;
-                }
-                0x26 => {
-                    let _ = properties.text()?;
-                    let _ = properties.text()?;
-                }
-                _ => return Err("duplicate or unsupported MQTT 5 QoS 2 completion property"),
-            }
-        }
+        decode_ack_diagnostics(c)?;
     }
     Ok((packet_id, reason_code))
 }
@@ -2662,6 +2669,34 @@ mod tests {
             assert!(decode_for(0x50, body, true).is_err(), "{body:?}");
         }
         assert!(decode_for(0x50, &[0, 7, 0x80], false).is_err());
+    }
+
+    #[test]
+    fn mqtt5_qos_ack_property_errors_have_contextual_reasons() {
+        for header in [0x40, 0x50, 0x62, 0x70] {
+            let invalid_context = [0, 7, 0, 1, 0x11];
+            assert!(
+                decode_for(header, &invalid_context, true)
+                    .unwrap_err()
+                    .is::<AckPropertyMalformed>(),
+                "{header:#x}"
+            );
+            let duplicate_reason = [0, 7, 0, 8, 0x1f, 0, 1, b'a', 0x1f, 0, 1, b'b'];
+            assert!(
+                decode_for(header, &duplicate_reason, true)
+                    .unwrap_err()
+                    .is::<AckPropertyDuplicate>(),
+                "{header:#x}"
+            );
+            let repeatable_user = [0, 7, 0, 10, 0x26, 0, 0, 0, 0, 0x26, 0, 0, 0, 0];
+            assert!(
+                decode_for(header, &repeatable_user, true).is_ok(),
+                "{header:#x}"
+            );
+            let truncated = [0, 7, 0, 1, 0x1f];
+            assert!(decode_for(header, &truncated, true).is_err(), "{header:#x}");
+            assert!(decode_for(header, &invalid_context, false).is_err());
+        }
     }
 
     #[test]
