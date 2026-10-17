@@ -6,7 +6,8 @@ DISCONNECT de erro do client com Will e respostas `0x95` para quadro excessivo,
 `0x82` para flags fixas inválidas selecionadas. O estado durável permanece
 v15, compatível com broker 0.31.0 e admin independente 0.10.0. O client
 independente permanece 0.27.0; fases 6A–6D e 7–9 seguem abertas.
-[Nota de release 0.32.0](docs/releases/0.32.0.md).
+[Release 0.32.0](https://github.com/licodevone/xmqr/releases/tag/v0.32.0),
+[nota](docs/releases/0.32.0.md) e [aceite P179](prompts/registros/P179-release-0.32.0.md).
 
 A release experimental broker/admin legado 0.31.0 reúne P168–P172:
 interop MQTT 5 adicional com Eclipse Paho; PUBACK/PUBREC negativos de assinante;
