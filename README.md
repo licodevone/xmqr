@@ -1,8 +1,10 @@
 # XMQR
 
-A fonte 0.24.0 candidata reúne P146–P148, incluindo No Local e Retain As
-Published MQTT 5 com estado durável v11. A última versão publicada ainda é
-0.23.0; o marco 0.24.0 depende dos gates [P149](prompts/registros/P149-release-0.24.0.md).
+A versão experimental 0.24.0 reúne P146–P148, incluindo No Local e Retain As
+Published MQTT 5 com estado durável v11. Pacotes e imagens numeradas estão na
+[release 0.24.0](https://github.com/licodevone/xmqr/releases/tag/v0.24.0);
+[P149](prompts/registros/P149-release-0.24.0.md) registra os gates. O admin
+independente 0.5.0 ainda não lê v11.
 
 No marco experimental 0.23.0, P144 anuncia no CONNACK MQTT 5 a quota de
 recepção QoS1/2 configurada (1..32) quando há espaço, sem mudar o documento

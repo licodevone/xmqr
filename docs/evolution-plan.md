@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado0.23.0, client independente0.21.0
+Versões publicadas atuais: broker/admin legado0.24.0, client independente0.22.0
 e xmqr-admin independente0.5.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
@@ -173,7 +173,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6D/P147/C84 parcial: Retain Handling 0/1/2 por filtro, sessão persistente/restart, interop Mosquitto e CIs PASS.~~ [Broker](../prompts/registros/P147-retain-handling-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C84-retain-handling-mqtt5.md). Fase 6D global aberta.
 - [x] ~~Fase 6D/C85 parcial: client envia No Local e Retain As Published por filtro MQTT 5; wire, Mosquitto e CI PASS.~~ [Evidência](../../xmqr-client/prompts/registros/C85-no-local-retain-as-published-mqtt5.md). Broker P148 em validação; fase 6D global aberta.
 - [x] ~~Fase 6D/P148 parcial: broker aplica No Local e Retain As Published em sessão durável v11; TCP QoS0/1/2, restart e CI PASS.~~ [Evidência](../prompts/registros/P148-no-local-retain-as-published-mqtt5.md). Admin 0.5.0 ainda não lê v11; fase 6D global aberta.
-- [ ] Distribuição P149/C86: broker/admin legado 0.24.0, client 0.22.0, estado v11, pacotes/imagens, ciclo de upgrade/rollback, tags e prereleases. [Broker](../prompts/registros/P149-release-0.24.0.md) e [client](../../xmqr-client/prompts/registros/C86-release-0.22.0.md). Gates pendentes.
+- [x] ~~Distribuição P149/C86: broker/admin legado 0.24.0, client 0.22.0, estado v11, pacotes/imagens, ciclo de upgrade/rollback, tags e prereleases verificados.~~ [Broker](../prompts/registros/P149-release-0.24.0.md) e [client](../../xmqr-client/prompts/registros/C86-release-0.22.0.md). Rollback de estado v11 requer backup privado v10; admin independente 0.5.0 ainda não abre v11.
 - [x] ~~Admin A12/A13: core broker 0.23.0 e estado v10 aceitos; admin independente 0.5.0 distribuído com pacotes, imagem numerada, tag e prerelease verificadas.~~ [A12](../../xmqr-admin/prompts/registros/A12-core-broker-0.23-compat.md) e [A13](../../xmqr-admin/prompts/registros/A13-release-core-0.23.md). Painel de escrita e fase 9 seguem abertos.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
