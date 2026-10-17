@@ -677,6 +677,8 @@ fn decode_for(
                 let property_length = c.variable_integer()?;
                 let raw = c.bytes(property_length)?;
                 let mut properties = Cursor::new(raw);
+                let mut user_property_count = 0;
+                let mut user_property_bytes = 0;
                 while properties.pos < raw.len() {
                     match properties.byte()? {
                         0x0b if subscription_identifier.is_none() => {
@@ -689,6 +691,11 @@ fn decode_for(
                                     .map_err(|_| "invalid MQTT 5 Subscription Identifier")?,
                             );
                         }
+                        0x26 => parse_subscription_user_property(
+                            &mut properties,
+                            &mut user_property_count,
+                            &mut user_property_bytes,
+                        )?,
                         _ => {
                             return Err("unsupported or duplicate MQTT 5 SUBSCRIBE property".into());
                         }
@@ -742,9 +749,19 @@ fn decode_for(
             }
             if mqtt5 {
                 let property_length = c.variable_integer()?;
-                c.bytes(property_length)?;
-                if property_length != 0 {
-                    return Err("MQTT 5 UNSUBSCRIBE properties not supported".into());
+                let raw = c.bytes(property_length)?;
+                let mut properties = Cursor::new(raw);
+                let mut user_property_count = 0;
+                let mut user_property_bytes = 0;
+                while properties.pos < raw.len() {
+                    match properties.byte()? {
+                        0x26 => parse_subscription_user_property(
+                            &mut properties,
+                            &mut user_property_count,
+                            &mut user_property_bytes,
+                        )?,
+                        _ => return Err("unsupported MQTT 5 UNSUBSCRIBE property".into()),
+                    }
                 }
             }
             let mut filters = Vec::new();
@@ -978,6 +995,24 @@ fn decode_for(
     };
     c.end()?;
     Ok(packet)
+}
+
+fn parse_subscription_user_property(
+    properties: &mut Cursor<'_>,
+    count: &mut usize,
+    bytes: &mut usize,
+) -> Result<(), &'static str> {
+    let key = properties.text()?;
+    let value = properties.text()?;
+    if key.len() > 256 || value.len() > 256 {
+        return Err("MQTT 5 subscription User Property field too long");
+    }
+    *count += 1;
+    *bytes = bytes.saturating_add(5 + key.len() + value.len());
+    if *count > 16 || *bytes > 2048 {
+        return Err("MQTT 5 subscription User Properties exceed limits");
+    }
+    Ok(())
 }
 
 fn nonzero_ack_id(c: &mut Cursor<'_>) -> Result<u16, &'static str> {
@@ -2257,6 +2292,56 @@ mod tests {
             encode_mqtt5_unsuback(9, &[0, 0x11]),
             [0xb0, 5, 0, 9, 0, 0, 0x11]
         );
+    }
+
+    #[test]
+    fn mqtt5_subscription_user_properties_are_contextual_bounded_and_repeatable() {
+        fn body(properties: &[u8], subscribe: bool) -> Vec<u8> {
+            let mut out = vec![0, 7];
+            encode_length(properties.len(), &mut out);
+            out.extend_from_slice(properties);
+            out.extend_from_slice(&[0, 1, b'x']);
+            if subscribe {
+                out.push(1);
+            }
+            out
+        }
+        let pair = [0x26, 0, 1, b'k', 0, 1, b'v'];
+        let mut repeated = Vec::new();
+        repeated.extend_from_slice(&pair);
+        repeated.extend_from_slice(&[0x0b, 3]);
+        repeated.extend_from_slice(&pair);
+        assert!(matches!(
+            decode_for(0x82, &body(&repeated, true), true).unwrap(),
+            Packet::Subscribe {
+                subscription_identifier: Some(3),
+                ..
+            }
+        ));
+        assert!(matches!(
+            decode_for(0xa2, &body(&repeated[..7], false), true).unwrap(),
+            Packet::Unsubscribe { .. }
+        ));
+        for (header, subscribe) in [(0x82, true), (0xa2, false)] {
+            assert!(decode_for(header, &body(&pair, subscribe), false).is_err());
+            for invalid in [
+                vec![0x26, 0, 1, b'k', 0, 2, b'v'],
+                vec![0x26, 0, 1, 0xff, 0, 0],
+                vec![0x1f, 0, 0],
+                pair.repeat(17),
+            ] {
+                assert!(decode_for(header, &body(&invalid, subscribe), true).is_err());
+            }
+            let mut too_long = vec![0x26, 1, 1];
+            too_long.extend_from_slice(&vec![b'k'; 257]);
+            too_long.extend_from_slice(&[0, 0]);
+            assert!(decode_for(header, &body(&too_long, subscribe), true).is_err());
+            let mut large_pair = vec![0x26, 0, 128];
+            large_pair.extend_from_slice(&[b'k'; 128]);
+            large_pair.extend_from_slice(&[0, 128]);
+            large_pair.extend_from_slice(&[b'v'; 128]);
+            assert!(decode_for(header, &body(&large_pair.repeat(8), subscribe), true).is_err());
+        }
     }
 
     #[test]
