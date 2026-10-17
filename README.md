@@ -1,5 +1,7 @@
 # XMQR
 
+Versões e pacotes atuais para Ubuntu 26.04/WSL: [guia de releases e instalação](docs/current-releases-wsl.md).
+
 A release experimental 0.33.0 reúne P180/P181: propriedades User Property repetíveis em
 SUBSCRIBE e UNSUBSCRIBE MQTT 5, com limite de 16 pares/2048 bytes e rejeição
 antes do roteamento. Identificador de propriedade impróprio recebe DISCONNECT
