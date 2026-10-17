@@ -97,6 +97,11 @@ reconhecida e Payload Format Indicator acima de 1 geram `0x82`. O PUBLISH
 rejeitado não é entregue, e o Will aplicável é publicado. Topic Alias inválido
 continua com `0x94`; demais erros de PUBLISH não estão classificados por esta
 entrega.
+P186 aplica DISCONNECT `0x81`/`0x82` respectivamente a identificador de
+propriedade fora de contexto e duplicata de propriedade única em AUTH e
+DISCONNECT do client. A recusa não aplica Session Expiry parcialmente; o Will
+segue a transição de erro. Outros erros de AUTH/DISCONNECT seguem sua validação
+anterior e não compõem uma matriz normativa completa.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa

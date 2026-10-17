@@ -1,0 +1,7 @@
+# P186 — motivos MQTT 5 de propriedades AUTH/DISCONNECT
+
+O [prompt P186](../broker/186-auth-disconnect-property-reasons-mqtt5.md) precedeu a implementação (`3884d78`). Fonte `625b59a86dc0b92caea18e98b235052d2cd629b6` enviada a `main`; [CI PASS](https://github.com/licodevone/xmqr/actions/runs/39037071071) nos jobs Rust e pacote Ubuntu 26.04, incluindo o verificador TCP P186.
+
+Após CONNACK MQTT 5, AUTH e DISCONNECT do client com identificador de propriedade fora de contexto recebem DISCONNECT `0x81`; duplicata de propriedade única reconhecida recebe `0x82`. User Property permanece repetível. A recusa fecha a conexão sem aplicar Session Expiry parcialmente, usa a transição de Will por erro e respeita o limite de saída. MQTT 3.1.1 continua sem DISCONNECT MQTT 5. Truncamento, UTF-8 inválido, motivos inválidos, quotas e limites locais ainda não recebem esta classificação. Estado v15 sem migração nem tag isolada.
+
+Evidência local PASS: 206 testes de biblioteca/6 ignorados, demais alvos, fmt, Clippy `-D warnings`, build release, inventário de licenças e seis contratos de distribuição. O unitário contextual e o ensaio `P186_CONTROL_PROPERTY_REASONS_PASS` cobriram AUTH/DISCONNECT `0x81`/`0x82`, Will, sessão durável recuperável mesmo após dois segundos e comparação 3.1.1. Regressões de expiração do DISCONNECT, P172, P174, reautenticação TLS/mTLS P160, P181 e P183–P185 PASS. Aceites globais 6A/6B/6D e matriz normativa seguem abertos.

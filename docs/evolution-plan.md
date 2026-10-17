@@ -220,6 +220,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P183 parcial: identificador de propriedade fora de contexto em CONNECT/Will recebe CONNACK MQTT 5 `0x81`, respeitando Maximum Packet Size, sem sessão/Will; gates locais e CI PASS.~~ [Registro](../prompts/registros/P183-connect-property-context-reason-mqtt5.md). Erros semânticos e matriz normativa global seguem abertos.
 - [x] ~~Fase 6A/P184 parcial: erros semânticos reconhecidos em CONNECT/Will recebem CONNACK MQTT 5 `0x82`, sem sessão/Will, com limite de resposta; gates locais e CI PASS.~~ [Registro](../prompts/registros/P184-connect-property-semantic-reasons-mqtt5.md). Não encerra 6A.
 - [x] ~~Fases 6A/6C/P185 parciais: PUBLISH com propriedade fora de contexto recebe DISCONNECT MQTT 5 `0x81`; duplicata única/PFI inválido recebe `0x82`, com Will e sem entrega; gates locais e CI PASS.~~ [Registro](../prompts/registros/P185-publish-property-reasons-mqtt5.md). Aceites globais abertos.
+- [x] ~~Fases 6A/6B/6D/P186 parciais: AUTH/DISCONNECT com propriedade fora de contexto/duplicata recebem `0x81`/`0x82`, com Will e sessão durável preservada; gates locais e CI PASS.~~ [Registro](../prompts/registros/P186-control-property-reasons-mqtt5.md). Aceites globais abertos.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
