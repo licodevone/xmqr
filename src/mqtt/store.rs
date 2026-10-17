@@ -20,7 +20,7 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 10;
+const FORMAT_VERSION: u16 = 11;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -102,6 +102,10 @@ pub(super) struct DurableSession {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_at_unix_ms: Option<u64>,
     pub subscriptions: BTreeMap<TopicFilter, u8>,
+    /// MQTT 5 No Local (bit 2) and Retain As Published (bit 3) per filter.
+    /// Older documents default to both options disabled.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub subscription_options: BTreeMap<TopicFilter, u8>,
     pub offline: VecDeque<StoredMessage>,
     pub inbound_qos2: Vec<InboundQos2>,
     pub outbound: Vec<OutboundInflight>,
@@ -116,6 +120,7 @@ impl DurableSession {
             expiry_interval_seconds: None,
             expires_at_unix_ms: None,
             subscriptions: BTreeMap::new(),
+            subscription_options: BTreeMap::new(),
             offline: VecDeque::new(),
             inbound_qos2: Vec::new(),
             outbound: Vec::new(),
@@ -389,6 +394,12 @@ pub(super) fn validate_with_limits(
         }
         for qos in session.subscriptions.values() {
             if *qos > 2 {
+                return Err(StateError::Malformed);
+            }
+        }
+        for (filter, options) in &session.subscription_options {
+            if !session.subscriptions.contains_key(filter) || *options == 0 || options & !0x0c != 0
+            {
                 return Err(StateError::Malformed);
             }
         }
@@ -698,6 +709,7 @@ mod tests {
                     TopicFilter::try_from("test/temperature".to_owned()).unwrap(),
                     2,
                 )]),
+                subscription_options: BTreeMap::new(),
                 offline: VecDeque::from([message(1)]),
                 inbound_qos2: vec![InboundQos2 {
                     packet_id: 7,
@@ -816,7 +828,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(11))
+            Err(StateError::UnsupportedVersion(12))
         ));
     }
 
@@ -876,8 +888,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_to_v9_and_commits_v10_without_losing_retained() {
-        for version in [1, 2, 3, 4, 5, 6, 7, 8, 9] {
+    async fn reads_v1_to_v10_and_commits_v11_without_losing_retained() {
+        for version in 1..=10 {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -902,13 +914,13 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 10);
+            assert_eq!(envelope.version, 11);
             assert_eq!(envelope.state, expected);
         }
     }
 
     #[tokio::test]
-    async fn reads_v7_will_without_delay_fields_and_commits_v10() {
+    async fn reads_v7_will_without_delay_fields_and_commits_v11() {
         let directory = tempdir().unwrap();
         let mut expected = state();
         expected.pending_wills.insert(
@@ -937,8 +949,53 @@ mod tests {
         let writer = Store::open(directory.path()).unwrap();
         let bytes = writer.get(KEY).unwrap();
         let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-        assert_eq!(envelope.version, 10);
+        assert_eq!(envelope.version, 11);
         assert_eq!(envelope.state, expected);
+    }
+
+    #[tokio::test]
+    async fn subscription_options_v11_persist_and_reject_orphan_or_reserved_bits() {
+        let directory = tempdir().unwrap();
+        let mut expected = state();
+        let filter = TopicFilter::try_from("test/temperature".to_owned()).unwrap();
+        expected
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscription_options
+            .insert(filter.clone(), 0x0c);
+        let (store, _) = MqttStore::open(directory.path()).await.unwrap();
+        store.commit(&expected).await.unwrap();
+        store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, expected);
+        store.shutdown().await.unwrap();
+        expected
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscription_options
+            .insert(filter, 0x10);
+        assert!(matches!(
+            validate_with_limits(&expected, StateLimits::default()),
+            Err(StateError::Malformed)
+        ));
+        expected
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscription_options
+            .clear();
+        expected
+            .sessions
+            .get_mut("sensor-1")
+            .unwrap()
+            .subscription_options
+            .insert(TopicFilter::try_from("orphan".to_owned()).unwrap(), 0x04);
+        assert!(matches!(
+            validate_with_limits(&expected, StateLimits::default()),
+            Err(StateError::Malformed)
+        ));
     }
 
     #[tokio::test]

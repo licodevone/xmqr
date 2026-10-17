@@ -67,7 +67,7 @@ pub(super) enum Packet {
     },
     Subscribe {
         packet_id: u16,
-        filters: Vec<(TopicFilter, Qos, u8)>,
+        filters: Vec<(TopicFilter, Qos, u8, u8)>,
     },
     Unsubscribe {
         packet_id: u16,
@@ -537,12 +537,15 @@ fn decode_for(
                 let topic = TopicFilter::try_from(c.text()?)?;
                 let options = c.byte()?;
                 let retain_handling = if mqtt5 {
-                    if options & 0xcc != 0 {
-                        return Err("unsupported MQTT 5 SUBSCRIBE option or reserved bit".into());
+                    if options & 0xc0 != 0 {
+                        return Err("reserved MQTT 5 SUBSCRIBE option bit".into());
                     }
                     let handling = (options >> 4) & 0x03;
                     if handling == 3 {
                         return Err("invalid MQTT 5 Retain Handling value".into());
+                    }
+                    if options & 0x04 != 0 && topic.as_str().starts_with("$share/") {
+                        return Err("No Local invalid on shared subscription".into());
                     }
                     handling
                 } else {
@@ -550,7 +553,7 @@ fn decode_for(
                 };
                 // MQTT-3-8.3-4: QoS 3 and reserved option bits are malformed.
                 let qos = Qos::from_u8(if mqtt5 { options & 0x03 } else { options })?;
-                filters.push((topic, qos, retain_handling));
+                filters.push((topic, qos, retain_handling, options & 0x0c));
             }
             if filters.is_empty() {
                 return Err("empty SUBSCRIBE".into());
@@ -1574,7 +1577,6 @@ mod tests {
         for body in [
             &[0, 0, 0, 0, 1, b'x', 0][..],       // Zero packet ID.
             &[0, 1, 1, 0x26, 0, 1, b'x', 0][..], // Unsupported property.
-            &[0, 1, 0, 0, 1, b'x', 4][..],       // No Local.
             &[0, 1, 0][..],                      // No filters.
         ] {
             assert!(decode_for(0x82, body, true).is_err());
@@ -1593,9 +1595,25 @@ mod tests {
                         && filters[0].2 == handling
             ));
         }
-        for invalid in [0x30, 0x04, 0x08, 0x40, 0x80] {
+        for flags in [0x04, 0x08, 0x0c] {
+            assert!(matches!(
+                decode_for(0x82, &[0, 1, 0, 0, 1, b'x', flags], true).unwrap(),
+                Packet::Subscribe { filters, .. } if filters[0].3 == flags
+            ));
+        }
+        for invalid in [0x30, 0x40, 0x80] {
             assert!(decode_for(0x82, &[0, 1, 0, 0, 1, b'x', invalid], true).is_err());
         }
+        assert!(
+            decode_for(
+                0x82,
+                &[
+                    0, 1, 0, 0, 8, b'$', b's', b'h', b'a', b'r', b'e', b'/', b'x', 4
+                ],
+                true
+            )
+            .is_err()
+        );
         assert!(decode_for(0x82, &[0, 1, 0, 1, b'x', 0x20], false).is_err());
     }
 

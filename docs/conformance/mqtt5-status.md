@@ -105,9 +105,11 @@ conformidade MQTT 5 integral.
 P147/C84 aceitam Retain Handling 0/1/2 por filtro SUBSCRIBE MQTT 5. Zero
 preserva o envio anterior, um só envia retained para filtro que ainda não
 existia na sessão e dois não envia retained no SUBSCRIBE. A existência da
-assinatura sobrevive ao restart sem novo campo durável; No Local, Retain As
-Published, Subscription Identifier, compartilhamento e AUTH continuam fora
-deste recorte da fase 6D.
+assinatura sobrevive ao restart sem novo campo durável. P148/C85 acrescentam
+No Local e Retain As Published por filtro, com filtros sobrepostos e sessão
+retomada. O broker grava essas opções em documento v11; versões anteriores
+continuam legíveis com opções desativadas por padrão. Subscription Identifier,
+compartilhamento e AUTH continuam fora deste recorte da fase 6D.
 
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
 P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
@@ -118,7 +120,10 @@ permanecem pendentes. P128 migra o documento durável de v5 para v6 na próxima
 gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
 backup privado anterior à migração. P130 migra o documento de v6 para v7;
 P132 migra de v7 para v8. P141, distribuído em 0.22.0, migra de v8
-para v9 na próxima gravação; P142 migra de v9 para v10. P141 não reabre v10
+para v9 na próxima gravação; P142 migra de v9 para v10; P148 migra de v10
+para v11. O admin independente 0.5.0, pinado no core broker 0.23.0, não abre
+v11: atualização própria e aceite ainda são necessários. Preserve backup
+privado v10 antes da primeira gravação v11 para rollback. P141 não reabre v10
 sem backup privado v9 anterior; 0.21.0 não reabre v9/v10 sem backup privado v8.
 A versão 0.18.0 não pode reabrir v7/v8 sem backup anterior.
 

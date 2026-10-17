@@ -4,6 +4,7 @@
 
 - P146: sessão MQTT 5 retomada com quota durável QoS2 cheia responde PUBREC `0x97` a novo packet ID sem perder a transação anterior; duplicata já aceita e PUBREL continuam, e uma publicação nova passa após liberar a vaga. O documento durável segue v10.
 - P147: SUBSCRIBE MQTT 5 aceita Retain Handling 0/1/2 por filtro; o valor 1 consulta a existência da assinatura na sessão persistida e 2 não envia retained no SUBSCRIBE. No Local e Retain As Published continuam fora do recorte. Sem migração do estado v10.
+- P148: No Local e Retain As Published por filtro MQTT 5, inclusive filtros sobrepostos e sessão retomada; documento durável v11 na próxima gravação. O admin independente 0.5.0, com core 0.23.0 pinado, ainda não abre v11.
 
 ## 0.23.0 — limite de recepção MQTT 5 no CONNACK, experimental
 

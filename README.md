@@ -15,8 +15,13 @@ durável permanece v10 e o limite de recebimento por conexão ainda se aplica.
 Em desenvolvimento após 0.23.0, P147 aceita Retain Handling 0/1/2 no
 SUBSCRIBE MQTT 5. A opção 1 só envia mensagens retidas quando o filtro ainda
 não existe na sessão; a opção 2 não as envia no ato da assinatura. A decisão
-usa a assinatura persistida após reinício. Opções No Local e Retain As Published
-continuam pendentes na fase 6D.
+usa a assinatura persistida após reinício.
+
+Em desenvolvimento após 0.23.0, P148 aceita No Local e Retain As Published
+por filtro MQTT 5, inclusive retomada após restart. O documento durável passa
+a v11 na próxima gravação. Antes de migrar, preserve um backup privado v10:
+o admin independente 0.5.0 ainda usa o core 0.23.0 e não abre v11. A fase 6D
+continua aberta para Subscription Identifier, assinaturas compartilhadas e AUTH.
 
 No marco experimental 0.22.0, P141 preserva Payload Format
 Indicator e Content Type de PUBLISH MQTT 5; P142 acrescenta Response Topic,

@@ -306,7 +306,7 @@ enum Command {
     Subscribe {
         client_id: String,
         generation: u64,
-        filters: Vec<(TopicFilter, Option<u8>, u8)>,
+        filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
         reply: oneshot::Sender<SubscribeResult>,
     },
     Unsubscribe {
@@ -637,9 +637,14 @@ impl Router {
         for id in due {
             let will = state.pending_wills.remove(&id).ok_or(RouterError::Stale)?;
             if auth.allowed_publish(&will.principal, will.message.topic.as_str()) {
-                if let Err(error) =
-                    apply_message(limits, &mut state, &BTreeMap::new(), &auth, &will.message)
-                {
+                if let Err(error) = apply_message(
+                    limits,
+                    &mut state,
+                    &BTreeMap::new(),
+                    &auth,
+                    &will.message,
+                    None,
+                ) {
                     store.shutdown().await?;
                     return Err(error.into());
                 }
@@ -850,7 +855,7 @@ impl Router {
             session,
             filters
                 .into_iter()
-                .map(|(filter, qos)| (filter, qos, 0))
+                .map(|(filter, qos)| (filter, qos, 0, 0))
                 .collect(),
         )
         .await
@@ -859,7 +864,7 @@ impl Router {
     pub(super) async fn subscribe_with_handling(
         &self,
         session: &Session,
-        filters: Vec<(TopicFilter, Option<u8>, u8)>,
+        filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Subscribe {
@@ -1053,6 +1058,7 @@ impl Actor {
                         &self.live,
                         &self.auth,
                         &will.message,
+                        None,
                     )?);
                     published += 1;
                 }
@@ -1099,6 +1105,7 @@ impl Actor {
                         &BTreeMap::new(),
                         &self.auth,
                         &will.message,
+                        None,
                     )?;
                     published += 1;
                 } else {
@@ -1143,6 +1150,9 @@ impl Actor {
                 .subscriptions
                 .retain(|filter, _| view.allowed_subscribe(&session.principal, filter.as_str()));
             session
+                .subscription_options
+                .retain(|filter, _| session.subscriptions.contains_key(filter));
+            session
                 .offline
                 .retain(|m| view.allowed_delivery(&session.principal, m.topic.as_str()));
             session
@@ -1168,6 +1178,7 @@ impl Actor {
                         &BTreeMap::new(),
                         &view,
                         &will.message,
+                        None,
                     )?;
                     published += 1;
                 } else {
@@ -1979,6 +1990,7 @@ impl Actor {
                     &self.live,
                     &self.auth,
                     &prior.message,
+                    None,
                 )?;
                 prior_will_published = true;
             }
@@ -2102,7 +2114,7 @@ impl Actor {
             generation,
             filters
                 .into_iter()
-                .map(|(filter, qos)| (filter, qos, 0))
+                .map(|(filter, qos)| (filter, qos, 0, 0))
                 .collect(),
         )
         .await
@@ -2112,13 +2124,13 @@ impl Actor {
         &mut self,
         client_id: &str,
         generation: u64,
-        filters: Vec<(TopicFilter, Option<u8>, u8)>,
+        filters: Vec<(TopicFilter, Option<u8>, u8, u8)>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
         let mut codes = Vec::with_capacity(filters.len());
         let mut retained_matches = BTreeMap::new();
-        for (filter, granted, retain_handling) in filters {
+        for (filter, granted, retain_handling, subscription_flags) in filters {
             let principal = &self
                 .state
                 .sessions
@@ -2132,18 +2144,15 @@ impl Actor {
                 codes.push(0x80);
                 continue;
             };
-            let already_existed = candidate
-                .sessions
-                .get(client_id)
-                .ok_or(RouterError::Stale)?
-                .subscriptions
-                .contains_key(&filter);
-            candidate
-                .sessions
-                .get_mut(client_id)
-                .ok_or(RouterError::Stale)?
-                .subscriptions
-                .insert(filter.clone(), qos);
+            let already_existed = update_subscription(
+                candidate
+                    .sessions
+                    .get_mut(client_id)
+                    .ok_or(RouterError::Stale)?,
+                &filter,
+                qos,
+                subscription_flags,
+            );
             codes.push(qos);
             if retain_handling == 2 || retain_handling == 1 && already_existed {
                 continue;
@@ -2230,6 +2239,7 @@ impl Actor {
         let mut changed = false;
         for filter in filters {
             let removed = session.subscriptions.remove(&filter).is_some();
+            session.subscription_options.remove(&filter);
             codes.push(if removed { 0x00 } else { 0x11 });
             changed |= removed;
         }
@@ -2286,6 +2296,7 @@ impl Actor {
             &self.live,
             &self.auth,
             &message,
+            Some(client_id),
         )?;
         self.commit(candidate).await?;
         self.metrics.received[qos].fetch_add(1, Ordering::Relaxed);
@@ -2319,6 +2330,7 @@ impl Actor {
             &self.live,
             &self.auth,
             &pending.message,
+            Some(client_id),
         )?;
         self.commit(candidate).await?;
         if let Some(live) = self.live.get_mut(client_id) {
@@ -2537,6 +2549,7 @@ impl Actor {
                     &remaining_live,
                     &self.auth,
                     &will.message,
+                    None,
                 ) {
                     Ok(deliveries) => deliveries,
                     Err(error) => {
@@ -2597,12 +2610,28 @@ impl Actor {
     }
 }
 
+fn update_subscription(
+    session: &mut DurableSession,
+    filter: &TopicFilter,
+    qos: u8,
+    flags: u8,
+) -> bool {
+    let existed = session.subscriptions.insert(filter.clone(), qos).is_some();
+    if flags == 0 {
+        session.subscription_options.remove(filter);
+    } else {
+        session.subscription_options.insert(filter.clone(), flags);
+    }
+    existed
+}
+
 fn apply_message(
     limits: StateLimits,
     state: &mut DurableState,
     live: &BTreeMap<String, Live>,
     auth: &AccessPolicy,
     message: &StoredMessage,
+    publisher_id: Option<&str>,
 ) -> Result<Vec<(String, Delivery)>, RouterError> {
     let expired = message_expired(message, unix_ms()?);
     if message.retain {
@@ -2622,18 +2651,29 @@ fn apply_message(
         if !auth.allowed_delivery(&session.principal, message.topic.as_str()) {
             continue;
         }
-        let Some(maximum) = session
-            .subscriptions
-            .iter()
-            .filter(|(filter, _)| filter.matches(&message.topic))
-            .map(|(_, qos)| *qos)
-            .max()
-        else {
+        let matching = session.subscriptions.iter().filter(|(filter, _)| {
+            filter.matches(&message.topic)
+                && !(publisher_id == Some(client_id.as_str())
+                    && session
+                        .subscription_options
+                        .get(*filter)
+                        .is_some_and(|bits| bits & 0x04 != 0))
+        });
+        let mut maximum = None;
+        let mut preserve_retain = false;
+        for (filter, qos) in matching {
+            maximum = Some(maximum.map_or(*qos, |value: u8| value.max(*qos)));
+            preserve_retain |= session
+                .subscription_options
+                .get(filter)
+                .is_some_and(|bits| bits & 0x08 != 0);
+        }
+        let Some(maximum) = maximum else {
             continue;
         };
         let mut outbound = message.clone();
         outbound.qos = outbound.qos.min(maximum);
-        outbound.retain = false;
+        outbound.retain &= preserve_retain;
         if let Some(connection) = live.get(client_id) {
             if outbound.qos > 0
                 && (session.outbound.len() >= limits.max_inflight
@@ -4005,7 +4045,7 @@ mod tests {
             .subscribe_with_handling(
                 "subscriber",
                 subscriber.generation,
-                vec![(filter("test/#"), Some(0), 2)],
+                vec![(filter("test/#"), Some(0), 2, 0)],
             )
             .await
             .unwrap();
@@ -4015,7 +4055,7 @@ mod tests {
             .subscribe_with_handling(
                 "subscriber",
                 subscriber.generation,
-                vec![(filter("test/#"), Some(0), 1)],
+                vec![(filter("test/#"), Some(0), 1, 0)],
             )
             .await
             .unwrap();
@@ -4028,7 +4068,7 @@ mod tests {
             .subscribe_with_handling(
                 "subscriber",
                 subscriber.generation,
-                vec![(filter("test/#"), Some(0), 1)],
+                vec![(filter("test/#"), Some(0), 1, 0)],
             )
             .await
             .unwrap();
@@ -4038,14 +4078,94 @@ mod tests {
                 "subscriber",
                 subscriber.generation,
                 vec![
-                    (filter("test/#"), Some(0), 0),
-                    (filter("test/state"), Some(0), 0),
+                    (filter("test/#"), Some(0), 0, 0),
+                    (filter("test/state"), Some(0), 0, 0),
                 ],
             )
             .await
             .unwrap();
         assert_eq!(retained.len(), 1);
         actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_no_local_and_retain_as_published_respect_overlapping_filters() {
+        let (directory, mut actor) = actor().await;
+        let mut same = actor
+            .register("same".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe_with_handling(
+                "same",
+                same.generation,
+                vec![(filter("test/#"), Some(1), 2, 0x04)],
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "same",
+                same.generation,
+                message("test/state", 1, true, b"self-suppressed"),
+                Some(7),
+            )
+            .await
+            .unwrap();
+        assert!(same.outbound.try_recv().is_err());
+
+        let other = actor
+            .register("other".into(), "user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "other",
+                other.generation,
+                message("test/state", 0, true, b"other-cleared"),
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(
+            matches!(same.outbound.try_recv(), Ok(Delivery::Publish { message, .. })
+            if message.payload == b"other-cleared" && !message.retain)
+        );
+
+        actor
+            .subscribe_with_handling(
+                "same",
+                same.generation,
+                vec![(filter("test/state"), Some(1), 2, 0x08)],
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "same",
+                same.generation,
+                message("test/state", 0, true, b"self-eligible"),
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(
+            matches!(same.outbound.try_recv(), Ok(Delivery::Publish { message, .. })
+            if message.payload == b"self-eligible" && message.retain)
+        );
+        assert!(same.outbound.try_recv().is_err());
+
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(
+            recovered.sessions["same"].subscription_options[&filter("test/#")],
+            0x04
+        );
+        assert_eq!(
+            recovered.sessions["same"].subscription_options[&filter("test/state")],
+            0x08
+        );
+        store.shutdown().await.unwrap();
     }
 
     fn message(topic: &str, qos: u8, retain: bool, payload: &[u8]) -> StoredMessage {
@@ -5048,7 +5168,8 @@ mod tests {
                 &mut candidate,
                 &actor.live,
                 &actor.auth,
-                &message("$SYS/state", 0, false, b"denied")
+                &message("$SYS/state", 0, false, b"denied"),
+                None,
             )
             .unwrap()
             .is_empty()

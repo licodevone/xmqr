@@ -279,9 +279,9 @@ async fn serve_mqtt(
                     last_inbound = Instant::now();
                     match incoming? {
                         Packet::Subscribe { packet_id, filters } => {
-                            let requested = filters.into_iter().map(|(filter,qos,retain_handling)| {
+                            let requested = filters.into_iter().map(|(filter,qos,retain_handling,subscription_flags)| {
                                 let granted = auth.allowed_subscribe(&principal, filter.as_str()).then_some(qos.as_u8());
-                                (filter, granted, retain_handling)
+                                (filter, granted, retain_handling, subscription_flags)
                             }).collect();
                             let (mut codes, retained) = router.subscribe_with_handling(&session, requested).await?;
                             if mqtt5 {
