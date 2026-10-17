@@ -16,13 +16,20 @@ CLIENT = Path(__file__).resolve().parents[2] / "xmqr-client/target/release/mqtt-
 
 
 def subscribe(stream, identifier, filters=(b"p150/value", b"p150/#")):
-    properties = b"\x0b" + bytes([identifier])
+    properties = b"" if identifier is None else b"\x0b" + bytes([identifier])
     body = b"\x00\x01" + bytes([len(properties)]) + properties
     for item in filters:
         body += len(item).to_bytes(2, "big") + item + b"\x02"
     stream.sendall(bytes([0x82, len(body)]) + body)
     header, ack = packet(stream)
     assert header == 0x90 and ack[-len(filters):] == bytes([2] * len(filters)), ack
+
+
+def unsubscribe(stream, item):
+    body = b"\x00\x02\x00" + len(item).to_bytes(2, "big") + item
+    stream.sendall(bytes([0xa2, len(body)]) + body)
+    header, ack = packet(stream)
+    assert header == 0xb0 and ack[:2] == b"\x00\x02" and ack[-1] == 0, ack
 
 
 def publish(stream, payload, qos, packet_id, retain=False):
@@ -94,6 +101,10 @@ def main():
                     publish(publisher, payload, qos, qos + 10)
                     receive(subscriber, payload, qos, [17, 17])
                     barrier(subscriber)
+                subscribe(subscriber, None)
+                publish(publisher, b"replaced-without-id", 0, 0)
+                receive(subscriber, b"replaced-without-id", 0, [])
+                subscribe(subscriber, 17)
             subscriber.sendall(b"\xe0\x00")
             subscriber.close()
         finally:
@@ -113,6 +124,11 @@ def main():
             subscriber, present = connect(port, b"p150-durable", clean=False, persistent=True)
             assert present
             receive(subscriber, b"offline", 1, [17, 17])
+            barrier(subscriber)
+            unsubscribe(subscriber, b"p150/#")
+            with connect(port, b"p150-publisher-unsub")[0] as publisher:
+                publish(publisher, b"after-unsub", 1, 33)
+            receive(subscriber, b"after-unsub", 1, [17])
             barrier(subscriber)
             subscriber.sendall(b"\xe0\x00")
             subscriber.close()
@@ -137,7 +153,7 @@ def main():
             rejected(port, b"p150-publish-property", bytes([0x30, len(body)]) + body)
         finally:
             stop(broker)
-    print("P150_C87_PASS live QoS0/1/2, overlap, v12 restart, offline, retained, client JSONL, malformed properties")
+    print("P150_C87_PASS QoS0/1/2, overlap, replacement, unsubscribe, v12 restart, offline, retained, client JSONL, malformed properties")
 
 
 if __name__ == "__main__":
