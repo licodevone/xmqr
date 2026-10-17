@@ -58,6 +58,7 @@ pub(super) enum Packet {
         session_expiry: u32,
         receive_maximum: u16,
         maximum_packet_size: Option<u32>,
+        topic_alias_maximum: u16,
         keep_alive: u16,
         will: Option<super::store::StoredMessage>,
         will_delay_seconds: u32,
@@ -288,6 +289,7 @@ enum Mqtt5ConnectProperties {
         expiry: u32,
         receive_maximum: u16,
         maximum_packet_size: Option<u32>,
+        topic_alias_maximum: u16,
     },
     Unsupported {
         maximum_packet_size: Option<u32>,
@@ -301,6 +303,7 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Mqtt5ConnectProperti
     let mut receive_seen = false;
     let mut receive_maximum = u16::MAX;
     let mut maximum_packet_size = None;
+    let mut topic_alias_maximum = 0;
     let mut problem_seen = false;
     let mut response_seen = false;
     let mut alias_seen = false;
@@ -350,7 +353,7 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Mqtt5ConnectProperti
                     return Err("duplicate MQTT 5 Topic Alias Maximum");
                 }
                 alias_seen = true;
-                let _ = properties.word()?;
+                topic_alias_maximum = properties.word()?;
             }
             0x26 => {
                 let _ = properties.text()?;
@@ -367,6 +370,7 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Mqtt5ConnectProperti
         expiry,
         receive_maximum,
         maximum_packet_size,
+        topic_alias_maximum,
     })
 }
 
@@ -425,6 +429,7 @@ fn decode_for(
             let mut session_expiry = 0;
             let mut receive_maximum = u16::MAX;
             let mut maximum_packet_size = None;
+            let mut topic_alias_maximum = 0;
             if level == 5 {
                 let property_length = c.variable_integer()?;
                 let properties = c.bytes(property_length)?;
@@ -433,10 +438,12 @@ fn decode_for(
                         expiry,
                         receive_maximum: receive,
                         maximum_packet_size: maximum,
+                        topic_alias_maximum: aliases,
                     } => {
                         session_expiry = expiry;
                         receive_maximum = receive;
                         maximum_packet_size = maximum;
+                        topic_alias_maximum = aliases;
                     }
                     Mqtt5ConnectProperties::Unsupported {
                         maximum_packet_size,
@@ -492,6 +499,7 @@ fn decode_for(
                 session_expiry,
                 receive_maximum,
                 maximum_packet_size,
+                topic_alias_maximum,
                 keep_alive,
                 will,
                 will_delay_seconds,
@@ -844,6 +852,13 @@ pub(super) fn encode_publish_for(
     encode_publish_with_expiry(topic, payload, qos, retain, dup, packet_id, mqtt5, None)
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum TopicAliasMode {
+    None,
+    Establish(u16),
+    Use(u16),
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn encode_publish_with_expiry(
     topic: &str,
@@ -855,6 +870,31 @@ pub(super) fn encode_publish_with_expiry(
     mqtt5: bool,
     expiry_interval: Option<u32>,
 ) -> Result<Vec<u8>, &'static str> {
+    encode_publish_with_expiry_alias(
+        topic,
+        payload,
+        qos,
+        retain,
+        dup,
+        packet_id,
+        mqtt5,
+        expiry_interval,
+        TopicAliasMode::None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn encode_publish_with_expiry_alias(
+    topic: &str,
+    payload: &[u8],
+    qos: Qos,
+    retain: bool,
+    dup: bool,
+    packet_id: Option<u16>,
+    mqtt5: bool,
+    expiry_interval: Option<u32>,
+    alias_mode: TopicAliasMode,
+) -> Result<Vec<u8>, &'static str> {
     // MQTT-2.3.1-5 and MQTT-3.3.1-2: identifier and DUP follow QoS.
     match (qos, packet_id) {
         (Qos::AtMostOnce, None) if !dup => (),
@@ -864,11 +904,23 @@ pub(super) fn encode_publish_with_expiry(
     if !valid_topic_name(topic) || payload.len() > MAX_PAYLOAD {
         return Err("invalid outbound MQTT topic or payload");
     }
-    let name = topic.as_bytes();
-    if expiry_interval.is_some() && !mqtt5 {
-        return Err("MQTT 5 expiry on MQTT 3.1.1 PUBLISH");
+    if (expiry_interval.is_some() || alias_mode != TopicAliasMode::None) && !mqtt5 {
+        return Err("MQTT 5 property on MQTT 3.1.1 PUBLISH");
     }
-    let properties_len: u8 = if expiry_interval.is_some() { 5 } else { 0 };
+    let alias = match alias_mode {
+        TopicAliasMode::None => None,
+        TopicAliasMode::Establish(value) | TopicAliasMode::Use(value) => Some(value),
+    };
+    if alias == Some(0) {
+        return Err("invalid outbound MQTT 5 Topic Alias");
+    }
+    let name = if matches!(alias_mode, TopicAliasMode::Use(_)) {
+        b"".as_slice()
+    } else {
+        topic.as_bytes()
+    };
+    let properties_len: u8 =
+        u8::from(expiry_interval.is_some()) * 5 + u8::from(alias.is_some()) * 3;
     let len = 2
         + name.len()
         + usize::from(packet_id.is_some()) * 2
@@ -894,6 +946,10 @@ pub(super) fn encode_publish_with_expiry(
             out.push(0x02);
             out.extend_from_slice(&seconds.to_be_bytes());
         }
+        if let Some(alias) = alias {
+            out.push(0x23);
+            out.extend_from_slice(&alias.to_be_bytes());
+        }
     }
     out.extend_from_slice(payload);
     Ok(out)
@@ -902,6 +958,70 @@ pub(super) fn encode_publish_with_expiry(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mqtt5_outbound_topic_alias_vectors() {
+        let established = encode_publish_with_expiry_alias(
+            "alias/one",
+            b"x",
+            Qos::AtMostOnce,
+            false,
+            false,
+            None,
+            true,
+            None,
+            TopicAliasMode::Establish(1),
+        )
+        .unwrap();
+        assert_eq!(
+            established,
+            [
+                0x30, 16, 0, 9, b'a', b'l', b'i', b'a', b's', b'/', b'o', b'n', b'e', 3, 0x23, 0,
+                1, b'x'
+            ]
+        );
+        let reused = encode_publish_with_expiry_alias(
+            "alias/one",
+            b"x",
+            Qos::AtMostOnce,
+            false,
+            false,
+            None,
+            true,
+            None,
+            TopicAliasMode::Use(1),
+        )
+        .unwrap();
+        assert_eq!(reused, [0x30, 7, 0, 0, 3, 0x23, 0, 1, b'x']);
+        assert!(
+            encode_publish_with_expiry_alias(
+                "alias/one",
+                b"x",
+                Qos::AtMostOnce,
+                false,
+                false,
+                None,
+                false,
+                None,
+                TopicAliasMode::Use(1),
+            )
+            .is_err()
+        );
+        assert!(
+            encode_publish_with_expiry_alias(
+                "alias/one",
+                b"x",
+                Qos::AtMostOnce,
+                false,
+                false,
+                None,
+                true,
+                None,
+                TopicAliasMode::Establish(0),
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn mqtt5_inbound_topic_alias_is_connection_local_and_bounded() {
@@ -1198,7 +1318,8 @@ mod tests {
             Mqtt5ConnectProperties::Supported {
                 expiry: 0,
                 receive_maximum: 20,
-                maximum_packet_size: None
+                maximum_packet_size: None,
+                topic_alias_maximum: 0
             }
         ));
         assert!(matches!(
@@ -1206,7 +1327,8 @@ mod tests {
             Mqtt5ConnectProperties::Supported {
                 expiry: u32::MAX,
                 receive_maximum: u16::MAX,
-                maximum_packet_size: None
+                maximum_packet_size: None,
+                topic_alias_maximum: 0
             }
         ));
         assert!(matches!(
@@ -1214,7 +1336,8 @@ mod tests {
             Mqtt5ConnectProperties::Supported {
                 expiry: 1,
                 receive_maximum: u16::MAX,
-                maximum_packet_size: None
+                maximum_packet_size: None,
+                topic_alias_maximum: 0
             }
         ));
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 0]).is_err());
@@ -1225,7 +1348,10 @@ mod tests {
                 b'c',
             ])
             .unwrap(),
-            Mqtt5ConnectProperties::Supported { .. }
+            Mqtt5ConnectProperties::Supported {
+                topic_alias_maximum: 4,
+                ..
+            }
         ));
         for invalid in [
             &[0x17, 2][..],
@@ -1233,6 +1359,7 @@ mod tests {
             &[0x19, 2][..],
             &[0x19, 0, 0x19, 1][..],
             &[0x22, 0, 0, 0x22, 0, 1][..],
+            &[0x22, 0][..],
             &[0x26, 0, 1, 0xff, 0, 1, b'b'][..],
             &[0x26, 0, 1, b'a', 0, 2, b'b'][..],
         ] {
@@ -1257,7 +1384,8 @@ mod tests {
             Mqtt5ConnectProperties::Supported {
                 expiry: 0,
                 receive_maximum: u16::MAX,
-                maximum_packet_size: Some(10)
+                maximum_packet_size: Some(10),
+                topic_alias_maximum: 0
             }
         ));
         assert_eq!(

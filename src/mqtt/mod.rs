@@ -21,7 +21,7 @@ pub(crate) use router::{AdminError, AdminListKind};
 /// This project quota is narrower than MQTT's 65,535-byte string ceiling.
 pub const MAX_TOPIC_BYTES: usize = 1024;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use tokio::time::{Instant, sleep_until};
 use tracing::{debug, warn};
@@ -32,8 +32,9 @@ use crate::{
     transport::{BrokerConnection, HandlerError},
 };
 use codec::{
-    FrameReader, Packet, Qos, encode_connack, encode_connack_with_session, encode_pingresp,
-    encode_puback, encode_pubcomp, encode_pubrec, encode_pubrel, encode_suback, encode_unsuback,
+    FrameReader, Packet, Qos, TopicAliasMode, encode_connack, encode_connack_with_session,
+    encode_pingresp, encode_puback, encode_pubcomp, encode_pubrec, encode_pubrel, encode_suback,
+    encode_unsuback,
 };
 use router::{AckKind, Delivery, RouterError, SessionPolicy};
 use std::sync::atomic::Ordering;
@@ -41,6 +42,25 @@ use store::StoredMessage;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
+
+struct OutboundAliases {
+    maximum: u16,
+    topics: HashMap<String, u16>,
+}
+
+impl OutboundAliases {
+    fn candidate(&self, topic: &str) -> TopicAliasMode {
+        if let Some(&alias) = self.topics.get(topic) {
+            return TopicAliasMode::Use(alias);
+        }
+        if self.topics.len() < usize::from(self.maximum) {
+            return TopicAliasMode::Establish(
+                u16::try_from(self.topics.len() + 1).expect("at most 16 aliases"),
+            );
+        }
+        TopicAliasMode::None
+    }
+}
 
 /// Serve one transport connection under the startup-selected access policy.
 ///
@@ -109,6 +129,7 @@ async fn serve_mqtt(
         session_expiry,
         receive_maximum,
         maximum_packet_size,
+        topic_alias_maximum,
         keep_alive,
         will,
         will_delay_seconds,
@@ -222,11 +243,19 @@ async fn serve_mqtt(
     }
 
     let mut graceful = false;
+    let mut outbound_aliases = OutboundAliases {
+        maximum: if mqtt5 {
+            topic_alias_maximum.min(u16::from(codec::MAX_TOPIC_ALIAS))
+        } else {
+            0
+        },
+        topics: HashMap::new(),
+    };
     let mut disconnect_expiry = None;
     let mut last_inbound = Instant::now();
     let result: Result<(), HandlerError> = async {
         for delivery in std::mem::take(&mut session.replay) {
-            send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
+            send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?;
         }
         loop {
             // MQTT-3.1.2-24: disconnect after 1.5 times the advertised keep-alive.
@@ -261,7 +290,7 @@ async fn serve_mqtt(
                             }
                             let ack = if mqtt5 { codec::encode_mqtt5_suback(packet_id, &codes) } else { encode_suback(packet_id, &codes) };
                             write_limited(connection, &ack, outbound_maximum).await?;
-                            for delivery in retained { send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?; }
+                            for delivery in retained { send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?; }
                         }
                         Packet::Unsubscribe { packet_id, filters } => {
                             let codes = router.unsubscribe(&session, filters).await?;
@@ -299,17 +328,17 @@ async fn serve_mqtt(
                         }
                         Packet::PubAck(id) => {
                             for delivery in router.ack(&session, AckKind::Ack, id).await? {
-                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?;
                             }
                         }
                         Packet::PubRec(id) => {
                             for delivery in router.ack(&session, AckKind::Rec, id).await? {
-                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?;
                             }
                         }
                         Packet::PubComp(id) => {
                             for delivery in router.ack(&session, AckKind::Comp, id).await? {
-                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
+                                send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?;
                             }
                         }
                         Packet::PingReq => write_limited(connection, &encode_pingresp(), outbound_maximum).await?,
@@ -326,7 +355,7 @@ async fn serve_mqtt(
                 }
                 outbound = session.outbound.recv() => {
                     let Some(delivery) = outbound else { break; };
-                    send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &router, &session).await?;
+                    send_delivery(connection, delivery, &metrics, &auth, &principal, security_generation, mqtt5, outbound_maximum, &mut outbound_aliases, &router, &session).await?;
                 }
             }
         }
@@ -355,6 +384,7 @@ async fn send_delivery(
     security_generation: u64,
     mqtt5: bool,
     outbound_maximum: usize,
+    aliases: &mut OutboundAliases,
     router: &Router,
     session: &router::Session,
 ) -> Result<(), HandlerError> {
@@ -371,28 +401,53 @@ async fn send_delivery(
         Delivery::Publish { packet_id, .. } => *packet_id,
         Delivery::PubRel(_) => None,
     };
+    let mut pending_alias = None;
     let bytes = match delivery {
         Delivery::Publish {
             message,
             packet_id,
             dup,
-        } => codec::encode_publish_with_expiry(
-            message.topic.as_str(),
-            &message.payload,
-            Qos::from_u8(message.qos)?,
-            message.retain,
-            dup,
-            packet_id,
-            mqtt5,
-            if mqtt5 {
+        } => {
+            let expiry = if mqtt5 {
                 message
                     .expiry_at_unix_ms
                     .map(router::remaining_message_expiry)
                     .transpose()?
             } else {
                 None
-            },
-        )?,
+            };
+            let topic = message.topic.as_str();
+            let alias_mode = aliases.candidate(topic);
+            let mut encoded = codec::encode_publish_with_expiry_alias(
+                topic,
+                &message.payload,
+                Qos::from_u8(message.qos)?,
+                message.retain,
+                dup,
+                packet_id,
+                mqtt5,
+                expiry,
+                alias_mode,
+            )?;
+            if matches!(alias_mode, TopicAliasMode::Establish(_))
+                && encoded.len() > outbound_maximum
+            {
+                // Do not establish an alias with a packet the peer cannot receive.
+                encoded = codec::encode_publish_with_expiry(
+                    topic,
+                    &message.payload,
+                    Qos::from_u8(message.qos)?,
+                    message.retain,
+                    dup,
+                    packet_id,
+                    mqtt5,
+                    expiry,
+                )?;
+            } else if let TopicAliasMode::Establish(alias) = alias_mode {
+                pending_alias = Some((topic.to_owned(), alias));
+            }
+            encoded
+        }
         Delivery::PubRel(id) => encode_pubrel(id).to_vec(),
     };
     if bytes.len() > outbound_maximum {
@@ -405,6 +460,9 @@ async fn send_delivery(
         return Ok(());
     }
     write_limited(connection, &bytes, outbound_maximum).await?;
+    if let Some((topic, alias)) = pending_alias {
+        aliases.topics.insert(topic, alias);
+    }
     if bytes[0] >> 4 == 3 {
         metrics.sent[usize::from((bytes[0] >> 1) & 3)].fetch_add(1, Ordering::Relaxed);
     }

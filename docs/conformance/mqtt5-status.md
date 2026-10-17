@@ -70,15 +70,22 @@ não distribuído em 0.20.0, anuncia Topic Alias Maximum=16 quando há ao menos
 13 bytes de limite de saída e aceita alias de entrada 1..16 por conexão. Um
 PUBLISH com nome define/redefine o alias; nome vazio o usa. Alias inválido,
 desconhecido, duplicado ou truncado fecha a conexão sem publicar. A tabela não
-é durável nem reaproveitada em reconnect/takeover. O broker não usa alias na
-saída e outras propriedades de publicação seguem pendentes; não se declara
+é durável nem reaproveitada em reconnect/takeover. P139 acrescenta alias de
+saída quando o assinante anuncia Topic Alias Maximum positivo: até 16 tópicos
+por conexão, primeira entrega com nome completo e alias, próximas com nome
+vazio e alias. Se a forma inicial com alias exceder Maximum Packet Size, o
+broker usa o nome completo sem alias quando couber. QoS0/1/2, retained e
+reinício foram testados em TCP real. O client XMQR C75 recebe e exibe o tópico
+resolvido. O Mosquitto 2.0.22 encerra a conexão ao receber a segunda forma
+abreviada válida, inclusive em fixture independente; esta direção externa
+não está homologada. Outras propriedades de publicação seguem pendentes; não se declara
 conformidade MQTT 5 integral.
 
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
 P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há
-outras propriedades de publicação, fluxo de envio completo do client, Topic Alias
-de saída ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
+outras propriedades de publicação, fluxo de envio completo do client ou AUTH.
+Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. P128 migra o documento durável de v5 para v6 na próxima
 gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
 backup privado anterior à migração. P130 migra o documento de v6 para v7;
@@ -114,6 +121,9 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P134](../../prompts/registros/P134-receive-maximum-mqtt5.md) e
 [C72](../../../xmqr-client/prompts/registros/C72-receive-maximum-mqtt5.md),
 [P136](../../prompts/registros/P136-maximum-packet-size-mqtt5.md) e
-[C73](../../../xmqr-client/prompts/registros/C73-maximum-packet-size-mqtt5.md).
+[C73](../../../xmqr-client/prompts/registros/C73-maximum-packet-size-mqtt5.md),
+[P138](../../prompts/registros/P138-topic-alias-entrada-mqtt5.md),
+[P139](../../prompts/registros/P139-topic-alias-saida-mqtt5.md) e
+[C75](../../../xmqr-client/prompts/registros/C75-topic-alias-maximum-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).
