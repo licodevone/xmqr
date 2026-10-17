@@ -102,6 +102,13 @@ C80 passou a exibi-las em `sub --output jsonl` na árvore de desenvolvimento,
 após a release 0.20.0. Outras propriedades seguem pendentes; não se declara
 conformidade MQTT 5 integral.
 
+P147/C84 aceitam Retain Handling 0/1/2 por filtro SUBSCRIBE MQTT 5. Zero
+preserva o envio anterior, um só envia retained para filtro que ainda não
+existia na sessão e dois não envia retained no SUBSCRIBE. A existência da
+assinatura sobrevive ao restart sem novo campo durável; No Local, Retain As
+Published, Subscription Identifier, compartilhamento e AUTH continuam fora
+deste recorte da fase 6D.
+
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
 P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há
@@ -156,5 +163,7 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [C80](../../../xmqr-client/prompts/registros/C80-subscriber-publish-metadata-mqtt5.md) e
 [P144](../../prompts/registros/P144-connack-receive-maximum-mqtt5.md).
 [P146](../../prompts/registros/P146-qos2-resume-quota-mqtt5.md).
+[P147](../../prompts/registros/P147-retain-handling-mqtt5.md) e
+[C84](../../../xmqr-client/prompts/registros/C84-retain-handling-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

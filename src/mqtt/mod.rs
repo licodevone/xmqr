@@ -279,11 +279,11 @@ async fn serve_mqtt(
                     last_inbound = Instant::now();
                     match incoming? {
                         Packet::Subscribe { packet_id, filters } => {
-                            let requested = filters.into_iter().map(|(filter,qos)| {
+                            let requested = filters.into_iter().map(|(filter,qos,retain_handling)| {
                                 let granted = auth.allowed_subscribe(&principal, filter.as_str()).then_some(qos.as_u8());
-                                (filter, granted)
+                                (filter, granted, retain_handling)
                             }).collect();
-                            let (mut codes, retained) = router.subscribe(&session, requested).await?;
+                            let (mut codes, retained) = router.subscribe_with_handling(&session, requested).await?;
                             if mqtt5 {
                                 // The router uses the MQTT 3.1.1 failure code for ACL denial.
                                 // MQTT 5 can report the precise reason to each filter.

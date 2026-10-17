@@ -67,7 +67,7 @@ pub(super) enum Packet {
     },
     Subscribe {
         packet_id: u16,
-        filters: Vec<(TopicFilter, Qos)>,
+        filters: Vec<(TopicFilter, Qos, u8)>,
     },
     Unsubscribe {
         packet_id: u16,
@@ -535,9 +535,22 @@ fn decode_for(
                     return Err("too many subscriptions".into());
                 }
                 let topic = TopicFilter::try_from(c.text()?)?;
+                let options = c.byte()?;
+                let retain_handling = if mqtt5 {
+                    if options & 0xcc != 0 {
+                        return Err("unsupported MQTT 5 SUBSCRIBE option or reserved bit".into());
+                    }
+                    let handling = (options >> 4) & 0x03;
+                    if handling == 3 {
+                        return Err("invalid MQTT 5 Retain Handling value".into());
+                    }
+                    handling
+                } else {
+                    0
+                };
                 // MQTT-3-8.3-4: QoS 3 and reserved option bits are malformed.
-                let qos = Qos::from_u8(c.byte()?)?;
-                filters.push((topic, qos));
+                let qos = Qos::from_u8(if mqtt5 { options & 0x03 } else { options })?;
+                filters.push((topic, qos, retain_handling));
             }
             if filters.is_empty() {
                 return Err("empty SUBSCRIBE".into());
@@ -1566,6 +1579,24 @@ mod tests {
         ] {
             assert!(decode_for(0x82, body, true).is_err());
         }
+    }
+
+    #[test]
+    fn mqtt5_retain_handling_accepts_zero_one_two_and_rejects_reserved_options() {
+        for handling in 0_u8..=2 {
+            let body = [0, 1, 0, 0, 1, b'x', handling << 4 | 1];
+            assert!(matches!(
+                decode_for(0x82, &body, true).unwrap(),
+                Packet::Subscribe { filters, .. }
+                    if filters.len() == 1
+                        && filters[0].1 == Qos::AtLeastOnce
+                        && filters[0].2 == handling
+            ));
+        }
+        for invalid in [0x30, 0x04, 0x08, 0x40, 0x80] {
+            assert!(decode_for(0x82, &[0, 1, 0, 0, 1, b'x', invalid], true).is_err());
+        }
+        assert!(decode_for(0x82, &[0, 1, 0, 1, b'x', 0x20], false).is_err());
     }
 
     #[test]

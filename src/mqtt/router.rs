@@ -306,7 +306,7 @@ enum Command {
     Subscribe {
         client_id: String,
         generation: u64,
-        filters: Vec<(TopicFilter, Option<u8>)>,
+        filters: Vec<(TopicFilter, Option<u8>, u8)>,
         reply: oneshot::Sender<SubscribeResult>,
     },
     Unsubscribe {
@@ -840,10 +840,26 @@ impl Router {
         result.await.map_err(|_| RouterError::Unavailable)?
     }
 
+    #[cfg(test)]
     pub(super) async fn subscribe(
         &self,
         session: &Session,
         filters: Vec<(TopicFilter, Option<u8>)>,
+    ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
+        self.subscribe_with_handling(
+            session,
+            filters
+                .into_iter()
+                .map(|(filter, qos)| (filter, qos, 0))
+                .collect(),
+        )
+        .await
+    }
+
+    pub(super) async fn subscribe_with_handling(
+        &self,
+        session: &Session,
+        filters: Vec<(TopicFilter, Option<u8>, u8)>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Subscribe {
@@ -1329,7 +1345,9 @@ impl Actor {
                 filters,
                 reply,
             } => {
-                let result = self.subscribe(&client_id, generation, filters).await;
+                let result = self
+                    .subscribe_with_handling(&client_id, generation, filters)
+                    .await;
                 self.record_result(&result);
                 let _ = reply.send(result);
             }
@@ -2072,17 +2090,35 @@ impl Actor {
         })
     }
 
+    #[cfg(test)]
     async fn subscribe(
         &mut self,
         client_id: &str,
         generation: u64,
         filters: Vec<(TopicFilter, Option<u8>)>,
     ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
+        self.subscribe_with_handling(
+            client_id,
+            generation,
+            filters
+                .into_iter()
+                .map(|(filter, qos)| (filter, qos, 0))
+                .collect(),
+        )
+        .await
+    }
+
+    async fn subscribe_with_handling(
+        &mut self,
+        client_id: &str,
+        generation: u64,
+        filters: Vec<(TopicFilter, Option<u8>, u8)>,
+    ) -> Result<(Vec<u8>, Vec<Delivery>), RouterError> {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
         let mut codes = Vec::with_capacity(filters.len());
         let mut retained_matches = BTreeMap::new();
-        for (filter, granted) in filters {
+        for (filter, granted, retain_handling) in filters {
             let principal = &self
                 .state
                 .sessions
@@ -2096,6 +2132,12 @@ impl Actor {
                 codes.push(0x80);
                 continue;
             };
+            let already_existed = candidate
+                .sessions
+                .get(client_id)
+                .ok_or(RouterError::Stale)?
+                .subscriptions
+                .contains_key(&filter);
             candidate
                 .sessions
                 .get_mut(client_id)
@@ -2103,6 +2145,9 @@ impl Actor {
                 .subscriptions
                 .insert(filter.clone(), qos);
             codes.push(qos);
+            if retain_handling == 2 || retain_handling == 1 && already_existed {
+                continue;
+            }
             for topic in candidate.retained.keys().filter(|topic| {
                 filter.matches(topic) && self.auth.allowed_delivery(principal, topic.as_str())
             }) {
@@ -3934,6 +3979,73 @@ mod tests {
             11
         );
         store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_retain_handling_uses_subscription_existence_and_deduplicates_topics() {
+        let (_directory, mut actor) = actor().await;
+        let publisher = actor
+            .register("publisher".into(), "user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "publisher",
+                publisher.generation,
+                message("test/state", 0, true, b"retained"),
+                None,
+            )
+            .await
+            .unwrap();
+        let subscriber = actor
+            .register("subscriber".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let (codes, retained) = actor
+            .subscribe_with_handling(
+                "subscriber",
+                subscriber.generation,
+                vec![(filter("test/#"), Some(0), 2)],
+            )
+            .await
+            .unwrap();
+        assert_eq!(codes, [0]);
+        assert!(retained.is_empty());
+        let (_, retained) = actor
+            .subscribe_with_handling(
+                "subscriber",
+                subscriber.generation,
+                vec![(filter("test/#"), Some(0), 1)],
+            )
+            .await
+            .unwrap();
+        assert!(retained.is_empty());
+        actor
+            .unsubscribe("subscriber", subscriber.generation, vec![filter("test/#")])
+            .await
+            .unwrap();
+        let (_, retained) = actor
+            .subscribe_with_handling(
+                "subscriber",
+                subscriber.generation,
+                vec![(filter("test/#"), Some(0), 1)],
+            )
+            .await
+            .unwrap();
+        assert_eq!(retained.len(), 1);
+        let (_, retained) = actor
+            .subscribe_with_handling(
+                "subscriber",
+                subscriber.generation,
+                vec![
+                    (filter("test/#"), Some(0), 0),
+                    (filter("test/state"), Some(0), 0),
+                ],
+            )
+            .await
+            .unwrap();
+        assert_eq!(retained.len(), 1);
+        actor.store.shutdown().await.unwrap();
     }
 
     fn message(topic: &str, qos: u8, retain: bool, payload: &[u8]) -> StoredMessage {

@@ -12,6 +12,12 @@ ela é retomada com a quota durável QoS2 cheia: um PUBLISH novo recebe PUBREC
 continua por PUBREL e libera espaço para uma publicação posterior. O documento
 durável permanece v10 e o limite de recebimento por conexão ainda se aplica.
 
+Em desenvolvimento após 0.23.0, P147 aceita Retain Handling 0/1/2 no
+SUBSCRIBE MQTT 5. A opção 1 só envia mensagens retidas quando o filtro ainda
+não existe na sessão; a opção 2 não as envia no ato da assinatura. A decisão
+usa a assinatura persistida após reinício. Opções No Local e Retain As Published
+continuam pendentes na fase 6D.
+
 No marco experimental 0.22.0, P141 preserva Payload Format
 Indicator e Content Type de PUBLISH MQTT 5; P142 acrescenta Response Topic,
 Correlation Data binária e User Property repetível em ordem. As propriedades
