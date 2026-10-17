@@ -1,5 +1,10 @@
 # XMQR
 
+A árvore após 0.27.0 prepara P158: CONNECT MQTT 5 com Authentication Method
+bem formado recebe 0x8C (método indisponível), sem criar sessão. AUTH e
+reautenticação ainda não são implementados; esta fatia não tem release própria.
+[Prompt P158](prompts/broker/158-auth-method-refusal-mqtt5.md).
+
 A versão experimental publicada 0.27.0 inclui P156: redistribuição de cópias
 compartilhadas QoS1 não reconhecidas quando a sessão escolhida termina. A
 proveniência da cópia migra o documento durável de v13 para v14 na próxima

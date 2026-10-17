@@ -113,11 +113,12 @@ async fn serve_mqtt(
     };
     if let Packet::UnsupportedConnect5 {
         maximum_packet_size,
+        reason_code,
     } = connect
     {
         if maximum_packet_size.is_none_or(|size| size >= 5) {
             connection
-                .write_all_with_deadline(&codec::encode_mqtt5_connack(0x83), WRITE_TIMEOUT)
+                .write_all_with_deadline(&codec::encode_mqtt5_connack(reason_code), WRITE_TIMEOUT)
                 .await?;
         }
         return Ok(());

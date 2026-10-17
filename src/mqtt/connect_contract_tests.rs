@@ -236,8 +236,12 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
     if let Some(code) = code {
         let expected: &[u8] = if code == 0 && packet[8] == 5 {
             &MQTT5_SUCCESS_CONNACK
-        } else if code == 0x83 {
-            &[0x20, 3, 0, 0x83, 0]
+        } else if matches!(code, 0x83 | 0x8c) {
+            if code == 0x83 {
+                &[0x20, 3, 0, 0x83, 0]
+            } else {
+                &[0x20, 3, 0, 0x8c, 0]
+            }
         } else {
             &[0x20, 2, 0, code]
         };
@@ -280,9 +284,31 @@ async fn unsupported_level_receives_connack_one() {
 
 #[tokio::test]
 async fn mqtt5_unsupported_auth_property_refused_without_commit() {
-    case(connect5_with_properties(&[0x15, 0, 1, b'x']), Some(0x83)).await;
+    case(connect5_with_properties(&[0x15, 0, 1, b'x']), Some(0x8c)).await;
+    case(
+        connect5_with_properties(&[0x16, 0, 1, 0, 0x15, 0, 1, b'x']),
+        Some(0x8c),
+    )
+    .await;
+    case(
+        connect5_with_properties(&[0x15, 0, 1, b'x', 0x27, 0, 0, 0, 5]),
+        Some(0x8c),
+    )
+    .await;
     case(
         connect5_with_properties(&[0x27, 0, 0, 0, 1, 0x15, 0, 1, b'x']),
+        None,
+    )
+    .await;
+    case(
+        connect5_with_properties(&[0x15, 0, 1, b'x', 0x27, 0, 0, 0, 1]),
+        None,
+    )
+    .await;
+    case(connect5_with_properties(&[0x16, 0, 1, 42]), None).await;
+    case(connect5_with_properties(&[0x15, 0, 2, b'x']), None).await;
+    case(
+        connect5_with_properties(&[0x15, 0, 1, b'x', 0x15, 0, 1, b'y']),
         None,
     )
     .await;

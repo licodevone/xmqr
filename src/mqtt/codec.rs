@@ -99,6 +99,7 @@ pub(super) enum Packet {
     },
     UnsupportedConnect5 {
         maximum_packet_size: Option<u32>,
+        reason_code: u8,
     },
 }
 
@@ -299,9 +300,14 @@ enum Mqtt5ConnectProperties {
     },
     Unsupported {
         maximum_packet_size: Option<u32>,
+        reason_code: u8,
     },
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "CONNECT property validation must classify unsupported AUTH before session creation"
+)]
 fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Mqtt5ConnectProperties, &'static str> {
     let mut properties = Cursor::new(raw);
     let mut expiry_seen = false;
@@ -313,6 +319,8 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Mqtt5ConnectProperti
     let mut problem_seen = false;
     let mut response_seen = false;
     let mut alias_seen = false;
+    let mut auth_method_seen = false;
+    let mut auth_data_seen = false;
     while properties.pos < raw.len() {
         match properties.byte()? {
             0x11 => {
@@ -365,12 +373,36 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Mqtt5ConnectProperti
                 let _ = properties.text()?;
                 let _ = properties.text()?;
             }
+            0x15 => {
+                if auth_method_seen {
+                    return Err("duplicate MQTT 5 Authentication Method");
+                }
+                auth_method_seen = true;
+                let _ = properties.text()?;
+            }
+            0x16 => {
+                if auth_data_seen {
+                    return Err("duplicate MQTT 5 Authentication Data");
+                }
+                auth_data_seen = true;
+                let _ = properties.binary()?;
+            }
             _ => {
                 return Ok(Mqtt5ConnectProperties::Unsupported {
                     maximum_packet_size,
+                    reason_code: 0x83,
                 });
             }
         }
+    }
+    if auth_data_seen && !auth_method_seen {
+        return Err("MQTT 5 Authentication Data without Method");
+    }
+    if auth_method_seen {
+        return Ok(Mqtt5ConnectProperties::Unsupported {
+            maximum_packet_size,
+            reason_code: 0x8c,
+        });
     }
     Ok(Mqtt5ConnectProperties::Supported {
         expiry,
@@ -453,9 +485,11 @@ fn decode_for(
                     }
                     Mqtt5ConnectProperties::Unsupported {
                         maximum_packet_size,
+                        reason_code,
                     } => {
                         return Ok(Packet::UnsupportedConnect5 {
                             maximum_packet_size,
+                            reason_code,
                         });
                     }
                 }
@@ -472,6 +506,7 @@ fn decode_for(
                         if properties.byte()? != 0x18 {
                             return Ok(Packet::UnsupportedConnect5 {
                                 maximum_packet_size,
+                                reason_code: 0x83,
                             });
                         }
                         will_delay_seconds =
@@ -2055,9 +2090,10 @@ mod tests {
             }
         ));
         assert_eq!(
-            mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 1, 0x15]).unwrap(),
+            mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 1, 0x99]).unwrap(),
             Mqtt5ConnectProperties::Unsupported {
-                maximum_packet_size: Some(1)
+                maximum_packet_size: Some(1),
+                reason_code: 0x83
             }
         );
         assert!(mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 0]).is_err());
@@ -2065,6 +2101,32 @@ mod tests {
         assert!(
             mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10, 0x27, 0, 0, 0, 5]).is_err()
         );
+    }
+
+    #[test]
+    fn mqtt5_auth_method_is_refused_distinctly_after_validating_properties() {
+        for properties in [
+            vec![0x15, 0, 1, b'x'],
+            vec![0x16, 0, 2, 0, 255, 0x15, 0, 1, b'x', 0x27, 0, 0, 0, 5],
+        ] {
+            let expected_maximum = if properties.len() > 4 { Some(5) } else { None };
+            assert_eq!(
+                mqtt5_connect_properties_supported(&properties).unwrap(),
+                Mqtt5ConnectProperties::Unsupported {
+                    maximum_packet_size: expected_maximum,
+                    reason_code: 0x8c,
+                }
+            );
+        }
+        for malformed in [
+            vec![0x16, 0, 1, 42],
+            vec![0x15, 0, 1, b'x', 0x15, 0, 1, b'y'],
+            vec![0x15, 0, 1, b'x', 0x16, 0, 0, 0x16, 0, 0],
+            vec![0x15, 0, 2, b'x'],
+            vec![0x15, 0, 1, 0xff],
+        ] {
+            assert!(mqtt5_connect_properties_supported(&malformed).is_err());
+        }
     }
 
     #[test]

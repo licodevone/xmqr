@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Em desenvolvimento após 0.27.0
+
+- P158: CONNECT MQTT 5 com Authentication Method bem formado recebe recusa específica 0x8C enquanto não houver mecanismo AUTH habilitado; Authentication Data órfã/duplicada/truncada é erro, sem criar sessão. A troca AUTH e reautenticação ainda não estão implementadas.
+
 ## 0.27.0 — redistribuição QoS1 compartilhada e estado v14 (experimental)
 
 - P156: ao terminar a sessão escolhida, uma cópia QoS1 compartilhada ainda sem PUBACK pode ser entregue a outro membro elegível do grupo. A origem durável permite recalcular QoS, Retain As Published e Subscription Identifier para o novo membro. Sem outro membro ou capacidade, a cópia é descartada; QoS2 iniciado continua vinculado à sessão escolhida.

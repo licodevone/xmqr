@@ -1,5 +1,10 @@
 # Versionamento
 
+P158 na árvore após 0.27.0 classifica e recusa métodos AUTH ainda
+indisponíveis. A versão publicada 0.27.0 não recebe mudança retroativa;
+este comportamento aguarda aceite de CI e marco posterior. M10/fase 6D
+permanecem abertos.
+
 ## P156/P157 — redistribuição QoS1 e documento v14 (marco 0.27.0 publicado)
 
 Cópias QoS1 compartilhadas guardam grupo de origem e bit Retain original em
