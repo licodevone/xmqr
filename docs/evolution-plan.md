@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-16.
-Versões publicadas atuais: broker/admin legado0.16.0, client independente0.14.0
+Versões publicadas atuais: broker/admin legado0.17.0, client independente0.15.0
 e xmqr-admin independente0.4.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
@@ -138,14 +138,14 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P115/C57 parcial: CONNECT5 limpo e publicação QoS0/1 sem propriedades no broker/client, entrega cruzada a assinante 3.1.1.~~ [Estado](conformance/mqtt5-status.md), [broker](../prompts/registros/P115-publicacao-mqtt5-inicial.md) e [client](../../xmqr-client/prompts/registros/C57-publicacao-mqtt5-inicial.md).
 - [x] ~~Fase 6A/P116/C58 parcial: SUBSCRIBE/SUBACK MQTT5 QoS0/1 sem propriedades avançadas, entrega viva/retained e PUBACK; client sub5, integração cruzada e Mosquitto.~~ [Broker](../prompts/registros/P116-assinatura-mqtt5-inicial.md) e [client](../../xmqr-client/prompts/registros/C58-assinatura-mqtt5-inicial.md).
 - [x] ~~Distribuição experimental do subconjunto P115/P116/C57/C58: tags independentes v0.16.0/v0.14.0, pacotes Ubuntu26, imagens numeradas e prereleases com SHA-256/rollback.~~ [P117](../prompts/registros/P117-release-0.16.0.md) e [C59](../../xmqr-client/prompts/registros/C59-release-0.14.0.md).
-- [x] ~~P118: investigar falha intermitente de lock no teste de snapshot e restaurar gate CI de `main`.~~ [Triagem](../prompts/registros/P118-investigar-lock-snapshot-ci.md); recorrência reparada em [P125](../prompts/registros/P125-liberacao-lock-store.md).
+- [x] ~~P118: investigar falha intermitente de lock no teste de snapshot e restaurar gate CI de `main`.~~ [Triagem](../prompts/registros/P118-investigar-lock-snapshot-ci.md); recorrência tratada em [P125](../prompts/registros/P125-liberacao-lock-store.md), monitorar novos runs.
 - [x] ~~Fase 6A/P119/C60 parcial: PUBACK MQTT 5 `0x87` para ACL negada em QoS1 sem commit; client mostra motivos de PUBACK/SUBACK.~~ [Broker](../prompts/registros/P119-puback-mqtt5-acl.md) e [client](../../xmqr-client/prompts/registros/C60-diagnostico-reason-code-mqtt5.md); gates locais, integração real e CIs PASS.
 - [x] ~~Fase 6A/P120/C61 parcial: SUBACK MQTT 5 `0x87` para ACL negada sem commit total; client mostra motivo de CONNACK recusado.~~ [Broker](../prompts/registros/P120-suback-mqtt5-acl.md) e [client](../../xmqr-client/prompts/registros/C61-connack-mqtt5-reason.md); gates locais, integração real e CIs PASS.
 - [x] ~~Fase 6A/P121/C62 parcial: UNSUBSCRIBE/UNSUBACK MQTT 5 com motivo por filtro e confirmação antes do encerramento do client.~~ [Broker](../prompts/registros/P121-unsubscribe-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C62-unsubscribe-mqtt5.md); gates locais, integração real e CIs PASS.
 - [x] ~~Fase 6A/P122/C63 parcial: pub/sub MQTT 5 QoS2 com PUBREC/PUBREL/PUBCOMP, recusa ACL sem commit e interop Mosquitto 2.0.22 nas duas direções.~~ [Broker](../prompts/registros/P122-qos2-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C63-qos2-mqtt5.md); gates locais, integração real e CIs PASS.
 - [x] ~~Fase 6A/P123/C64 parcial: propriedades informativas de CONNECT MQTT 5 no broker/client, gates locais, integração e CIs PASS.~~ [Broker](../prompts/registros/P123-connect-properties-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C64-connect-properties-mqtt5.md).
 - [x] ~~P125: liberação explícita do lock de escritor após falha de snapshot e restauração da CI.~~ [Evidência](../prompts/registros/P125-liberacao-lock-store.md).
-- [ ] Distribuição P124/C65: tags independentes v0.17.0/v0.15.0, pacotes Ubuntu26, imagens numeradas e prereleases com SHA-256/rollback; candidatos em validação.
+- [x] ~~Distribuição P124/C65: tags independentes v0.17.0/v0.15.0, pacotes Ubuntu26, imagens numeradas e prereleases com SHA-256/rollback.~~ [Broker](../prompts/registros/P124-release-0.17.0.md) e [client](../../xmqr-client/prompts/registros/C65-release-0.15.0.md).
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
