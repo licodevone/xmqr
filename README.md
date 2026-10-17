@@ -1,5 +1,11 @@
 # XMQR
 
+No marco experimental 0.23.0, P144 anuncia no CONNACK MQTT 5 a quota de
+recepção QoS1/2 configurada (1..32) quando há espaço, sem mudar o documento
+durável v10. O client parceiro 0.21.0 exibe metadados MQTT 5 em JSONL e repete
+publicações em série. [Nota de release](docs/releases/0.23.0.md). A fase 6C
+global segue aberta.
+
 No marco experimental 0.22.0, P141 preserva Payload Format
 Indicator e Content Type de PUBLISH MQTT 5; P142 acrescenta Response Topic,
 Correlation Data binária e User Property repetível em ordem. As propriedades

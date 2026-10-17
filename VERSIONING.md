@@ -1,5 +1,12 @@
 # Versionamento
 
+## P145 — marco de negociação de recepção MQTT 5
+
+Broker e `mqtt-admin` legado 0.23.0 incluem P144; client independente 0.21.0
+inclui C80/C81. Documento durável v10 permanece compatível com broker 0.22.0;
+o ciclo de pacote ainda deve validar o rollback. O admin independente fica em
+0.4.0. Fases 6A–6D e 7–9 seguem abertas. [Nota de release](docs/releases/0.23.0.md).
+
 ## P143 — marco de metadados de PUBLISH MQTT 5
 
 Broker e `mqtt-admin` legado 0.22.0 incluem P141/P142; client independente

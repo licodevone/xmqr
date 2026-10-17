@@ -1,6 +1,10 @@
 # Histórico de versões
 
-## Em desenvolvimento após 0.22.0
+## Em desenvolvimento após 0.23.0
+
+## 0.23.0 — limite de recepção MQTT 5 no CONNACK, experimental
+
+- P144: o broker anuncia Receive Maximum 1..32 conforme a quota `MQTT_MAX_INFLIGHT` quando o CONNACK cabe no Maximum Packet Size do client. Os limites de pacote 5..7 e 10..15 mantêm o fallback anterior e omitem essa propriedade. Documento durável permanece v10; a fase 6C global continua aberta.
 
 ## 0.22.0 — metadados de publicação MQTT 5, experimental
 
