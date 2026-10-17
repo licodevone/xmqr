@@ -1,23 +1,27 @@
 # XMQR
 
+A fonte 0.24.0 candidata reúne P146–P148, incluindo No Local e Retain As
+Published MQTT 5 com estado durável v11. A última versão publicada ainda é
+0.23.0; o marco 0.24.0 depende dos gates [P149](prompts/registros/P149-release-0.24.0.md).
+
 No marco experimental 0.23.0, P144 anuncia no CONNACK MQTT 5 a quota de
 recepção QoS1/2 configurada (1..32) quando há espaço, sem mudar o documento
 durável v10. O client parceiro 0.21.0 exibe metadados MQTT 5 em JSONL e repete
 publicações em série. [Nota de release](docs/releases/0.23.0.md). A fase 6C
 global segue aberta.
 
-Em desenvolvimento após 0.23.0, P146 mantém a sessão MQTT 5 ativa quando
+No candidato 0.24.0, P146 mantém a sessão MQTT 5 ativa quando
 ela é retomada com a quota durável QoS2 cheia: um PUBLISH novo recebe PUBREC
 `0x97` (Quota exceeded), sem substituir o QoS2 antigo. A transação anterior
 continua por PUBREL e libera espaço para uma publicação posterior. O documento
 durável permanece v10 e o limite de recebimento por conexão ainda se aplica.
 
-Em desenvolvimento após 0.23.0, P147 aceita Retain Handling 0/1/2 no
+No candidato 0.24.0, P147 aceita Retain Handling 0/1/2 no
 SUBSCRIBE MQTT 5. A opção 1 só envia mensagens retidas quando o filtro ainda
 não existe na sessão; a opção 2 não as envia no ato da assinatura. A decisão
 usa a assinatura persistida após reinício.
 
-Em desenvolvimento após 0.23.0, P148 aceita No Local e Retain As Published
+No candidato 0.24.0, P148 aceita No Local e Retain As Published
 por filtro MQTT 5, inclusive retomada após restart. O documento durável passa
 a v11 na próxima gravação. Antes de migrar, preserve um backup privado v10:
 o admin independente 0.5.0 ainda usa o core 0.23.0 e não abre v11. A fase 6D

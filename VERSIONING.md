@@ -1,5 +1,13 @@
 # Versionamento
 
+## P149 — marco de opções de assinatura MQTT 5 (candidato)
+
+Broker e `mqtt-admin` legado 0.24.0 preparam P146–P148; client independente
+0.22.0 também é candidato. O documento durável passa a v11 na primeira gravação.
+Broker 0.23.0 e admin independente 0.5.0 não reabrem v11; rollback exige
+backup privado v10 anterior à migração, broker parado e pacote anterior.
+Fases 6A–6D e 7–9 seguem abertas. [Nota de release](docs/releases/0.24.0.md).
+
 ## P145 — marco de negociação de recepção MQTT 5
 
 Broker e `mqtt-admin` legado 0.23.0 incluem P144; client independente 0.21.0
