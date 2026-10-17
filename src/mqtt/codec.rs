@@ -30,6 +30,10 @@ pub(super) struct PacketTooLarge;
 #[error("invalid MQTT 5 Topic Alias")]
 pub(super) struct TopicAliasInvalid;
 
+#[derive(Debug, thiserror::Error)]
+#[error("malformed MQTT Remaining Length")]
+pub(super) struct MalformedRemainingLength;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -252,7 +256,7 @@ fn frame_header(
         }
         multiplier *= 128;
     }
-    Err("invalid MQTT remaining length".into())
+    Err(MalformedRemainingLength.into())
 }
 
 struct Cursor<'a> {
@@ -2749,6 +2753,12 @@ mod tests {
                 .is::<PacketTooLarge>()
         );
         assert!(frame_header(&[0x10, 0x80, 0x80, 0x04]).is_err());
+        assert!(frame_header(&[0x30, 0x80, 0x80, 0x80]).unwrap().is_none());
+        assert!(
+            frame_header(&[0x30, 0x80, 0x80, 0x80, 0x80])
+                .unwrap_err()
+                .is::<MalformedRemainingLength>()
+        );
         // Count the actual encoded bytes, including a non-minimal fourth digit.
         assert_eq!(
             frame_header(&[0x10, 0xfb, 0xff, 0x83, 0]).unwrap(),
