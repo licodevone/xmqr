@@ -297,7 +297,7 @@ async fn serve_mqtt(
                             let ack = if mqtt5 { codec::encode_mqtt5_unsuback(packet_id, &codes) } else { encode_unsuback(packet_id).to_vec() };
                             write_limited(connection, &ack, outbound_maximum).await?;
                         }
-                        Packet::Publish { topic, topic_alias: _, payload, qos, retain, dup, packet_id, expiry_interval, payload_format_indicator, content_type } => {
+                        Packet::Publish { topic, topic_alias: _, payload, qos, retain, dup, packet_id, expiry_interval, payload_format_indicator, content_type, response_topic, correlation_data, user_properties } => {
                             let topic = topic.ok_or("unresolved MQTT 5 Topic Alias")?;
                             // DUP is a PUBLISH retransmission hint, not an application dedup key.
                             let _ = dup;
@@ -313,7 +313,7 @@ async fn serve_mqtt(
                                 break;
                             }
                             let expiry_at_unix_ms = expiry_interval.map(router::message_expiry_deadline).transpose()?;
-                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms, payload_format_indicator, content_type };
+                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms, payload_format_indicator, content_type, response_topic, correlation_data, user_properties };
                             router.publish(&session, message, packet_id).await?;
                             match (qos, packet_id) {
                                 (Qos::AtLeastOnce, Some(id)) => write_limited(connection, &encode_puback(id), outbound_maximum).await?,
@@ -374,7 +374,7 @@ async fn serve_mqtt(
     result
 }
 
-#[allow(clippy::too_many_arguments)] // The transport, security, session and negotiated limits remain explicit.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // Delivery keeps authorization, MQTT 5 projection and negotiated size together.
 async fn send_delivery(
     connection: &mut BrokerConnection,
     delivery: Delivery,
@@ -427,6 +427,24 @@ async fn send_delivery(
             } else {
                 None
             };
+            let response_topic = if mqtt5 {
+                message
+                    .response_topic
+                    .as_ref()
+                    .map(topic::TopicName::as_str)
+            } else {
+                None
+            };
+            let correlation_data = if mqtt5 {
+                message.correlation_data.as_deref()
+            } else {
+                None
+            };
+            let user_properties = if mqtt5 {
+                message.user_properties.as_slice()
+            } else {
+                &[]
+            };
             let alias_mode = aliases.candidate(topic);
             let mut encoded = codec::encode_publish_with_properties(
                 topic,
@@ -440,6 +458,9 @@ async fn send_delivery(
                 alias_mode,
                 payload_format_indicator,
                 content_type,
+                response_topic,
+                correlation_data,
+                user_properties,
             )?;
             if matches!(alias_mode, TopicAliasMode::Establish(_))
                 && encoded.len() > outbound_maximum
@@ -457,6 +478,9 @@ async fn send_delivery(
                     TopicAliasMode::None,
                     payload_format_indicator,
                     content_type,
+                    response_topic,
+                    correlation_data,
+                    user_properties,
                 )?;
             } else if let TopicAliasMode::Establish(alias) = alias_mode {
                 pending_alias = Some((topic.to_owned(), alias));

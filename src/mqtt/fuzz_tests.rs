@@ -577,6 +577,9 @@ fn message(topic: &str, payload: Vec<u8>, qos: u8, retain: bool) -> StoredMessag
         expiry_at_unix_ms: None,
         payload_format_indicator: None,
         content_type: None,
+        response_topic: None,
+        correlation_data: None,
+        user_properties: Vec::new(),
     }
 }
 

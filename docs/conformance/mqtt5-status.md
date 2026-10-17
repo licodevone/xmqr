@@ -85,20 +85,24 @@ restart, com documento durável v9 na próxima gravação. Em assinantes MQTT 3.
 as propriedades são omitidas. O broker não verifica se o payload anunciado como
 UTF-8 realmente tem essa codificação; o MQTT 5 permite ao receptor optar por
 não fazer essa validação. Client C77 valida payload UTF-8 antes da conexão quando
-o indicador é 1. Response Topic, Correlation Data, User Property e outras
-propriedades de publicação seguem pendentes; não se declara
+o indicador é 1. P142/C78, ainda em validação após 0.21.0/0.19.0, acrescentam
+Response Topic `0x08`, Correlation Data `0x09` binária e User Property `0x26`
+repetível em ordem no PUBLISH. O broker persiste em documento v10 e omite as
+propriedades em assinantes 3.1.1. O client aceita os argumentos de publicação;
+`sub` ainda não as exibe. Outras propriedades seguem pendentes; não se declara
 conformidade MQTT 5 integral.
 
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
 P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há
-outras propriedades de publicação, fluxo de envio completo do client ou AUTH.
+demais propriedades de publicação, fluxo de envio completo do client ou AUTH.
 Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. P128 migra o documento durável de v5 para v6 na próxima
 gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
 backup privado anterior à migração. P130 migra o documento de v6 para v7;
 P132 migra de v7 para v8. P141, ainda não distribuído em 0.21.0, migra de v8
-para v9 na próxima gravação; 0.21.0 não reabre v9 sem backup privado v8 anterior.
+para v9 na próxima gravação; P142 migra de v9 para v10. P141 não reabre v10
+sem backup privado v9 anterior; 0.21.0 não reabre v9/v10 sem backup privado v8.
 A versão 0.18.0 não pode reabrir v7/v8 sem backup anterior.
 
 Historicamente, P114 recusava todo `CONNECT` 5 com `CONNACK 0x84`; esse contrato
@@ -136,6 +140,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P139](../../prompts/registros/P139-topic-alias-saida-mqtt5.md) e
 [C75](../../../xmqr-client/prompts/registros/C75-topic-alias-maximum-mqtt5.md),
 [P141](../../prompts/registros/P141-publish-payload-format-content-type-mqtt5.md) e
-[C77](../../../xmqr-client/prompts/registros/C77-publish-payload-format-content-type-mqtt5.md).
+[C77](../../../xmqr-client/prompts/registros/C77-publish-payload-format-content-type-mqtt5.md),
+[P142](../../prompts/registros/P142-publish-request-properties-mqtt5.md) e
+[C78](../../../xmqr-client/prompts/registros/C78-publish-request-properties-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

@@ -3259,6 +3259,9 @@ mod tests {
             expiry_at_unix_ms: None,
             payload_format_indicator: None,
             content_type: None,
+            response_topic: None,
+            correlation_data: None,
+            user_properties: Vec::new(),
         };
         let second = StoredMessage {
             topic: super::super::topic::TopicName::try_from("test/second".to_owned()).unwrap(),
@@ -3268,6 +3271,9 @@ mod tests {
             expiry_at_unix_ms: None,
             payload_format_indicator: None,
             content_type: None,
+            response_topic: None,
+            correlation_data: None,
+            user_properties: Vec::new(),
         };
         prepare_delivery(limits, &mut session, first.clone()).unwrap();
         assert!(prepare_delivery(limits, &mut session, second.clone()).is_err());
@@ -3814,6 +3820,9 @@ mod tests {
             expiry_at_unix_ms: None,
             payload_format_indicator: None,
             content_type: None,
+            response_topic: None,
+            correlation_data: None,
+            user_properties: Vec::new(),
         }
     }
 

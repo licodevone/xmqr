@@ -84,6 +84,9 @@ pub(super) enum Packet {
         expiry_interval: Option<u32>,
         payload_format_indicator: Option<u8>,
         content_type: Option<String>,
+        response_topic: Option<TopicName>,
+        correlation_data: Option<Vec<u8>>,
+        user_properties: Vec<(String, String)>,
     },
     PubAck(u16),
     PubRec(u16),
@@ -488,6 +491,9 @@ fn decode_for(
                     expiry_at_unix_ms: None,
                     payload_format_indicator: None,
                     content_type: None,
+                    response_topic: None,
+                    correlation_data: None,
+                    user_properties: Vec::new(),
                 })
             } else {
                 None
@@ -593,6 +599,10 @@ fn decode_for(
             let mut topic_alias = None;
             let mut payload_format_indicator = None;
             let mut content_type = None;
+            let mut response_topic = None;
+            let mut correlation_data = None;
+            let mut user_properties = Vec::new();
+            let mut user_property_bytes = 0_usize;
             if mqtt5 {
                 let property_length = c.variable_integer()?;
                 let raw = c.bytes(property_length)?;
@@ -624,6 +634,29 @@ fn decode_for(
                             }
                             content_type = Some(value);
                         }
+                        0x08 if response_topic.is_none() => {
+                            response_topic = Some(TopicName::try_from(properties.text()?)?);
+                        }
+                        0x09 if correlation_data.is_none() => {
+                            let value = properties.binary()?;
+                            if value.len() > 256 {
+                                return Err("MQTT 5 Correlation Data too long".into());
+                            }
+                            correlation_data = Some(value.to_vec());
+                        }
+                        0x26 => {
+                            let key = properties.text()?;
+                            let value = properties.text()?;
+                            if key.len() > 256 || value.len() > 256 {
+                                return Err("MQTT 5 User Property field too long".into());
+                            }
+                            user_property_bytes =
+                                user_property_bytes.saturating_add(5 + key.len() + value.len());
+                            if user_properties.len() >= 16 || user_property_bytes > 2048 {
+                                return Err("MQTT 5 User Properties exceed limits".into());
+                            }
+                            user_properties.push((key, value));
+                        }
                         _ => return Err("unsupported or duplicate MQTT 5 PUBLISH property".into()),
                     }
                 }
@@ -646,6 +679,9 @@ fn decode_for(
                 expiry_interval,
                 payload_format_indicator,
                 content_type,
+                response_topic,
+                correlation_data,
+                user_properties,
             }
         }
         0x40 => Packet::PubAck(success_ack_id(&mut c, mqtt5)?),
@@ -931,10 +967,13 @@ pub(super) fn encode_publish_with_expiry_alias(
         alias_mode,
         None,
         None,
+        None,
+        None,
+        &[],
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // One packet boundary validates all MQTT 5 PUBLISH properties and size limits.
 pub(super) fn encode_publish_with_properties(
     topic: &str,
     payload: &[u8],
@@ -947,6 +986,9 @@ pub(super) fn encode_publish_with_properties(
     alias_mode: TopicAliasMode,
     payload_format_indicator: Option<u8>,
     content_type: Option<&str>,
+    response_topic: Option<&str>,
+    correlation_data: Option<&[u8]>,
+    user_properties: &[(String, String)],
 ) -> Result<Vec<u8>, &'static str> {
     // MQTT-2.3.1-5 and MQTT-3.3.1-2: identifier and DUP follow QoS.
     match (qos, packet_id) {
@@ -960,7 +1002,10 @@ pub(super) fn encode_publish_with_properties(
     if (expiry_interval.is_some()
         || alias_mode != TopicAliasMode::None
         || payload_format_indicator.is_some()
-        || content_type.is_some())
+        || content_type.is_some()
+        || response_topic.is_some()
+        || correlation_data.is_some()
+        || !user_properties.is_empty())
         && !mqtt5
     {
         return Err("MQTT 5 property on MQTT 3.1.1 PUBLISH");
@@ -975,6 +1020,31 @@ pub(super) fn encode_publish_with_properties(
                 .any(|ch| ch == '\0' || ch.is_control() || is_noncharacter(ch))
     }) {
         return Err("invalid outbound MQTT 5 Content Type");
+    }
+    if response_topic.is_some_and(|value| !valid_topic_name(value)) {
+        return Err("invalid outbound MQTT 5 Response Topic");
+    }
+    if correlation_data.is_some_and(|value| value.len() > 256) {
+        return Err("outbound MQTT 5 Correlation Data too long");
+    }
+    if user_properties.len() > 16 {
+        return Err("too many outbound MQTT 5 User Properties");
+    }
+    let mut user_property_bytes = 0_usize;
+    for (key, value) in user_properties {
+        if key.len() > 256
+            || value.len() > 256
+            || key
+                .chars()
+                .chain(value.chars())
+                .any(|ch| ch == '\0' || ch.is_control() || is_noncharacter(ch))
+        {
+            return Err("invalid outbound MQTT 5 User Property");
+        }
+        user_property_bytes = user_property_bytes.saturating_add(5 + key.len() + value.len());
+    }
+    if user_property_bytes > 2048 {
+        return Err("outbound MQTT 5 User Properties too large");
     }
     let alias = match alias_mode {
         TopicAliasMode::None => None,
@@ -991,7 +1061,10 @@ pub(super) fn encode_publish_with_properties(
     let properties_len = usize::from(expiry_interval.is_some()) * 5
         + usize::from(alias.is_some()) * 3
         + usize::from(payload_format_indicator.is_some()) * 2
-        + content_type.map_or(0, |value| 3 + value.len());
+        + content_type.map_or(0, |value| 3 + value.len())
+        + response_topic.map_or(0, |value| 3 + value.len())
+        + correlation_data.map_or(0, |value| 3 + value.len())
+        + user_property_bytes;
     let mut properties_header = Vec::new();
     encode_length(properties_len, &mut properties_header);
     let len = 2
@@ -1025,6 +1098,35 @@ pub(super) fn encode_publish_with_properties(
         if let Some(alias) = alias {
             out.push(0x23);
             out.extend_from_slice(&alias.to_be_bytes());
+        }
+        if let Some(value) = response_topic {
+            out.push(0x08);
+            out.extend_from_slice(
+                &u16::try_from(value.len())
+                    .expect("valid topic")
+                    .to_be_bytes(),
+            );
+            out.extend_from_slice(value.as_bytes());
+        }
+        if let Some(value) = correlation_data {
+            out.push(0x09);
+            out.extend_from_slice(
+                &u16::try_from(value.len())
+                    .expect("at most 256")
+                    .to_be_bytes(),
+            );
+            out.extend_from_slice(value);
+        }
+        for (key, value) in user_properties {
+            out.push(0x26);
+            out.extend_from_slice(&u16::try_from(key.len()).expect("at most 256").to_be_bytes());
+            out.extend_from_slice(key.as_bytes());
+            out.extend_from_slice(
+                &u16::try_from(value.len())
+                    .expect("at most 256")
+                    .to_be_bytes(),
+            );
+            out.extend_from_slice(value.as_bytes());
         }
         if let Some(value) = content_type {
             out.push(0x03);
@@ -1228,6 +1330,9 @@ mod tests {
             TopicAliasMode::None,
             Some(1),
             Some("text/plain"),
+            None,
+            None,
+            &[],
         )
         .unwrap();
         assert_eq!(
@@ -1270,6 +1375,9 @@ mod tests {
             TopicAliasMode::None,
             Some(0),
             Some(&long),
+            None,
+            None,
+            &[],
         )
         .unwrap();
         assert_eq!(&encoded[6..8], &[0x85, 0x01]); // 133 property bytes.
@@ -1291,6 +1399,105 @@ mod tests {
                 TopicAliasMode::None,
                 None,
                 Some(&too_long),
+                None,
+                None,
+                &[],
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn mqtt5_publish_request_properties_roundtrip_and_rejections() {
+        let pairs = vec![
+            ("trace".into(), "one".into()),
+            ("trace".into(), "two".into()),
+        ];
+        let encoded = encode_publish_with_properties(
+            "request/one",
+            b"body",
+            Qos::AtMostOnce,
+            false,
+            false,
+            None,
+            true,
+            None,
+            TopicAliasMode::None,
+            None,
+            None,
+            Some("reply/one"),
+            Some(&[0, 255, 7]),
+            &pairs,
+        )
+        .unwrap();
+        let remaining = if encoded[1] & 0x80 == 0 { 2 } else { 3 };
+        assert!(
+            matches!(decode_for(0x30, &encoded[remaining..], true).unwrap(),
+            Packet::Publish { response_topic: Some(topic), correlation_data: Some(data), user_properties, .. }
+                if topic.as_str() == "reply/one" && data == [0, 255, 7] && user_properties == pairs)
+        );
+        let invalid = encode_publish_with_properties(
+            "request/one",
+            b"body",
+            Qos::AtMostOnce,
+            false,
+            false,
+            None,
+            true,
+            None,
+            TopicAliasMode::None,
+            None,
+            None,
+            Some("reply/+"),
+            None,
+            &[],
+        );
+        assert!(invalid.is_err());
+        let reject = |properties: &[u8]| {
+            let mut body = vec![0, 1, b't'];
+            encode_length(properties.len(), &mut body);
+            body.extend_from_slice(properties);
+            body.push(b'x');
+            assert!(decode_for(0x30, &body, true).is_err());
+        };
+        reject(b"\x08\x00\x01r\x08\x00\x01s"); // Duplicate Response Topic.
+        reject(b"\x09\x00\x01r\x09\x00\x01s"); // Duplicate Correlation Data.
+        reject(b"\x08\x00\x07reply/+"); // Wildcard.
+        reject(b"\x26\x00\x01k\x00\x01\xff"); // Invalid UTF-8 value.
+        reject(b"\x26\x00\x01k\x00\x02v"); // Truncated value.
+        let many = b"\x26\x00\x00\x00\x00".repeat(17);
+        reject(&many);
+        let mut long_correlation = vec![0x09, 0x01, 0x01];
+        long_correlation.extend([0; 257]);
+        reject(&long_correlation);
+        let mut long_response = vec![0x08, 0x04, 0x01];
+        long_response.extend([b'r'; 1025]);
+        reject(&long_response);
+        let mut large_user_properties = Vec::new();
+        for _ in 0..5 {
+            large_user_properties.extend([0x26, 0x01, 0]);
+            large_user_properties.extend([b'k'; 256]);
+            large_user_properties.extend([0x01, 0]);
+            large_user_properties.extend([b'v'; 256]);
+        }
+        reject(&large_user_properties);
+        let large = vec![("k".repeat(256), "v".repeat(256)); 5];
+        assert!(
+            encode_publish_with_properties(
+                "t",
+                b"x",
+                Qos::AtMostOnce,
+                false,
+                false,
+                None,
+                true,
+                None,
+                TopicAliasMode::None,
+                None,
+                None,
+                None,
+                None,
+                &large,
             )
             .is_err()
         );

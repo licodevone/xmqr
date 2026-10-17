@@ -20,7 +20,7 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 9;
+const FORMAT_VERSION: u16 = 10;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -140,6 +140,16 @@ pub(super) struct StoredMessage {
     pub payload_format_indicator: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_topic: Option<TopicName>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "option_hex_bytes"
+    )]
+    pub correlation_data: Option<Vec<u8>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub user_properties: Vec<(String, String)>,
 }
 
 /// An inbound `QoS` 2 PUBLISH has been committed before PUBREC; PUBREL must
@@ -454,7 +464,58 @@ fn validate_message(message: &StoredMessage) -> Result<(), StateError> {
     }) {
         return Err(StateError::Malformed);
     }
+    if message
+        .correlation_data
+        .as_ref()
+        .is_some_and(|value| value.len() > 256)
+        || message.user_properties.len() > 16
+    {
+        return Err(StateError::Malformed);
+    }
+    let mut property_bytes = 0_usize;
+    for (key, value) in &message.user_properties {
+        if key.len() > 256
+            || value.len() > 256
+            || key.chars().chain(value.chars()).any(|ch| {
+                let code = ch as u32;
+                ch == '\0'
+                    || ch.is_control()
+                    || (0xfdd0..=0xfdef).contains(&code)
+                    || code & 0xffff == 0xfffe
+                    || code & 0xffff == 0xffff
+            })
+        {
+            return Err(StateError::Malformed);
+        }
+        property_bytes = property_bytes.saturating_add(5 + key.len() + value.len());
+    }
+    if property_bytes > 2048 {
+        return Err(StateError::Malformed);
+    }
     Ok(())
+}
+
+mod option_hex_bytes {
+    use serde::{Deserializer, Serializer};
+
+    use super::hex_bytes;
+
+    #[allow(clippy::ref_option)] // serde(with) calls serialize with a reference to the field type.
+    pub fn serialize<S: Serializer>(
+        bytes: &Option<Vec<u8>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match bytes {
+            Some(value) => hex_bytes::serialize(value, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Vec<u8>>, D::Error> {
+        hex_bytes::deserialize(deserializer).map(Some)
+    }
 }
 
 mod hex_bytes {
@@ -618,6 +679,9 @@ mod tests {
             expiry_at_unix_ms: None,
             payload_format_indicator: None,
             content_type: None,
+            response_topic: None,
+            correlation_data: None,
+            user_properties: Vec::new(),
         }
     }
 
@@ -651,6 +715,37 @@ mod tests {
         retained.retain = true;
         state.retained.insert(retained.topic.clone(), retained);
         state
+    }
+
+    #[test]
+    fn request_properties_survive_document_roundtrip() {
+        let mut state = state();
+        let message = state.retained.values_mut().next().unwrap();
+        message.response_topic = Some(TopicName::try_from("reply/one".to_owned()).unwrap());
+        message.correlation_data = Some(vec![0, 255, 7]);
+        message.user_properties = vec![
+            ("trace".into(), "one".into()),
+            ("trace".into(), "two".into()),
+        ];
+        let document = toml::to_string(&Envelope {
+            version: FORMAT_VERSION,
+            state: state.clone(),
+        })
+        .unwrap();
+        assert!(document.contains("00ff07"));
+        let decoded: Envelope = toml::from_str(&document).unwrap();
+        assert_eq!(decoded.state, state);
+    }
+
+    #[test]
+    fn rejects_oversized_durable_request_properties() {
+        let mut state = state();
+        state.retained.values_mut().next().unwrap().correlation_data = Some(vec![0; 257]);
+        assert!(matches!(validate(&state), Err(StateError::Malformed)));
+        let message = state.retained.values_mut().next().unwrap();
+        message.correlation_data = None;
+        message.user_properties = vec![("k".repeat(256), "v".repeat(256)); 5];
+        assert!(matches!(validate(&state), Err(StateError::Malformed)));
     }
 
     #[tokio::test]
@@ -721,7 +816,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(10))
+            Err(StateError::UnsupportedVersion(11))
         ));
     }
 
@@ -781,8 +876,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_to_v8_and_commits_v9_without_losing_retained() {
-        for version in [1, 2, 3, 4, 5, 6, 7, 8] {
+    async fn reads_v1_to_v9_and_commits_v10_without_losing_retained() {
+        for version in [1, 2, 3, 4, 5, 6, 7, 8, 9] {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -807,13 +902,13 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 9);
+            assert_eq!(envelope.version, 10);
             assert_eq!(envelope.state, expected);
         }
     }
 
     #[tokio::test]
-    async fn reads_v7_will_without_delay_fields_and_commits_v9() {
+    async fn reads_v7_will_without_delay_fields_and_commits_v10() {
         let directory = tempdir().unwrap();
         let mut expected = state();
         expected.pending_wills.insert(
@@ -842,7 +937,7 @@ mod tests {
         let writer = Store::open(directory.path()).unwrap();
         let bytes = writer.get(KEY).unwrap();
         let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-        assert_eq!(envelope.version, 9);
+        assert_eq!(envelope.version, 10);
         assert_eq!(envelope.state, expected);
     }
 
