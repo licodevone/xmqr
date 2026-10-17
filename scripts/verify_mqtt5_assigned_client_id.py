@@ -28,19 +28,15 @@ def await_subscription(process):
 
 
 def persistent_assigned_id(port):
-    stream = socket.create_connection(("127.0.0.1", port), timeout=4)
-    stream.settimeout(4)
-    body = b"\x00\x04MQTT\x05\x02\x00\x1e\x05\x11\x00\x00\x00\x3c\x00\x00"
-    stream.sendall(bytes([0x10, len(body)]) + body)
-    header, ack = packet(stream)
-    assert header == 0x20 and ack[1] == 0, (header, ack)
-    properties = ack[3:3 + ack[2]]
-    at = properties.index(0x12)
-    size = int.from_bytes(properties[at + 1:at + 3], "big")
-    identity = properties[at + 3:at + 3 + size].decode("ascii")
+    result = subprocess.run([
+        str(CLIENT), "pub", "--open-lab", "--protocol-version", "5",
+        "--server-assigned-client-id", "--session-expiry-seconds", "60",
+        "--port", str(port), "--topic", "assigned/setup", "--message", "setup",
+    ], capture_output=True, timeout=8, check=True)
+    diagnostic = result.stderr.decode("utf-8")
+    assert "Client Identifier atribuido: " in diagnostic, diagnostic
+    identity = diagnostic.split("Client Identifier atribuido: ", 1)[1].splitlines()[0]
     assert len(identity) == 37, identity
-    stream.sendall(b"\xe0\x00")
-    stream.close()
     return identity
 
 
@@ -112,7 +108,7 @@ def main():
                 subscriber.wait(timeout=4)
             if broker.poll() is None:
                 stop(broker)
-    print("P166_C97_C98_ASSIGNED_ID_PASS unique CONNACK IDs, pub/sub, diagnostics, long-ID reconnect")
+    print("P166_C97_C98_C99_ASSIGNED_ID_PASS unique IDs, durable CLI session present, pub/sub, long-ID reconnect")
 
 
 if __name__ == "__main__":
