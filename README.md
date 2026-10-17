@@ -6,7 +6,7 @@ Correlation Data binária e User Property repetível em ordem. As propriedades
 seguem em entregas, mensagens retidas e fila offline. O documento durável
 passa a v10 na próxima gravação. Preserve backup privado v9 para rollback ao
 P141 e backup v8 para voltar ao broker publicado 0.21.0. O client C77/C78
-publica essas propriedades. P142/C78 ainda aguardam CI e aceite final.
+publica essas propriedades. P142/C78 passaram CI; a fase 6C global segue aberta.
 
 O marco experimental 0.21.0 aceita Topic Alias MQTT 5 de entrada e saída
 (P138/P139), limitado a 16 por conexão e ao máximo anunciado pelo assinante.

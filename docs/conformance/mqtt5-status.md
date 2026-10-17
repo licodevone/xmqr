@@ -85,7 +85,7 @@ restart, com documento durável v9 na próxima gravação. Em assinantes MQTT 3.
 as propriedades são omitidas. O broker não verifica se o payload anunciado como
 UTF-8 realmente tem essa codificação; o MQTT 5 permite ao receptor optar por
 não fazer essa validação. Client C77 valida payload UTF-8 antes da conexão quando
-o indicador é 1. P142/C78, ainda em validação após 0.21.0/0.19.0, acrescentam
+o indicador é 1. P142/C78, aceitos em `main` após 0.21.0/0.19.0, acrescentam
 Response Topic `0x08`, Correlation Data `0x09` binária e User Property `0x26`
 repetível em ordem no PUBLISH. O broker persiste em documento v10 e omite as
 propriedades em assinantes 3.1.1. O client aceita os argumentos de publicação;
