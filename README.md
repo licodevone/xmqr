@@ -1,6 +1,6 @@
 # XMQR
 
-Em desenvolvimento após 0.24.0, P150 aceita Subscription Identifier no
+O candidato 0.25.0 inclui P150: aceita Subscription Identifier no
 SUBSCRIBE MQTT 5 e entrega os IDs correspondentes ao assinante, inclusive em
 fila durável e após reinício. O estado passa a v12 na próxima gravação; broker
 0.24.0 e admin independente 0.6.0 não reabrem v12. Preserve backup privado

@@ -178,6 +178,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Admin A14: core broker 0.24.0/estado v11, backup offline e admin independente 0.6.0 distribuído com CI, pacote, imagem, tag e prerelease verificados.~~ [Evidência](../../xmqr-admin/prompts/registros/A14-core-v11-release-0.6.md). Painel de escrita e fase 9 seguem abertos.
 - [x] ~~Fase 6D/C87 parcial: client envia Subscription Identifier MQTT 5 e exibe IDs em JSONL; wire, Mosquitto e CI PASS.~~ [Evidência](../../xmqr-client/prompts/registros/C87-subscription-identifier-mqtt5.md). Broker P150 em validação; fase 6D global aberta.
 - [x] ~~Fase 6D/P150 parcial: broker Subscription Identifier por filtro com estado v12, TCP QoS0/1/2, retained/offline/restart e negativos; CI PASS.~~ [Registro](../prompts/registros/P150-subscription-identifier-mqtt5.md). Admin 0.6.0 ainda não abre v12; fase 6D global aberta.
+- [ ] Distribuição P151/C88: candidatos broker/admin legado 0.25.0 e client 0.23.0; pacotes, imagens, rollback de pacote, tags e prereleases dependem dos gates. [Broker](../prompts/registros/P151-release-0.25.0.md) e [client](../../xmqr-client/prompts/registros/C88-release-0.23.0.md). Estado v12 exige backup privado v11 para rollback.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

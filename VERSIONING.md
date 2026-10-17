@@ -1,8 +1,8 @@
 # Versionamento
 
-## P150 — estado v12 em desenvolvimento
+## P151 — candidato 0.25.0 e estado v12
 
-Subscription Identifier MQTT 5 acrescenta mapa por filtro e IDs nas entregas
+P150 Subscription Identifier MQTT 5 acrescenta mapa por filtro e IDs nas entregas
 duráveis, com leitura de v1..v11 e gravação v12. Broker 0.24.0/admin
 independente 0.6.0 não reabrem v12; rollback exige backup privado v11 anterior
 à primeira gravação, broker parado e pacote anterior. Distribuição e pin do
