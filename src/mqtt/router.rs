@@ -1,7 +1,11 @@
 //! Single-owner MQTT session actor. A candidate state is fsynced before ACKs
 //! or fan-out, so no async mutex is held across storage I/O.
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -21,6 +25,66 @@ use super::topic::TopicFilter;
 
 const COMMAND_CAPACITY: usize = 256;
 const DELIVERY_CAPACITY: usize = 64;
+
+fn unix_ms() -> Result<u64, RouterError> {
+    unix_ms_from(SystemTime::now())
+}
+
+fn unix_ms_from(instant: SystemTime) -> Result<u64, RouterError> {
+    let elapsed = instant
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| RouterError::Clock)?;
+    u64::try_from(elapsed.as_millis()).map_err(|_| RouterError::Clock)
+}
+
+fn expiry_deadline(now: u64, seconds: u32) -> Result<u64, RouterError> {
+    now.checked_add(u64::from(seconds) * 1000)
+        .ok_or(RouterError::Clock)
+}
+
+fn session_expired(session: &DurableSession, now: u64) -> bool {
+    session
+        .expires_at_unix_ms
+        .is_some_and(|deadline| deadline <= now)
+}
+
+pub(super) struct SessionPolicy {
+    pub clean: bool,
+    pub persistent: bool,
+    pub expiry_interval_seconds: Option<u32>,
+}
+
+fn reconcile_recovered_sessions(
+    state: &mut DurableState,
+    auth: &AccessPolicy,
+) -> Result<(), RouterError> {
+    let now = unix_ms()?;
+    state.sessions.retain(|_, session| {
+        session.persistent
+            && !session_expired(session, now)
+            && auth.contains_principal(&session.principal)
+    });
+    for session in state.sessions.values_mut() {
+        // Crash time is unknown; start a connected finite session's timer on
+        // recovery so already accepted data is not silently discarded.
+        if let Some(seconds) = session.expiry_interval_seconds
+            && session.expires_at_unix_ms.is_none()
+        {
+            session.expires_at_unix_ms = Some(expiry_deadline(now, seconds)?);
+        }
+        session
+            .subscriptions
+            .retain(|filter, _| auth.allowed_subscribe(&session.principal, filter.as_str()));
+        session
+            .offline
+            .retain(|message| auth.allowed_delivery(&session.principal, message.topic.as_str()));
+        session.outbound.retain(|entry| {
+            auth.allowed_delivery(&session.principal, entry.message.topic.as_str())
+        });
+        // Accepted inbound QoS2 remains owned after later ACL changes.
+    }
+    Ok(())
+}
 
 #[derive(Debug, Error)]
 pub(crate) enum AdminError {
@@ -56,6 +120,8 @@ pub(super) enum RouterError {
     Stale,
     #[error("session actor unavailable")]
     Unavailable,
+    #[error("system clock unavailable for MQTT session expiry")]
+    Clock,
 }
 
 /// A packet to send to a connected subscriber after the durable transition.
@@ -206,6 +272,7 @@ enum Command {
         principal: String,
         clean: bool,
         persistent: bool,
+        expiry_interval_seconds: Option<u32>,
         will: Option<StoredMessage>,
         reply: oneshot::Sender<Result<Session, RouterError>>,
     },
@@ -492,24 +559,9 @@ impl Router {
     ) -> Result<Self, HandlerError> {
         let (store, mut state) = MqttStore::open_with_limits(directory, limits).await?;
         let before = state.clone();
-        state
-            .sessions
-            .retain(|_, session| session.persistent && auth.contains_principal(&session.principal));
-        for session in state.sessions.values_mut() {
-            session
-                .subscriptions
-                .retain(|filter, _| auth.allowed_subscribe(&session.principal, filter.as_str()));
-            session.offline.retain(|message| {
-                auth.allowed_delivery(&session.principal, message.topic.as_str())
-            });
-            session.outbound.retain(|entry| {
-                auth.allowed_delivery(&session.principal, entry.message.topic.as_str())
-            });
-            // MQTT-4.3.3-2: PUBREC means the broker has accepted ownership of
-            // the Application Message. A later ACL change cannot discard this
-            // pending QoS 2 transition; PUBREL finishes under that decision.
-            // New PUBLISH packets are checked against the current ACL in the
-            // connection handler. Removed principals still lose the session.
+        if let Err(error) = reconcile_recovered_sessions(&mut state, &auth) {
+            store.shutdown().await?;
+            return Err(error.into());
         }
         // MQTT-3.1.2-8/10: broker crash can defer Will publication until restart.
         // Remove the Will and route it in the same durable transition.
@@ -555,7 +607,23 @@ impl Router {
                 fatal: false,
                 commits_since_snapshot: 0,
             };
-            while let Some(command) = receiver.recv().await {
+            let mut expiry_tick = tokio::time::interval(Duration::from_millis(250));
+            expiry_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                let command = tokio::select! {
+                    command = receiver.recv() => command,
+                    _ = expiry_tick.tick() => {
+                        if actor.expire_sessions().await.is_err() { actor.fail_closed(); break; }
+                        continue;
+                    }
+                };
+                let Some(command) = command else {
+                    break;
+                };
+                if actor.expire_sessions().await.is_err() {
+                    actor.fail_closed();
+                    break;
+                }
                 #[cfg(test)]
                 if let Command::Inject { fault, reply } = command {
                     let result = actor.store.inject_for_test(fault).await.map_err(Into::into);
@@ -658,8 +726,11 @@ impl Router {
         self.register_with_policy(
             client_id,
             principal,
-            clean,
-            !clean,
+            SessionPolicy {
+                clean,
+                persistent: !clean,
+                expiry_interval_seconds: None,
+            },
             will,
             security_generation,
         )
@@ -670,8 +741,7 @@ impl Router {
         &self,
         client_id: String,
         principal: String,
-        clean: bool,
-        persistent: bool,
+        policy: SessionPolicy,
         will: Option<StoredMessage>,
         security_generation: Option<u64>,
     ) -> Result<Session, RouterError> {
@@ -680,8 +750,9 @@ impl Router {
             security_generation,
             client_id,
             principal,
-            clean,
-            persistent,
+            clean: policy.clean,
+            persistent: policy.persistent,
+            expiry_interval_seconds: policy.expiry_interval_seconds,
             will,
             reply,
         })
@@ -798,12 +869,37 @@ impl Router {
 }
 
 impl Actor {
+    async fn expire_sessions(&mut self) -> Result<(), RouterError> {
+        let now = unix_ms()?;
+        if self
+            .state
+            .sessions
+            .iter()
+            .any(|(id, session)| !self.live.contains_key(id) && session_expired(session, now))
+        {
+            let mut candidate = self.state.clone();
+            candidate
+                .sessions
+                .retain(|id, session| self.live.contains_key(id) || !session_expired(session, now));
+            self.commit(candidate).await?;
+        }
+        Ok(())
+    }
+
     async fn shutdown(&mut self) -> Result<(), RouterError> {
         // Server stop is not a client DISCONNECT (MQTT-3.1.2-8/-10).
         // Publish all Wills against an offline view so durable subscribers
         // retain deliveries instead of losing them with the closing sockets.
         let mut candidate = self.state.clone();
         candidate.sessions.retain(|_, session| session.persistent);
+        let now = unix_ms()?;
+        for session in candidate.sessions.values_mut() {
+            if let Some(seconds) = session.expiry_interval_seconds
+                && session.expires_at_unix_ms.is_none()
+            {
+                session.expires_at_unix_ms = Some(expiry_deadline(now, seconds)?);
+            }
+        }
         let mut published = 0;
         for will in std::mem::take(&mut candidate.pending_wills).into_values() {
             if self
@@ -843,6 +939,14 @@ impl Actor {
         let view = dynamic.view(policy.clone());
         let mut candidate = self.state.clone();
         candidate.sessions.retain(|_, s| s.persistent);
+        let now = unix_ms()?;
+        for session in candidate.sessions.values_mut() {
+            if let Some(seconds) = session.expiry_interval_seconds
+                && session.expires_at_unix_ms.is_none()
+            {
+                session.expires_at_unix_ms = Some(expiry_deadline(now, seconds)?);
+            }
+        }
         for session in candidate.sessions.values_mut() {
             session
                 .subscriptions
@@ -1004,6 +1108,7 @@ impl Actor {
                 principal,
                 clean,
                 persistent,
+                expiry_interval_seconds,
                 will,
                 reply,
             } => {
@@ -1011,8 +1116,15 @@ impl Actor {
                     if security_generation.is_some_and(|g| g != self.auth.security_generation()) {
                         Err(RouterError::Security)
                     } else {
-                        self.register_with_policy(client_id, principal, clean, persistent, will)
-                            .await
+                        self.register_with_policy(
+                            client_id,
+                            principal,
+                            clean,
+                            persistent,
+                            expiry_interval_seconds,
+                            will,
+                        )
+                        .await
                     };
                 self.record_result(&result);
                 let _ = reply.send(result);
@@ -1546,7 +1658,7 @@ impl Actor {
         clean: bool,
         will: Option<StoredMessage>,
     ) -> Result<Session, RouterError> {
-        self.register_with_policy(client_id, principal, clean, !clean, will)
+        self.register_with_policy(client_id, principal, clean, !clean, None, will)
             .await
     }
 
@@ -1556,9 +1668,15 @@ impl Actor {
         principal: String,
         clean: bool,
         persistent: bool,
+        expiry_interval_seconds: Option<u32>,
         will: Option<StoredMessage>,
     ) -> Result<Session, RouterError> {
-        let old = self.state.sessions.get(&client_id);
+        let now = unix_ms()?;
+        let old = self
+            .state
+            .sessions
+            .get(&client_id)
+            .filter(|session| !session_expired(session, now));
         // A ClientId belongs to its authenticated principal even when the new
         // CONNECT requests a clean session. Never let another principal erase
         // durable state or take over a live connection by reusing that ID.
@@ -1578,6 +1696,14 @@ impl Actor {
                 .await?;
         }
         let mut candidate = self.state.clone();
+        if self
+            .state
+            .sessions
+            .get(&client_id)
+            .is_some_and(|session| session_expired(session, now))
+        {
+            candidate.sessions.remove(&client_id);
+        }
         if !session_present {
             candidate.sessions.insert(
                 client_id.clone(),
@@ -1585,6 +1711,10 @@ impl Actor {
             );
         } else if let Some(session) = candidate.sessions.get_mut(&client_id) {
             session.persistent = persistent;
+        }
+        if let Some(session) = candidate.sessions.get_mut(&client_id) {
+            session.expiry_interval_seconds = expiry_interval_seconds;
+            session.expires_at_unix_ms = None;
         }
         if let Some(message) = will {
             candidate.pending_wills.insert(
@@ -1882,6 +2012,11 @@ impl Actor {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
         let will = candidate.pending_wills.remove(client_id);
+        if let Some(session) = candidate.sessions.get_mut(client_id)
+            && let Some(seconds) = session.expiry_interval_seconds
+        {
+            session.expires_at_unix_ms = Some(expiry_deadline(unix_ms()?, seconds)?);
+        }
         if !candidate
             .sessions
             .get(client_id)
@@ -2683,6 +2818,19 @@ mod tests {
     use std::{fmt::Write as _, fs, sync::Arc};
     use tempfile::TempDir;
 
+    #[test]
+    fn expiry_clock_rejects_pre_epoch_and_deadline_overflow() {
+        assert!(matches!(
+            unix_ms_from(UNIX_EPOCH - Duration::from_secs(1)),
+            Err(RouterError::Clock)
+        ));
+        assert!(matches!(
+            expiry_deadline(u64::MAX, 1),
+            Err(RouterError::Clock)
+        ));
+        assert_eq!(expiry_deadline(1_000, 2).unwrap(), 3_000);
+    }
+
     #[tokio::test]
     async fn full_delivery_channel_closes_only_slow_session_and_keeps_actor_progress() {
         let (_directory, mut actor) = actor().await;
@@ -3315,7 +3463,7 @@ mod tests {
         // state; Session Expiry decides whether it survives disconnection.
         let (_directory, mut actor) = actor().await;
         let fresh = actor
-            .register_with_policy("v5".into(), "user".into(), true, true, None)
+            .register_with_policy("v5".into(), "user".into(), true, true, None, None)
             .await
             .unwrap();
         assert!(!fresh.resumed);
@@ -3331,7 +3479,7 @@ mod tests {
         assert!(actor.state.sessions["v5"].persistent);
 
         let resumed = actor
-            .register_with_policy("v5".into(), "user".into(), false, true, None)
+            .register_with_policy("v5".into(), "user".into(), false, true, None, None)
             .await
             .unwrap();
         assert!(resumed.resumed);
@@ -3339,7 +3487,7 @@ mod tests {
         actor.unregister("v5", resumed.generation).await.unwrap();
 
         let expiring = actor
-            .register_with_policy("v5".into(), "user".into(), false, false, None)
+            .register_with_policy("v5".into(), "user".into(), false, false, None, None)
             .await
             .unwrap();
         assert!(expiring.resumed);
@@ -3348,11 +3496,49 @@ mod tests {
         assert!(!actor.state.sessions.contains_key("v5"));
 
         let empty = actor
-            .register_with_policy("v5".into(), "user".into(), false, true, None)
+            .register_with_policy("v5".into(), "user".into(), false, true, None, None)
             .await
             .unwrap();
         assert!(!empty.resumed);
         actor.unregister("v5", empty.generation).await.unwrap();
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_finite_expiry_resumes_then_purges_after_deadline() {
+        let (_directory, mut actor) = actor().await;
+        let fresh = actor
+            .register_with_policy("finite".into(), "user".into(), true, true, Some(1), None)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "finite",
+                fresh.generation,
+                vec![(filter("test/state"), Some(1))],
+            )
+            .await
+            .unwrap();
+        actor.unregister("finite", fresh.generation).await.unwrap();
+        assert!(actor.state.sessions["finite"].expires_at_unix_ms.is_some());
+        let resumed = actor
+            .register_with_policy("finite".into(), "user".into(), false, true, Some(1), None)
+            .await
+            .unwrap();
+        assert!(resumed.resumed);
+        assert!(actor.state.sessions["finite"].expires_at_unix_ms.is_none());
+        actor
+            .unregister("finite", resumed.generation)
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        actor.expire_sessions().await.unwrap();
+        assert!(!actor.state.sessions.contains_key("finite"));
+        let new_session = actor
+            .register_with_policy("finite".into(), "user".into(), false, true, Some(1), None)
+            .await
+            .unwrap();
+        assert!(!new_session.resumed);
         actor.store.shutdown().await.unwrap();
     }
 
@@ -3930,6 +4116,7 @@ mod tests {
                 principal: "user".into(),
                 clean: true,
                 persistent: false,
+                expiry_interval_seconds: None,
                 will: None,
                 reply,
             })

@@ -260,9 +260,6 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Option<u32>, &'stati
                 }
                 expiry_seen = true;
                 expiry = u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
-                if expiry != 0 && expiry != u32::MAX {
-                    return Ok(None);
-                }
             }
             0x21 => {
                 if receive_seen {
@@ -358,7 +355,7 @@ fn decode_for(
             if level == 5 {
                 let property_length = c.variable_integer()?;
                 let properties = c.bytes(property_length)?;
-                // Finite expiry and Will require timed state transitions not yet supported.
+                // Will Delay and Will Properties remain outside this subset.
                 let Some(expiry) = mqtt5_connect_properties_supported(properties)? else {
                     return Ok(Packet::UnsupportedConnect5);
                 };
@@ -849,7 +846,10 @@ mod tests {
         nonzero_expiry[15] = 1;
         assert!(matches!(
             decode(0x10, &nonzero_expiry).unwrap(),
-            Packet::UnsupportedConnect5
+            Packet::Connect {
+                session_expiry: 1,
+                ..
+            }
         ));
         let mosquitto = [
             0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 60, 3, 0x21, 0, 20, 0, 1, b'a',
@@ -868,7 +868,7 @@ mod tests {
         );
         assert_eq!(
             mqtt5_connect_properties_supported(&[0x11, 0, 0, 0, 1]).unwrap(),
-            None
+            Some(1)
         );
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 0]).is_err());
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x21, 0, 5]).is_err());

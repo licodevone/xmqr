@@ -36,10 +36,9 @@ def packet(stream):
     return header[0], bytes(body)
 
 
-def connect(port, clean, expiry):
+def connect(port, clean, expiry, identity=b"session-check"):
     stream = socket.create_connection(("127.0.0.1", port), timeout=4)
     stream.settimeout(4)
-    identity = b"session-check"
     properties = bytes([0x11]) + expiry.to_bytes(4, "big")
     body = (b"\x00\x04MQTT\x05" + bytes([2 if clean else 0]) + b"\x00\x1e"
             + bytes([len(properties)]) + properties
@@ -123,7 +122,38 @@ def main():
             assert not present
             subscriber.sendall(b"\xe0\x00")
             subscriber.close()
+            finite, present = connect(port, True, 1, b"finite-check")
+            assert not present
+            finite.sendall(b"\xe0\x00")
+            finite.close()
+            finite, present = connect(port, False, 1, b"finite-check")
+            assert present
+            finite.sendall(b"\xe0\x00")
+            finite.close()
+            time.sleep(1.4)
+            finite, present = connect(port, False, 1, b"finite-check")
+            assert not present
+            finite.sendall(b"\xe0\x00")
+            finite.close()
+            finite, present = connect(port, True, 5, b"finite-restart")
+            assert not present
+            finite.sendall(b"\xe0\x00")
+            finite.close()
+            stop(broker)
+            broker = start(port, state)
+            finite, present = connect(port, False, 5, b"finite-restart")
+            assert present
+            finite.sendall(b"\xe0\x00")
+            finite.close()
+            time.sleep(5.3)
+            stop(broker)
+            broker = start(port, state)
+            finite, present = connect(port, False, 5, b"finite-restart")
+            assert not present
+            finite.sendall(b"\xe0\x00")
+            finite.close()
             print("PASS: MQTT 5 resume, client/Mosquitto offline QoS1 after restart, expiry zero clears session")
+            print("PASS: finite Session Expiry resumes before deadline and expires automatically across restart")
         finally:
             if broker.poll() is None:
                 stop(broker)

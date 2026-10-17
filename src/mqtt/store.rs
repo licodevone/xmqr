@@ -20,7 +20,7 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 5;
+const FORMAT_VERSION: u16 = 6;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -93,6 +93,10 @@ pub(super) struct PendingWill {
 pub(super) struct DurableSession {
     pub principal: String,
     pub persistent: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expiry_interval_seconds: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at_unix_ms: Option<u64>,
     pub subscriptions: BTreeMap<TopicFilter, u8>,
     pub offline: VecDeque<StoredMessage>,
     pub inbound_qos2: Vec<InboundQos2>,
@@ -105,6 +109,8 @@ impl DurableSession {
         Self {
             principal,
             persistent,
+            expiry_interval_seconds: None,
+            expires_at_unix_ms: None,
             subscriptions: BTreeMap::new(),
             offline: VecDeque::new(),
             inbound_qos2: Vec::new(),
@@ -346,6 +352,15 @@ pub(super) fn validate_with_limits(
         if session.principal.is_empty() || session.principal.len() > MAX_PRINCIPAL_BYTES {
             return Err(StateError::Limit("principal bytes"));
         }
+        if session
+            .expiry_interval_seconds
+            .is_some_and(|seconds| seconds == 0 || seconds == u32::MAX)
+            || session.expires_at_unix_ms.is_some()
+                && (session.expiry_interval_seconds.is_none() || !session.persistent)
+            || session.expiry_interval_seconds.is_some() && !session.persistent
+        {
+            return Err(StateError::Malformed);
+        }
         if session.next_packet_id == 0 {
             return Err(StateError::Malformed);
         }
@@ -579,6 +594,8 @@ mod tests {
             DurableSession {
                 principal: "sensor".into(),
                 persistent: true,
+                expiry_interval_seconds: None,
+                expires_at_unix_ms: None,
                 subscriptions: BTreeMap::from([(
                     TopicFilter::try_from("test/temperature".to_owned()).unwrap(),
                     2,
@@ -670,7 +687,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(6))
+            Err(StateError::UnsupportedVersion(7))
         ));
     }
 
@@ -730,8 +747,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_v2_v3_v4_and_commits_v5_without_losing_retained() {
-        for version in [1, 2, 3, 4] {
+    async fn reads_v1_v2_v3_v4_v5_and_commits_v6_without_losing_retained() {
+        for version in [1, 2, 3, 4, 5] {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -756,7 +773,7 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 5);
+            assert_eq!(envelope.version, 6);
             assert_eq!(envelope.state, expected);
         }
     }

@@ -35,7 +35,7 @@ use codec::{
     FrameReader, Packet, Qos, encode_connack, encode_connack_with_session, encode_pingresp,
     encode_puback, encode_pubcomp, encode_pubrec, encode_pubrel, encode_suback, encode_unsuback,
 };
-use router::{AckKind, Delivery, RouterError};
+use router::{AckKind, Delivery, RouterError, SessionPolicy};
 use std::sync::atomic::Ordering;
 use store::StoredMessage;
 
@@ -157,11 +157,18 @@ async fn serve_mqtt(
         .register_with_policy(
             client_id,
             principal.clone(),
-            clean_session,
-            if mqtt5 {
-                session_expiry != 0
-            } else {
-                !clean_session
+            SessionPolicy {
+                clean: clean_session,
+                persistent: if mqtt5 {
+                    session_expiry != 0
+                } else {
+                    !clean_session
+                },
+                expiry_interval_seconds: if mqtt5 && (1..u32::MAX).contains(&session_expiry) {
+                    Some(session_expiry)
+                } else {
+                    None
+                },
             },
             will,
             Some(security_generation),

@@ -238,7 +238,7 @@ async fn unsupported_level_receives_connack_one() {
 
 #[tokio::test]
 async fn mqtt5_unsupported_session_options_refused_without_commit() {
-    case(connect5_with_properties(&[0x11, 0, 0, 0, 1]), Some(0x83)).await;
+    case(connect5_with_properties(&[0x27, 0, 0, 0, 10]), Some(0x83)).await;
 }
 
 #[tokio::test]
