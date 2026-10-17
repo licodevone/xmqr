@@ -2,6 +2,7 @@
 
 ## Em desenvolvimento após 0.27.0
 
+- P159: autenticação inicial SASL PLAIN com Authentication Method/Data em CONNECT MQTT 5 sobre TLS e confirmação do método no CONNACK, sem credenciais convencionais no mesmo pacote. Erros de TLS, formato, segredo e limite de resposta são recusados sem abrir sessão; AUTH posterior e reautenticação seguem pendentes.
 - P158: CONNECT MQTT 5 com Authentication Method bem formado recebe recusa específica 0x8C enquanto não houver mecanismo AUTH habilitado; Authentication Data órfã/duplicada/truncada é erro, sem criar sessão. A troca AUTH e reautenticação ainda não estão implementadas.
 
 ## 0.27.0 — redistribuição QoS1 compartilhada e estado v14 (experimental)

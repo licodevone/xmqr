@@ -25,6 +25,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use tokio::time::{Instant, sleep_until};
 use tracing::{debug, warn};
+use zeroize::Zeroizing;
 
 use crate::monitoring::{Metrics, Rejection};
 use crate::{
@@ -42,6 +43,23 @@ use store::StoredMessage;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
+
+fn plain_credentials(data: &[u8]) -> Option<(&str, &[u8])> {
+    let mut fields = data.split(|byte| *byte == 0);
+    let authorization = fields.next()?;
+    let identity = fields.next()?;
+    let password = fields.next()?;
+    if !authorization.is_empty()
+        || identity.is_empty()
+        || password.is_empty()
+        || fields.next().is_some()
+    {
+        return None;
+    }
+    let identity = std::str::from_utf8(identity).ok()?;
+    let _ = std::str::from_utf8(password).ok()?;
+    Some((identity, password))
+}
 
 struct OutboundAliases {
     maximum: u16,
@@ -136,13 +154,43 @@ async fn serve_mqtt(
         will_delay_seconds,
         username,
         password,
+        plain_authentication,
     } = connect
     else {
         return Err("first MQTT packet must be CONNECT".into());
     };
     let outbound_maximum = maximum_packet_size.map_or(usize::MAX, |value| value as usize);
+    let plain_authentication = plain_authentication.map(Zeroizing::new);
+    let plain_requested = plain_authentication.is_some();
     if mqtt5 && outbound_maximum < 5 {
         // Even the minimal MQTT 5 CONNACK cannot fit. No session was created.
+        return Ok(());
+    }
+    if plain_requested && !connection.is_tls() {
+        write_limited(
+            connection,
+            &codec::encode_mqtt5_connack(0x8c),
+            outbound_maximum,
+        )
+        .await?;
+        return Ok(());
+    }
+    if plain_requested && (username.is_some() || password.is_some()) {
+        write_limited(
+            connection,
+            &codec::encode_mqtt5_connack(0x82),
+            outbound_maximum,
+        )
+        .await?;
+        return Ok(());
+    }
+    if plain_requested && outbound_maximum < 15 {
+        write_limited(
+            connection,
+            &codec::encode_mqtt5_connack(0x95),
+            outbound_maximum,
+        )
+        .await?;
         return Ok(());
     }
     if mqtt5 && outbound_maximum < 7 {
@@ -180,13 +228,23 @@ async fn serve_mqtt(
 
     let security_generation = auth.security_generation();
     let cert = connection.peer_certificates().first();
-    let principal = auth
-        .authenticate(
+    let principal = if let Some(data) = plain_authentication.as_ref() {
+        let Some((identity, secret)) = plain_credentials(data) else {
+            metrics.reject(Rejection::Authentication);
+            write_limited(connection, &refusal(5, 0x86), outbound_maximum).await?;
+            return Ok(());
+        };
+        auth.authenticate(cert.map(AsRef::as_ref), Some(identity), Some(secret))
+            .await?
+    } else {
+        auth.authenticate(
             cert.map(AsRef::as_ref),
             username.as_deref(),
             password.as_deref(),
         )
-        .await?;
+        .await?
+    };
+    drop(plain_authentication);
     let Some(principal) = principal else {
         metrics.reject(Rejection::Authentication);
         write_limited(connection, &refusal(5, 0x86), outbound_maximum).await?;
@@ -224,20 +282,24 @@ async fn serve_mqtt(
         Err(error) => return Err(error.into()),
     };
     let mut guard = router.connection_guard(&session);
-    let advertised_alias_maximum = if mqtt5 && outbound_maximum >= 15 {
+    let connack_base_budget = outbound_maximum.saturating_sub(usize::from(plain_requested) * 8);
+    let advertised_alias_maximum = if mqtt5 && connack_base_budget >= 15 {
         u16::from(codec::MAX_TOPIC_ALIAS)
     } else {
         0
     };
     let mut connack = if advertised_alias_maximum != 0 {
         codec::encode_mqtt5_alias_connack(session.resumed).to_vec()
-    } else if mqtt5 && outbound_maximum >= 12 {
+    } else if mqtt5 && connack_base_budget >= 12 {
         codec::encode_mqtt5_success_connack(session.resumed).to_vec()
     } else if mqtt5 {
         codec::encode_mqtt5_shared_available_connack(session.resumed).to_vec()
     } else {
         encode_connack_with_session(0, session.resumed)?.to_vec()
     };
+    if plain_requested {
+        connack = codec::append_mqtt5_plain_method(connack);
+    }
     // Preserve P136/P138's previously negotiated Maximum Packet Size and
     // Topic Alias properties; omit Receive Maximum only when it cannot fit.
     if mqtt5 && connack.len() + 3 <= outbound_maximum {
@@ -549,4 +611,28 @@ async fn write_limited(
         .write_all_with_deadline(bytes, WRITE_TIMEOUT)
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod plain_auth_tests {
+    use super::plain_credentials;
+
+    #[test]
+    fn requires_empty_authorization_id_and_exact_utf8_fields() {
+        assert_eq!(
+            plain_credentials(b"\0device\0secret"),
+            Some(("device", b"secret".as_slice()))
+        );
+        for invalid in [
+            b"device\0secret".as_slice(),
+            b"other\0device\0secret",
+            b"\0\0secret",
+            b"\0device\0",
+            b"\0device\0secret\0extra",
+            b"\0\xff\0secret",
+            b"\0device\0\xff",
+        ] {
+            assert!(plain_credentials(invalid).is_none());
+        }
+    }
 }

@@ -1,5 +1,16 @@
 # XMQR
 
+A árvore após 0.27.0 inclui P159: MQTT 5 aceita autenticação inicial SASL
+`PLAIN` em TLS quando CONNECT traz Authentication Method `PLAIN` e
+Authentication Data no formato `NUL usuário NUL senha`. O CONNACK confirma
+o método; credenciais comuns continuam disponíveis. O broker recusa PLAIN em
+TCP aberto, dados malformados, método conflitante e tamanho de resposta
+insuficiente antes de criar sessão. Use o client da árvore C91 com
+`--protocol-version 5 --auth-method plain --tls-password`; a senha continua
+vindo de arquivo privado ou prompt. Esta mudança ainda não tem release; AUTH
+posterior e reautenticação permanecem fora do recorte.
+[Prompt P159](prompts/broker/159-enhanced-plain-connect-mqtt5.md).
+
 A árvore após 0.27.0 aceita P158: CONNECT MQTT 5 com Authentication Method
 bem formado recebe 0x8C (método indisponível), sem criar sessão. AUTH e
 reautenticação ainda não são implementados; esta fatia não tem release própria.

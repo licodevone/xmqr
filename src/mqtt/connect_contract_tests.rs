@@ -234,16 +234,12 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
     let mut stream = TcpStream::connect(address).await.unwrap();
     stream.write_all(&packet).await.unwrap();
     if let Some(code) = code {
-        let expected: &[u8] = if code == 0 && packet[8] == 5 {
-            &MQTT5_SUCCESS_CONNACK
-        } else if matches!(code, 0x83 | 0x8c) {
-            if code == 0x83 {
-                &[0x20, 3, 0, 0x83, 0]
-            } else {
-                &[0x20, 3, 0, 0x8c, 0]
-            }
+        let expected = if code == 0 && packet[8] == 5 {
+            MQTT5_SUCCESS_CONNACK.to_vec()
+        } else if matches!(code, 0x83 | 0x86 | 0x8c) {
+            vec![0x20, 3, 0, code, 0]
         } else {
-            &[0x20, 2, 0, code]
+            vec![0x20, 2, 0, code]
         };
         let mut actual = vec![0; expected.len()];
         let result = timeout(Duration::from_secs(3), stream.read_exact(&mut actual)).await;
@@ -312,6 +308,15 @@ async fn mqtt5_unsupported_auth_property_refused_without_commit() {
         None,
     )
     .await;
+}
+
+#[tokio::test]
+async fn mqtt5_plain_method_requires_tls_and_data_before_state() {
+    let method = [0x15, 0, 5, b'P', b'L', b'A', b'I', b'N'];
+    let mut valid = method.to_vec();
+    valid.extend_from_slice(&[0x16, 0, 4, 0, b'u', 0, b'p']);
+    case(connect5_with_properties(&valid), Some(0x8c)).await;
+    case(connect5_with_properties(&method), Some(0x86)).await;
 }
 
 #[tokio::test]

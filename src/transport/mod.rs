@@ -110,6 +110,11 @@ impl BrokerConnection {
         &self.peer_certificates
     }
 
+    #[must_use]
+    pub fn is_tls(&self) -> bool {
+        matches!(&self.stream, ConnectionStream::Mtls(_))
+    }
+
     /// Bytes already removed from the TLS stream by the Slowloris guard.
     pub fn take_initial_mqtt_bytes(&mut self) -> Vec<u8> {
         std::mem::take(&mut self.initial_mqtt_bytes)
