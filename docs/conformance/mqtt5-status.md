@@ -91,6 +91,12 @@ Receive Maximum/Maximum Packet Size zero, indicadores informativos fora de
 0/1, Payload Format Indicator do Will acima de 1 e Authentication Data sem
 Method. O limite do CONNACK e a ausência de sessão/Will são verificados por TCP.
 Truncamento, UTF-8 inválido e limites locais ainda não têm matriz completa.
+P185 acrescenta DISCONNECT `0x81` após CONNACK para identificador de
+propriedade fora de contexto em PUBLISH; duplicata de propriedade única
+reconhecida e Payload Format Indicator acima de 1 geram `0x82`. O PUBLISH
+rejeitado não é entregue, e o Will aplicável é publicado. Topic Alias inválido
+continua com `0x94`; demais erros de PUBLISH não estão classificados por esta
+entrega.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
