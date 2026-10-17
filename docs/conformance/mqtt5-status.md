@@ -1,5 +1,10 @@
 # MQTT 5 — subconjunto das fases 6A–6D
 
+P168 acrescenta Eclipse Paho Python 2.1.0 ao gate MQTT 5 com ID atribuído,
+Session Present, QoS0/1/2, retained e fila offline. O gate Mosquitto existente
+continua na CI; duas bibliotecas externas cobrem esses cenários selecionados.
+Isto não encerra a matriz normativa de propriedades/reason codes nem 6A global.
+
 P166, ainda na árvore de desenvolvimento, aceita Client Identifier vazio no
 CONNECT MQTT 5, atribui ID exclusivo e o devolve em CONNACK `0x12`. O pacote
 é recusado antes de registrar sessão se o limite anunciado não comportar a
