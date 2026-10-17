@@ -1,11 +1,11 @@
 # XMQR
 
-O candidato experimental 0.29.0 reúne P162–P164: limite configurável de
+A release experimental 0.29.0 reúne P162–P164: limite configurável de
 Keep Alive MQTT 5, metadados do Will e Message Expiry com contagem iniciada
 na publicação. O estado durável v15 requer backup privado v14 anterior para
 rollback executável ao broker 0.28.0. O client 0.26.0/C94–C95 e o admin
 independente 0.10.0/A19 são os parceiros deste marco. Fases 6A–6D e 7–9
-continuam abertas. [Nota de release](docs/releases/0.29.0.md).
+continuam abertas. [Release 0.29.0](https://github.com/licodevone/xmqr/releases/tag/v0.29.0) e [aceite P165](prompts/registros/P165-release-0.29.0.md).
 
 A árvore após 0.28.0 também acrescenta P164: `Message Expiry Interval` no
 Will MQTT 5 é persistido como intervalo até a publicação efetiva, inclusive
@@ -14,22 +14,22 @@ mesmo prazo de PUBLISH para retained e fila offline. O documento durável passa
 a v15 na primeira gravação; broker 0.28.0 não lê v15. O admin 0.9.0 pode
 transportar um backup bruto v15, mas seu core antigo não forma um par
 homologado com o broker novo. Preserve um backup privado v14 anterior para rollback. A
-compatibilidade do novo admin A19 ainda precisa ser aceita antes da release.
-[Prompt P164](prompts/broker/164-will-message-expiry-mqtt5.md).
+compatibilidade do novo admin A19 foi aceita no marco 0.10.0.
+[Aceite P164](prompts/registros/P164-will-message-expiry-mqtt5.md).
 
 A árvore após 0.28.0 acrescenta P163: o broker aceita no Will MQTT 5
 Payload Format Indicator, Content Type, Response Topic, Correlation Data e
 User Property ordenada, combináveis com Will Delay. A entrega preserva os
 metadados em mensagens imediatas, atrasadas, retidas e na fila offline após
-reinício, sem alterar o documento durável v14. O client parceiro C94 pode
-enviar essas propriedades; Message Expiry do Will ainda não é aceito. Esta
-parcela não está na release 0.28.0. [Prompt P163](prompts/broker/163-will-metadata-mqtt5.md).
+reinício. O client parceiro C94 envia essas propriedades. P163, isoladamente,
+mantinha v14 e não incluía Message Expiry do Will; P164 acrescentou ambos no
+marco 0.29.0. [Aceite P163](prompts/registros/P163-will-metadata-mqtt5.md).
 
 A árvore após 0.28.0 acrescenta P162: `MQTT_SERVER_KEEP_ALIVE_SECONDS` ou
 `[broker].server_keep_alive_seconds` limita opcionalmente o Keep Alive MQTT 5.
 Quando o client pede zero ou um valor maior, o broker anuncia `0x13` no
 CONNACK e aplica o mesmo prazo; MQTT 3.1.1 não muda. A parcela passou nos
-testes e CI, mas ainda não recebeu tag/release. [Aceite P162](prompts/registros/P162-server-keep-alive-mqtt5.md).
+testes e CI e integra a release 0.29.0. [Aceite P162](prompts/registros/P162-server-keep-alive-mqtt5.md).
 
 A versão experimental publicada 0.28.0 reúne P158–P160: MQTT 5 distingue métodos
 AUTH indisponíveis, aceita autenticação inicial SASL `PLAIN` somente em TLS e

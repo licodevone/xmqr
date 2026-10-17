@@ -1,0 +1,7 @@
+# P165 — marco broker 0.29.0 publicado
+
+O [prompt P165](../broker/165-release-0.29.0.md) antecedeu a atualização de versão (`54ac5e7`). Fonte exata `9215d4c1e6fb59f3ab73d684ecfbaf9ed38e72b2`: 192 testes de biblioteca PASS/6 ignorados, demais alvos, fmt e contratos de distribuição locais PASS; [CI PASS](https://github.com/licodevone/xmqr/actions/runs/39020323002), inclusive pacote Ubuntu 26.04. P164/C95 passaram na integração TCP; A19 verificou backup/restore do estado v15 e recusa do broker 0.28.0. O ciclo descartável Ubuntu 26.04 com broker/client 0.28.0/0.25.0 → 0.29.0/0.26.0 → rollback → remoção retornou `PACKAGE_LIFECYCLE_PASS` e preservou arquivos privados.
+
+Pacote `xmqr-broker_0.29.0-1_amd64.deb`: SHA-256 `c8ac0b29c0819e1fe7577e7fee745b6e8f625b24f469828bf850b33d3f6767b4`. A tag anotada `v0.29.0` aponta à fonte exata; a [prerelease](https://github.com/licodevone/xmqr/releases/tag/v0.29.0) tem 8 anexos, tamanhos e SHA-256 remotos iguais aos locais (`BROKER_REMOTE_HASH_PASS 8`). Imagens numeradas `lepinheiro100/xmqr-broker:0.29.0` e `lepinheiro100/xmqr-admin:0.29.0` foram executadas pelos digests remotos `sha256:35fd6cbe7dd182a048ae2c695b4cafca01422963bd729d75c2a7dec2eda8d760` e `sha256:0d04c9d7f1496d1388532f269b35919bf670e7a59667171dcd4e5d27be387cf2`, com versão conferida.
+
+Estado v15 requer backup privado v14 anterior para rollback executável ao broker 0.28.0; downgrade de pacote isolado não reverte o documento. WSL do operador e Docker `latest` permaneceram intactos. Fases 6A–6D e 7–9 seguem abertas.
