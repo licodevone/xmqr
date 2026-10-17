@@ -111,16 +111,16 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | C06 | Client: novos formatos de saída | Decisão/implementação C54 PASS local: hex reversível e raw de mensagem única | Sem timestamp fabricado; text/jsonl preservados |
 | C07 | Client: reconexão/backoff e timeout total | Aceito C45/C46:63testes/idle90s real/interop ampliada | Prazos protocolo/idle/total distintos, jitter/cancelamento; QoS1 pode retransmitir, QoS2 interrompido falha explicitamente |
 | C08 | Client: Will binário e opções complementares | C55 PASS local: --will-message-file 0..4096 bytes, CONNECT binário no wire | MQTT3.1.1; propriedades MQTT5 pertencem à fase6 |
-| M01 | Broker/client: negociação MQTT5 e reason codes | Planejado | B06/B07/B08; codec separado da máquina de conexão, recusa correta por versão e regressão 3.1.1 |
-| M02 | Broker/client: parser de propriedades MQTT5 | Planejado | M01; tipos, multiplicidade/contexto, limites antes de alocar e propriedades desconhecidas recusadas conforme OASIS |
-| M03 | Broker/client: Clean Start e Session Expiry | Planejado | M02/A06; estado versionado, relógio e restart/crash, coexistência de sessões 3.1.1 |
-| M04 | Broker/client: Message Expiry e Will Delay | Planejado | M03; deadlines duráveis, reconexão/takeover e ausência de entrega após expiração |
+| M01 | Broker/client: negociação MQTT5 e reason codes | Parcial P115–P123/C57–C64/P162, CIs PASS | Coexistência 3.1.1, motivos selecionados e Server Keep Alive aceitos; matriz normativa e interop com duas implementações externas pendentes |
+| M02 | Broker/client: parser de propriedades MQTT5 | Parcial no CONNECT/PUBLISH/SUBSCRIBE/DISCONNECT/AUTH | Contextos e propriedades MQTT 5 restantes, multiplicidade, limites e negativos por cláusula pendentes |
+| M03 | Broker/client: Clean Start e Session Expiry | Parcial P127/P128/C66/C67 | Estado e expiração do broker aceitos; retomada durável do fluxo QoS do processo client e matriz crash/restart completas pendentes |
+| M04 | Broker/client: Message Expiry e Will Delay | Parcial P130–P132/C69/C70 | Expiração e atraso no estado do broker aceitos; propriedades Will adicionais e matriz longa de restart/crash pendentes |
 | M05 | Broker/client: Receive Maximum e Maximum Packet Size | Parcial P134/C72/P136/C73/P144, CIs PASS | M03/B04; negociação e limites no lado assinante aceitos, quota inbound anunciada pelo broker quando cabe; revisar fluxo de envio do client antes do aceite global |
-| M06 | Broker/client: Topic Alias | Parcial P138/P139/C75, CIs PASS | M05; entrada/saída no broker e recepção no client aceitas; publicação com alias no client pendente; Mosquitto 2.0.22 rejeita forma abreviada válida |
+| M06 | Broker/client: Topic Alias | Parcial P138/P139/C75/C83, CIs PASS | Entrada/saída no broker, recepção e publicação compacta no client aceitas; Mosquitto 2.0.22 rejeita forma abreviada válida; matriz externa ampliada pendente |
 | M07 | Broker/client: metadados de publicação | Parcial P141/C77/P142/C78/C80, CIs PASS | M02/M05; PFI, Content Type, Response Topic, Correlation Data e User Property no PUBLISH com persistência/budgets; subscriber C80 exibe em JSONL, outros metadados pendentes |
-| M08 | Broker/client: opções de assinatura e identificadores | Planejado | M03/M07; No Local/Retain Handling/Retain As Published/Subscription Identifier, inclusive restore |
-| M09 | Broker: assinaturas compartilhadas | Planejado | M08/B04/A04; estratégia de distribuição, QoS, falha de membro e fairness em ADR |
-| M10 | Broker/client: autenticação estendida AUTH | Decisão | M02/A04; mecanismo definido, estados/challenges limitados, reautenticação e falha fechada |
+| M08 | Broker/client: opções de assinatura e identificadores | Parcial P147/P148/P150/C84/C85/C87 | No Local, Retain Handling, Retain As Published e Subscription Identifier aceitos com restore; matriz MQTT 5 completa pendente |
+| M09 | Broker: assinaturas compartilhadas | Parcial P153/P154/P156, estado v14 | Grupo ativo/durável, QoS0/1/2 e redistribuição QoS1 após término aceitos; fairness e interop ampliada pendentes |
+| M10 | Broker/client: autenticação estendida AUTH | Parcial P158–P160/C91/C92, broker 0.28.0/client 0.25.0 | PLAIN inicial sobre TLS e reautenticação explícita da mesma identidade aceitos; desafio, rotação em serviço, reautenticação periódica e interop externa pendentes |
 | T01 | Broker/client: WebSocket/WSS | Planejado | B09/B10/M01; subprotocolo MQTT, fragmentação/controle, buffers/deadlines, regressão TCP e WSS/SAN |
 | T02 | Broker: bridge entre brokers | Planejado | B08/B11/C07; reconexão, prefixos/direção, ACL, prevenção de loops e retained/QoS definidos |
 | T03 | Broker: Unix domain sockets | Decisão | B09/A04; permissões, credencial do processo, ACL e portability sem substituir TLS remoto |

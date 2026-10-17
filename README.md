@@ -3,8 +3,8 @@
 A árvore após 0.28.0 acrescenta P162: `MQTT_SERVER_KEEP_ALIVE_SECONDS` ou
 `[broker].server_keep_alive_seconds` limita opcionalmente o Keep Alive MQTT 5.
 Quando o client pede zero ou um valor maior, o broker anuncia `0x13` no
-CONNACK e aplica o mesmo prazo; MQTT 3.1.1 não muda. A entrega ainda aguarda
-aceite e marco de release. [Prompt P162](prompts/broker/162-server-keep-alive-mqtt5.md).
+CONNACK e aplica o mesmo prazo; MQTT 3.1.1 não muda. A parcela passou nos
+testes e CI, mas ainda não recebeu tag/release. [Aceite P162](prompts/registros/P162-server-keep-alive-mqtt5.md).
 
 A versão experimental publicada 0.28.0 reúne P158–P160: MQTT 5 distingue métodos
 AUTH indisponíveis, aceita autenticação inicial SASL `PLAIN` somente em TLS e
