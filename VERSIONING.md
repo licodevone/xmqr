@@ -1,5 +1,10 @@
 # Versionamento
 
+P160 acrescenta reautenticação PLAIN pelo broker na árvore após 0.27.0, sem
+migração do estado v14. O client independente C91 ainda não envia AUTH, de
+modo que a paridade de reautenticação e a fase 6D global continuam abertas.
+[Prompt P160](prompts/broker/160-plain-reauth-mqtt5.md).
+
 P159 na árvore após 0.27.0 aceita `PLAIN` inicial em MQTT 5 sobre TLS com
 confirmação no CONNACK; o client C91 da árvore após 0.24.0 o exercita. O
 documento durável permanece v14, portanto o admin independente 0.9.0 continua

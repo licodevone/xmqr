@@ -189,6 +189,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Distribuição P157/A18: broker/admin legado 0.27.0 e admin independente 0.9.0 compatível com estado v14; CI, pacote, rollback, imagens, tags e prereleases verificados.~~ [Broker](../prompts/registros/P157-release-0.27.0.md) e [admin](../../xmqr-admin/prompts/registros/A18-core-v14-release-0.9.md). Client 0.24.0 permaneceu igual; fases globais abertas.
 - [x] ~~Fase 6D/P158 parcial: Authentication Method/Data no CONNECT MQTT 5 e recusa de método indisponível com 0x8C; parser, TCP, client e CI PASS.~~ [Registro](../prompts/registros/P158-auth-method-refusal-mqtt5.md). Troca AUTH e reautenticação continuam abertas.
 - [x] ~~Fase 6D/P159/C91 parcial: método inicial SASL PLAIN sobre TLS no broker/client; testes TLS/mTLS reais e CIs PASS.~~ [Broker](../prompts/registros/P159-enhanced-plain-connect-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C91-enhanced-plain-connect-mqtt5.md). Troca AUTH posterior, reautenticação e fase 6D global continuam abertas.
+- [ ] Fase 6D/P160 parcial: broker recebe AUTH `0x19` para reautenticação PLAIN na mesma identidade e responde AUTH `0x00`; client C92 e interop externa ainda pendentes. [Prompt](../prompts/broker/160-plain-reauth-mqtt5.md).
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

@@ -1,5 +1,15 @@
 # XMQR
 
+A árvore após 0.27.0 inclui P160: em sessões MQTT 5 iniciadas com `PLAIN`,
+um AUTH de reautenticação `0x19` com o mesmo método e dados SASL PLAIN válidos
+recebe AUTH de sucesso `0x00`. Senha incorreta ou troca de identidade recebem
+DISCONNECT `0x86` e a conexão é encerrada; AUTH em sessão convencional ou
+com método divergente é recusado como erro de protocolo. A sessão mantém a
+mesma identidade e o estado durável v14. O client C91 ainda não envia AUTH;
+esse fluxo foi exercitado com um cliente de teste TLS/mTLS descartável. Esta
+mudança ainda não tem release.
+[Prompt P160](prompts/broker/160-plain-reauth-mqtt5.md).
+
 A árvore após 0.27.0 inclui P159: MQTT 5 aceita autenticação inicial SASL
 `PLAIN` em TLS quando CONNECT traz Authentication Method `PLAIN` e
 Authentication Data no formato `NUL usuário NUL senha`. O CONNACK confirma

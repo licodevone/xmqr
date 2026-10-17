@@ -95,6 +95,10 @@ pub(super) enum Packet {
     PubRel(u16),
     PubComp(u16),
     PingReq,
+    Auth {
+        method: String,
+        data: Vec<u8>,
+    },
     Disconnect {
         expiry_interval: Option<u32>,
     },
@@ -443,7 +447,7 @@ fn decode_for(
     if mqtt5
         && !matches!(
             header,
-            0x30..=0x3f | 0x40 | 0x50 | 0x62 | 0x70 | 0x82 | 0xa2 | 0xc0 | 0xe0
+            0x30..=0x3f | 0x40 | 0x50 | 0x62 | 0x70 | 0x82 | 0xa2 | 0xc0 | 0xe0 | 0xf0
         )
     {
         return Err("unsupported MQTT 5 packet in current subset".into());
@@ -784,6 +788,34 @@ fn decode_for(
         0x62 => Packet::PubRel(success_ack_id(&mut c, mqtt5)?),
         0x70 => Packet::PubComp(success_ack_id(&mut c, mqtt5)?),
         0xc0 if body.is_empty() => Packet::PingReq,
+        0xf0 if mqtt5 => {
+            if c.byte()? != 0x19 {
+                return Err("unsupported MQTT 5 AUTH reason code".into());
+            }
+            let property_length = c.variable_integer()?;
+            let mut properties = Cursor::new(c.bytes(property_length)?);
+            let mut method = None;
+            let mut data = None;
+            let mut reason_seen = false;
+            while properties.pos < properties.input.len() {
+                match properties.byte()? {
+                    0x15 if method.is_none() => method = Some(properties.text()?),
+                    0x16 if data.is_none() => data = Some(properties.binary()?.to_vec()),
+                    0x1f if !reason_seen => {
+                        let _ = properties.text()?;
+                        reason_seen = true;
+                    }
+                    0x26 => {
+                        let _ = properties.text()?;
+                        let _ = properties.text()?;
+                    }
+                    _ => return Err("duplicate or unsupported MQTT 5 AUTH property".into()),
+                }
+            }
+            let method = method.ok_or("MQTT 5 AUTH missing Authentication Method")?;
+            let data = data.ok_or("MQTT 5 AUTH missing Authentication Data")?;
+            Packet::Auth { method, data }
+        }
         0xe0 => {
             let expiry_interval = if mqtt5 && c.pos < c.input.len() {
                 if c.byte()? != 0 {
@@ -862,6 +894,14 @@ pub(super) fn encode_connack(code: u8) -> [u8; 4] {
 
 pub(super) fn encode_mqtt5_connack(reason: u8) -> [u8; 5] {
     [0x20, 0x03, 0x00, reason, 0x00]
+}
+pub(super) fn encode_mqtt5_plain_auth_success() -> [u8; 12] {
+    [
+        0xf0, 0x0a, 0x00, 0x08, 0x15, 0x00, 0x05, b'P', b'L', b'A', b'I', b'N',
+    ]
+}
+pub(super) fn encode_mqtt5_auth_failure_disconnect() -> [u8; 4] {
+    [0xe0, 0x02, 0x86, 0x00]
 }
 pub(super) fn encode_mqtt5_shared_available_connack(session_present: bool) -> [u8; 7] {
     [0x20, 0x05, u8::from(session_present), 0, 2, 0x2a, 1]
@@ -2182,6 +2222,39 @@ mod tests {
                 0x20, 13, 0, 0, 10, 0x2a, 1, 0x15, 0, 5, b'P', b'L', b'A', b'I', b'N'
             ]
         );
+    }
+
+    #[test]
+    fn mqtt5_reauthentication_auth_requires_method_data_and_valid_reason() {
+        let properties = [
+            0x15, 0, 5, b'P', b'L', b'A', b'I', b'N', 0x16, 0, 4, 0, b'u', 0, b'p',
+        ];
+        let mut body = vec![0x19, 15];
+        body.extend_from_slice(&properties);
+        assert!(matches!(
+            decode_for(0xf0, &body, true).unwrap(),
+            Packet::Auth { method, data } if method == "PLAIN" && data == b"\0u\0p"
+        ));
+        assert_eq!(
+            encode_mqtt5_plain_auth_success(),
+            [0xf0, 10, 0, 8, 0x15, 0, 5, b'P', b'L', b'A', b'I', b'N']
+        );
+        assert_eq!(encode_mqtt5_auth_failure_disconnect(), [0xe0, 2, 0x86, 0]);
+        for invalid in [
+            vec![0x18, 15, *properties.first().unwrap()],
+            vec![0x19, 8, 0x15, 0, 5, b'P', b'L', b'A', b'I', b'N'],
+            vec![0x19, 7, 0x16, 0, 4, 0, b'u', 0, b'p'],
+            vec![0x19, 0x80],
+            vec![0x19, 1, 0xff],
+        ] {
+            assert!(decode_for(0xf0, &invalid, true).is_err(), "{invalid:?}");
+        }
+        let mut duplicate = body.clone();
+        duplicate[1] += 8;
+        duplicate.extend_from_slice(&properties[..8]);
+        assert!(decode_for(0xf0, &duplicate, true).is_err());
+        assert!(decode_for(0xf1, &body, true).is_err());
+        assert!(decode_for(0xf0, &body, false).is_err());
     }
 
     #[test]

@@ -227,18 +227,21 @@ async fn serve_mqtt(
     };
 
     let security_generation = auth.security_generation();
-    let cert = connection.peer_certificates().first();
+    let cert_der = connection
+        .peer_certificates()
+        .first()
+        .map(|cert| cert.as_ref().to_vec());
     let principal = if let Some(data) = plain_authentication.as_ref() {
         let Some((identity, secret)) = plain_credentials(data) else {
             metrics.reject(Rejection::Authentication);
             write_limited(connection, &refusal(5, 0x86), outbound_maximum).await?;
             return Ok(());
         };
-        auth.authenticate(cert.map(AsRef::as_ref), Some(identity), Some(secret))
+        auth.authenticate(cert_der.as_deref(), Some(identity), Some(secret))
             .await?
     } else {
         auth.authenticate(
-            cert.map(AsRef::as_ref),
+            cert_der.as_deref(),
             username.as_deref(),
             password.as_deref(),
         )
@@ -426,6 +429,29 @@ async fn serve_mqtt(
                             }
                         }
                         Packet::PingReq => write_limited(connection, &encode_pingresp(), outbound_maximum).await?,
+                        Packet::Auth { method, data } => {
+                            let data = Zeroizing::new(data);
+                            if !plain_requested || method != "PLAIN" {
+                                return Err("MQTT 5 AUTH method differs from CONNECT".into());
+                            }
+                            let Some((identity, secret)) = plain_credentials(&data) else {
+                                return Err("invalid MQTT 5 PLAIN AUTH data".into());
+                            };
+                            let verified = if auth.security_generation() == security_generation {
+                                auth.authenticate(cert_der.as_deref(), Some(identity), Some(secret)).await?
+                            } else {
+                                None
+                            };
+                            if verified.as_deref() != Some(principal.as_str()) {
+                                metrics.reject(Rejection::Authentication);
+                                let denial = codec::encode_mqtt5_auth_failure_disconnect();
+                                if denial.len() <= outbound_maximum {
+                                    write_limited(connection, &denial, outbound_maximum).await?;
+                                }
+                                break;
+                            }
+                            write_limited(connection, &codec::encode_mqtt5_plain_auth_success(), outbound_maximum).await?;
+                        }
                         Packet::Disconnect { expiry_interval } => {
                             if session_expiry == 0 && expiry_interval.is_some_and(|seconds| seconds != 0) {
                                 return Err("DISCONNECT cannot extend zero Session Expiry".into());

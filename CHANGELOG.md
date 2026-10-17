@@ -2,6 +2,7 @@
 
 ## Em desenvolvimento após 0.27.0
 
+- P160: broker aceita AUTH MQTT 5 `0x19` para reautenticação PLAIN na mesma identidade em TLS/mTLS, responde AUTH `0x00` com método confirmado ou DISCONNECT `0x86` em falha de credencial. Método/propriedades/motivo inválidos encerram sem alterar a sessão. Client C91 ainda não inicia reautenticação.
 - P159: autenticação inicial SASL PLAIN com Authentication Method/Data em CONNECT MQTT 5 sobre TLS e confirmação do método no CONNACK, sem credenciais convencionais no mesmo pacote. Erros de TLS, formato, segredo e limite de resposta são recusados sem abrir sessão; AUTH posterior e reautenticação seguem pendentes.
 - P158: CONNECT MQTT 5 com Authentication Method bem formado recebe recusa específica 0x8C enquanto não houver mecanismo AUTH habilitado; Authentication Data órfã/duplicada/truncada é erro, sem criar sessão. A troca AUTH e reautenticação ainda não estão implementadas.
 
