@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado 0.30.0, client independente 0.27.0
+Versões publicadas atuais: broker/admin legado 0.31.0, client independente 0.27.0
 e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
 propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
@@ -206,6 +206,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fases 6A/6C/P170 parciais: PUBREC negativo MQTT 5 do assinante encerra QoS2 sem PUBREL, libera quota e não reaparece após restart; testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P170-negative-pubrec-mqtt5.md). PUBREL/PUBCOMP e aceites globais abertos.
 - [x] ~~Fases 6A/6C/P171 parciais: PUBREL/PUBCOMP MQTT 5 `0x92` e diagnósticos válidos, continuação QoS2, entrega seguinte e restart sem replay; testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P171-qos2-completion-reasons-mqtt5.md). Matriz normativa completa e aceites globais abertos.
 - [x] ~~Fases 6A/6B/P172 parciais: DISCONNECT MQTT 5 `0x04` publica Will pela transição durável, com diagnósticos, Session Expiry e restart; testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P172-disconnect-with-will-mqtt5.md). Outros motivos e aceites globais abertos.
+- [x] ~~Distribuição P173: broker/admin legado 0.31.0 com P168–P172, CI, pacote Ubuntu26, upgrade/rollback descartável, imagens numeradas, tag, prerelease e SHA-256 remotos verificados.~~ [Registro](../prompts/registros/P173-release-0.31.0.md). Client independente 0.27.0 e admin independente 0.10.0 permanecem; fases 6A–6D e 7–9 abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

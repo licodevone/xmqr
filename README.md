@@ -1,12 +1,12 @@
 # XMQR
 
-O candidato experimental broker/admin legado 0.31.0 reúne P168–P172:
+A release experimental broker/admin legado 0.31.0 reúne P168–P172:
 interop MQTT 5 adicional com Eclipse Paho; PUBACK/PUBREC negativos de assinante;
 PUBREL/PUBCOMP `0x92`; DISCONNECT `0x04` que publica o Will. A quota e o
 estado durável são preservados nos fluxos testados. O estado continua v15,
 compatível com broker 0.30.0 e admin independente 0.10.0. O client independente
 permanece 0.27.0. Fases 6A–6D e 7–9 seguem abertas.
-[Nota candidata 0.31.0](docs/releases/0.31.0.md).
+[Release 0.31.0](https://github.com/licodevone/xmqr/releases/tag/v0.31.0) e [aceite P173](prompts/registros/P173-release-0.31.0.md).
 
 A release experimental broker/admin legado 0.30.0 distribui P166: o broker atribui um
 Client Identifier exclusivo a CONNECT MQTT 5 com ID vazio e anuncia `0x12`
