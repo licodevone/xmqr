@@ -63,6 +63,7 @@ def main():
             expect_delivery(session, b"before")
 
             send_unsub(session, 2, b"\x1f\x00\x00")
+            assert packet(session) == (0xe0, b"\x81\x00")
             assert session.recv(1) == b"", "invalid UNSUBSCRIBE must close"
             session.close()
             session, present = connect(port, False, 0xffffffff, b"p180-session")
@@ -76,6 +77,7 @@ def main():
             expect_no_delivery(session)
 
             send_sub(session, 4, b"\x1f\x00\x00")
+            assert packet(session) == (0xe0, b"\x81\x00")
             assert session.recv(1) == b"", "invalid SUBSCRIBE must close"
             session.close()
             session, present = connect(port, False, 0xffffffff, b"p180-session")

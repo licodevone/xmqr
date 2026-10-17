@@ -38,6 +38,14 @@ pub(super) struct MalformedRemainingLength;
 #[error("invalid MQTT fixed header flags")]
 pub(super) struct FixedHeaderFlagsInvalid;
 
+#[derive(Debug, thiserror::Error)]
+#[error("MQTT 5 subscription property is invalid for this packet")]
+pub(super) struct SubscriptionPropertyMalformed;
+
+#[derive(Debug, thiserror::Error)]
+#[error("duplicate MQTT 5 Subscription Identifier")]
+pub(super) struct SubscriptionIdentifierDuplicate;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -696,8 +704,9 @@ fn decode_for(
                             &mut user_property_count,
                             &mut user_property_bytes,
                         )?,
+                        0x0b => return Err(SubscriptionIdentifierDuplicate.into()),
                         _ => {
-                            return Err("unsupported or duplicate MQTT 5 SUBSCRIBE property".into());
+                            return Err(SubscriptionPropertyMalformed.into());
                         }
                     }
                 }
@@ -760,7 +769,7 @@ fn decode_for(
                             &mut user_property_count,
                             &mut user_property_bytes,
                         )?,
-                        _ => return Err("unsupported MQTT 5 UNSUBSCRIBE property".into()),
+                        _ => return Err(SubscriptionPropertyMalformed.into()),
                     }
                 }
             }
@@ -2342,6 +2351,25 @@ mod tests {
             large_pair.extend_from_slice(&[b'v'; 128]);
             assert!(decode_for(header, &body(&large_pair.repeat(8), subscribe), true).is_err());
         }
+    }
+
+    #[test]
+    fn mqtt5_subscription_property_errors_have_distinct_reason_classes() {
+        for (header, body) in [
+            (0x82, &[0, 1, 1, 0x09, 0, 1, b'x', 0][..]),
+            (0xa2, &[0, 1, 1, 0x0b, 0, 1, b'x'][..]),
+        ] {
+            assert!(
+                decode_for(header, body, true)
+                    .unwrap_err()
+                    .is::<SubscriptionPropertyMalformed>()
+            );
+        }
+        assert!(
+            decode_for(0x82, &[0, 1, 4, 0x0b, 1, 0x0b, 2, 0, 1, b'x', 0], true)
+                .unwrap_err()
+                .is::<SubscriptionIdentifierDuplicate>()
+        );
     }
 
     #[test]
