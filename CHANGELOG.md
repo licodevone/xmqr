@@ -2,7 +2,7 @@
 
 ## Em desenvolvimento após 0.28.0
 
-- P164: Message Expiry Interval do Will MQTT 5 é persistido como intervalo pendente; o deadline começa na publicação efetiva, inclusive após Will Delay, restart/crash e encerramento administrativo. Estado v15 lê v1–v14. Admin independente 0.9.0 não lê v15; requer A19 antes de release e backup privado v14 para rollback.
+- P164: Message Expiry Interval do Will MQTT 5 é persistido como intervalo pendente; o deadline começa na publicação efetiva, inclusive após Will Delay, restart/crash e encerramento administrativo. Estado v15 lê v1–v14; broker 0.28.0 rejeita v15. Admin 0.9.0 transporta backup bruto, mas A19 atualiza o core antes da release. Rollback executável requer backup privado v14.
 - P163: Will MQTT 5 aceita Payload Format Indicator, Content Type, Response Topic, Correlation Data e User Property ordenada, inclusive com Will Delay; os metadados atravessam publicação, retained, fila offline e restart no estado v14. Message Expiry do Will ainda está fora do recorte.
 - P162: limite opcional de Keep Alive MQTT 5 por TOML/ambiente; quando reduz o valor pedido no CONNECT, anuncia Server Keep Alive no CONNACK e usa o mesmo valor para o timeout. Recusa orçamento de CONNACK insuficiente antes da sessão. MQTT 3.1.1 e ausência da opção preservados.
 
