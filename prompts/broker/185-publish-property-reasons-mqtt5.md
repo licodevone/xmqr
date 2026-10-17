@@ -7,3 +7,5 @@ Objetivo: após CONNACK MQTT 5, PUBLISH com identificador de propriedade fora do
 Aceite: testes unitários para cada classe e valor, TCP QoS0/1 com ausência de publicação e Will, regressão P141/P142/P176/P181/P183/P184, MQTT 3.1.1, fmt/test/Clippy/build/licenças/distribuição e CI. Atualizar matriz, conformance, checklist e registro com aceite parcial 6A/6C, sem migração ou tag isolada.
 
 Revisão 2 (antes da correção do teste): a primeira compilação do teste P185 falhou porque uma afirmação tentou fazer downcast de erro para `&str`, que não implementa `std::error::Error`. Para truncamento, verificar apenas `is_err()`, sem atribuir a ele os novos tipos de erro MQTT. Reexecutar compilação, teste focado e TCP antes de declarar qualquer gate PASS.
+
+Revisão 3 (antes da correção do ensaio TCP): após compilar e passar o unitário focado, P185 TCP chegou ao caso válido mas sua expectativa de PUBACK de sucesso com quatro bytes falhou. Inspecionar o ACK real; MQTT 5 permite PUBACK de sucesso mínimo com Packet Identifier apenas. Ajustar apenas a expectativa do verificador conforme o contrato existente, sem alterar o broker para acomodar o teste, e repetir o ensaio completo.
