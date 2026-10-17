@@ -130,8 +130,8 @@ gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
 backup privado anterior à migração. P130 migra o documento de v6 para v7;
 P132 migra de v7 para v8. P141, distribuído em 0.22.0, migra de v8
 para v9 na próxima gravação; P142 migra de v9 para v10; P148 migra de v10
-para v11; P150 migra de v11 para v12 e P154 de v12 para v13. O admin independente 0.7.0 lê v12,
-mas não abre v13; 0.5.0 não abre v11 e 0.6.0 não abre v12. Preserve backup privado
+para v11; P150 migra de v11 para v12 e P154 de v12 para v13. O admin independente 0.8.0 lê v13;
+0.7.0 lê v12, mas não abre v13; 0.5.0 não abre v11 e 0.6.0 não abre v12. Preserve backup privado
 v12 antes da primeira gravação v13 para rollback a broker 0.25.0; v11 é
 necessário para voltar a broker 0.24.0, ou v10 para
 rollback anterior a v11. P141 não reabre v10

@@ -1,8 +1,8 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado0.25.0, client independente0.23.0
-e xmqr-admin independente0.7.0. Fases1–5 aceitas em seus recortes documentados;
+Versões publicadas atuais: broker/admin legado0.26.0, client independente0.24.0
+e xmqr-admin independente0.8.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
 segue aberta.
@@ -183,8 +183,8 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6D/C89 parcial: client valida `$share/grupo/filtro` MQTT 5, respeita CONNACK de indisponibilidade e passou com dois consumidores no Mosquitto 2.0.22 e CI.~~ [Evidência](../../xmqr-client/prompts/registros/C89-shared-subscriptions-mqtt5.md). No marco C89, broker XMQR 0.25.0 ainda não distribuía grupos; fase 6D global aberta.
 - [x] ~~Fase 6D/P152 parcial: broker 0.25.0 anuncia indisponibilidade de shared subscriptions e recusa `$share/` com 0x9E; TCP e CI PASS.~~ [Registro](../prompts/registros/P152-shared-subscription-capability.md). P153 substitui esse comportamento na árvore posterior; fase 6D global aberta.
 - [x] ~~Fase 6D/P153 parcial: distribuição compartilhada MQTT 5 entre sessões temporárias ativas, sem retained inicial; dois grupos, QoS0/1/2, client e CI PASS.~~ Sessões persistentes e AUTH ainda pendentes neste marco. [Registro](../prompts/registros/P153-live-shared-subscriptions-mqtt5.md).
-- [x] ~~Fase 6D/P154 parcial: grupos compartilhados MQTT 5 persistentes no estado v13, fila offline e retomada QoS2; testes e CI PASS.~~ Admin A16 antes da distribuição; AUTH e recomendação de redistribuição QoS1 após término da sessão seguem pendentes. [Registro](../prompts/registros/P154-durable-shared-subscriptions-mqtt5.md).
-- [ ] Distribuição P155/C90/A16: candidatos broker 0.26.0, client 0.24.0 e admin independente 0.8.0, com estado v13; CI/pacotes/imagens/rollback/publicação conforme os registros. [Broker](../prompts/registros/P155-release-0.26.0.md), [client](../../xmqr-client/prompts/registros/C90-release-0.24.0.md), [admin](../../xmqr-admin/prompts/registros/A16-core-v13-release-0.8.md).
+- [x] ~~Fase 6D/P154 parcial: grupos compartilhados MQTT 5 persistentes no estado v13, fila offline e retomada QoS2; testes e CI PASS.~~ Admin A16 distribuído; AUTH e recomendação de redistribuição QoS1 após término da sessão seguem pendentes. [Registro](../prompts/registros/P154-durable-shared-subscriptions-mqtt5.md).
+- [x] ~~Distribuição P155/C90/A16: broker 0.26.0, client 0.24.0 e admin independente 0.8.0, com estado v13; CI, pacotes, imagens, rollback, tags e prereleases verificados.~~ [Broker](../prompts/registros/P155-release-0.26.0.md), [client](../../xmqr-client/prompts/registros/C90-release-0.24.0.md), [admin](../../xmqr-admin/prompts/registros/A16-core-v13-release-0.8.md). Fases 6A–6D e 7–9 seguem abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

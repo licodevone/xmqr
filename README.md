@@ -1,14 +1,16 @@
 # XMQR
 
-A versão candidata experimental 0.26.0 inclui P153/P154: distribui
+A versão publicada experimental 0.26.0 inclui P153/P154: distribui
 `$share/{grupo}/{filtro}` MQTT 5 entre sessões ativas e acrescenta sessão persistente,
 fila QoS1/2 sem membro online e retomada QoS2 à sessão escolhida, migrando o
 documento durável de v12 para v13 na próxima gravação. Cada grupo recebe uma
 cópia por publicação, sem retained inicial; assinatura normal recebe sua cópia
 separada. A release 0.25.0 ainda anuncia indisponibilidade e recusa `$share/`
 com DISCONNECT 0x9E. Preserve backup offline privado v12 antes de abrir v13:
-broker 0.25.0 e admin independente 0.7.0 não o reabrem. O admin atualizado
-e a distribuição desta mudança ainda estão em validação.
+broker 0.25.0 e admin independente 0.7.0 não o reabrem. O admin independente
+0.8.0 lê o estado v13; os três sistemas têm releases numeradas verificadas.
+[Release 0.26.0](https://github.com/licodevone/xmqr/releases/tag/v0.26.0)
+e [aceite P155](prompts/registros/P155-release-0.26.0.md).
 
 A versão experimental 0.25.0 inclui P150: aceita Subscription Identifier no
 SUBSCRIBE MQTT 5 e entrega os IDs correspondentes ao assinante, inclusive em

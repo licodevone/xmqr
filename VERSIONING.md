@@ -1,11 +1,11 @@
 # Versionamento
 
-## P155 — marco 0.26.0 e estado v13 (candidato)
+## P155 — marco 0.26.0 e estado v13 (experimental publicado)
 
 P153/P154 acrescentam grupos compartilhados MQTT 5, com associação persistente
 em documento v13. Broker 0.25.0 e admin independente 0.7.0 não reabrem v13;
-rollback exige backup privado v12 anterior à primeira gravação. A16 deve piná-lo
-e provar backup/restore antes da distribuição. AUTH, recomendação QoS1 após
+rollback exige backup privado v12 anterior à primeira gravação. A16 fixou o core
+e provou backup/restore antes da distribuição. AUTH, recomendação QoS1 após
 término da sessão e fases 6A–6D/7–9 seguem abertos. [Nota de release](docs/releases/0.26.0.md).
 
 ## P152 — capacidade compartilhada indisponível no marco 0.25.0
