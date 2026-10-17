@@ -19,7 +19,8 @@ from verify_multi_endpoint import free_port, hash_fixture, wait_port, wait_subsc
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def connect(port, ca, identity, password, maximum=None, method=b"PLAIN", cert=None):
+def connect(port, ca, identity, password, maximum=None, method=b"PLAIN", cert=None,
+            client_id=b"p159-device", will=None):
     context = ssl.create_default_context(cafile=str(ca))
     if cert:
         context.load_cert_chain(str(cert[0]), str(cert[1]))
@@ -31,8 +32,14 @@ def connect(port, ca, identity, password, maximum=None, method=b"PLAIN", cert=No
                   + b"\x16" + len(data).to_bytes(2, "big") + data)
     if maximum is not None:
         properties += b"\x27" + maximum.to_bytes(4, "big")
-    body = (b"\x00\x04MQTT\x05\x02\x00\x1e" + bytes([len(properties)])
-            + properties + len(b"p159-device").to_bytes(2, "big") + b"p159-device")
+    flags = 0x06 if will else 0x02
+    body = (b"\x00\x04MQTT\x05" + bytes([flags]) + b"\x00\x1e"
+            + bytes([len(properties)]) + properties
+            + len(client_id).to_bytes(2, "big") + client_id)
+    if will:
+        topic, payload = will
+        body += (b"\x00" + len(topic).to_bytes(2, "big") + topic
+                 + len(payload).to_bytes(2, "big") + payload)
     assert len(body) < 128
     stream.sendall(bytes([0x10, len(body)]) + body)
     header, ack = packet(stream)

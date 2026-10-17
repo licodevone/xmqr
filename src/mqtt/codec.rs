@@ -2255,6 +2255,13 @@ mod tests {
         assert!(decode_for(0xf0, &duplicate, true).is_err());
         assert!(decode_for(0xf1, &body, true).is_err());
         assert!(decode_for(0xf0, &body, false).is_err());
+        for index in 0..body.len() {
+            for value in 0..=u8::MAX {
+                let mut mutated = body.clone();
+                mutated[index] = value;
+                let _ = decode_for(0xf0, &mutated, true);
+            }
+        }
     }
 
     #[test]

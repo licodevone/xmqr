@@ -91,6 +91,24 @@ def exercise(port, ca, secret, other_secret, cert):
         with conventional(port, ca, b"fixture-device", secret) as stream:
             stream.sendall(auth(b"\0fixture-device\0" + secret))
             expect_close(stream)
+    watcher, ack = connect(port, ca, b"fixture-device", secret,
+                           client_id=b"p160-watcher", **kwargs)
+    with watcher:
+        assert ack[1] == 0
+        topic = b"p160/will"
+        subscribe = b"\x00\x02\x00" + len(topic).to_bytes(2, "big") + topic + b"\x00"
+        watcher.sendall(bytes([0x82, len(subscribe)]) + subscribe)
+        assert packet(watcher) == (0x90, b"\x00\x02\x00\x00")
+        victim, ack = connect(port, ca, b"fixture-device", secret,
+                              client_id=b"p160-victim",
+                              will=(topic, b"reauth-denied"), **kwargs)
+        with victim:
+            assert ack[1] == 0
+            victim.sendall(auth(b"\0fixture-device\0wrong-password"))
+            assert packet(victim) == (0xe0, b"\x86\x00")
+            expect_close(victim)
+        header, message = packet(watcher)
+        assert header == 0x30 and message.endswith(b"reauth-denied"), (header, message)
 
 
 def main():
@@ -120,7 +138,8 @@ def main():
                          "publish=['p160/other']\nsubscribe=['p160/other']\n") if mode == "tls-password" else ""
             (root / "acl.toml").write_text(
                 "[[rules]]\nusername='fixture-device'\n"
-                "publish=['p160/value']\nsubscribe=['p160/value']\n"
+                "publish=['p160/value','p160/will']\n"
+                "subscribe=['p160/value','p160/will']\n"
                 f"{other_acl}")
             cert_line = f"cert_sha256='sha256:{fingerprint}'\n" if mode == "secure-mtls" else ""
             other_record = ("[[users]]\nusername='other-device'\n"
@@ -151,7 +170,7 @@ def main():
                     if broker.poll() is None:
                         broker.terminate()
                         assert broker.wait(timeout=12) == 0
-    print("P160_REAUTH_PASS TLS, mTLS, success, denial, identity, method, data and conventional session")
+    print("P160_REAUTH_PASS TLS, mTLS, success, denial, identity, method, data, conventional session and Will")
 
 
 if __name__ == "__main__":
