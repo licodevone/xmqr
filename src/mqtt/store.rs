@@ -788,6 +788,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reads_v7_will_without_delay_fields_and_commits_v8() {
+        let directory = tempdir().unwrap();
+        let mut expected = state();
+        expected.pending_wills.insert(
+            "sensor-1".into(),
+            PendingWill {
+                principal: "sensor".into(),
+                message: message(1),
+                delay_seconds: 0,
+                publish_at_unix_ms: None,
+            },
+        );
+        {
+            let mut writer = Store::open(directory.path()).unwrap();
+            let old = toml::to_string(&Envelope {
+                version: 7,
+                state: expected.clone(),
+            })
+            .unwrap()
+            .replace("delay_seconds = 0\n", "");
+            writer.put(KEY, old.as_bytes()).unwrap();
+        }
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, expected);
+        store.commit(&recovered).await.unwrap();
+        store.shutdown().await.unwrap();
+        let writer = Store::open(directory.path()).unwrap();
+        let bytes = writer.get(KEY).unwrap();
+        let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
+        assert_eq!(envelope.version, 8);
+        assert_eq!(envelope.state, expected);
+    }
+
+    #[tokio::test]
     async fn reads_v3_reload_receipt_with_legacy_digest_field() {
         let directory = tempdir().unwrap();
         let mut expected = state();

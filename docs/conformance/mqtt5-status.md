@@ -14,6 +14,11 @@ O client C69 envia `--message-expiry-seconds` em `pub --protocol-version 5`.
 P131 aceita Session Expiry Interval no DISCONNECT normal MQTT 5, aplicado no
 mesmo commit do encerramento. O client independente ainda envia DISCONNECT sem
 essa propriedade.
+P132 aceita Will MQTT 5 com propriedade Will Delay Interval opcional. O Will
+fica durável até publicação após o atraso ou término da sessão, o que ocorrer
+primeiro; retomada Clean Start=0 antes do prazo e DISCONNECT normal cancelam.
+C70 expõe `--will-delay-seconds` no client. Outras Will Properties não são
+aceitas neste recorte.
 Se o processo cair com a conexão ainda ativa, o instante da queda não é
 durável; por segurança contra perda silenciosa, a contagem começa na recuperação.
 Receive Maximum válido opcional, sem Will. P123 acrescenta Request Problem
@@ -53,15 +58,15 @@ recebidos nesses pacotes ainda fecham a conexão neste subconjunto.
 Receive Maximum pode constar no CONNECT, mas o controle completo de fluxo de
 entrega ainda depende da fase 6C; não se declara conformidade MQTT 5 integral.
 
-O broker recusa Will e propriedades de CONNECT fora do subconjunto
-P127 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
+O broker recusa propriedades de CONNECT e Will fora do subconjunto
+P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há
-outras propriedades de publicação, Will Delay, flow
+outras propriedades de publicação, flow
 control, Topic Alias ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. P128 migra o documento durável de v5 para v6 na próxima
 gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
 backup privado anterior à migração. P130 migra o documento de v6 para v7;
-v0.18.0 não pode reabrir estado v7 sem backup anterior.
+P132 migra de v7 para v8. A versão 0.18.0 não pode reabrir v7/v8 sem backup anterior.
 
 Historicamente, P114 recusava todo `CONNECT` 5 com `CONNACK 0x84`; esse contrato
 foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
@@ -87,6 +92,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [C67](../../../xmqr-client/prompts/registros/C67-expiracao-finita-sessao-mqtt5.md),
 [P130](../../prompts/registros/P130-message-expiry-mqtt5.md) e
 [C69](../../../xmqr-client/prompts/registros/C69-message-expiry-mqtt5.md) e
-[P131](../../prompts/registros/P131-disconnect-session-expiry-mqtt5.md).
+[P131](../../prompts/registros/P131-disconnect-session-expiry-mqtt5.md),
+[P132](../../prompts/registros/P132-will-delay-mqtt5.md) e
+[C70](../../../xmqr-client/prompts/registros/C70-will-delay-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

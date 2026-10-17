@@ -2240,6 +2240,7 @@ impl Actor {
             session.expiry_interval_seconds = (1..u32::MAX).contains(&expiry).then_some(expiry);
         }
         let will = candidate.pending_wills.remove(client_id);
+        let had_will = will.is_some();
         let now = unix_ms()?;
         if let Some(session) = candidate.sessions.get_mut(client_id)
             && let Some(seconds) = session.expiry_interval_seconds
@@ -2295,7 +2296,7 @@ impl Actor {
         // A failed Will must remain pending; continuing would allow takeover
         // to replace that obligation or route to a connection already gone.
         if let Err(error) = self.commit(candidate).await {
-            if published {
+            if had_will {
                 self.fail_closed();
             }
             return Err(error);
@@ -3895,6 +3896,48 @@ mod tests {
         actor.store.shutdown().await.unwrap();
         let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
         assert_eq!(recovered, before);
+        store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_will_delay_wal_failure_preserves_will_for_recovery() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (directory, mut actor) = actor().await;
+        let source = actor
+            .register_with_policy_and_delay(
+                "will-fault".into(),
+                "user".into(),
+                SessionPolicy {
+                    clean: true,
+                    persistent: true,
+                    expiry_interval_seconds: None,
+                    will_delay_seconds: 10,
+                },
+                Some(message("test/will", 0, false, b"survives")),
+            )
+            .await
+            .unwrap();
+        let before = actor.state.clone();
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(
+            actor
+                .unregister_with_reason("will-fault", source.generation, false)
+                .await
+                .is_err()
+        );
+        assert!(actor.fatal);
+        assert_eq!(actor.state, before);
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, before);
+        assert!(recovered.pending_wills.contains_key("will-fault"));
         store.shutdown().await.unwrap();
     }
 
