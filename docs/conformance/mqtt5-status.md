@@ -83,7 +83,9 @@ exclusivos do servidor são recusados. P175 emite DISCONNECT `0x95` após CONNAC
 MQTT 5 quando o cabeçalho declara quadro maior que o limite local, antes de
 ler o corpo; MQTT 3.1.1 ainda fecha sem esse pacote. P176 emite DISCONNECT
 `0x94` para Topic Alias zero, acima do máximo ou não estabelecido, sem entrega.
-O broker não emite todos
+P177 emite DISCONNECT `0x81` quando quatro bytes de Remaining Length ainda
+indicam continuação, mas aguarda cabeçalho parcial; MQTT 3.1.1 fecha sem
+DISCONNECT MQTT 5. O broker não emite todos
 os demais motivos DISCONNECT que poderia emitir. PUBACK recebido após P169 aceita códigos
 negativos válidos do client, Reason String única e User Property repetida;
 conclui QoS1 sem fechar a conexão. P170 aceita PUBREC negativo válido do
