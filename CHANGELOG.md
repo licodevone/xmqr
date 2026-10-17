@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 0.19.0 — expiração e Will MQTT 5, experimental
+
+- P132: Will MQTT 5 com Will Delay opcional; publicação/cancelamento duráveis, restart e migração de estado v7 para v8. Falha do WAL ao agendar Will encerra o ator para recuperar obrigação anterior.
+- P131: Session Expiry no DISCONNECT normal MQTT 5, com transição durável e rejeição de zero→positivo.
+- P130: Message Expiry no PUBLISH MQTT 5, limpeza de retidos/offline e encaminhamento do intervalo restante; migração de v6 para v7.
+- Fases 6A–6D ainda abertas; rollback para 0.18.0 requer backup privado do estado v6 anterior à migração.
+
 ## 0.18.0 — sessões MQTT 5, experimental
 
 - P128: Session Expiry finita com deadline durável, remoção automática e migração do documento v5 para v6; leitura v1–v5. Crash com conexão ativa inicia o intervalo na recuperação para não descartar dados aceitos sem instante de fechamento conhecido.

@@ -1,13 +1,10 @@
 # XMQR
 
-Na árvore de desenvolvimento após 0.18.0, P130 acrescenta Message Expiry MQTT 5
-para mensagens retidas e offline; o documento durável passa a v7. Faça backup
-privado antes de iniciar esse código com estado existente: a versão 0.18.0 não
-reabre estado v7. Veja o [estado de conformidade](docs/conformance/mqtt5-status.md).
-P131 aceita a substituição de Session Expiry no DISCONNECT MQTT 5 recebido.
-P132 aceita Will MQTT 5 com Will Delay opcional; o documento durável passa a v8.
-Faça backup privado antes de executar esta árvore: a versão 0.18.0 não reabre
-estado v8. Veja o [registro P132](prompts/registros/P132-will-delay-mqtt5.md).
+O marco experimental 0.19.0 acrescenta Message Expiry, Session Expiry no
+DISCONNECT e Will Delay MQTT 5. O documento durável passa a v8: faça backup
+privado offline antes da atualização, pois 0.18.0 não reabre v7/v8. Consulte
+a [nota de release](docs/releases/0.19.0.md) e o
+[estado de conformidade](docs/conformance/mqtt5-status.md).
 
 O marco experimental 0.18.0 acrescenta Clean Start e Session Expiry
 zero, finita ou infinita ao subconjunto MQTT 5. O estado durável passa a v6;

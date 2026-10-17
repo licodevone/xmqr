@@ -153,6 +153,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6B/P130/C69 parcial: Message Expiry em PUBLISH, limpeza de retidos/offline, documento v7 e opção do client; validação local e CIs PASS.~~ [Broker](../prompts/registros/P130-message-expiry-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C69-message-expiry-mqtt5.md).
 - [x] ~~Fase 6B/P131 parcial: Session Expiry no DISCONNECT MQTT 5, transição durável e negativos; validação local e CI PASS.~~ [Broker](../prompts/registros/P131-disconnect-session-expiry-mqtt5.md).
 - [x] ~~Fase 6B/P132/C70 parcial: Will Delay MQTT 5, publicação/cancelamento duráveis, documento v8, client com opção CLI; testes locais, TCP real, Mosquitto e CI PASS.~~ [Broker](../prompts/registros/P132-will-delay-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C70-will-delay-mqtt5.md).
+- [ ] Distribuição P133/C71: tags independentes v0.19.0/v0.17.0, pacotes Ubuntu26, imagens numeradas e prereleases com SHA-256/rollback; gates e publicações pendentes.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

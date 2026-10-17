@@ -1,5 +1,13 @@
 # Versionamento
 
+## P133 — marco de expiração e Will MQTT 5
+
+Broker e `mqtt-admin` legado 0.19.0 incluem P130–P132: Message Expiry,
+DISCONNECT Session Expiry e Will Delay. Client independente 0.17.0 acompanha.
+O documento durável migra de v6 para v7/v8; rollback para 0.18.0 exige backup
+privado v6 anterior. Fases 6A–6D continuam abertas. Veja a
+[nota](docs/releases/0.19.0.md).
+
 ## P129 — marco de sessões MQTT 5
 
 Broker e `mqtt-admin` legado 0.18.0 incluem P126–P128: ACKs de sucesso em formas
