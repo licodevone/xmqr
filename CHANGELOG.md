@@ -1,8 +1,10 @@
 # Histórico de versões
 
-## Em desenvolvimento após 0.25.0
+## 0.26.0 — shared subscriptions MQTT 5 e estado v13 (experimental)
 
-- P152: CONNACK MQTT 5 anuncia Shared Subscription Available=0 (0x2A); SUBSCRIBE `$share/` recebe DISCONNECT 0x9E sem registrar filtros. Limites Maximum Packet Size que não comportam o anúncio recusam CONNECT antes de criar sessão. O roteamento compartilhado permanece futuro.
+- P152: na base 0.25.0, CONNACK MQTT 5 anunciava Shared Subscription Available=0 (0x2A) e SUBSCRIBE `$share/` recebia DISCONNECT 0x9E; o anúncio exigia espaço no Maximum Packet Size.
+- P153: CONNACK passa a anunciar disponibilidade=1; grupos temporários ativos distribuem uma cópia por grupo/filtro, sem retained inicial e com cópia normal independente.
+- P154: grupos de sessão persistente passam ao documento v13; QoS1/2 pode ser atribuído a membro offline quando não há ativo, e QoS2 já iniciado volta à sessão escolhida após reinício. A recomendação de redistribuir QoS1 após término da sessão ainda não é atendida. AUTH e fases globais continuam abertos. Backup privado v12 é necessário para voltar a broker 0.25.0/admin independente 0.7.0.
 
 ## 0.25.0 — Subscription Identifier MQTT 5 (experimental)
 

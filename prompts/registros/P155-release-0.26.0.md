@@ -1,3 +1,3 @@
 # P155 — marco broker 0.26.0
 
-- [Prompt P155](../broker/155-release-0.26.0.md) preparado antes da atualização de versão. Gates, A16 e distribuição pendentes.
+- [Prompt P155](../broker/155-release-0.26.0.md) commitado antes da atualização de versão (`883bc41`). Cargo/lock, Dockerfile, changelog, README, VERSIONING e [nota](../../docs/releases/0.26.0.md) preparados para 0.26.0 após [P154 CI PASS](https://github.com/licodevone/xmqr/actions/runs/39011369321). Fonte local: 177 testes de biblioteca PASS/6 ignorados, demais alvos PASS; fmt, Clippy, build release, inventário de licenças e seis contratos de distribuição PASS. CI do commit de versão, pacote/imagens e admin A16 ainda em validação. Sem tag/release até esses gates.

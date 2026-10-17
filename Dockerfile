@@ -17,7 +17,7 @@ RUN apt-get update \
 RUN cargo build --locked --release --bins
 
 FROM debian:bookworm-slim AS runtime-base
-ARG VERSION=0.25.0
+ARG VERSION=0.26.0
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \

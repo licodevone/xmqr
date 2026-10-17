@@ -1,7 +1,7 @@
 # XMQR
 
-Em desenvolvimento após 0.25.0, P153 distribuiu `$share/{grupo}/{filtro}`
-MQTT 5 entre sessões temporárias ativas. P154 acrescenta sessão persistente,
+A versão candidata experimental 0.26.0 inclui P153/P154: distribui
+`$share/{grupo}/{filtro}` MQTT 5 entre sessões ativas e acrescenta sessão persistente,
 fila QoS1/2 sem membro online e retomada QoS2 à sessão escolhida, migrando o
 documento durável de v12 para v13 na próxima gravação. Cada grupo recebe uma
 cópia por publicação, sem retained inicial; assinatura normal recebe sua cópia
