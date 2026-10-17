@@ -79,9 +79,10 @@ motivo `0x04`, que usa a transição durável do Will em vez de cancelá-lo; ace
 Reason String única e User Property repetida em `0x00`/`0x04`, mantendo as
 regras de Session Expiry. P174 aceita também os motivos de erro permitidos ao
 client pela tabela 3-10; esses motivos publicam o Will, se presente, e códigos
-exclusivos do servidor são recusados. O broker ainda não emite todos os motivos
-DISCONNECT que poderia emitir. PUBACK
-recebido após P169 aceita códigos
+exclusivos do servidor são recusados. P175 emite DISCONNECT `0x95` após CONNACK
+MQTT 5 quando o cabeçalho declara quadro maior que o limite local, antes de
+ler o corpo; MQTT 3.1.1 ainda fecha sem esse pacote. O broker não emite todos
+os demais motivos DISCONNECT que poderia emitir. PUBACK recebido após P169 aceita códigos
 negativos válidos do client, Reason String única e User Property repetida;
 conclui QoS1 sem fechar a conexão. P170 aceita PUBREC negativo válido do
 assinante: a tentativa QoS2 é removida do estado durável sem PUBREL e a quota
