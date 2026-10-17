@@ -57,6 +57,7 @@ pub(super) enum Packet {
         session_expiry: u32,
         keep_alive: u16,
         will: Option<super::store::StoredMessage>,
+        will_delay_seconds: u32,
         username: Option<String>,
         password: Option<Vec<u8>>,
     },
@@ -358,18 +359,28 @@ fn decode_for(
             if level == 5 {
                 let property_length = c.variable_integer()?;
                 let properties = c.bytes(property_length)?;
-                // Will Delay and Will Properties remain outside this subset.
                 let Some(expiry) = mqtt5_connect_properties_supported(properties)? else {
                     return Ok(Packet::UnsupportedConnect5);
                 };
                 session_expiry = expiry;
-                if has_will {
-                    return Ok(Packet::UnsupportedConnect5);
-                }
             }
             let client_id = c.text()?;
+            let mut will_delay_seconds = 0;
             // MQTT-3.1.3-1: Will precedes username/password. Message is binary.
             let will = if has_will {
+                if level == 5 {
+                    let property_length = c.variable_integer()?;
+                    let raw = c.bytes(property_length)?;
+                    let mut properties = Cursor::new(raw);
+                    if properties.pos < raw.len() {
+                        if properties.byte()? != 0x18 {
+                            return Ok(Packet::UnsupportedConnect5);
+                        }
+                        will_delay_seconds =
+                            u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
+                        properties.end()?;
+                    }
+                }
                 let topic = TopicName::try_from(c.text()?)?;
                 let payload = c.binary()?.to_vec();
                 if payload.len() > MAX_PAYLOAD {
@@ -396,6 +407,7 @@ fn decode_for(
                 session_expiry,
                 keep_alive,
                 will,
+                will_delay_seconds,
                 username,
                 password,
             }
@@ -766,6 +778,30 @@ pub(super) fn encode_publish_with_expiry(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mqtt5_will_delay_connect_vectors() {
+        let body = [
+            0, 4, b'M', b'Q', b'T', b'T', 5, 6, 0, 30, 0, 0, 1, b'a', 5, 0x18, 0, 0, 0, 2, 0, 1,
+            b't', 0, 1, b'x',
+        ];
+        assert!(matches!(
+            decode(0x10, &body).unwrap(),
+            Packet::Connect {
+                mqtt5: true,
+                will_delay_seconds: 2,
+                will: Some(_),
+                ..
+            }
+        ));
+        let mut duplicate = body.to_vec();
+        duplicate[14] = 10;
+        duplicate.splice(20..20, [0x18, 0, 0, 0, 3]);
+        assert!(decode(0x10, &duplicate).is_err());
+        let mut truncated = body;
+        truncated[14] = 4;
+        assert!(decode(0x10, &truncated).is_err());
+    }
 
     #[test]
     fn mqtt5_message_expiry_property_vectors_and_rejections() {

@@ -20,7 +20,7 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 7;
+const FORMAT_VERSION: u16 = 8;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -84,6 +84,10 @@ pub(super) struct AdminReceipt {
 pub(super) struct PendingWill {
     pub principal: String,
     pub message: StoredMessage,
+    #[serde(default)]
+    pub delay_seconds: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish_at_unix_ms: Option<u64>,
 }
 
 /// Session state retained across reconnects. `persistent = false` marks a
@@ -544,6 +548,8 @@ mod tests {
             PendingWill {
                 principal: "sensor".into(),
                 message: message(1),
+                delay_seconds: 0,
+                publish_at_unix_ms: None,
             },
         );
         validate_with_limits(&with_will, one).unwrap();
@@ -690,7 +696,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(8))
+            Err(StateError::UnsupportedVersion(9))
         ));
     }
 
@@ -750,8 +756,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_to_v6_and_commits_v7_without_losing_retained() {
-        for version in [1, 2, 3, 4, 5, 6] {
+    async fn reads_v1_to_v7_and_commits_v8_without_losing_retained() {
+        for version in [1, 2, 3, 4, 5, 6, 7] {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -776,7 +782,7 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 7);
+            assert_eq!(envelope.version, 8);
             assert_eq!(envelope.state, expected);
         }
     }

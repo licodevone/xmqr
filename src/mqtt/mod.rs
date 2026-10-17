@@ -104,6 +104,7 @@ async fn serve_mqtt(
         session_expiry,
         keep_alive,
         will,
+        will_delay_seconds,
         username,
         password,
     } = connect
@@ -169,6 +170,7 @@ async fn serve_mqtt(
                 } else {
                     None
                 },
+                will_delay_seconds,
             },
             will,
             Some(security_generation),

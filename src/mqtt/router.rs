@@ -67,6 +67,7 @@ pub(super) struct SessionPolicy {
     pub clean: bool,
     pub persistent: bool,
     pub expiry_interval_seconds: Option<u32>,
+    pub will_delay_seconds: u32,
 }
 
 fn reconcile_recovered_sessions(
@@ -290,6 +291,7 @@ enum Command {
         clean: bool,
         persistent: bool,
         expiry_interval_seconds: Option<u32>,
+        will_delay_seconds: u32,
         will: Option<StoredMessage>,
         reply: oneshot::Sender<Result<Session, RouterError>>,
     },
@@ -570,6 +572,10 @@ impl Router {
     /// Recover and start with validated, immutable logical quotas.
     /// # Errors
     /// Rejects state above the configured quotas before recovery transitions.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "recovery reconciles sessions and Wills before the actor becomes visible"
+    )]
     pub async fn start_observed_with_limits(
         directory: &Path,
         auth: Arc<AccessPolicy>,
@@ -582,11 +588,39 @@ impl Router {
             store.shutdown().await?;
             return Err(error.into());
         }
-        // MQTT-3.1.2-8/10: broker crash can defer Will publication until restart.
-        // Remove the Will and route it in the same durable transition.
+        // After crash the exact connection-loss time is unknown. Start an
+        // active delayed Will's clock at recovery; a disconnected Will keeps
+        // its committed absolute deadline.
+        let now = unix_ms()?;
+        for (client_id, will) in &mut state.pending_wills {
+            if will.publish_at_unix_ms.is_none() {
+                let deadline = state.sessions.get(client_id).map_or(Ok(now), |session| {
+                    let delayed = expiry_deadline(now, will.delay_seconds)?;
+                    Ok::<_, RouterError>(
+                        session
+                            .expires_at_unix_ms
+                            .map_or(delayed, |end| delayed.min(end)),
+                    )
+                })?;
+                will.publish_at_unix_ms = Some(deadline);
+            }
+        }
+        // Publish only Wills whose delay or session expiry has passed.
         let mut recovered_wills = 0_u64;
-        let pending = std::mem::take(&mut state.pending_wills);
-        for will in pending.into_values() {
+        let due: Vec<_> = state
+            .pending_wills
+            .iter()
+            .filter(|(id, will)| {
+                will.publish_at_unix_ms.is_some_and(|at| at <= now)
+                    || state
+                        .sessions
+                        .get(*id)
+                        .is_none_or(|session| session_expired(session, now))
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in due {
+            let will = state.pending_wills.remove(&id).ok_or(RouterError::Stale)?;
             if auth.allowed_publish(&will.principal, will.message.topic.as_str()) {
                 if let Err(error) =
                     apply_message(limits, &mut state, &BTreeMap::new(), &auth, &will.message)
@@ -749,6 +783,7 @@ impl Router {
                 clean,
                 persistent: !clean,
                 expiry_interval_seconds: None,
+                will_delay_seconds: 0,
             },
             will,
             security_generation,
@@ -772,6 +807,7 @@ impl Router {
             clean: policy.clean,
             persistent: policy.persistent,
             expiry_interval_seconds: policy.expiry_interval_seconds,
+            will_delay_seconds: policy.will_delay_seconds,
             will,
             reply,
         })
@@ -900,6 +936,21 @@ impl Router {
 impl Actor {
     async fn expire_sessions(&mut self) -> Result<(), RouterError> {
         let now = unix_ms()?;
+        let due_wills: Vec<_> = self
+            .state
+            .pending_wills
+            .iter()
+            .filter(|(id, will)| {
+                will.publish_at_unix_ms.is_some_and(|at| at <= now)
+                    || (!self.live.contains_key(*id)
+                        && self
+                            .state
+                            .sessions
+                            .get(*id)
+                            .is_none_or(|session| session_expired(session, now)))
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
         let expired_sessions = self
             .state
             .sessions
@@ -915,7 +966,7 @@ impl Actor {
                 .sessions
                 .values()
                 .any(|s| s.offline.iter().any(|m| message_expired(m, now)));
-        if expired_sessions || expired_messages {
+        if expired_sessions || expired_messages || !due_wills.is_empty() {
             let mut candidate = self.state.clone();
             candidate
                 .sessions
@@ -928,7 +979,30 @@ impl Actor {
                     .offline
                     .retain(|message| !message_expired(message, now));
             }
+            let mut deliveries = Vec::new();
+            let mut published = 0;
+            for id in due_wills {
+                let will = candidate
+                    .pending_wills
+                    .remove(&id)
+                    .ok_or(RouterError::Stale)?;
+                if self
+                    .auth
+                    .allowed_publish(&will.principal, will.message.topic.as_str())
+                {
+                    deliveries.extend(apply_message(
+                        self.limits,
+                        &mut candidate,
+                        &self.live,
+                        &self.auth,
+                        &will.message,
+                    )?);
+                    published += 1;
+                }
+            }
             self.commit(candidate).await?;
+            self.metrics.wills.fetch_add(published, Ordering::Relaxed);
+            self.deliver(deliveries);
         }
         Ok(())
     }
@@ -948,19 +1022,32 @@ impl Actor {
             }
         }
         let mut published = 0;
-        for will in std::mem::take(&mut candidate.pending_wills).into_values() {
+        for (client_id, mut will) in std::mem::take(&mut candidate.pending_wills) {
             if self
                 .auth
                 .allowed_publish(&will.principal, will.message.topic.as_str())
             {
-                apply_message(
-                    self.limits,
-                    &mut candidate,
-                    &BTreeMap::new(),
-                    &self.auth,
-                    &will.message,
-                )?;
-                published += 1;
+                let delayed = will
+                    .publish_at_unix_ms
+                    .unwrap_or(expiry_deadline(now, will.delay_seconds)?);
+                let deadline = candidate
+                    .sessions
+                    .get(&client_id)
+                    .and_then(|session| session.expires_at_unix_ms)
+                    .map_or(delayed, |end| delayed.min(end));
+                if deadline <= now || !candidate.sessions.contains_key(&client_id) {
+                    apply_message(
+                        self.limits,
+                        &mut candidate,
+                        &BTreeMap::new(),
+                        &self.auth,
+                        &will.message,
+                    )?;
+                    published += 1;
+                } else {
+                    will.publish_at_unix_ms = Some(deadline);
+                    candidate.pending_wills.insert(client_id, will);
+                }
             }
         }
         self.commit(candidate).await?;
@@ -1007,16 +1094,29 @@ impl Actor {
             // Accepted inbound QoS2 remains owned, even while credentials are revoked.
         }
         let mut published = 0;
-        for will in std::mem::take(&mut candidate.pending_wills).into_values() {
+        for (client_id, mut will) in std::mem::take(&mut candidate.pending_wills) {
             if view.allowed_publish(&will.principal, will.message.topic.as_str()) {
-                apply_message(
-                    self.limits,
-                    &mut candidate,
-                    &BTreeMap::new(),
-                    &view,
-                    &will.message,
-                )?;
-                published += 1;
+                let delayed = will
+                    .publish_at_unix_ms
+                    .unwrap_or(expiry_deadline(now, will.delay_seconds)?);
+                let deadline = candidate
+                    .sessions
+                    .get(&client_id)
+                    .and_then(|session| session.expires_at_unix_ms)
+                    .map_or(delayed, |end| delayed.min(end));
+                if deadline <= now || !candidate.sessions.contains_key(&client_id) {
+                    apply_message(
+                        self.limits,
+                        &mut candidate,
+                        &BTreeMap::new(),
+                        &view,
+                        &will.message,
+                    )?;
+                    published += 1;
+                } else {
+                    will.publish_at_unix_ms = Some(deadline);
+                    candidate.pending_wills.insert(client_id, will);
+                }
             }
         }
         if let Some(receipt) = receipt {
@@ -1156,6 +1256,7 @@ impl Actor {
                 clean,
                 persistent,
                 expiry_interval_seconds,
+                will_delay_seconds,
                 will,
                 reply,
             } => {
@@ -1163,12 +1264,15 @@ impl Actor {
                     if security_generation.is_some_and(|g| g != self.auth.security_generation()) {
                         Err(RouterError::Security)
                     } else {
-                        self.register_with_policy(
+                        self.register_with_policy_and_delay(
                             client_id,
                             principal,
-                            clean,
-                            persistent,
-                            expiry_interval_seconds,
+                            SessionPolicy {
+                                clean,
+                                persistent,
+                                expiry_interval_seconds,
+                                will_delay_seconds,
+                            },
                             will,
                         )
                         .await
@@ -1716,6 +1820,7 @@ impl Actor {
             .await
     }
 
+    #[cfg(test)]
     async fn register_with_policy(
         &mut self,
         client_id: String,
@@ -1725,6 +1830,37 @@ impl Actor {
         expiry_interval_seconds: Option<u32>,
         will: Option<StoredMessage>,
     ) -> Result<Session, RouterError> {
+        self.register_with_policy_and_delay(
+            client_id,
+            principal,
+            SessionPolicy {
+                clean,
+                persistent,
+                expiry_interval_seconds,
+                will_delay_seconds: 0,
+            },
+            will,
+        )
+        .await
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "registration and prior Will resolution share one durable transition"
+    )]
+    async fn register_with_policy_and_delay(
+        &mut self,
+        client_id: String,
+        principal: String,
+        policy: SessionPolicy,
+        will: Option<StoredMessage>,
+    ) -> Result<Session, RouterError> {
+        let SessionPolicy {
+            clean,
+            persistent,
+            expiry_interval_seconds,
+            will_delay_seconds,
+        } = policy;
         let now = unix_ms()?;
         let old = self
             .state
@@ -1750,6 +1886,26 @@ impl Actor {
                 .await?;
         }
         let mut candidate = self.state.clone();
+        let previous_will = candidate.pending_wills.remove(&client_id);
+        let mut prior_deliveries = Vec::new();
+        let mut prior_will_published = false;
+        if clean || !session_present {
+            candidate.sessions.remove(&client_id);
+            if let Some(prior) = previous_will
+                && self
+                    .auth
+                    .allowed_publish(&prior.principal, prior.message.topic.as_str())
+            {
+                prior_deliveries = apply_message(
+                    self.limits,
+                    &mut candidate,
+                    &self.live,
+                    &self.auth,
+                    &prior.message,
+                )?;
+                prior_will_published = true;
+            }
+        }
         if self
             .state
             .sessions
@@ -1776,6 +1932,8 @@ impl Actor {
                 PendingWill {
                     principal: candidate.sessions[&client_id].principal.clone(),
                     message,
+                    delay_seconds: will_delay_seconds,
+                    publish_at_unix_ms: None,
                 },
             );
         }
@@ -1798,6 +1956,10 @@ impl Actor {
             drain_offline(self.limits, session, &mut replay)?;
         }
         self.commit(candidate).await?;
+        if prior_will_published {
+            self.metrics.wills.fetch_add(1, Ordering::Relaxed);
+        }
+        self.deliver(prior_deliveries);
         if let Some(old) = self.live.remove(&client_id) {
             let _ = old.close.send(true);
         }
@@ -2078,10 +2240,11 @@ impl Actor {
             session.expiry_interval_seconds = (1..u32::MAX).contains(&expiry).then_some(expiry);
         }
         let will = candidate.pending_wills.remove(client_id);
+        let now = unix_ms()?;
         if let Some(session) = candidate.sessions.get_mut(client_id)
             && let Some(seconds) = session.expiry_interval_seconds
         {
-            session.expires_at_unix_ms = Some(expiry_deadline(unix_ms()?, seconds)?);
+            session.expires_at_unix_ms = Some(expiry_deadline(now, seconds)?);
         }
         if !candidate
             .sessions
@@ -2094,25 +2257,36 @@ impl Actor {
         remaining_live.remove(client_id);
         let mut deliveries = Vec::new();
         let mut published = false;
-        if let Some(will) = will.filter(|_| !graceful)
+        if let Some(mut will) = will.filter(|_| !graceful)
             && self
                 .auth
                 .allowed_publish(&will.principal, will.message.topic.as_str())
         {
-            published = true;
-            deliveries = match apply_message(
-                self.limits,
-                &mut candidate,
-                &remaining_live,
-                &self.auth,
-                &will.message,
-            ) {
-                Ok(deliveries) => deliveries,
-                Err(error) => {
-                    self.fail_closed();
-                    return Err(error);
-                }
-            };
+            let deadline = expiry_deadline(now, will.delay_seconds)?;
+            let deadline = candidate
+                .sessions
+                .get(client_id)
+                .and_then(|session| session.expires_at_unix_ms)
+                .map_or(deadline, |end| deadline.min(end));
+            if deadline <= now || !candidate.sessions.contains_key(client_id) {
+                published = true;
+                deliveries = match apply_message(
+                    self.limits,
+                    &mut candidate,
+                    &remaining_live,
+                    &self.auth,
+                    &will.message,
+                ) {
+                    Ok(deliveries) => deliveries,
+                    Err(error) => {
+                        self.fail_closed();
+                        return Err(error);
+                    }
+                };
+            } else {
+                will.publish_at_unix_ms = Some(deadline);
+                candidate.pending_wills.insert(client_id.to_owned(), will);
+            }
         }
         if let Some(receipt) = receipt {
             candidate.admin_receipts.push(receipt);
@@ -3725,6 +3899,126 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn mqtt5_will_delay_publishes_or_cancels_with_session_transition() {
+        let (_directory, mut actor) = actor().await;
+        let mut watcher = actor
+            .register("watcher".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "watcher",
+                watcher.generation,
+                vec![(filter("test/will"), Some(0))],
+            )
+            .await
+            .unwrap();
+        let policy = |clean, expiry, delay| SessionPolicy {
+            clean,
+            persistent: expiry != 0,
+            expiry_interval_seconds: (1..u32::MAX).contains(&expiry).then_some(expiry),
+            will_delay_seconds: delay,
+        };
+        let source = actor
+            .register_with_policy_and_delay(
+                "delayed".into(),
+                "user".into(),
+                policy(true, u32::MAX, 1),
+                Some(message("test/will", 0, false, b"delayed")),
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister_with_reason("delayed", source.generation, false)
+            .await
+            .unwrap();
+        assert!(watcher.outbound.try_recv().is_err());
+        assert!(
+            actor.state.pending_wills["delayed"]
+                .publish_at_unix_ms
+                .is_some()
+        );
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        actor.expire_sessions().await.unwrap();
+        assert!(
+            matches!(watcher.outbound.try_recv(), Ok(Delivery::Publish { message, .. }) if message.payload == b"delayed")
+        );
+
+        let source = actor
+            .register_with_policy_and_delay(
+                "cancelled".into(),
+                "user".into(),
+                policy(true, u32::MAX, 10),
+                Some(message("test/will", 0, false, b"cancelled")),
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister_with_reason("cancelled", source.generation, false)
+            .await
+            .unwrap();
+        let resumed = actor
+            .register_with_policy_and_delay(
+                "cancelled".into(),
+                "user".into(),
+                policy(false, u32::MAX, 0),
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(resumed.resumed);
+        assert!(!actor.state.pending_wills.contains_key("cancelled"));
+        assert!(watcher.outbound.try_recv().is_err());
+
+        let source = actor
+            .register_with_policy_and_delay(
+                "clean".into(),
+                "user".into(),
+                policy(true, u32::MAX, 10),
+                Some(message("test/will", 0, false, b"clean")),
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister_with_reason("clean", source.generation, false)
+            .await
+            .unwrap();
+        let fresh = actor
+            .register_with_policy_and_delay(
+                "clean".into(),
+                "user".into(),
+                policy(true, u32::MAX, 0),
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(!fresh.resumed);
+        assert!(
+            matches!(watcher.outbound.try_recv(), Ok(Delivery::Publish { message, .. }) if message.payload == b"clean")
+        );
+
+        let source = actor
+            .register_with_policy_and_delay(
+                "short-session".into(),
+                "user".into(),
+                policy(true, 1, 10),
+                Some(message("test/will", 0, false, b"session-end")),
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister_with_reason("short-session", source.generation, false)
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        actor.expire_sessions().await.unwrap();
+        assert!(
+            matches!(watcher.outbound.try_recv(), Ok(Delivery::Publish { message, .. }) if message.payload == b"session-end")
+        );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn mqtt5_message_expiry_purges_retained_and_offline_after_reopen() {
         let (directory, mut actor) = actor().await;
         let subscriber = actor
@@ -4395,6 +4689,7 @@ mod tests {
                 clean: true,
                 persistent: false,
                 expiry_interval_seconds: None,
+                will_delay_seconds: 0,
                 will: None,
                 reply,
             })

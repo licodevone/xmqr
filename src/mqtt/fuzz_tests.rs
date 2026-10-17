@@ -701,6 +701,8 @@ fn state_candidate(rng: &mut Rng) -> DurableState {
                 PendingWill {
                     principal: PRINCIPAL.to_owned(),
                     message: message("fuzz/a", vec![1], 0, false),
+                    delay_seconds: 0,
+                    publish_at_unix_ms: None,
                 },
             );
         }
