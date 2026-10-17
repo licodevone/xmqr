@@ -1,0 +1,9 @@
+# P160 rev1 — AUTH MQTT 5 para reautenticação PLAIN no broker
+
+Entrada: P159 aceita SASL PLAIN inicial em CONNECT MQTT 5 sobre TLS, com CONNACK que confirma o método. O estado durável é v14; client C91 envia apenas autenticação inicial. O codec rejeita AUTH como tipo desconhecido. A biblioteca `rumqttc` 0.25.1 do client não expõe envio de AUTH no seu `Request`, portanto o client C92 exigirá trabalho próprio.
+
+Objetivo: reconhecer AUTH apenas em conexão MQTT 5 já autenticada inicialmente com `PLAIN`. Aceitar solicitação de reautenticação `0x19` com Authentication Method `PLAIN` e Authentication Data RFC 4616; autenticar novamente na política atual, preservando a mesma identidade/principal e o mesmo certificado TLS. Enviar AUTH `0x00` com Authentication Method `PLAIN` após sucesso. Em falha, enviar DISCONNECT `0x86` se couber no Maximum Packet Size e fechar a conexão; se não couber, apenas fechar. Não registrar dados de autenticação. AUTH sem CONNECT com método, método diferente, motivo inválido, propriedades duplicadas/órfãs, dados ausentes ou malformados são erros de protocolo e encerram a conexão sem alterar a sessão. AUTH `0x18` sem desafio em curso não é aceito. Não mudar o estado v14 nem elevar ACL via troca de identidade.
+
+Aceite: parser/fuzz negativo para varint, propriedades, flags e duplicatas; TLS-password e mTLS reais com reauth correta, senha errada, método diferente, ausência de dados e tentativa em sessão convencional; pub/sub continua após sucesso e cessa após falha. Conferir ausência de nova sessão/ACL ou vazamento de segredo, quotas/Maximum Packet Size, cleanup/Will e regressão CONNECT 3.1.1/5. Fmt, testes, Clippy, build, licenças, distribuição e CI do commit exato. Registrar como parcela 6D, sem declarar AUTH completo até client C92 e interop independente.
+
+Fontes: [MQTT 5 §4.12 e §4.12.1](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html) e [RFC 4616](https://www.rfc-editor.org/rfc/rfc4616).
