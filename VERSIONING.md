@@ -1,12 +1,13 @@
 # Versionamento
 
-## P151 — candidato 0.25.0 e estado v12
+## P151 — marco 0.25.0 e estado v12 (experimental publicado)
 
 P150 Subscription Identifier MQTT 5 acrescenta mapa por filtro e IDs nas entregas
 duráveis, com leitura de v1..v11 e gravação v12. Broker 0.24.0/admin
 independente 0.6.0 não reabrem v12; rollback exige backup privado v11 anterior
-à primeira gravação, broker parado e pacote anterior. Distribuição e pin do
-admin precisam de marcos próprios; fases 6A–6D e 7–9 seguem abertas.
+à primeira gravação, broker parado e pacote anterior. A distribuição P151 foi
+aceita; o pin do admin independente requer A15. Fases 6A–6D e 7–9 seguem abertas.
+[Nota de release](docs/releases/0.25.0.md).
 
 ## P149 — marco de opções de assinatura MQTT 5 (experimental publicado)
 
