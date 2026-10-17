@@ -46,6 +46,14 @@ pub(super) struct SubscriptionPropertyMalformed;
 #[error("duplicate MQTT 5 Subscription Identifier")]
 pub(super) struct SubscriptionIdentifierDuplicate;
 
+#[derive(Debug, thiserror::Error)]
+#[error("MQTT 5 PUBLISH property is invalid for this packet")]
+pub(super) struct PublishPropertyMalformed;
+
+#[derive(Debug, thiserror::Error)]
+#[error("duplicate or invalid MQTT 5 PUBLISH property value")]
+pub(super) struct PublishPropertyProtocol;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -854,7 +862,7 @@ fn decode_for(
                         0x01 if payload_format_indicator.is_none() => {
                             let value = properties.byte()?;
                             if value > 1 {
-                                return Err("invalid MQTT 5 Payload Format Indicator".into());
+                                return Err(PublishPropertyProtocol.into());
                             }
                             payload_format_indicator = Some(value);
                         }
@@ -888,7 +896,10 @@ fn decode_for(
                             }
                             user_properties.push((key, value));
                         }
-                        _ => return Err("unsupported or duplicate MQTT 5 PUBLISH property".into()),
+                        0x02 | 0x23 | 0x01 | 0x03 | 0x08 | 0x09 => {
+                            return Err(PublishPropertyProtocol.into());
+                        }
+                        _ => return Err(PublishPropertyMalformed.into()),
                     }
                 }
             }
@@ -1901,6 +1912,45 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn mqtt5_publish_property_errors_have_contextual_reasons() {
+        let decode_properties = |properties: &[u8]| {
+            let mut body = vec![0, 1, b't', u8::try_from(properties.len()).unwrap()];
+            body.extend_from_slice(properties);
+            body.push(b'x');
+            decode_for(0x30, &body, true)
+        };
+        for outside_context in [&[0x21, 0, 1][..], &[0x11, 0, 0, 0, 1][..]] {
+            assert!(
+                decode_properties(outside_context)
+                    .unwrap_err()
+                    .is::<PublishPropertyMalformed>()
+            );
+        }
+        for unique in [
+            &[0x02, 0, 0, 0, 1][..],
+            &[0x23, 0, 1][..],
+            &[0x01, 1][..],
+            &[0x03, 0, 1, b'a'][..],
+            &[0x08, 0, 1, b'r'][..],
+            &[0x09, 0, 1, b'c'][..],
+        ] {
+            let duplicate = [unique, unique].concat();
+            assert!(
+                decode_properties(&duplicate)
+                    .unwrap_err()
+                    .is::<PublishPropertyProtocol>(),
+                "{unique:?}"
+            );
+        }
+        assert!(
+            decode_properties(&[0x01, 2])
+                .unwrap_err()
+                .is::<PublishPropertyProtocol>()
+        );
+        assert!(decode_properties(&[0x01]).is_err());
     }
 
     #[test]
