@@ -3899,6 +3899,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[expect(clippy::too_many_lines, reason = "one actor fixture covers delayed publication, cancellation, clean start and session expiry")]
     async fn mqtt5_will_delay_publishes_or_cancels_with_session_transition() {
         let (_directory, mut actor) = actor().await;
         let mut watcher = actor
