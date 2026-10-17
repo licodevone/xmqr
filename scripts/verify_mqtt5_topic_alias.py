@@ -14,7 +14,7 @@ def connect(port, identity):
             + len(identity).to_bytes(2, "big") + identity)
     stream.sendall(bytes([0x10, len(body)]) + body)
     header, ack = packet(stream)
-    assert header == 0x20 and ack == b"\x00\x00\x0b\x27\x00\x01\x00\x00\x22\x00\x10\x21\x00\x20", ack
+    assert header == 0x20 and ack == b"\x00\x00\x0d\x27\x00\x01\x00\x00\x22\x00\x10\x2a\x01\x21\x00\x20", ack
     return stream
 
 
@@ -68,7 +68,8 @@ def main():
 
             fresh = connect(port, b"alias-fresh")
             publish(fresh, b"", 1, b"invalid")
-            assert fresh.recv(1) == b"", "alias crossed connection boundary"
+            assert packet(fresh) == (0xe0, b"\x94\x00"), "alias crossed connection boundary"
+            assert fresh.recv(1) == b""
             fresh.close()
 
             result = subprocess.run(

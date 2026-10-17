@@ -26,6 +26,10 @@ pub(super) struct UnsupportedProtocolLevel(pub(super) u8);
 #[error("MQTT packet exceeds local size limit")]
 pub(super) struct PacketTooLarge;
 
+#[derive(Debug, thiserror::Error)]
+#[error("invalid MQTT 5 Topic Alias")]
+pub(super) struct TopicAliasInvalid;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -212,11 +216,11 @@ impl FrameReader {
                         *topic = Some(
                             self.topic_aliases
                                 .get(&alias)
-                                .ok_or("unknown MQTT 5 Topic Alias")?
+                                .ok_or(TopicAliasInvalid)?
                                 .clone(),
                         );
                     }
-                    (Some(_), _) => return Err("MQTT 5 Topic Alias exceeds maximum".into()),
+                    (Some(_), _) => return Err(TopicAliasInvalid.into()),
                     (None, Some(_)) => (),
                     (None, None) => return Err("empty MQTT 5 Topic Name without alias".into()),
                 }
@@ -792,7 +796,7 @@ fn decode_for(
                         0x23 if topic_alias.is_none() => {
                             let alias = properties.word()?;
                             if alias == 0 {
-                                return Err("zero MQTT 5 Topic Alias".into());
+                                return Err(TopicAliasInvalid.into());
                             }
                             topic_alias = Some(alias);
                         }
@@ -1641,6 +1645,11 @@ mod tests {
         assert_eq!(publish(&[0, 0, 3, 0x23, 0, 1, b'z']).unwrap(), "b");
         assert!(publish(&[0, 1, b'a', 3, 0x23, 0, 17, b'x']).is_err());
         assert!(publish(&[0, 1, b'a', 3, 0x23, 0, 0, b'x']).is_err());
+        assert!(
+            decode_for(0x30, &[0, 1, b'a', 3, 0x23, 0, 0, b'x'], true)
+                .unwrap_err()
+                .is::<TopicAliasInvalid>()
+        );
         assert!(publish(&[0, 1, b'a', 6, 0x23, 0, 1, 0x23, 0, 1]).is_err());
         assert!(publish(&[0, 0, 0, b'x']).is_err());
         drop(publish);
@@ -1648,7 +1657,12 @@ mod tests {
         reader
             .buffer
             .extend_from_slice(&[0x30, 7, 0, 0, 3, 0x23, 0, 1, b'y']);
-        assert!(reader.try_take_packet().is_err());
+        assert!(
+            reader
+                .try_take_packet()
+                .unwrap_err()
+                .is::<TopicAliasInvalid>()
+        );
         assert_eq!(
             encode_mqtt5_alias_connack(false),
             [0x20, 0x0d, 0, 0, 10, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x2a, 1]
