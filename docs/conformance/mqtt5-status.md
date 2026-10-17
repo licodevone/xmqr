@@ -78,7 +78,15 @@ broker usa o nome completo sem alias quando couber. QoS0/1/2, retained e
 reinício foram testados em TCP real. O client XMQR C75 recebe e exibe o tópico
 resolvido. O Mosquitto 2.0.22 encerra a conexão ao receber a segunda forma
 abreviada válida, inclusive em fixture independente; esta direção externa
-não está homologada. Outras propriedades de publicação seguem pendentes; não se declara
+não está homologada. P141, em validação após 0.21.0, aceita Payload Format
+Indicator `0x01` (0/1) e Content Type `0x03` (texto MQTT de até 256 bytes) em
+PUBLISH MQTT 5. Ambas são preservadas em QoS0/1/2, retained, offline e após
+restart, com documento durável v9 na próxima gravação. Em assinantes MQTT 3.1.1,
+as propriedades são omitidas. O broker não verifica se o payload anunciado como
+UTF-8 realmente tem essa codificação; o MQTT 5 permite ao receptor optar por
+não fazer essa validação. Client C77 valida payload UTF-8 antes da conexão quando
+o indicador é 1. Response Topic, Correlation Data, User Property e outras
+propriedades de publicação seguem pendentes; não se declara
 conformidade MQTT 5 integral.
 
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
@@ -89,7 +97,9 @@ Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. P128 migra o documento durável de v5 para v6 na próxima
 gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
 backup privado anterior à migração. P130 migra o documento de v6 para v7;
-P132 migra de v7 para v8. A versão 0.18.0 não pode reabrir v7/v8 sem backup anterior.
+P132 migra de v7 para v8. P141, ainda não distribuído em 0.21.0, migra de v8
+para v9 na próxima gravação; 0.21.0 não reabre v9 sem backup privado v8 anterior.
+A versão 0.18.0 não pode reabrir v7/v8 sem backup anterior.
 
 Historicamente, P114 recusava todo `CONNECT` 5 com `CONNACK 0x84`; esse contrato
 foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
@@ -124,6 +134,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [C73](../../../xmqr-client/prompts/registros/C73-maximum-packet-size-mqtt5.md),
 [P138](../../prompts/registros/P138-topic-alias-entrada-mqtt5.md),
 [P139](../../prompts/registros/P139-topic-alias-saida-mqtt5.md) e
-[C75](../../../xmqr-client/prompts/registros/C75-topic-alias-maximum-mqtt5.md).
+[C75](../../../xmqr-client/prompts/registros/C75-topic-alias-maximum-mqtt5.md),
+[P141](../../prompts/registros/P141-publish-payload-format-content-type-mqtt5.md) e
+[C77](../../../xmqr-client/prompts/registros/C77-publish-payload-format-content-type-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

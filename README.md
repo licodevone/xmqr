@@ -1,5 +1,11 @@
 # XMQR
 
+Na árvore em desenvolvimento após 0.21.0, P141 preserva Payload Format
+Indicator e Content Type de PUBLISH MQTT 5 nas entregas, mensagens retidas e
+fila offline. O documento durável passa a v9 na próxima gravação: preserve
+backup privado v8 para voltar ao broker 0.21.0. O client C77 publica essas
+propriedades. Outras propriedades de PUBLISH continuam pendentes.
+
 O marco experimental 0.21.0 aceita Topic Alias MQTT 5 de entrada e saída
 (P138/P139), limitado a 16 por conexão e ao máximo anunciado pelo assinante.
 O client 0.19.0 recebe a forma abreviada. O Mosquitto 2.0.22 fecha a conexão

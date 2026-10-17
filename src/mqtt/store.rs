@@ -20,7 +20,7 @@ use super::StateLimits;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 8;
+const FORMAT_VERSION: u16 = 9;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
@@ -136,6 +136,10 @@ pub(super) struct StoredMessage {
     pub retain: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expiry_at_unix_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_format_indicator: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
 }
 
 /// An inbound `QoS` 2 PUBLISH has been committed before PUBREC; PUBREL must
@@ -431,6 +435,25 @@ fn validate_message(message: &StoredMessage) -> Result<(), StateError> {
     if message.qos > 2 {
         return Err(StateError::Malformed);
     }
+    if message
+        .payload_format_indicator
+        .is_some_and(|value| value > 1)
+    {
+        return Err(StateError::Malformed);
+    }
+    if message.content_type.as_ref().is_some_and(|value| {
+        value.len() > 256
+            || value.chars().any(|ch| {
+                let code = ch as u32;
+                ch == '\0'
+                    || ch.is_control()
+                    || (0xfdd0..=0xfdef).contains(&code)
+                    || code & 0xffff == 0xfffe
+                    || code & 0xffff == 0xffff
+            })
+    }) {
+        return Err(StateError::Malformed);
+    }
     Ok(())
 }
 
@@ -593,6 +616,8 @@ mod tests {
             qos,
             retain: false,
             expiry_at_unix_ms: None,
+            payload_format_indicator: None,
+            content_type: None,
         }
     }
 
@@ -696,7 +721,7 @@ mod tests {
         }
         assert!(matches!(
             MqttStore::open(directory.path()).await,
-            Err(StateError::UnsupportedVersion(9))
+            Err(StateError::UnsupportedVersion(10))
         ));
     }
 
@@ -756,8 +781,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_to_v7_and_commits_v8_without_losing_retained() {
-        for version in [1, 2, 3, 4, 5, 6, 7] {
+    async fn reads_v1_to_v8_and_commits_v9_without_losing_retained() {
+        for version in [1, 2, 3, 4, 5, 6, 7, 8] {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -782,13 +807,13 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 8);
+            assert_eq!(envelope.version, 9);
             assert_eq!(envelope.state, expected);
         }
     }
 
     #[tokio::test]
-    async fn reads_v7_will_without_delay_fields_and_commits_v8() {
+    async fn reads_v7_will_without_delay_fields_and_commits_v9() {
         let directory = tempdir().unwrap();
         let mut expected = state();
         expected.pending_wills.insert(
@@ -817,7 +842,7 @@ mod tests {
         let writer = Store::open(directory.path()).unwrap();
         let bytes = writer.get(KEY).unwrap();
         let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-        assert_eq!(envelope.version, 8);
+        assert_eq!(envelope.version, 9);
         assert_eq!(envelope.state, expected);
     }
 

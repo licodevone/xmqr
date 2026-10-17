@@ -1,0 +1,11 @@
+# P141 rev1 — Payload Format Indicator e Content Type no PUBLISH MQTT 5
+
+Entrada: P138/P139/C75 e releases 0.21.0/0.19.0 aceitas; fase 6C aberta. Criar este prompt antes do código. Fonte normativa: [OASIS MQTT 5 §3.3.2.3](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html). O broker deve encaminhar Payload Format Indicator e Content Type sem alterá-los.
+
+Objetivo: aceitar no PUBLISH MQTT 5 Payload Format Indicator `0x01` (0/1, único) e Content Type `0x03` (texto MQTT válido, único, até 256 bytes no limite XMQR), além de Message Expiry e Topic Alias existentes. Armazenar as propriedades na mensagem para roteamento, QoS2, retained, offline e replay após restart; incrementar o documento durável de v8 para v9 com leitura dos documentos v1–v8. Encaminhar propriedades intactas a assinantes MQTT 5, sem acrescentá-las a MQTT 3.1.1. Manter limites de pacote, quotas, expiração e aliases de saída. O receptor pode optar por não validar o payload UTF-8 quando indicador=1; essa decisão deve ser declarada. Não aceitar propriedades além deste recorte, incluindo Will properties, Response Topic, Correlation Data e User Property, que continuam pendentes.
+
+Aceite: vetores positivos/negativos do parser e encoder (duplicata, valor 2, texto inválido/truncado, limite), integração TCP QoS0/1/2, retained, offline/restart e assinantes MQTT 5/3.1.1; migração v8→v9 e rollback documentados; client independente C77 e Mosquitto quando compatível; regressões P130/P136/P139; fmt, testes, Clippy, build, licenças e CI da fonte. Atualizar checklist apenas após aceite. Commit/push, sem tag para recorte isolado e sem novo ensaio físico ESP32.
+
+Revisão após o primeiro gate: `cargo test --locked --lib` falhou na compilação E0063 porque o fixture de fuzz cria `StoredMessage` sem os dois campos novos. Atualizar esse fixture, repetir a compilação e só então avaliar os testes; não contar o gate como teste funcional.
+
+Revisão após o segundo gate: 159 testes passaram, 6 ignorados e apenas `rejects_unsupported_document_version` falhou por esperar a antiga primeira versão incompatível 9. Com documento atual v9, o negativo deve esperar 10; corrigir o vetor e repetir a suíte. O teste de codec das novas propriedades foi adicionado após esse gate e também precisa ser executado.

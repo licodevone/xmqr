@@ -297,7 +297,7 @@ async fn serve_mqtt(
                             let ack = if mqtt5 { codec::encode_mqtt5_unsuback(packet_id, &codes) } else { encode_unsuback(packet_id).to_vec() };
                             write_limited(connection, &ack, outbound_maximum).await?;
                         }
-                        Packet::Publish { topic, topic_alias: _, payload, qos, retain, dup, packet_id, expiry_interval } => {
+                        Packet::Publish { topic, topic_alias: _, payload, qos, retain, dup, packet_id, expiry_interval, payload_format_indicator, content_type } => {
                             let topic = topic.ok_or("unresolved MQTT 5 Topic Alias")?;
                             // DUP is a PUBLISH retransmission hint, not an application dedup key.
                             let _ = dup;
@@ -313,7 +313,7 @@ async fn serve_mqtt(
                                 break;
                             }
                             let expiry_at_unix_ms = expiry_interval.map(router::message_expiry_deadline).transpose()?;
-                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms };
+                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms, payload_format_indicator, content_type };
                             router.publish(&session, message, packet_id).await?;
                             match (qos, packet_id) {
                                 (Qos::AtLeastOnce, Some(id)) => write_limited(connection, &encode_puback(id), outbound_maximum).await?,
@@ -417,8 +417,18 @@ async fn send_delivery(
                 None
             };
             let topic = message.topic.as_str();
+            let payload_format_indicator = if mqtt5 {
+                message.payload_format_indicator
+            } else {
+                None
+            };
+            let content_type = if mqtt5 {
+                message.content_type.as_deref()
+            } else {
+                None
+            };
             let alias_mode = aliases.candidate(topic);
-            let mut encoded = codec::encode_publish_with_expiry_alias(
+            let mut encoded = codec::encode_publish_with_properties(
                 topic,
                 &message.payload,
                 Qos::from_u8(message.qos)?,
@@ -428,12 +438,14 @@ async fn send_delivery(
                 mqtt5,
                 expiry,
                 alias_mode,
+                payload_format_indicator,
+                content_type,
             )?;
             if matches!(alias_mode, TopicAliasMode::Establish(_))
                 && encoded.len() > outbound_maximum
             {
                 // Do not establish an alias with a packet the peer cannot receive.
-                encoded = codec::encode_publish_with_expiry(
+                encoded = codec::encode_publish_with_properties(
                     topic,
                     &message.payload,
                     Qos::from_u8(message.qos)?,
@@ -442,6 +454,9 @@ async fn send_delivery(
                     packet_id,
                     mqtt5,
                     expiry,
+                    TopicAliasMode::None,
+                    payload_format_indicator,
+                    content_type,
                 )?;
             } else if let TopicAliasMode::Establish(alias) = alias_mode {
                 pending_alias = Some((topic.to_owned(), alias));

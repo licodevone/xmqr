@@ -82,6 +82,8 @@ pub(super) enum Packet {
         dup: bool,
         packet_id: Option<u16>,
         expiry_interval: Option<u32>,
+        payload_format_indicator: Option<u8>,
+        content_type: Option<String>,
     },
     PubAck(u16),
     PubRec(u16),
@@ -484,6 +486,8 @@ fn decode_for(
                     qos: will_qos,
                     retain: will_retain,
                     expiry_at_unix_ms: None,
+                    payload_format_indicator: None,
+                    content_type: None,
                 })
             } else {
                 None
@@ -587,6 +591,8 @@ fn decode_for(
             };
             let mut expiry_interval = None;
             let mut topic_alias = None;
+            let mut payload_format_indicator = None;
+            let mut content_type = None;
             if mqtt5 {
                 let property_length = c.variable_integer()?;
                 let raw = c.bytes(property_length)?;
@@ -603,6 +609,20 @@ fn decode_for(
                                 return Err("zero MQTT 5 Topic Alias".into());
                             }
                             topic_alias = Some(alias);
+                        }
+                        0x01 if payload_format_indicator.is_none() => {
+                            let value = properties.byte()?;
+                            if value > 1 {
+                                return Err("invalid MQTT 5 Payload Format Indicator".into());
+                            }
+                            payload_format_indicator = Some(value);
+                        }
+                        0x03 if content_type.is_none() => {
+                            let value = properties.text()?;
+                            if value.len() > 256 {
+                                return Err("MQTT 5 Content Type too long".into());
+                            }
+                            content_type = Some(value);
                         }
                         _ => return Err("unsupported or duplicate MQTT 5 PUBLISH property".into()),
                     }
@@ -624,6 +644,8 @@ fn decode_for(
                 dup,
                 packet_id,
                 expiry_interval,
+                payload_format_indicator,
+                content_type,
             }
         }
         0x40 => Packet::PubAck(success_ack_id(&mut c, mqtt5)?),
@@ -859,6 +881,7 @@ pub(super) enum TopicAliasMode {
     Use(u16),
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub(super) fn encode_publish_with_expiry(
     topic: &str,
@@ -883,6 +906,7 @@ pub(super) fn encode_publish_with_expiry(
     )
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub(super) fn encode_publish_with_expiry_alias(
     topic: &str,
@@ -895,6 +919,35 @@ pub(super) fn encode_publish_with_expiry_alias(
     expiry_interval: Option<u32>,
     alias_mode: TopicAliasMode,
 ) -> Result<Vec<u8>, &'static str> {
+    encode_publish_with_properties(
+        topic,
+        payload,
+        qos,
+        retain,
+        dup,
+        packet_id,
+        mqtt5,
+        expiry_interval,
+        alias_mode,
+        None,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn encode_publish_with_properties(
+    topic: &str,
+    payload: &[u8],
+    qos: Qos,
+    retain: bool,
+    dup: bool,
+    packet_id: Option<u16>,
+    mqtt5: bool,
+    expiry_interval: Option<u32>,
+    alias_mode: TopicAliasMode,
+    payload_format_indicator: Option<u8>,
+    content_type: Option<&str>,
+) -> Result<Vec<u8>, &'static str> {
     // MQTT-2.3.1-5 and MQTT-3.3.1-2: identifier and DUP follow QoS.
     match (qos, packet_id) {
         (Qos::AtMostOnce, None) if !dup => (),
@@ -904,8 +957,24 @@ pub(super) fn encode_publish_with_expiry_alias(
     if !valid_topic_name(topic) || payload.len() > MAX_PAYLOAD {
         return Err("invalid outbound MQTT topic or payload");
     }
-    if (expiry_interval.is_some() || alias_mode != TopicAliasMode::None) && !mqtt5 {
+    if (expiry_interval.is_some()
+        || alias_mode != TopicAliasMode::None
+        || payload_format_indicator.is_some()
+        || content_type.is_some())
+        && !mqtt5
+    {
         return Err("MQTT 5 property on MQTT 3.1.1 PUBLISH");
+    }
+    if payload_format_indicator.is_some_and(|value| value > 1) {
+        return Err("invalid outbound MQTT 5 Payload Format Indicator");
+    }
+    if content_type.is_some_and(|value| {
+        value.len() > 256
+            || value
+                .chars()
+                .any(|ch| ch == '\0' || ch.is_control() || is_noncharacter(ch))
+    }) {
+        return Err("invalid outbound MQTT 5 Content Type");
     }
     let alias = match alias_mode {
         TopicAliasMode::None => None,
@@ -919,12 +988,16 @@ pub(super) fn encode_publish_with_expiry_alias(
     } else {
         topic.as_bytes()
     };
-    let properties_len: u8 =
-        u8::from(expiry_interval.is_some()) * 5 + u8::from(alias.is_some()) * 3;
+    let properties_len = usize::from(expiry_interval.is_some()) * 5
+        + usize::from(alias.is_some()) * 3
+        + usize::from(payload_format_indicator.is_some()) * 2
+        + content_type.map_or(0, |value| 3 + value.len());
+    let mut properties_header = Vec::new();
+    encode_length(properties_len, &mut properties_header);
     let len = 2
         + name.len()
         + usize::from(packet_id.is_some()) * 2
-        + usize::from(mqtt5) * (1 + usize::from(properties_len))
+        + usize::from(mqtt5) * (properties_header.len() + properties_len)
         + payload.len();
     if name.len() > u16::MAX as usize {
         return Err("outbound MQTT packet too large");
@@ -941,7 +1014,10 @@ pub(super) fn encode_publish_with_expiry_alias(
         out.extend_from_slice(&id.to_be_bytes());
     }
     if mqtt5 {
-        out.push(properties_len);
+        out.extend_from_slice(&properties_header);
+        if let Some(value) = payload_format_indicator {
+            out.extend_from_slice(&[0x01, value]);
+        }
         if let Some(seconds) = expiry_interval {
             out.push(0x02);
             out.extend_from_slice(&seconds.to_be_bytes());
@@ -949,6 +1025,15 @@ pub(super) fn encode_publish_with_expiry_alias(
         if let Some(alias) = alias {
             out.push(0x23);
             out.extend_from_slice(&alias.to_be_bytes());
+        }
+        if let Some(value) = content_type {
+            out.push(0x03);
+            out.extend_from_slice(
+                &u16::try_from(value.len())
+                    .expect("at most 256")
+                    .to_be_bytes(),
+            );
+            out.extend_from_slice(value.as_bytes());
         }
     }
     out.extend_from_slice(payload);
@@ -1124,6 +1209,88 @@ mod tests {
                 None,
                 false,
                 Some(7)
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn mqtt5_publish_format_and_content_type_vectors_and_rejections() {
+        let encoded = encode_publish_with_properties(
+            "t",
+            b"x",
+            Qos::AtMostOnce,
+            false,
+            false,
+            None,
+            true,
+            None,
+            TopicAliasMode::None,
+            Some(1),
+            Some("text/plain"),
+        )
+        .unwrap();
+        assert_eq!(
+            encoded,
+            [
+                0x30, 20, 0, 1, b't', 15, 0x01, 1, 0x03, 0, 10, b't', b'e', b'x', b't', b'/', b'p',
+                b'l', b'a', b'i', b'n', b'x',
+            ]
+        );
+        assert!(matches!(
+            decode_for(0x30, &encoded[2..], true).unwrap(),
+            Packet::Publish {
+                payload_format_indicator: Some(1),
+                content_type: Some(value),
+                ..
+            } if value == "text/plain"
+        ));
+        for properties in [
+            &[4, 0x01, 1, 0x01, 0][..],
+            &[2, 0x01, 2][..],
+            &[4, 0x03, 0, 1, 0xff][..],
+            &[3, 0x03, 0, 1][..],
+            &[10, 0x03, 0, 2, b'a', b'b', 0x03, 0, 2, b'c', b'd'][..],
+        ] {
+            let mut body = vec![0, 1, b't'];
+            body.extend_from_slice(properties);
+            body.push(b'x');
+            assert!(decode_for(0x30, &body, true).is_err());
+        }
+        let long = "x".repeat(128);
+        let encoded = encode_publish_with_properties(
+            "t",
+            b"x",
+            Qos::AtMostOnce,
+            false,
+            false,
+            None,
+            true,
+            None,
+            TopicAliasMode::None,
+            Some(0),
+            Some(&long),
+        )
+        .unwrap();
+        assert_eq!(&encoded[6..8], &[0x85, 0x01]); // 133 property bytes.
+        assert!(matches!(
+            decode_for(0x30, &encoded[3..], true).unwrap(),
+            Packet::Publish { content_type: Some(value), .. } if value == long
+        ));
+        let too_long = "x".repeat(257);
+        assert!(
+            encode_publish_with_properties(
+                "t",
+                b"x",
+                Qos::AtMostOnce,
+                false,
+                false,
+                None,
+                true,
+                None,
+                TopicAliasMode::None,
+                None,
+                Some(&too_long),
             )
             .is_err()
         );

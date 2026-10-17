@@ -3257,6 +3257,8 @@ mod tests {
             qos: 1,
             retain: false,
             expiry_at_unix_ms: None,
+            payload_format_indicator: None,
+            content_type: None,
         };
         let second = StoredMessage {
             topic: super::super::topic::TopicName::try_from("test/second".to_owned()).unwrap(),
@@ -3264,6 +3266,8 @@ mod tests {
             qos: 1,
             retain: false,
             expiry_at_unix_ms: None,
+            payload_format_indicator: None,
+            content_type: None,
         };
         prepare_delivery(limits, &mut session, first.clone()).unwrap();
         assert!(prepare_delivery(limits, &mut session, second.clone()).is_err());
@@ -3808,6 +3812,8 @@ mod tests {
             qos,
             retain,
             expiry_at_unix_ms: None,
+            payload_format_indicator: None,
+            content_type: None,
         }
     }
 

@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Em desenvolvimento após 0.21.0
+
+- P141: Payload Format Indicator (0/1) e Content Type MQTT 5 (até 256 bytes) são preservados na entrega, retenção, fila offline e replay. O documento durável passa a v9 na próxima gravação; rollback para 0.21.0 exige backup privado v8. O broker não valida a codificação UTF-8 do payload quando o indicador é 1, opção permitida ao receptor pelo MQTT 5.
+
 ## 0.21.0 — Topic Alias MQTT 5, experimental
 
 - P138: Topic Alias de entrada MQTT 5 por conexão, com máximo anunciado de 16 quando o CONNACK cabe; alias inválido ou não estabelecido fecha a conexão sem publicar.
