@@ -22,7 +22,6 @@ import time
 import tomllib
 
 TOPIC = "xmqr/teste/ambiente"
-SAMPLES = [(23.1, 45.2), (23.3, 45.5), (23.4, 45.1), (23.2, 45.8), (23.5, 45.4)]
 HOST = "192.168.0.100"
 HOST_PORT = 28883
 BROKER_PORT = 8883
@@ -143,6 +142,15 @@ class RelayHandler(socketserver.BaseRequestHandler):
 
 def read_lines(stream, events, kind):
     for line in iter(stream.readline, b""):
+        if kind == "stdout":
+            try:
+                sample = sample_from_line(line)
+                print(f"P135_SUB_RECEIVED seq={sample['seq']} "
+                      f"temperature_c={sample['temperature_c']:.1f} "
+                      f"humidity_pct={sample['humidity_pct']:.1f} "
+                      f"source=simulated", flush=True)
+            except (ValueError, KeyError, TypeError, UnicodeError):
+                pass
         events.put((kind, line[:1024]))
 
 
@@ -218,20 +226,36 @@ def serial_markers(port):
         raise ValueError("incomplete ESP32 telemetry transcript")
 
 
+def sample_from_line(raw):
+    envelope = json.loads(raw)
+    payload = json.loads(bytes(envelope["payload_bytes"]))
+    if (envelope["event"] != "publish" or envelope["topic"] != TOPIC
+            or envelope["qos"] != 1 or envelope["retain"]
+            or payload["source"] != "simulated"
+            or type(payload["run_id"]) is not int
+            or not 0 <= payload["run_id"] < 2**32
+            or type(payload["seq"]) is not int
+            or type(payload["temperature_c"]) not in (int, float)
+            or type(payload["humidity_pct"]) not in (int, float)
+            or not 20.0 <= payload["temperature_c"] < 30.0
+            or not 40.0 <= payload["humidity_pct"] < 70.0):
+        raise ValueError("invalid simulated telemetry")
+    return payload
+
+
 def verify_messages(lines):
     if len(lines) != 5:
         raise ValueError(f"subscriber received {len(lines)} of 5 messages")
+    run_id = None
+    values = set()
     for index, raw in enumerate(lines):
-        envelope = json.loads(raw)
-        payload = json.loads(bytes(envelope["payload_bytes"]))
-        temperature, humidity = SAMPLES[index]
-        if (envelope["event"] != "publish" or envelope["topic"] != TOPIC
-                or envelope["qos"] != 1 or envelope["retain"]
-                or payload != {"seq": index + 1, "temperature_c": temperature,
-                               "humidity_pct": humidity, "source": "simulated"}):
+        payload = sample_from_line(raw)
+        if payload["seq"] != index + 1 or (run_id is not None and payload["run_id"] != run_id):
             raise ValueError("subscriber message/topic/sequence mismatch")
-        print(f"P135_SUB_RECEIVED seq={index + 1} temperature_c={temperature:.1f} "
-              f"humidity_pct={humidity:.1f} source=simulated", flush=True)
+        run_id = payload["run_id"]
+        values.add((payload["temperature_c"], payload["humidity_pct"]))
+    if len(values) < 2:
+        raise ValueError("telemetry values did not vary")
 
 
 def exercise(args):

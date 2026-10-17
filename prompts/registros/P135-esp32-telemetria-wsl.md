@@ -9,4 +9,10 @@ Prompt [P135 rev2](../broker/135-esp32-telemetria-wsl.md), preparado antes do fi
 - Gates: sintaxe do runner PASS; cross-build ESP-IDF 5.5.5, `cargo fmt --check` e Clippy `-D warnings` PASS; 94 testes Python do fixture com 93 PASS/1 SKIP por symlink sem privilégio. Uma tentativa da suíte com Python global falhou na importação de `pyserial`; a suíte foi repetida no ambiente ESP-IDF configurado e passou. `git diff --check` PASS.
 - Limpeza: sem listener 8883 nem diretório `xmqr-p135-*` residual no WSL; COM4 continua presente. O firmware de ensaio permanece na ESP32 até outra gravação ou restauração deliberada. Não há prova de sensor externo, longa duração ou aplicação de produção.
 
+## Rev3 — valores variáveis e acompanhamento
+
+O operador solicitou amostras variáveis e saída visível. O firmware agora usa um gerador pseudoaleatório leve sem dependência nova, inicializado pelo relógio após SNTP; cada JSON inclui `run_id`, `seq`, temperatura na faixa 20,0–29,9 °C, umidade 40,0–69,9% e `source=simulated`. O assinante mostra cada valor assim que o recebe; o verificador exige cinco sequências, mesmo `run_id`, faixas e variação. Dados não são criptograficamente aleatórios nem medidos por DHT22.
+
+Novo cross-build/fmt/Clippy PASS e suíte host 96 testes (95 PASS, 1 SKIP por symlink). A placa foi regravada na COM4 após conferência dos mesmos backups/chip; cinco PUBACKs e cinco mensagens do subscriber PASS. Valores observados: 25,4/57,8; 26,4/64,4; 24,4/46,9; 29,2/45,0; 28,6/69,9 (°C/%). Repetição `--observe` sem flash também PASS, com 24,5/40,5; 29,5/62,5; 28,3/58,7; 29,0/48,6; 21,8/49,0. Os dois conjuntos diferentes demonstram variação entre boots. O runner abriu broker e subscriber no WSL isolados, ponte LAN temporária, e limpou recursos ao terminar. [Resultado atualizado](../../docs/results/p135-esp32-2026-10-16.json).
+
 [Resultado sanitizado](../../docs/results/p135-esp32-2026-10-16.json). Nenhuma tag/release específica: trata-se de validação de bancada, sem alteração no runtime publicado.

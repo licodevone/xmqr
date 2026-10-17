@@ -9,7 +9,8 @@ Alvo observado: ESP32 DevKitV1/ESP32-D0WD-V3/4MiB/COM4.
 Ensaio físico aceito em 2026-10-16: broker 0.19.0 e `mqtt-client` 0.17.0
 executados em processos isolados no Ubuntu 26/WSL, enquanto a ESP32 na COM4
 publicou cinco JSONs QoS 1 em `xmqr/teste/ambiente`. Os dois lados confirmaram
-as cinco sequências. Temperatura e umidade são valores **simulados**, declarados
+as cinco sequências. Temperatura e umidade são valores **simulados variáveis**,
+gerados por algoritmo pseudoaleatório após a sincronização do relógio e declarados
 no campo `source`; a placa usada não tem sensor ambiental conectado. Veja
 [P135](../../prompts/registros/P135-esp32-telemetria-wsl.md).
 
@@ -33,8 +34,9 @@ $python = 'C:\Users\licod\.espressif\python_env\idf5.5_py3.13_env\Scripts\python
 Após uma gravação verificada, `--observe` repete o ensaio reiniciando o firmware
 instalado sem gravá-lo novamente. O runner exibe `P135_PUBACK seq=1..5`,
 `P135_SUB_RECEIVED seq=1..5` e, somente após verificar ambos, o marcador
-`P135_PASS_PHYSICAL_WSL_TELEMETRY`. Certificados/CA vencidos, Wi-Fi ausente ou
-placa diferente encerram o teste sem alegação de sucesso.
+`P135_PASS_PHYSICAL_WSL_TELEMETRY`. As linhas `P135_SUB_RECEIVED` aparecem em
+tempo real no terminal que executa o comando. Certificados/CA vencidos, Wi-Fi
+ausente ou placa diferente encerram o teste sem alegação de sucesso.
 
 AtualP85/2026-10-13: campanha curta E01 ACCEPTED junto a softwareP80/C43.
 Will/quebra de link, reconexãoWi-Fi/broker, retained após restart/live/delete,

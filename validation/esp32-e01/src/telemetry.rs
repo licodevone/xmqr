@@ -10,14 +10,20 @@ use esp_idf_svc::{
 use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     thread,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 const TOPIC: &str = "xmqr/teste/ambiente";
-const READINGS: [(u16, u16); 5] = [(231, 452), (233, 455), (234, 451), (232, 458), (235, 454)];
 static CONNECTED: AtomicBool = AtomicBool::new(false);
 static ERROR: AtomicBool = AtomicBool::new(false);
 static PUBLISHED: AtomicUsize = AtomicUsize::new(usize::MAX);
+
+fn next(state: &mut u64) -> u32 {
+    *state ^= *state << 13;
+    *state ^= *state >> 7;
+    *state ^= *state << 17;
+    (*state >> 16) as u32
+}
 
 pub fn run(wifi: &mut EspWifi<'_>) -> Result<(), &'static str> {
     let config = MqttClientConfiguration {
@@ -56,12 +62,22 @@ pub fn run(wifi: &mut EspWifi<'_>) -> Result<(), &'static str> {
         return Err("MQTT_CONNECT_TIMEOUT");
     }
     println!("P135_MTLS_CONNECTED");
-    for (index, (temperature, humidity)) in READINGS.iter().enumerate() {
+    let mut seed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| "CLOCK")?
+        .as_nanos() as u64;
+    if seed == 0 {
+        seed = 1;
+    }
+    let run_id = seed & 0xffff_ffff;
+    for index in 0..5 {
         if ERROR.load(Ordering::SeqCst) {
             return Err("MQTT_DISCONNECTED");
         }
+        let temperature = 200 + next(&mut seed) % 100;
+        let humidity = 400 + next(&mut seed) % 300;
         let payload = format!(
-            "{{\"seq\":{},\"temperature_c\":{}.{},\"humidity_pct\":{}.{},\"source\":\"simulated\"}}",
+            "{{\"run_id\":{run_id},\"seq\":{},\"temperature_c\":{}.{},\"humidity_pct\":{}.{},\"source\":\"simulated\"}}",
             index + 1,
             temperature / 10,
             temperature % 10,
