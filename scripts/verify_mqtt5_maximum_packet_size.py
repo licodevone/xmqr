@@ -23,7 +23,7 @@ def connect(port, identity, maximum, clean=True):
     stream.sendall(bytes([0x10, len(body)]) + body)
     header, ack = packet(stream)
     assert header == 0x20 and ack[1] == 0, (header, ack)
-    assert len(ack) == (8 if maximum >= 10 else 3), ack
+    assert len(ack) == (11 if maximum >= 13 else 8 if maximum >= 10 else 3), ack
     return stream
 
 

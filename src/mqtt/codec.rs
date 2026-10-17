@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use tokio::time::Instant;
 
@@ -16,6 +16,7 @@ const MAX_BUFFER: usize = MAX_PACKET;
 const MAX_PAYLOAD: usize = 4096;
 const MAX_SUBSCRIPTIONS: usize = 256;
 const MAX_PARTIAL_FRAME_TIME: Duration = Duration::from_secs(30);
+pub(super) const MAX_TOPIC_ALIAS: u8 = 16;
 
 #[derive(Debug, thiserror::Error)]
 #[error("unsupported MQTT protocol level {0}")]
@@ -72,7 +73,8 @@ pub(super) enum Packet {
         filters: Vec<TopicFilter>,
     },
     Publish {
-        topic: TopicName,
+        topic: Option<TopicName>,
+        topic_alias: Option<u16>,
         payload: Vec<u8>,
         qos: Qos,
         retain: bool,
@@ -97,6 +99,8 @@ pub(super) struct FrameReader {
     buffer: Vec<u8>,
     partial_since: Option<Instant>,
     mqtt5: bool,
+    topic_alias_maximum: u16,
+    topic_aliases: HashMap<u16, TopicName>,
 }
 
 impl FrameReader {
@@ -105,11 +109,15 @@ impl FrameReader {
             buffer: initial,
             partial_since: None,
             mqtt5: false,
+            topic_alias_maximum: 0,
+            topic_aliases: HashMap::new(),
         }
     }
 
-    pub(super) fn set_mqtt5(&mut self) {
+    pub(super) fn set_mqtt5(&mut self, topic_alias_maximum: u16) {
         self.mqtt5 = true;
+        self.topic_alias_maximum = topic_alias_maximum;
+        self.topic_aliases.clear();
     }
 
     pub(super) async fn read_packet(
@@ -160,7 +168,29 @@ impl FrameReader {
             let header = self.buffer[0];
             self.buffer.drain(..header_len + remaining);
             self.partial_since = None;
-            return decode_for(header, &body, self.mqtt5).map(Some);
+            let mut packet = decode_for(header, &body, self.mqtt5)?;
+            if let Packet::Publish {
+                topic, topic_alias, ..
+            } = &mut packet
+            {
+                match (*topic_alias, topic.as_ref()) {
+                    (Some(alias), Some(name)) if alias <= self.topic_alias_maximum => {
+                        self.topic_aliases.insert(alias, name.clone());
+                    }
+                    (Some(alias), None) if alias <= self.topic_alias_maximum => {
+                        *topic = Some(
+                            self.topic_aliases
+                                .get(&alias)
+                                .ok_or("unknown MQTT 5 Topic Alias")?
+                                .clone(),
+                        );
+                    }
+                    (Some(_), _) => return Err("MQTT 5 Topic Alias exceeds maximum".into()),
+                    (None, Some(_)) => (),
+                    (None, None) => return Err("empty MQTT 5 Topic Name without alias".into()),
+                }
+            }
+            return Ok(Some(packet));
         }
         Ok(None)
     }
@@ -531,7 +561,12 @@ fn decode_for(
             if qos == Qos::AtMostOnce && dup {
                 return Err("QoS 0 PUBLISH with DUP flag".into());
             }
-            let topic = TopicName::try_from(c.text()?)?;
+            let topic_name = c.text()?;
+            let topic = if mqtt5 && topic_name.is_empty() {
+                None
+            } else {
+                Some(TopicName::try_from(topic_name)?)
+            };
             // MQTT-2.3.1-5: only QoS 1/2 PUBLISH carries a Packet Identifier.
             let packet_id = if qos == Qos::AtMostOnce {
                 None
@@ -543,17 +578,30 @@ fn decode_for(
                 Some(id)
             };
             let mut expiry_interval = None;
+            let mut topic_alias = None;
             if mqtt5 {
                 let property_length = c.variable_integer()?;
                 let raw = c.bytes(property_length)?;
                 let mut properties = Cursor::new(raw);
                 while properties.pos < raw.len() {
-                    if properties.byte()? != 0x02 || expiry_interval.is_some() {
-                        return Err("unsupported or duplicate MQTT 5 PUBLISH property".into());
+                    match properties.byte()? {
+                        0x02 if expiry_interval.is_none() => {
+                            expiry_interval =
+                                Some(u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap()));
+                        }
+                        0x23 if topic_alias.is_none() => {
+                            let alias = properties.word()?;
+                            if alias == 0 {
+                                return Err("zero MQTT 5 Topic Alias".into());
+                            }
+                            topic_alias = Some(alias);
+                        }
+                        _ => return Err("unsupported or duplicate MQTT 5 PUBLISH property".into()),
                     }
-                    expiry_interval =
-                        Some(u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap()));
                 }
+            }
+            if topic.is_none() && topic_alias.is_none() {
+                return Err("empty MQTT 5 Topic Name without alias".into());
             }
             let payload = c.bytes(body.len() - c.pos)?.to_vec();
             if payload.len() > MAX_PAYLOAD {
@@ -561,6 +609,7 @@ fn decode_for(
             }
             Packet::Publish {
                 topic,
+                topic_alias,
                 payload,
                 qos,
                 retain,
@@ -667,6 +716,24 @@ pub(super) fn encode_mqtt5_success_connack(session_present: bool) -> [u8; 10] {
         1,
         0,
         0,
+    ]
+}
+pub(super) fn encode_mqtt5_alias_connack(session_present: bool) -> [u8; 13] {
+    // The server accepts only inbound aliases 1..=16 for this connection.
+    [
+        0x20,
+        0x0b,
+        u8::from(session_present),
+        0,
+        0x08,
+        0x27,
+        0,
+        1,
+        0,
+        0,
+        0x22,
+        0,
+        MAX_TOPIC_ALIAS,
     ]
 }
 pub(super) fn encode_connack_with_session(
@@ -835,6 +902,42 @@ pub(super) fn encode_publish_with_expiry(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mqtt5_inbound_topic_alias_is_connection_local_and_bounded() {
+        let mut reader = FrameReader::new(Vec::new());
+        reader.set_mqtt5(u16::from(MAX_TOPIC_ALIAS));
+        let mut publish = |body: &[u8]| -> Result<String, String> {
+            reader.buffer.push(0x30);
+            reader.buffer.push(u8::try_from(body.len()).unwrap());
+            reader.buffer.extend_from_slice(body);
+            let result = reader
+                .try_take_packet()
+                .map_err(|error| error.to_string())?;
+            let Some(Packet::Publish { topic, .. }) = result else {
+                panic!("expected PUBLISH");
+            };
+            Ok(topic.unwrap().as_str().to_owned())
+        };
+        assert_eq!(publish(&[0, 1, b'a', 3, 0x23, 0, 1, b'x']).unwrap(), "a");
+        assert_eq!(publish(&[0, 0, 3, 0x23, 0, 1, b'y']).unwrap(), "a");
+        assert_eq!(publish(&[0, 1, b'b', 3, 0x23, 0, 1, b'z']).unwrap(), "b");
+        assert_eq!(publish(&[0, 0, 3, 0x23, 0, 1, b'z']).unwrap(), "b");
+        assert!(publish(&[0, 1, b'a', 3, 0x23, 0, 17, b'x']).is_err());
+        assert!(publish(&[0, 1, b'a', 3, 0x23, 0, 0, b'x']).is_err());
+        assert!(publish(&[0, 1, b'a', 6, 0x23, 0, 1, 0x23, 0, 1]).is_err());
+        assert!(publish(&[0, 0, 0, b'x']).is_err());
+        drop(publish);
+        reader.set_mqtt5(u16::from(MAX_TOPIC_ALIAS));
+        reader
+            .buffer
+            .extend_from_slice(&[0x30, 7, 0, 0, 3, 0x23, 0, 1, b'y']);
+        assert!(reader.try_take_packet().is_err());
+        assert_eq!(
+            encode_mqtt5_alias_connack(false),
+            [0x20, 0x0b, 0, 0, 8, 0x27, 0, 1, 0, 0, 0x22, 0, 16]
+        );
+    }
 
     #[test]
     fn mqtt5_will_delay_connect_vectors() {

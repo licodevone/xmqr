@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Em desenvolvimento após 0.20.0
+
+- P138: Topic Alias de entrada MQTT 5 por conexão, com máximo anunciado de 16 quando o CONNACK cabe; alias inválido ou não estabelecido fecha a conexão sem publicar. Alias de saída ainda não implementado.
+
 ## 0.20.0 — limites de fluxo MQTT 5, experimental
 
 - P134: Receive Maximum do assinante limita PUBLISH QoS1/2 vivos, retidos, offline e em replay sem limitar QoS0 ou PUBREL.

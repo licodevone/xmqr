@@ -192,7 +192,14 @@ async fn serve_mqtt(
         Err(error) => return Err(error.into()),
     };
     let mut guard = router.connection_guard(&session);
-    let connack = if mqtt5 && outbound_maximum >= 10 {
+    let advertised_alias_maximum = if mqtt5 && outbound_maximum >= 13 {
+        u16::from(codec::MAX_TOPIC_ALIAS)
+    } else {
+        0
+    };
+    let connack = if advertised_alias_maximum != 0 {
+        codec::encode_mqtt5_alias_connack(session.resumed).to_vec()
+    } else if mqtt5 && outbound_maximum >= 10 {
         codec::encode_mqtt5_success_connack(session.resumed).to_vec()
     } else if mqtt5 {
         let mut minimal = codec::encode_mqtt5_connack(0);
@@ -211,7 +218,7 @@ async fn serve_mqtt(
         "MQTT client accepted by access policy"
     );
     if mqtt5 {
-        reader.set_mqtt5();
+        reader.set_mqtt5(advertised_alias_maximum);
     }
 
     let mut graceful = false;
@@ -261,7 +268,8 @@ async fn serve_mqtt(
                             let ack = if mqtt5 { codec::encode_mqtt5_unsuback(packet_id, &codes) } else { encode_unsuback(packet_id).to_vec() };
                             write_limited(connection, &ack, outbound_maximum).await?;
                         }
-                        Packet::Publish { topic, payload, qos, retain, dup, packet_id, expiry_interval } => {
+                        Packet::Publish { topic, topic_alias: _, payload, qos, retain, dup, packet_id, expiry_interval } => {
+                            let topic = topic.ok_or("unresolved MQTT 5 Topic Alias")?;
                             // DUP is a PUBLISH retransmission hint, not an application dedup key.
                             let _ = dup;
                             if !auth.allowed_publish(&principal, topic.as_str()) {

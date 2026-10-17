@@ -65,15 +65,20 @@ enviados pelo broker ao client nessa conexão. O CONNACK omite a propriedade
 informativa de tamanho se ela não couber. PUBLISH grande demais é descartado
 e sua obrigação QoS é concluída no estado durável, inclusive em replay; um
 pacote essencial grande demais encerra a conexão. O broker continua anunciando
-seu teto de entrada de 65536 bytes quando o CONNACK completo cabe. Topic Alias
-e outras propriedades de publicação seguem pendentes; não se declara
+seu teto de entrada de 65536 bytes quando o CONNACK completo cabe. P138, ainda
+não distribuído em 0.20.0, anuncia Topic Alias Maximum=16 quando há ao menos
+13 bytes de limite de saída e aceita alias de entrada 1..16 por conexão. Um
+PUBLISH com nome define/redefine o alias; nome vazio o usa. Alias inválido,
+desconhecido, duplicado ou truncado fecha a conexão sem publicar. A tabela não
+é durável nem reaproveitada em reconnect/takeover. O broker não usa alias na
+saída e outras propriedades de publicação seguem pendentes; não se declara
 conformidade MQTT 5 integral.
 
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
 P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há
-outras propriedades de publicação, flow
-control, Topic Alias ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
+outras propriedades de publicação, fluxo de envio completo do client, Topic Alias
+de saída ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. P128 migra o documento durável de v5 para v6 na próxima
 gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
 backup privado anterior à migração. P130 migra o documento de v6 para v7;
