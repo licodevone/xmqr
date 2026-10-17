@@ -54,6 +54,14 @@ pub(super) struct PublishPropertyMalformed;
 #[error("duplicate or invalid MQTT 5 PUBLISH property value")]
 pub(super) struct PublishPropertyProtocol;
 
+#[derive(Debug, thiserror::Error)]
+#[error("MQTT 5 control property is invalid for this packet")]
+pub(super) struct ControlPropertyMalformed;
+
+#[derive(Debug, thiserror::Error)]
+#[error("duplicate MQTT 5 control property")]
+pub(super) struct ControlPropertyDuplicate;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -977,7 +985,8 @@ fn decode_for(
                         let _ = properties.text()?;
                         let _ = properties.text()?;
                     }
-                    _ => return Err("duplicate or unsupported MQTT 5 AUTH property".into()),
+                    0x15 | 0x16 | 0x1f => return Err(ControlPropertyDuplicate.into()),
+                    _ => return Err(ControlPropertyMalformed.into()),
                 }
             }
             let method = method.ok_or("MQTT 5 AUTH missing Authentication Method")?;
@@ -1012,11 +1021,8 @@ fn decode_for(
                             let _ = properties.text()?;
                             let _ = properties.text()?;
                         }
-                        _ => {
-                            return Err(
-                                "duplicate or unsupported MQTT 5 DISCONNECT property".into()
-                            );
-                        }
+                        0x11 | 0x1f => return Err(ControlPropertyDuplicate.into()),
+                        _ => return Err(ControlPropertyMalformed.into()),
                     }
                 }
             }
@@ -3006,6 +3012,47 @@ mod tests {
                 let _ = decode_for(0xf0, &mutated, true);
             }
         }
+    }
+
+    #[test]
+    fn mqtt5_auth_and_disconnect_property_errors_have_contextual_reasons() {
+        let auth = |properties: &[u8]| {
+            let mut body = vec![0x19, u8::try_from(properties.len()).unwrap()];
+            body.extend_from_slice(properties);
+            decode_for(0xf0, &body, true)
+        };
+        let disconnect = |properties: &[u8]| {
+            let mut body = vec![0, u8::try_from(properties.len()).unwrap()];
+            body.extend_from_slice(properties);
+            decode_for(0xe0, &body, true)
+        };
+        for invalid in [&[0x11, 0, 0, 0, 1][..], &[0x21, 0, 1][..]] {
+            assert!(auth(invalid).unwrap_err().is::<ControlPropertyMalformed>());
+        }
+        for invalid in [
+            &[0x15, 0, 1, b'a', 0x15, 0, 1, b'b'][..],
+            &[0x16, 0, 1, b'a', 0x16, 0, 1, b'b'][..],
+            &[0x1f, 0, 1, b'a', 0x1f, 0, 1, b'b'][..],
+        ] {
+            assert!(auth(invalid).unwrap_err().is::<ControlPropertyDuplicate>());
+        }
+        assert!(
+            disconnect(&[0x15, 0, 1, b'a'])
+                .unwrap_err()
+                .is::<ControlPropertyMalformed>()
+        );
+        for invalid in [
+            &[0x11, 0, 0, 0, 1, 0x11, 0, 0, 0, 2][..],
+            &[0x1f, 0, 1, b'a', 0x1f, 0, 1, b'b'][..],
+        ] {
+            assert!(
+                disconnect(invalid)
+                    .unwrap_err()
+                    .is::<ControlPropertyDuplicate>()
+            );
+        }
+        assert!(auth(&[0x15]).is_err());
+        assert!(disconnect(&[0x11, 0]).is_err());
     }
 
     #[test]
