@@ -1,0 +1,5 @@
+# P126 — ACK e DISCONNECT normativos no subconjunto MQTT 5
+
+- [Prompt P126 rev1](../broker/126-ack-disconnect-mqtt5.md) criado antes do código. Base tag `v0.17.0`, fase 6A aberta.
+- O codec aceita em PUBACK/PUBREC/PUBREL/PUBCOMP MQTT 5 o ID abreviado, o motivo explícito `0x00` e o motivo seguido de comprimento de propriedades zero. DISCONNECT normal aceita corpo vazio, motivo `0x00` ou motivo mais comprimento zero. MQTT 3.1.1 conserva os comprimentos anteriores; ID zero, motivos de falha, propriedades não vazias e bytes excedentes são recusados antes de avançar o estado.
+- Vetores positivos/negativos do codec PASS. Ubuntu26/WSL: fmt, suíte completa (139 PASS/6 ignored na biblioteca, demais testes PASS), Clippy, build, inventário MIT, seis cenários Mosquitto e três de shutdown PASS. Integração cruzada com client C64, QoS2 e Mosquitto 2.0.22 PASS. CI do commit ainda pendente. Sem mudança de documento durável, versão publicada, tag ou instalação WSL do operador.

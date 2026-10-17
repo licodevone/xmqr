@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Não publicado — fase 6A em evolução
+
+- P126: ACKs de sucesso PUBACK/PUBREC/PUBREL/PUBCOMP e DISCONNECT normal MQTT 5 aceitam Reason Code `0x00` explícito e comprimento de propriedades zero, preservando as formas abreviadas. Motivos de erro e propriedades continuam fora do subconjunto.
+
 ## 0.17.0 — MQTT 5 ampliado, experimental
 
 - P125: libera explicitamente o lock de escritor ao encerrar `Store`, após recorrência de `AlreadyOpen` no teste de snapshot; exclusão e recuperação preservadas.

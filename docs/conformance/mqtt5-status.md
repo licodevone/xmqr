@@ -31,6 +31,10 @@ P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
 PUBREC/PUBCOMP com código. O estado QoS2 existente continua durável.
+P126 aceita as três formas de sucesso dos ACKs MQTT 5 recebidos (ID apenas,
+motivo `0x00`, motivo `0x00` com comprimento de propriedades zero) e as formas
+equivalentes de DISCONNECT normal. Motivos de falha e propriedades não vazias
+recebidos nesses pacotes ainda fecham a conexão neste subconjunto.
 Receive Maximum pode constar no CONNECT, mas o controle completo de fluxo de
 entrega ainda depende da fase 6C; não se declara conformidade MQTT 5 integral.
 
@@ -57,6 +61,7 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P122](../../prompts/registros/P122-qos2-mqtt5.md) e
 [C63](../../../xmqr-client/prompts/registros/C63-qos2-mqtt5.md),
 [P123](../../prompts/registros/P123-connect-properties-mqtt5.md) e
-[C64](../../../xmqr-client/prompts/registros/C64-connect-properties-mqtt5.md).
+[C64](../../../xmqr-client/prompts/registros/C64-connect-properties-mqtt5.md),
+[P126](../../prompts/registros/P126-ack-disconnect-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

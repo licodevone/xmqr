@@ -484,13 +484,18 @@ fn decode_for(
                 packet_id,
             }
         }
-        0x40 => Packet::PubAck(nonzero_ack_id(&mut c)?),
-        0x50 => Packet::PubRec(nonzero_ack_id(&mut c)?),
+        0x40 => Packet::PubAck(success_ack_id(&mut c, mqtt5)?),
+        0x50 => Packet::PubRec(success_ack_id(&mut c, mqtt5)?),
         // MQTT-3.6.1-1: PUBREL low nibble must be 0010.
-        0x62 => Packet::PubRel(nonzero_ack_id(&mut c)?),
-        0x70 => Packet::PubComp(nonzero_ack_id(&mut c)?),
+        0x62 => Packet::PubRel(success_ack_id(&mut c, mqtt5)?),
+        0x70 => Packet::PubComp(success_ack_id(&mut c, mqtt5)?),
         0xc0 if body.is_empty() => Packet::PingReq,
-        0xe0 if body.is_empty() || mqtt5 && body == [0] => Packet::Disconnect,
+        0xe0 => {
+            if mqtt5 {
+                mqtt5_optional_success_and_empty_properties(&mut c)?;
+            }
+            Packet::Disconnect
+        }
         _ => return Err("unsupported MQTT packet type or flags".into()),
     };
     c.end()?;
@@ -503,6 +508,24 @@ fn nonzero_ack_id(c: &mut Cursor<'_>) -> Result<u16, &'static str> {
         return Err("zero acknowledgment packet id");
     }
     Ok(id)
+}
+
+fn success_ack_id(c: &mut Cursor<'_>, mqtt5: bool) -> Result<u16, &'static str> {
+    let id = nonzero_ack_id(c)?;
+    if mqtt5 {
+        mqtt5_optional_success_and_empty_properties(c)?;
+    }
+    Ok(id)
+}
+
+fn mqtt5_optional_success_and_empty_properties(c: &mut Cursor<'_>) -> Result<(), &'static str> {
+    if c.pos < c.input.len() && c.byte()? != 0 {
+        return Err("MQTT 5 reason code outside the supported success subset");
+    }
+    if c.pos < c.input.len() && c.byte()? != 0 {
+        return Err("MQTT 5 packet properties not supported");
+    }
+    Ok(())
 }
 
 fn encode_length(mut len: usize, output: &mut Vec<u8>) {
@@ -760,6 +783,37 @@ mod tests {
             encode_mqtt5_pubrec_reason(7, 0x87),
             [0x50, 4, 0, 7, 0x87, 0]
         );
+    }
+
+    #[test]
+    fn mqtt5_accepts_only_success_ack_and_normal_disconnect_forms() {
+        for header in [0x40, 0x50, 0x62, 0x70] {
+            for body in [&[0, 7][..], &[0, 7, 0][..], &[0, 7, 0, 0][..]] {
+                assert!(decode_for(header, body, true).is_ok(), "header {header:#x}");
+            }
+            for body in [
+                &[0, 0][..],
+                &[0, 7, 0x80][..],
+                &[0, 7, 0, 1][..],
+                &[0, 7, 0, 0, 0][..],
+            ] {
+                assert!(
+                    decode_for(header, body, true).is_err(),
+                    "header {header:#x}"
+                );
+            }
+            assert!(decode_for(header, &[0, 7, 0], false).is_err());
+        }
+        for body in [&[][..], &[0][..], &[0, 0][..]] {
+            assert!(matches!(
+                decode_for(0xe0, body, true),
+                Ok(Packet::Disconnect)
+            ));
+        }
+        for body in [&[4][..], &[0, 1][..], &[0, 0, 0][..]] {
+            assert!(decode_for(0xe0, body, true).is_err());
+        }
+        assert!(decode_for(0xe0, &[0], false).is_err());
     }
 
     #[test]
