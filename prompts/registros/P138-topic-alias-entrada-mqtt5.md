@@ -8,4 +8,4 @@
 - Quinto gate: teste ACL PASS; Clippy ainda FAIL por 104/100 linhas na função. Extrair a sequência para helper adicional.
 - Sexto gate: teste ACL, Clippy e builds PASS; script TCP executou alias QoS0/1/2, rebind, reset e client independente, mas falhou no Mosquitto por Client ID vazio recusado pela política XMQR. Prompt rev7 ajusta o fixture para ID explícito. P134/P136 não foram executados porque o gate interrompeu antes.
 - Sétimo gate: `verify_mqtt5_topic_alias.py` PASS (QoS0/1/2, rebind, reset, client C73 e Mosquitto); regressões P134/P136 PASS; fmt, 159 testes principais + suítes Rust, Clippy, release/debug build e licenças PASS. O teste de ACL com alias negado/permitido PASS. Nenhum teste físico ESP32 executado.
-- Fonte exata, CI e aceite final: pendentes antes do commit/push.
+- Fonte `1bdf77b211effefe24454b6c54b00b8a09f98665` em `main`; [CI completa PASS](https://github.com/licodevone/xmqr/actions/runs/38997112224), incluindo pacote Ubuntu26 e unidade. Aceite P138 limitado à entrada MQTT 5; saída, client dedicado e fase 6C global seguem pendentes. Sem tag/release nova para esta fatia.
