@@ -1,6 +1,6 @@
 # Versionamento
 
-## P161 — candidato broker/admin legado 0.28.0
+## P161 — broker/admin legado 0.28.0 publicado
 
 P158–P160 reúnem recusa de métodos AUTH indisponíveis, autenticação inicial
 SASL PLAIN sobre TLS e reautenticação AUTH `0x19` da mesma identidade. O
@@ -8,7 +8,8 @@ client C91/C92 é o par validado. Não há migração: o estado permanece v14 e 
 admin independente 0.9.0 o lê. A versão 0.27.0 não recebe essas mudanças;
 rollback de pacote a 0.27.0 pode reutilizar o estado v14, após backup offline
 privado e verificação. Desafio AUTH e reautenticação periódica ficam fora do
-escopo; fases globais continuam abertas. [Nota](docs/releases/0.28.0.md).
+escopo; fases globais continuam abertas. [Nota](docs/releases/0.28.0.md) e
+[registro P161](prompts/registros/P161-release-0.28.0.md).
 
 ## P156/P157 — redistribuição QoS1 e documento v14 (marco 0.27.0 publicado)
 

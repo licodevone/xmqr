@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado0.27.0, client independente0.24.0
+Versões publicadas atuais: broker/admin legado0.28.0, client independente0.25.0
 e xmqr-admin independente0.9.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
@@ -191,6 +191,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6D/P159/C91 parcial: método inicial SASL PLAIN sobre TLS no broker/client; testes TLS/mTLS reais e CIs PASS.~~ [Broker](../prompts/registros/P159-enhanced-plain-connect-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C91-enhanced-plain-connect-mqtt5.md). Troca AUTH posterior, reautenticação e fase 6D global continuam abertas.
 - [x] ~~Fase 6D/P160 parcial: broker recebe AUTH `0x19` para reautenticação PLAIN na mesma identidade e responde AUTH `0x00`; TLS/mTLS, Will, parser e CI PASS.~~ [Registro](../prompts/registros/P160-plain-reauth-mqtt5.md). Client C92 aceita a troca; interop externa e fase 6D global continuam pendentes.
 - [x] ~~Fase 6D/C92 parcial: client inicia PLAIN AUTH `0x19` explicitamente antes de pub/sub e espera AUTH `0x00`; fake TLS, broker real TLS/mTLS, negativos e CI PASS.~~ [Registro](../../xmqr-client/prompts/registros/C92-plain-reauth-mqtt5.md). Reautenticação periódica, desafio AUTH, interop externa e fase 6D global continuam pendentes.
+- [x] ~~Distribuição P161/C93: broker/admin legado 0.28.0 e client 0.25.0 com PLAIN inicial e reautenticação explícita; CI, pacote Ubuntu26, rollback, imagens numeradas, tags, prereleases e SHA-256 remotos verificados.~~ [Broker](../prompts/registros/P161-release-0.28.0.md) e [client](../../xmqr-client/prompts/registros/C93-release-0.25.0.md). Admin independente 0.9.0 permanece compatível com estado v14; fases 6A–6D e 7–9 abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

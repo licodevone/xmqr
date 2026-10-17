@@ -1,15 +1,15 @@
 # XMQR
 
-O candidato experimental 0.28.0 reúne P158–P160: MQTT 5 distingue métodos
+A versão experimental publicada 0.28.0 reúne P158–P160: MQTT 5 distingue métodos
 AUTH indisponíveis, aceita autenticação inicial SASL `PLAIN` somente em TLS e
 permite reautenticação AUTH `0x19` da mesma identidade. Uma resposta válida
 recebe AUTH `0x00`; senha incorreta ou troca de identidade encerram a conexão.
-O client C92 pode iniciar essa troca explicitamente antes de pub/sub. O modo
+O client 0.25.0/C92 pode iniciar essa troca explicitamente antes de pub/sub. O modo
 convencional continua disponível. O documento durável permanece v14 e o admin
 independente 0.9.0 segue compatível. Desafio interativo e reautenticação
 periódica não estão implementados; fases 6A–6D e 7–9 continuam abertas.
-[Nota 0.28.0](docs/releases/0.28.0.md) e
-[prompt P161](prompts/broker/161-release-0.28.0.md).
+[Release 0.28.0](https://github.com/licodevone/xmqr/releases/tag/v0.28.0)
+e [aceite P161](prompts/registros/P161-release-0.28.0.md).
 
 A versão experimental publicada 0.27.0 inclui P156: redistribuição de cópias
 compartilhadas QoS1 não reconhecidas quando a sessão escolhida termina. A
