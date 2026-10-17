@@ -4,7 +4,8 @@ A árvore após 0.30.0 também acrescenta P170: um assinante MQTT 5 pode
 recusar PUBLISH QoS2 com PUBREC negativo. O broker não envia PUBREL nessa
 tentativa, libera a quota e mantém a conexão; a recusa não reaparece após
 reinício. PUBREL/PUBCOMP negativos ainda estão fora do recorte.
-[Prompt P170](prompts/broker/170-negative-pubrec-mqtt5.md).
+[Prompt P170](prompts/broker/170-negative-pubrec-mqtt5.md) e
+[aceite](prompts/registros/P170-negative-pubrec-mqtt5.md).
 
 A árvore após 0.30.0 acrescenta P169: um assinante MQTT 5 pode responder a
 PUBLISH QoS1 com PUBACK negativo válido, inclusive Reason String e User
