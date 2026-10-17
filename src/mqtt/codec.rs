@@ -113,6 +113,7 @@ pub(super) enum Packet {
         data: Vec<u8>,
     },
     Disconnect {
+        reason_code: u8,
         expiry_interval: Option<u32>,
     },
     UnsupportedConnect5 {
@@ -914,31 +915,45 @@ fn decode_for(
             Packet::Auth { method, data }
         }
         0xe0 => {
-            let expiry_interval = if mqtt5 && c.pos < c.input.len() {
-                if c.byte()? != 0 {
-                    return Err("MQTT 5 DISCONNECT reason outside supported success subset".into());
-                }
-                if c.pos == c.input.len() {
-                    None
-                } else {
-                    let length = c.variable_integer()?;
-                    let raw = c.bytes(length)?;
-                    let mut properties = Cursor::new(raw);
-                    if properties.pos == raw.len() {
-                        None
-                    } else {
-                        if properties.byte()? != 0x11 {
-                            return Err("unsupported MQTT 5 DISCONNECT property".into());
+            let reason_code = if mqtt5 && c.pos < c.input.len() {
+                c.byte()?
+            } else {
+                0
+            };
+            if !matches!(reason_code, 0x00 | 0x04) {
+                return Err("MQTT 5 DISCONNECT reason outside supported subset".into());
+            }
+            let mut expiry_interval = None;
+            if mqtt5 && c.pos < c.input.len() {
+                let length = c.variable_integer()?;
+                let mut properties = Cursor::new(c.bytes(length)?);
+                let mut reason_seen = false;
+                while properties.pos < properties.input.len() {
+                    match properties.byte()? {
+                        0x11 if expiry_interval.is_none() => {
+                            expiry_interval =
+                                Some(u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap()));
                         }
-                        let seconds = u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
-                        properties.end()?;
-                        Some(seconds)
+                        0x1f if !reason_seen => {
+                            let _ = properties.text()?;
+                            reason_seen = true;
+                        }
+                        0x26 => {
+                            let _ = properties.text()?;
+                            let _ = properties.text()?;
+                        }
+                        _ => {
+                            return Err(
+                                "duplicate or unsupported MQTT 5 DISCONNECT property".into()
+                            );
+                        }
                     }
                 }
-            } else {
-                None
-            };
-            Packet::Disconnect { expiry_interval }
+            }
+            Packet::Disconnect {
+                reason_code,
+                expiry_interval,
+            }
         }
         _ => return Err("unsupported MQTT packet type or flags".into()),
     };
@@ -2310,11 +2325,12 @@ mod tests {
             assert!(matches!(
                 decode_for(0xe0, body, true),
                 Ok(Packet::Disconnect {
-                    expiry_interval: None
+                    expiry_interval: None,
+                    ..
                 })
             ));
         }
-        for body in [&[4][..], &[0, 1][..], &[0, 0, 0][..]] {
+        for body in [&[0x80][..], &[0, 1][..], &[0, 0, 0][..]] {
             assert!(decode_for(0xe0, body, true).is_err());
         }
         assert!(decode_for(0xe0, &[0], false).is_err());
@@ -2413,22 +2429,50 @@ mod tests {
     #[test]
     fn mqtt5_disconnect_session_expiry_property_is_strict() {
         assert!(matches!(
+            decode_for(0xe0, &[4], true),
+            Ok(Packet::Disconnect {
+                reason_code: 4,
+                expiry_interval: None
+            })
+        ));
+        let diagnostics = [4, 12, 0x1f, 0, 2, b'n', b'o', 0x26, 0, 1, b'k', 0, 1, b'v'];
+        assert!(matches!(
+            decode_for(0xe0, &diagnostics, true),
+            Ok(Packet::Disconnect {
+                reason_code: 4,
+                expiry_interval: None
+            })
+        ));
+        let mut with_expiry = vec![4, 17, 0x11, 0, 0, 0, 2];
+        with_expiry.extend_from_slice(&diagnostics[2..]);
+        assert!(matches!(
+            decode_for(0xe0, &with_expiry, true),
+            Ok(Packet::Disconnect {
+                reason_code: 4,
+                expiry_interval: Some(2)
+            })
+        ));
+        assert!(matches!(
             decode_for(0xe0, &[0, 5, 0x11, 0, 0, 0, 2], true).unwrap(),
             Packet::Disconnect {
-                expiry_interval: Some(2)
+                expiry_interval: Some(2),
+                ..
             }
         ));
         assert!(matches!(
             decode_for(0xe0, &[0, 5, 0x11, 0xff, 0xff, 0xff, 0xff], true).unwrap(),
             Packet::Disconnect {
-                expiry_interval: Some(u32::MAX)
+                expiry_interval: Some(u32::MAX),
+                ..
             }
         ));
         for invalid in [
-            &[4][..],
+            &[0x80][..],
             &[0, 5, 0x11, 0, 0][..],
-            &[0, 5, 0x26, 0, 0, 0, 2][..],
+            &[0, 1, 0x26][..],
             &[0, 10, 0x11, 0, 0, 0, 1, 0x11, 0, 0, 0, 2][..],
+            &[4, 8, 0x1f, 0, 1, b'a', 0x1f, 0, 1, b'b'][..],
+            &[4, 2, 0x26, 0][..],
         ] {
             assert!(decode_for(0xe0, invalid, true).is_err(), "{invalid:?}");
         }
@@ -2804,7 +2848,8 @@ mod tests {
         assert!(matches!(
             reader.try_take_packet().unwrap(),
             Some(Packet::Disconnect {
-                expiry_interval: None
+                expiry_interval: None,
+                ..
             })
         ));
         assert!(reader.try_take_packet().unwrap().is_none());

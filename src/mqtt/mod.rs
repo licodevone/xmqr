@@ -555,12 +555,12 @@ async fn serve_mqtt(
                             }
                             write_limited(connection, &codec::encode_mqtt5_plain_auth_success(), outbound_maximum).await?;
                         }
-                        Packet::Disconnect { expiry_interval } => {
+                        Packet::Disconnect { reason_code, expiry_interval } => {
                             if session_expiry == 0 && expiry_interval.is_some_and(|seconds| seconds != 0) {
                                 return Err("DISCONNECT cannot extend zero Session Expiry".into());
                             }
                             disconnect_expiry = expiry_interval;
-                            graceful = true;
+                            graceful = reason_code == 0;
                             break;
                         },
                         Packet::Connect { .. } | Packet::UnsupportedConnect5 { .. } => return Err("duplicate CONNECT".into()),
