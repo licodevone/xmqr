@@ -360,6 +360,7 @@ pub(super) enum AckKind {
 pub struct Router {
     metrics: Arc<Metrics>,
     sender: mpsc::Sender<Command>,
+    inbound_receive_maximum: u16,
 }
 
 /// Ensures handler cancellation/panic also closes its accepted connection.
@@ -707,7 +708,11 @@ impl Router {
                 }
             }
         });
-        Ok(Self { metrics, sender })
+        Ok(Self {
+            metrics,
+            sender,
+            inbound_receive_maximum: u16::try_from(limits.max_inflight).unwrap_or(u16::MAX),
+        })
     }
 
     #[cfg_attr(not(unix), allow(dead_code))]
@@ -724,6 +729,10 @@ impl Router {
 
     pub(crate) fn metrics(&self) -> Arc<Metrics> {
         self.metrics.clone()
+    }
+
+    pub(crate) fn inbound_receive_maximum(&self) -> u16 {
+        self.inbound_receive_maximum
     }
 
     pub(crate) async fn probe(&self) -> bool {

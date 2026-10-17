@@ -218,7 +218,7 @@ async fn serve_mqtt(
     } else {
         0
     };
-    let connack = if advertised_alias_maximum != 0 {
+    let mut connack = if advertised_alias_maximum != 0 {
         codec::encode_mqtt5_alias_connack(session.resumed).to_vec()
     } else if mqtt5 && outbound_maximum >= 10 {
         codec::encode_mqtt5_success_connack(session.resumed).to_vec()
@@ -229,6 +229,11 @@ async fn serve_mqtt(
     } else {
         encode_connack_with_session(0, session.resumed)?.to_vec()
     };
+    // Preserve P136/P138's previously negotiated Maximum Packet Size and
+    // Topic Alias properties; omit Receive Maximum only when it cannot fit.
+    if mqtt5 && connack.len() + 3 <= outbound_maximum {
+        connack = codec::append_mqtt5_receive_maximum(connack, router.inbound_receive_maximum());
+    }
     if let Err(error) = write_limited(connection, &connack, outbound_maximum).await {
         let _ = router.unregister(&session, false).await;
         guard.disarm();

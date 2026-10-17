@@ -14,7 +14,7 @@ def connect(port, identity):
             + len(identity).to_bytes(2, "big") + identity)
     stream.sendall(bytes([0x10, len(body)]) + body)
     header, ack = packet(stream)
-    assert header == 0x20 and ack == b"\x00\x00\x08\x27\x00\x01\x00\x00\x22\x00\x10", ack
+    assert header == 0x20 and ack == b"\x00\x00\x0b\x27\x00\x01\x00\x00\x22\x00\x10\x21\x00\x20", ack
     return stream
 
 

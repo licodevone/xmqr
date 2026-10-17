@@ -10,6 +10,10 @@ use tokio::{
     time::timeout,
 };
 
+const MQTT5_SUCCESS_CONNACK: [u8; 16] = [
+    0x20, 14, 0, 0, 11, 0x27, 0, 1, 0, 0, 0x22, 0, 16, 0x21, 0, 32,
+];
+
 fn connect(id: &[u8], clean: bool, level: u8) -> Vec<u8> {
     let mut body = vec![
         0,
@@ -231,7 +235,7 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
     stream.write_all(&packet).await.unwrap();
     if let Some(code) = code {
         let expected: &[u8] = if code == 0 && packet[8] == 5 {
-            &[0x20, 11, 0, 0, 8, 0x27, 0, 1, 0, 0, 0x22, 0, 16]
+            &MQTT5_SUCCESS_CONNACK
         } else if code == 0x83 {
             &[0x20, 3, 0, 0x83, 0]
         } else {
@@ -364,12 +368,12 @@ async fn mqtt5_qos0_qos1_qos2_reach_mqtt311_subscriber() {
             .write_all(&connect(b"publisher", true, 5))
             .await
             .unwrap();
-        let mut ack5 = [0; 13];
+        let mut ack5 = [0; 16];
         timeout(Duration::from_secs(3), publisher.read_exact(&mut ack5))
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(ack5, [0x20, 11, 0, 0, 8, 0x27, 0, 1, 0, 0, 0x22, 0, 16]);
+        assert_eq!(ack5, MQTT5_SUCCESS_CONNACK);
         mqtt5_publish_to_qos0_subscriber(&mut publisher, qos).await;
         let mut delivered = [0; 6];
         timeout(
@@ -430,12 +434,12 @@ async fn mqtt5_acl_denial_reports_puback_reason_without_committing() {
         .write_all(&authenticated_connect(b"publisher", 5))
         .await
         .unwrap();
-    let mut connack = [0; 13];
+    let mut connack = [0; 16];
     timeout(Duration::from_secs(3), publisher.read_exact(&mut connack))
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(connack[0..4], [0x20, 11, 0, 0]);
+    assert_eq!(connack, MQTT5_SUCCESS_CONNACK);
 
     let commits_before = router.metrics().commits.load(Ordering::Relaxed);
     denied_subscription(&mut publisher, 5, 3).await;
@@ -510,12 +514,12 @@ async fn mqtt5_unsubscribe_reports_each_filter_and_stops_delivery() {
     });
     let mut stream = TcpStream::connect(address).await.unwrap();
     stream.write_all(&connect(b"sub", true, 5)).await.unwrap();
-    let mut connack = [0; 13];
+    let mut connack = [0; 16];
     timeout(Duration::from_secs(3), stream.read_exact(&mut connack))
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(connack[0..4], [0x20, 11, 0, 0]);
+    assert_eq!(connack, MQTT5_SUCCESS_CONNACK);
 
     let subscribe = [
         0x82, 12, 0, 1, 0, 0, 6, b't', b'e', b's', b't', b'/', b'#', 1,
@@ -623,12 +627,12 @@ async fn mqtt5_subscriber_receives_retained_and_live_qos1_from_v311() {
         .write_all(&connect(b"subscriber", true, 5))
         .await
         .unwrap();
-    let mut ack5 = [0; 13];
+    let mut ack5 = [0; 16];
     timeout(Duration::from_secs(3), subscriber.read_exact(&mut ack5))
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(ack5[0..4], [0x20, 11, 0, 0]);
+    assert_eq!(ack5, MQTT5_SUCCESS_CONNACK);
     subscriber
         .write_all(&[0x82, 7, 0, 1, 0, 0, 1, b'x', 1])
         .await
