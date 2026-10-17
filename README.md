@@ -1,5 +1,13 @@
 # XMQR
 
+A árvore após 0.28.0 acrescenta P163: o broker aceita no Will MQTT 5
+Payload Format Indicator, Content Type, Response Topic, Correlation Data e
+User Property ordenada, combináveis com Will Delay. A entrega preserva os
+metadados em mensagens imediatas, atrasadas, retidas e na fila offline após
+reinício, sem alterar o documento durável v14. O client parceiro C94 pode
+enviar essas propriedades; Message Expiry do Will ainda não é aceito. Esta
+parcela não está na release 0.28.0. [Prompt P163](prompts/broker/163-will-metadata-mqtt5.md).
+
 A árvore após 0.28.0 acrescenta P162: `MQTT_SERVER_KEEP_ALIVE_SECONDS` ou
 `[broker].server_keep_alive_seconds` limita opcionalmente o Keep Alive MQTT 5.
 Quando o client pede zero ou um valor maior, o broker anuncia `0x13` no

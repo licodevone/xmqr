@@ -516,20 +516,73 @@ fn decode_for(
             let mut will_delay_seconds = 0;
             // MQTT-3.1.3-1: Will precedes username/password. Message is binary.
             let will = if has_will {
+                let mut payload_format_indicator = None;
+                let mut content_type = None;
+                let mut response_topic = None;
+                let mut correlation_data = None;
+                let mut user_properties = Vec::new();
                 if level == 5 {
                     let property_length = c.variable_integer()?;
                     let raw = c.bytes(property_length)?;
                     let mut properties = Cursor::new(raw);
-                    if properties.pos < raw.len() {
-                        if properties.byte()? != 0x18 {
-                            return Ok(Packet::UnsupportedConnect5 {
-                                maximum_packet_size,
-                                reason_code: 0x83,
-                            });
+                    let mut delay_seen = false;
+                    let mut user_property_bytes = 0usize;
+                    while properties.pos < raw.len() {
+                        match properties.byte()? {
+                            0x18 if !delay_seen => {
+                                delay_seen = true;
+                                will_delay_seconds =
+                                    u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
+                            }
+                            0x01 if payload_format_indicator.is_none() => {
+                                let value = properties.byte()?;
+                                if value > 1 {
+                                    return Err(
+                                        "invalid MQTT 5 Will Payload Format Indicator".into()
+                                    );
+                                }
+                                payload_format_indicator = Some(value);
+                            }
+                            0x03 if content_type.is_none() => {
+                                let value = properties.text()?;
+                                if value.len() > 256 {
+                                    return Err("MQTT 5 Will Content Type too long".into());
+                                }
+                                content_type = Some(value);
+                            }
+                            0x08 if response_topic.is_none() => {
+                                response_topic = Some(TopicName::try_from(properties.text()?)?);
+                            }
+                            0x09 if correlation_data.is_none() => {
+                                let value = properties.binary()?;
+                                if value.len() > 256 {
+                                    return Err("MQTT 5 Will Correlation Data too long".into());
+                                }
+                                correlation_data = Some(value.to_vec());
+                            }
+                            0x26 => {
+                                let key = properties.text()?;
+                                let value = properties.text()?;
+                                if key.len() > 256 || value.len() > 256 {
+                                    return Err("MQTT 5 Will User Property field too long".into());
+                                }
+                                user_property_bytes =
+                                    user_property_bytes.saturating_add(5 + key.len() + value.len());
+                                if user_properties.len() >= 16 || user_property_bytes > 2048 {
+                                    return Err("MQTT 5 Will User Properties exceed limits".into());
+                                }
+                                user_properties.push((key, value));
+                            }
+                            0x18 | 0x01 | 0x03 | 0x08 | 0x09 => {
+                                return Err("duplicate MQTT 5 Will property".into());
+                            }
+                            _ => {
+                                return Ok(Packet::UnsupportedConnect5 {
+                                    maximum_packet_size,
+                                    reason_code: 0x83,
+                                });
+                            }
                         }
-                        will_delay_seconds =
-                            u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
-                        properties.end()?;
                     }
                 }
                 let topic = TopicName::try_from(c.text()?)?;
@@ -543,11 +596,11 @@ fn decode_for(
                     qos: will_qos,
                     retain: will_retain,
                     expiry_at_unix_ms: None,
-                    payload_format_indicator: None,
-                    content_type: None,
-                    response_topic: None,
-                    correlation_data: None,
-                    user_properties: Vec::new(),
+                    payload_format_indicator,
+                    content_type,
+                    response_topic,
+                    correlation_data,
+                    user_properties,
                     subscription_identifiers: Vec::new(),
                     shared_origin: None,
                 })
@@ -1497,6 +1550,66 @@ mod tests {
         let mut truncated = body;
         truncated[14] = 4;
         assert!(decode(0x10, &truncated).is_err());
+    }
+
+    #[test]
+    fn mqtt5_will_metadata_preserves_order_and_rejects_invalid_properties() {
+        let make_connect = |properties: &[u8]| {
+            let mut body = vec![
+                0,
+                4,
+                b'M',
+                b'Q',
+                b'T',
+                b'T',
+                5,
+                6,
+                0,
+                30,
+                0,
+                0,
+                1,
+                b'a',
+                u8::try_from(properties.len()).unwrap(),
+            ];
+            body.extend_from_slice(properties);
+            body.extend([0, 1, b't', 0, 1, b'x']);
+            body
+        };
+        let properties = [
+            0x26, 0, 1, b'k', 0, 1, b'1', 0x09, 0, 2, 0, 0xff, 0x18, 0, 0, 0, 2, 0x03, 0, 4, b't',
+            b'e', b'x', b't', 0x26, 0, 1, b'k', 0, 1, b'2', 0x08, 0, 7, b'r', b'e', b'p', b'l',
+            b'y', b'/', b't', 0x01, 1,
+        ];
+        assert!(matches!(
+            decode(0x10, &make_connect(&properties)).unwrap(),
+            Packet::Connect { will_delay_seconds: 2, will: Some(will), .. }
+                if will.payload_format_indicator == Some(1)
+                    && will.content_type.as_deref() == Some("text")
+                    && will.response_topic.as_ref().map(TopicName::as_str) == Some("reply/t")
+                    && will.correlation_data.as_deref() == Some(&[0, 0xff][..])
+                    && will.user_properties == [("k".to_owned(), "1".to_owned()),
+                                                ("k".to_owned(), "2".to_owned())]
+        ));
+        for invalid in [
+            vec![0x01, 2],
+            vec![0x01, 1, 0x01, 0],
+            vec![0x18, 0, 0, 0, 1, 0x18, 0, 0, 0, 2],
+            vec![0x08, 0, 1, b'#'],
+            vec![0x09, 0, 2, 0],
+        ] {
+            assert!(
+                decode(0x10, &make_connect(&invalid)).is_err(),
+                "{invalid:?}"
+            );
+        }
+        assert!(matches!(
+            decode(0x10, &make_connect(&[0x02, 0, 0, 0, 1])).unwrap(),
+            Packet::UnsupportedConnect5 {
+                reason_code: 0x83,
+                ..
+            }
+        ));
     }
 
     #[test]

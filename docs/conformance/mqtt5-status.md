@@ -17,8 +17,13 @@ essa propriedade.
 P132 aceita Will MQTT 5 com propriedade Will Delay Interval opcional. O Will
 fica durável até publicação após o atraso ou término da sessão, o que ocorrer
 primeiro; retomada Clean Start=0 antes do prazo e DISCONNECT normal cancelam.
-C70 expõe `--will-delay-seconds` no client. Outras Will Properties não são
-aceitas neste recorte.
+C70 expõe `--will-delay-seconds` no client. Após P163/C94, a árvore de
+desenvolvimento também aceita Payload Format Indicator, Content Type,
+Response Topic, Correlation Data e User Property ordenada no Will, inclusive
+com atraso, retained, fila offline e recuperação após reinício. O estado
+continua v14; Message Expiry Interval do Will ainda não é aceito, pois o prazo
+deve começar na publicação efetiva. Broker 0.28.0 e client 0.25.0 publicados
+não incluem P163/C94.
 Se o processo cair com a conexão ainda ativa, o instante da queda não é
 durável; por segurança contra perda silenciosa, a contagem começa na recuperação.
 P123 acrescenta Request Problem
