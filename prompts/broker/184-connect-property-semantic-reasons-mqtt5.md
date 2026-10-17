@@ -1,0 +1,7 @@
+# P184 — CONNACK 0x82 para erros semânticos de propriedades MQTT 5
+
+Entrada: P183 classifica identificadores fora de contexto em CONNECT/Will com 0x81. Valores e multiplicidade inválidos de propriedades reconhecidas ainda fecham antes do CONNACK sem diagnóstico. A norma OASIS MQTT 5 chama de Protocol Error duplicatas em propriedades únicas, Receive Maximum/Maximum Packet Size zero, Request Problem/Response Information fora de 0/1 e Payload Format Indicator inválido. Este prompt precede o código.
+
+Objetivo: recusar com CONNACK 0x82 os erros semânticos reconhecidos em CONNECT (duplicatas de Session Expiry, Receive Maximum, Maximum Packet Size, Request Problem/Response Information, Topic Alias Maximum, Authentication Method/Data; zero de Receive Maximum/Maximum Packet Size; flags informativas diferentes de 0/1; Authentication Data sem Method) e nas Will Properties (duplicatas de Will Delay, Message Expiry, Payload Format Indicator, Content Type, Response Topic, Correlation Data; Payload Format Indicator >1). Respeitar Maximum Packet Size conhecido, não criar sessão/Will e preservar 0x81 para identificador fora de contexto, 0x86/0x8C de AUTH e MQTT 3.1.1. Não classificar truncamento, UTF-8 inválido ou limites locais de tamanho nesta fatia.
+
+Aceite: tabela unitária de cada classe, teste TCP de CONNECT e Will para 0x82, ausência de sessão/Will, limites de CONNACK, regressões P123/P159/P163/P183, fmt/test/Clippy/build/licença/distribuição e CI. Atualizar conformance, paridade e checklist com alcance parcial 6A, sem migração nem tag isolada.
