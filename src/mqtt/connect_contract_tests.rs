@@ -273,7 +273,7 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
     if let Some(code) = code {
         let expected = if code == 0 && packet[8] == 5 {
             MQTT5_SUCCESS_CONNACK.to_vec()
-        } else if matches!(code, 0x83 | 0x86 | 0x8c | 0x95) {
+        } else if matches!(code, 0x81 | 0x82 | 0x83 | 0x86 | 0x8c | 0x95) {
             vec![0x20, 3, 0, code, 0]
         } else {
             vec![0x20, 2, 0, code]
@@ -416,11 +416,11 @@ async fn mqtt5_unsupported_auth_property_refused_without_commit() {
         None,
     )
     .await;
-    case(connect5_with_properties(&[0x16, 0, 1, 42]), None).await;
+    case(connect5_with_properties(&[0x16, 0, 1, 42]), Some(0x82)).await;
     case(connect5_with_properties(&[0x15, 0, 2, b'x']), None).await;
     case(
         connect5_with_properties(&[0x15, 0, 1, b'x', 0x15, 0, 1, b'y']),
-        None,
+        Some(0x82),
     )
     .await;
 }
@@ -448,6 +448,10 @@ async fn mqtt5_connect_informational_properties_accept_and_reject_before_commit(
         &[0x17, 2][..],
         &[0x19, 0, 0x19, 1][..],
         &[0x22, 0, 0, 0x22, 0, 1][..],
+    ] {
+        case(connect5_with_properties(properties), Some(0x82)).await;
+    }
+    for properties in [
         &[0x26, 0, 1, 0xff, 0, 1, b'b'][..],
         &[0x26, 0, 1, b'a', 0, 2, b'b'][..],
     ] {
@@ -456,10 +460,11 @@ async fn mqtt5_connect_informational_properties_accept_and_reject_before_commit(
     case(connect5_with_properties(&[0x27, 0, 0, 1, 0]), Some(0)).await;
     for properties in [
         &[0x27, 0, 0, 0, 0][..],
-        &[0x27, 0, 0, 0][..],
         &[0x27, 0, 0, 0, 10, 0x27, 0, 0, 0, 10][..],
-        &[0x27, 0, 0, 0, 4][..],
     ] {
+        case(connect5_with_properties(properties), Some(0x82)).await;
+    }
+    for properties in [&[0x27, 0, 0, 0][..], &[0x27, 0, 0, 0, 4][..]] {
         case(connect5_with_properties(properties), None).await;
     }
 }
