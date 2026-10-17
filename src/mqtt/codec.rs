@@ -82,7 +82,9 @@ pub(super) enum Packet {
     PubRel(u16),
     PubComp(u16),
     PingReq,
-    Disconnect,
+    Disconnect {
+        expiry_interval: Option<u32>,
+    },
     UnsupportedConnect5,
 }
 
@@ -505,10 +507,31 @@ fn decode_for(
         0x70 => Packet::PubComp(success_ack_id(&mut c, mqtt5)?),
         0xc0 if body.is_empty() => Packet::PingReq,
         0xe0 => {
-            if mqtt5 {
-                mqtt5_optional_success_and_empty_properties(&mut c)?;
-            }
-            Packet::Disconnect
+            let expiry_interval = if mqtt5 && c.pos < c.input.len() {
+                if c.byte()? != 0 {
+                    return Err("MQTT 5 DISCONNECT reason outside supported success subset".into());
+                }
+                if c.pos == c.input.len() {
+                    None
+                } else {
+                    let length = c.variable_integer()?;
+                    let raw = c.bytes(length)?;
+                    let mut properties = Cursor::new(raw);
+                    if properties.pos == raw.len() {
+                        None
+                    } else {
+                        if properties.byte()? != 0x11 {
+                            return Err("unsupported MQTT 5 DISCONNECT property".into());
+                        }
+                        let seconds = u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
+                        properties.end()?;
+                        Some(seconds)
+                    }
+                }
+            } else {
+                None
+            };
+            Packet::Disconnect { expiry_interval }
         }
         _ => return Err("unsupported MQTT packet type or flags".into()),
     };
@@ -905,13 +928,40 @@ mod tests {
         for body in [&[][..], &[0][..], &[0, 0][..]] {
             assert!(matches!(
                 decode_for(0xe0, body, true),
-                Ok(Packet::Disconnect)
+                Ok(Packet::Disconnect {
+                    expiry_interval: None
+                })
             ));
         }
         for body in [&[4][..], &[0, 1][..], &[0, 0, 0][..]] {
             assert!(decode_for(0xe0, body, true).is_err());
         }
         assert!(decode_for(0xe0, &[0], false).is_err());
+    }
+
+    #[test]
+    fn mqtt5_disconnect_session_expiry_property_is_strict() {
+        assert!(matches!(
+            decode_for(0xe0, &[0, 5, 0x11, 0, 0, 0, 2], true).unwrap(),
+            Packet::Disconnect {
+                expiry_interval: Some(2)
+            }
+        ));
+        assert!(matches!(
+            decode_for(0xe0, &[0, 5, 0x11, 0xff, 0xff, 0xff, 0xff], true).unwrap(),
+            Packet::Disconnect {
+                expiry_interval: Some(u32::MAX)
+            }
+        ));
+        for invalid in [
+            &[4][..],
+            &[0, 5, 0x11, 0, 0][..],
+            &[0, 5, 0x26, 0, 0, 0, 2][..],
+            &[0, 10, 0x11, 0, 0, 0, 1, 0x11, 0, 0, 0, 2][..],
+        ] {
+            assert!(decode_for(0xe0, invalid, true).is_err(), "{invalid:?}");
+        }
+        assert!(decode_for(0xe0, &[0, 0], false).is_err());
     }
 
     #[test]
@@ -1140,7 +1190,9 @@ mod tests {
         ));
         assert!(matches!(
             reader.try_take_packet().unwrap(),
-            Some(Packet::Disconnect)
+            Some(Packet::Disconnect {
+                expiry_interval: None
+            })
         ));
         assert!(reader.try_take_packet().unwrap().is_none());
     }

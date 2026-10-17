@@ -207,6 +207,7 @@ async fn serve_mqtt(
     }
 
     let mut graceful = false;
+    let mut disconnect_expiry = None;
     let mut last_inbound = Instant::now();
     let result: Result<(), HandlerError> = async {
         for delivery in session.replay.drain(..) {
@@ -296,7 +297,14 @@ async fn serve_mqtt(
                             }
                         }
                         Packet::PingReq => connection.write_all_with_deadline(&encode_pingresp(), WRITE_TIMEOUT).await?,
-                        Packet::Disconnect => { graceful = true; break; },
+                        Packet::Disconnect { expiry_interval } => {
+                            if session_expiry == 0 && expiry_interval.is_some_and(|seconds| seconds != 0) {
+                                return Err("DISCONNECT cannot extend zero Session Expiry".into());
+                            }
+                            disconnect_expiry = expiry_interval;
+                            graceful = true;
+                            break;
+                        },
                         Packet::Connect { .. } | Packet::UnsupportedConnect5 => return Err("duplicate CONNECT".into()),
                     }
                 }
@@ -308,7 +316,9 @@ async fn serve_mqtt(
         }
         Ok(())
     }.await;
-    let cleanup = router.unregister(&session, graceful).await;
+    let cleanup = router
+        .unregister_with_expiry(&session, graceful, disconnect_expiry)
+        .await;
     guard.disarm();
     // A stale generation was already closed and its Will handled by takeover.
     if let Err(error) = cleanup

@@ -137,6 +137,8 @@ pub(super) enum RouterError {
     Unavailable,
     #[error("system clock unavailable for MQTT session expiry")]
     Clock,
+    #[error("invalid MQTT 5 DISCONNECT Session Expiry transition")]
+    InvalidSessionExpiry,
 }
 
 /// A packet to send to a connected subscriber after the durable transition.
@@ -327,6 +329,7 @@ enum Command {
         client_id: String,
         generation: u64,
         graceful: bool,
+        expiry_override: Option<u32>,
         reply: oneshot::Sender<Result<(), RouterError>>,
     },
 }
@@ -377,6 +380,7 @@ impl Drop for ConnectionGuard {
                         client_id,
                         generation,
                         graceful: false,
+                        expiry_override: None,
                         reply,
                     })
                     .await;
@@ -864,11 +868,21 @@ impl Router {
         session: &Session,
         graceful: bool,
     ) -> Result<(), RouterError> {
+        self.unregister_with_expiry(session, graceful, None).await
+    }
+
+    pub(super) async fn unregister_with_expiry(
+        &self,
+        session: &Session,
+        graceful: bool,
+        expiry_override: Option<u32>,
+    ) -> Result<(), RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Unregister {
             client_id: session.client_id.clone(),
             generation: session.generation,
             graceful,
+            expiry_override,
             reply,
         })
         .await?;
@@ -1220,10 +1234,17 @@ impl Actor {
                 client_id,
                 generation,
                 graceful,
+                expiry_override,
                 reply,
             } => {
                 let result = self
-                    .unregister_with_reason(&client_id, generation, graceful)
+                    .unregister_with_receipt(
+                        &client_id,
+                        generation,
+                        graceful,
+                        expiry_override,
+                        None,
+                    )
                     .await;
                 self.record_result(&result);
                 let _ = reply.send(result);
@@ -1441,7 +1462,7 @@ impl Actor {
             epoch: self.state.admin_epoch,
             archive_count: 0,
         };
-        self.unregister_with_receipt(client_id, generation, false, Some(receipt))
+        self.unregister_with_receipt(client_id, generation, false, None, Some(receipt))
             .await
             .map_err(|_| AdminError::CommitFailed)?;
         Ok(false)
@@ -2031,7 +2052,7 @@ impl Actor {
         generation: u64,
         graceful: bool,
     ) -> Result<(), RouterError> {
-        self.unregister_with_receipt(client_id, generation, graceful, None)
+        self.unregister_with_receipt(client_id, generation, graceful, None, None)
             .await
     }
 
@@ -2040,10 +2061,22 @@ impl Actor {
         client_id: &str,
         generation: u64,
         graceful: bool,
+        expiry_override: Option<u32>,
         receipt: Option<AdminReceipt>,
     ) -> Result<(), RouterError> {
         self.current(client_id, generation)?;
         let mut candidate = self.state.clone();
+        if let Some(expiry) = expiry_override {
+            let session = candidate
+                .sessions
+                .get_mut(client_id)
+                .ok_or(RouterError::Stale)?;
+            if !session.persistent && expiry != 0 {
+                return Err(RouterError::InvalidSessionExpiry);
+            }
+            session.persistent = expiry != 0;
+            session.expiry_interval_seconds = (1..u32::MAX).contains(&expiry).then_some(expiry);
+        }
         let will = candidate.pending_wills.remove(client_id);
         if let Some(session) = candidate.sessions.get_mut(client_id)
             && let Some(seconds) = session.expiry_interval_seconds
@@ -3584,6 +3617,111 @@ mod tests {
             .unwrap();
         assert!(!new_session.resumed);
         actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_disconnect_overrides_session_expiry_atomically() {
+        let (_directory, mut actor) = actor().await;
+        let zero = actor
+            .register_with_policy("zero".into(), "user".into(), true, true, Some(10), None)
+            .await
+            .unwrap();
+        actor
+            .unregister_with_receipt("zero", zero.generation, true, Some(0), None)
+            .await
+            .unwrap();
+        assert!(!actor.state.sessions.contains_key("zero"));
+
+        let finite = actor
+            .register_with_policy(
+                "finite-override".into(),
+                "user".into(),
+                true,
+                true,
+                Some(10),
+                None,
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister_with_receipt("finite-override", finite.generation, true, Some(1), None)
+            .await
+            .unwrap();
+        assert_eq!(
+            actor.state.sessions["finite-override"].expiry_interval_seconds,
+            Some(1)
+        );
+        assert!(
+            actor.state.sessions["finite-override"]
+                .expires_at_unix_ms
+                .is_some()
+        );
+
+        let forever = actor
+            .register_with_policy("forever".into(), "user".into(), true, true, Some(10), None)
+            .await
+            .unwrap();
+        actor
+            .unregister_with_receipt("forever", forever.generation, true, Some(u32::MAX), None)
+            .await
+            .unwrap();
+        assert!(actor.state.sessions["forever"].persistent);
+        assert_eq!(
+            actor.state.sessions["forever"].expiry_interval_seconds,
+            None
+        );
+        assert_eq!(actor.state.sessions["forever"].expires_at_unix_ms, None);
+
+        let ephemeral = actor
+            .register_with_policy("ephemeral".into(), "user".into(), true, false, None, None)
+            .await
+            .unwrap();
+        let previous = actor.state.clone();
+        assert!(matches!(
+            actor
+                .unregister_with_receipt("ephemeral", ephemeral.generation, true, Some(1), None)
+                .await,
+            Err(RouterError::InvalidSessionExpiry)
+        ));
+        assert_eq!(actor.state, previous);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_disconnect_expiry_commit_failure_preserves_previous_session() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (directory, mut actor) = actor().await;
+        let session = actor
+            .register_with_policy(
+                "finite-fault".into(),
+                "user".into(),
+                true,
+                true,
+                Some(10),
+                None,
+            )
+            .await
+            .unwrap();
+        let before = actor.state.clone();
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(
+            actor
+                .unregister_with_receipt("finite-fault", session.generation, true, Some(0), None)
+                .await
+                .is_err()
+        );
+        assert_eq!(actor.state, before);
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, before);
+        store.shutdown().await.unwrap();
     }
 
     #[tokio::test]

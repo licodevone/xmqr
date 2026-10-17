@@ -4,6 +4,7 @@ Na árvore de desenvolvimento após 0.18.0, P130 acrescenta Message Expiry MQTT 
 para mensagens retidas e offline; o documento durável passa a v7. Faça backup
 privado antes de iniciar esse código com estado existente: a versão 0.18.0 não
 reabre estado v7. Veja o [estado de conformidade](docs/conformance/mqtt5-status.md).
+P131 aceita a substituição de Session Expiry no DISCONNECT MQTT 5 recebido.
 
 O marco experimental 0.18.0 acrescenta Clean Start e Session Expiry
 zero, finita ou infinita ao subconjunto MQTT 5. O estado durável passa a v6;

@@ -11,6 +11,9 @@ grava deadline absoluto em documento v7, remove cópias retidas/offline vencidas
 antes da entrega e encaminha o prazo restante em PUBLISH MQTT 5. QoS2 recebido
 é avaliado no PUBREL; uma entrega QoS já iniciada conserva seu handshake.
 O client C69 envia `--message-expiry-seconds` em `pub --protocol-version 5`.
+P131 aceita Session Expiry Interval no DISCONNECT normal MQTT 5, aplicado no
+mesmo commit do encerramento. O client independente ainda envia DISCONNECT sem
+essa propriedade.
 Se o processo cair com a conexão ainda ativa, o instante da queda não é
 durável; por segurança contra perda silenciosa, a contagem começa na recuperação.
 Receive Maximum válido opcional, sem Will. P123 acrescenta Request Problem
@@ -83,6 +86,7 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P128](../../prompts/registros/P128-expiracao-finita-sessao-mqtt5.md) e
 [C67](../../../xmqr-client/prompts/registros/C67-expiracao-finita-sessao-mqtt5.md),
 [P130](../../prompts/registros/P130-message-expiry-mqtt5.md) e
-[C69](../../../xmqr-client/prompts/registros/C69-message-expiry-mqtt5.md).
+[C69](../../../xmqr-client/prompts/registros/C69-message-expiry-mqtt5.md) e
+[P131](../../prompts/registros/P131-disconnect-session-expiry-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).
