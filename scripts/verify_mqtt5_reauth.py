@@ -3,13 +3,16 @@
 import argparse
 import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import secrets
+import select
 import socket
 import ssl
 import subprocess
 import tempfile
+import time
 
 from verify_mqtt5_plain_auth import connect
 from verify_mqtt5_sessions import packet
@@ -111,10 +114,51 @@ def exercise(port, ca, secret, other_secret, cert):
         assert header == 0x30 and message.endswith(b"reauth-denied"), (header, message)
 
 
+def client_interop(port, ca, secret, cert, client, root):
+    password_file = root / f"password-{port}"
+    password_file.write_text(secret.decode() + "\n")
+    password_file.chmod(0o600)
+    transport = (["--tls-password"] if cert is None
+                 else ["--cert", str(cert[0]), "--key", str(cert[1])])
+    common = [str(client), "--protocol-version", "5", "--auth-method", "plain",
+              "--reauth-before-io", *transport, "--host", "127.0.0.1", "--port", str(port),
+              "--ca", str(ca), "--username", "fixture-device", "--password-file",
+              str(password_file)]
+    subscriber = subprocess.Popen([common[0], "sub", *common[1:], "--topic", "p160/value",
+                                   "--count", "1", "--output", "jsonl"],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        diagnostics = []
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([subscriber.stderr], [], [], 0.2)
+            if ready:
+                line = subscriber.stderr.readline()
+                diagnostics.append(line)
+                if "Assinatura ativa" in line:
+                    break
+            if subscriber.poll() is not None:
+                raise AssertionError((subscriber.returncode, "".join(diagnostics)))
+        else:
+            raise AssertionError("subscriber did not receive SUBACK")
+        published = subprocess.run([common[0], "pub", *common[1:], "--topic", "p160/value",
+                                    "--message", "client-reauth"],
+                                   capture_output=True, text=True, timeout=12)
+        assert published.returncode == 0, published.stderr
+        output, errors = subscriber.communicate(timeout=12)
+        assert subscriber.returncode == 0, errors
+        assert bytes(json.loads(output.strip())["payload_bytes"]) == b"client-reauth", output
+    finally:
+        if subscriber.poll() is None:
+            subscriber.terminate()
+            subscriber.wait(timeout=5)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--broker", type=Path, required=True)
     parser.add_argument("--admin", type=Path, required=True)
+    parser.add_argument("--client", type=Path)
     args = parser.parse_args()
     spec = importlib.util.spec_from_file_location(
         "cert_fixture", ROOT.parent / "xmqr-client/validation/C27-integration.py")
@@ -166,11 +210,15 @@ def main():
                         raise AssertionError((root / f"broker-{mode}.log").read_text(errors="replace")[:2000]) from error
                     exercise(port, root / "ca.crt", secret,
                              other_secret if mode == "tls-password" else None, cert)
+                    if args.client:
+                        client_interop(port, root / "ca.crt", secret, cert, args.client, root)
                 finally:
                     if broker.poll() is None:
                         broker.terminate()
                         assert broker.wait(timeout=12) == 0
-    print("P160_REAUTH_PASS TLS, mTLS, success, denial, identity, method, data, conventional session and Will")
+    scope = " and client C92" if args.client else ""
+    print("P160_REAUTH_PASS TLS, mTLS, success, denial, identity, method, data, "
+          f"conventional session and Will{scope}")
 
 
 if __name__ == "__main__":
