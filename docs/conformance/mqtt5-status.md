@@ -21,7 +21,7 @@ C70 expõe `--will-delay-seconds` no client. Outras Will Properties não são
 aceitas neste recorte.
 Se o processo cair com a conexão ainda ativa, o instante da queda não é
 durável; por segurança contra perda silenciosa, a contagem começa na recuperação.
-Receive Maximum válido opcional, sem Will. P123 acrescenta Request Problem
+P123 acrescenta Request Problem
 Information, Request Response Information, Topic Alias Maximum e User Property
 no CONNECT. O broker valida valores e pares, mas não ecoa nem armazena essas
 propriedades e não envia aliases ou informações opcionais de resposta.
@@ -55,8 +55,13 @@ P126 aceita as três formas de sucesso dos ACKs MQTT 5 recebidos (ID apenas,
 motivo `0x00`, motivo `0x00` com comprimento de propriedades zero) e as formas
 equivalentes de DISCONNECT normal. Motivos de falha e propriedades não vazias
 recebidos nesses pacotes ainda fecham a conexão neste subconjunto.
-Receive Maximum pode constar no CONNECT, mas o controle completo de fluxo de
-entrega ainda depende da fase 6C; não se declara conformidade MQTT 5 integral.
+P134 aplica Receive Maximum do CONNECT MQTT 5 (padrão 65535) aos PUBLISH QoS1/2
+enviados pelo broker nesta conexão. A quota limita entregas vivas, retidas,
+offline e replay; PUBACK/PUBCOMP liberam vagas. QoS0 e PUBREL não consomem
+quota. O valor não é gravado na sessão e pode mudar na reconexão. C72 expõe
+`mqtt-client sub --protocol-version 5 --receive-maximum 1..65535`.
+Maximum Packet Size de entrada, Topic Alias e outras propriedades de publicação
+seguem pendentes; não se declara conformidade MQTT 5 integral.
 
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
 P132 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
@@ -94,6 +99,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [C69](../../../xmqr-client/prompts/registros/C69-message-expiry-mqtt5.md) e
 [P131](../../prompts/registros/P131-disconnect-session-expiry-mqtt5.md),
 [P132](../../prompts/registros/P132-will-delay-mqtt5.md) e
-[C70](../../../xmqr-client/prompts/registros/C70-will-delay-mqtt5.md).
+[C70](../../../xmqr-client/prompts/registros/C70-will-delay-mqtt5.md),
+[P134](../../prompts/registros/P134-receive-maximum-mqtt5.md) e
+[C72](../../../xmqr-client/prompts/registros/C72-receive-maximum-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

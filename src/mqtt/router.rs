@@ -2,7 +2,7 @@
 //! or fan-out, so no async mutex is held across storage I/O.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet, VecDeque},
     path::Path,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -68,6 +68,7 @@ pub(super) struct SessionPolicy {
     pub persistent: bool,
     pub expiry_interval_seconds: Option<u32>,
     pub will_delay_seconds: u32,
+    pub receive_maximum: u16,
 }
 
 fn reconcile_recovered_sessions(
@@ -206,6 +207,9 @@ struct Live {
     generation: u64,
     sender: mpsc::Sender<Delivery>,
     close: watch::Sender<bool>,
+    receive_maximum: usize,
+    pending_replay: VecDeque<Delivery>,
+    sent_unacked: BTreeSet<u16>,
 }
 
 struct Actor {
@@ -292,6 +296,7 @@ enum Command {
         persistent: bool,
         expiry_interval_seconds: Option<u32>,
         will_delay_seconds: u32,
+        receive_maximum: u16,
         will: Option<StoredMessage>,
         reply: oneshot::Sender<Result<Session, RouterError>>,
     },
@@ -784,6 +789,7 @@ impl Router {
                 persistent: !clean,
                 expiry_interval_seconds: None,
                 will_delay_seconds: 0,
+                receive_maximum: u16::MAX,
             },
             will,
             security_generation,
@@ -808,6 +814,7 @@ impl Router {
             persistent: policy.persistent,
             expiry_interval_seconds: policy.expiry_interval_seconds,
             will_delay_seconds: policy.will_delay_seconds,
+            receive_maximum: policy.receive_maximum,
             will,
             reply,
         })
@@ -1257,6 +1264,7 @@ impl Actor {
                 persistent,
                 expiry_interval_seconds,
                 will_delay_seconds,
+                receive_maximum,
                 will,
                 reply,
             } => {
@@ -1272,6 +1280,7 @@ impl Actor {
                                 persistent,
                                 expiry_interval_seconds,
                                 will_delay_seconds,
+                                receive_maximum,
                             },
                             will,
                         )
@@ -1838,6 +1847,7 @@ impl Actor {
                 persistent,
                 expiry_interval_seconds,
                 will_delay_seconds: 0,
+                receive_maximum: u16::MAX,
             },
             will,
         )
@@ -1860,6 +1870,7 @@ impl Actor {
             persistent,
             expiry_interval_seconds,
             will_delay_seconds,
+            receive_maximum,
         } = policy;
         let now = unix_ms()?;
         let old = self
@@ -1937,23 +1948,47 @@ impl Actor {
                 },
             );
         }
+        let effective_maximum = self.limits.max_inflight.min(usize::from(receive_maximum));
         let mut replay = Vec::new();
+        let mut pending_replay = VecDeque::new();
+        let mut sent_unacked = BTreeSet::new();
+        let mut replay_publish_count = 0;
         if session_present {
             let session = candidate
                 .sessions
                 .get_mut(&client_id)
                 .ok_or(RouterError::Stale)?;
             for record in &session.outbound {
-                replay.push(match record.stage {
+                let delivery = match record.stage {
                     OutboundStage::AwaitPubComp => Delivery::PubRel(record.packet_id),
                     OutboundStage::AwaitPubAck | OutboundStage::AwaitPubRec => Delivery::Publish {
                         message: record.message.clone(),
                         packet_id: Some(record.packet_id),
                         dup: true,
                     },
-                });
+                };
+                if matches!(delivery, Delivery::Publish { .. }) {
+                    if replay_publish_count >= effective_maximum {
+                        pending_replay.push_back(delivery);
+                        continue;
+                    }
+                    replay_publish_count += 1;
+                    sent_unacked.insert(record.packet_id);
+                }
+                replay.push(delivery);
             }
-            drain_offline(self.limits, session, &mut replay)?;
+            if pending_replay.is_empty() {
+                drain_offline(self.limits, session, &mut replay, effective_maximum, 0)?;
+                for delivery in &replay {
+                    if let Delivery::Publish {
+                        packet_id: Some(packet_id),
+                        ..
+                    } = delivery
+                    {
+                        sent_unacked.insert(*packet_id);
+                    }
+                }
+            }
         }
         self.commit(candidate).await?;
         if prior_will_published {
@@ -1973,6 +2008,9 @@ impl Actor {
                 generation,
                 sender,
                 close,
+                receive_maximum: effective_maximum,
+                pending_replay,
+                sent_unacked,
             },
         );
         Ok(Session {
@@ -2029,6 +2067,11 @@ impl Actor {
             return Ok((codes, Vec::new()));
         }
         let mut deliveries = Vec::with_capacity(retained_matches.len());
+        let receive_maximum = self
+            .live
+            .get(client_id)
+            .ok_or(RouterError::Stale)?
+            .receive_maximum;
         for (topic, maximum) in retained_matches {
             let mut delivered = candidate
                 .retained
@@ -2040,9 +2083,40 @@ impl Actor {
                 .sessions
                 .get_mut(client_id)
                 .ok_or(RouterError::Stale)?;
-            deliveries.push(prepare_delivery(self.limits, session, delivered)?);
+            let queued_publish_count = deliveries
+                .iter()
+                .filter(|delivery| {
+                    matches!(
+                        delivery,
+                        Delivery::Publish {
+                            packet_id: Some(_),
+                            ..
+                        }
+                    )
+                })
+                .count();
+            let outstanding = self.live[client_id].sent_unacked.len();
+            if delivered.qos > 0
+                && (session.outbound.len() >= self.limits.max_inflight
+                    || outstanding + queued_publish_count >= receive_maximum)
+            {
+                session.offline.push_back(delivered);
+            } else {
+                deliveries.push(prepare_delivery(self.limits, session, delivered)?);
+            }
         }
         self.commit(candidate).await?;
+        if let Some(live) = self.live.get_mut(client_id) {
+            for delivery in &deliveries {
+                if let Delivery::Publish {
+                    packet_id: Some(packet_id),
+                    ..
+                } = delivery
+                {
+                    live.sent_unacked.insert(*packet_id);
+                }
+            }
+        }
         Ok((codes, deliveries))
     }
 
@@ -2154,6 +2228,15 @@ impl Actor {
         packet_id: u16,
     ) -> Result<Vec<Delivery>, RouterError> {
         self.current(client_id, generation)?;
+        let live = self.live.get(client_id).ok_or(RouterError::Stale)?;
+        if live.pending_replay.iter().any(|delivery| {
+            matches!(delivery, Delivery::Publish { packet_id: Some(id), .. } if *id == packet_id)
+        }) {
+            return Err(RouterError::Stale);
+        }
+        let receive_maximum = live.receive_maximum;
+        let has_pending_replay = !live.pending_replay.is_empty();
+        let replenishes_quota = live.sent_unacked.contains(&packet_id);
         let mut candidate = self.state.clone();
         let session = candidate
             .sessions
@@ -2172,8 +2255,24 @@ impl Actor {
             (AckKind::Ack, OutboundStage::AwaitPubAck)
             | (AckKind::Comp, OutboundStage::AwaitPubComp) => {
                 session.outbound.remove(index);
-                drain_offline(self.limits, session, &mut actions)?;
+                if !has_pending_replay
+                    && (replenishes_quota || live.sent_unacked.len() < receive_maximum)
+                {
+                    drain_offline(
+                        self.limits,
+                        session,
+                        &mut actions,
+                        receive_maximum,
+                        live.sent_unacked.len() - usize::from(replenishes_quota),
+                    )?;
+                }
                 self.commit(candidate).await?;
+                if let Some(live) = self.live.get_mut(client_id)
+                    && live.sent_unacked.remove(&packet_id)
+                    && let Some(pending) = live.pending_replay.pop_front()
+                {
+                    self.deliver(vec![(client_id.to_owned(), pending)]);
+                }
                 // Earlier publications may already be waiting in this session's
                 // mailbox. Append drained offline messages there, not to the
                 // ACK caller's direct-write path, preserving publication order.
@@ -2313,11 +2412,25 @@ impl Actor {
 
     fn deliver(&mut self, deliveries: Vec<(String, Delivery)>) {
         for (client_id, delivery) in deliveries {
-            if let Some(live) = self.live.get(&client_id)
-                && live.sender.try_send(delivery).is_err()
-            {
-                self.metrics.reject(Rejection::Delivery);
-                let _ = live.close.send(true);
+            if let Some(live) = self.live.get_mut(&client_id) {
+                let packet_id = match &delivery {
+                    Delivery::Publish {
+                        packet_id: Some(packet_id),
+                        ..
+                    } => Some(*packet_id),
+                    _ => None,
+                };
+                if packet_id.is_some() && live.sent_unacked.len() >= live.receive_maximum {
+                    self.metrics.reject(Rejection::Delivery);
+                    let _ = live.close.send(true);
+                    continue;
+                }
+                if live.sender.try_send(delivery).is_err() {
+                    self.metrics.reject(Rejection::Delivery);
+                    let _ = live.close.send(true);
+                } else if let Some(packet_id) = packet_id {
+                    live.sent_unacked.insert(packet_id);
+                }
             }
         }
     }
@@ -2360,8 +2473,11 @@ fn apply_message(
         let mut outbound = message.clone();
         outbound.qos = outbound.qos.min(maximum);
         outbound.retain = false;
-        if live.contains_key(client_id) {
-            if outbound.qos > 0 && session.outbound.len() >= limits.max_inflight {
+        if let Some(connection) = live.get(client_id) {
+            if outbound.qos > 0
+                && (session.outbound.len() >= limits.max_inflight
+                    || connection.sent_unacked.len() >= connection.receive_maximum)
+            {
                 session.offline.push_back(outbound);
             } else {
                 let delivery = prepare_delivery(limits, session, outbound)?;
@@ -2411,9 +2527,26 @@ fn drain_offline(
     limits: StateLimits,
     session: &mut DurableSession,
     actions: &mut Vec<Delivery>,
+    receive_maximum: usize,
+    sent_unacked: usize,
 ) -> Result<(), RouterError> {
     let now = unix_ms()?;
-    while session.outbound.len() < limits.max_inflight {
+    while session.outbound.len() < limits.max_inflight
+        && sent_unacked
+            + actions
+                .iter()
+                .filter(|action| {
+                    matches!(
+                        action,
+                        Delivery::Publish {
+                            packet_id: Some(_),
+                            ..
+                        }
+                    )
+                })
+                .count()
+            < receive_maximum
+    {
         let Some(message) = session.offline.pop_front() else {
             break;
         };
@@ -3049,14 +3182,306 @@ mod tests {
         assert!(prepare_delivery(limits, &mut session, second.clone()).is_err());
         session.offline.push_back(second.clone());
         let mut actions = Vec::new();
-        drain_offline(limits, &mut session, &mut actions).unwrap();
+        drain_offline(limits, &mut session, &mut actions, limits.max_inflight, 0).unwrap();
         assert!(actions.is_empty());
         assert_eq!(session.offline.front(), Some(&second));
         session.outbound.clear();
-        drain_offline(limits, &mut session, &mut actions).unwrap();
+        drain_offline(limits, &mut session, &mut actions, limits.max_inflight, 0).unwrap();
         assert_eq!(actions.len(), 1);
         assert!(session.offline.is_empty());
         assert_eq!(session.outbound[0].message, second);
+    }
+
+    #[tokio::test]
+    async fn mqtt5_receive_maximum_one_defers_qos_and_allows_qos_zero() {
+        let (_directory, mut actor) = actor().await;
+        let mut subscriber = actor
+            .register_with_policy_and_delay(
+                "rx-one".into(),
+                "user".into(),
+                SessionPolicy {
+                    clean: true,
+                    persistent: true,
+                    expiry_interval_seconds: None,
+                    will_delay_seconds: 0,
+                    receive_maximum: 1,
+                },
+                None,
+            )
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "rx-one",
+                subscriber.generation,
+                vec![(filter("test/+"), Some(1))],
+            )
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for payload in [b"first".as_slice(), b"second".as_slice()] {
+            actor
+                .publish(
+                    "source",
+                    publisher.generation,
+                    message("test/qos", 1, false, payload),
+                    Some(7),
+                )
+                .await
+                .unwrap();
+        }
+        let Delivery::Publish {
+            packet_id: Some(first_id),
+            ..
+        } = subscriber.outbound.try_recv().unwrap()
+        else {
+            panic!("expected first QoS 1 publication");
+        };
+        assert!(subscriber.outbound.try_recv().is_err());
+        assert_eq!(actor.state.sessions["rx-one"].offline.len(), 1);
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/qos", 0, false, b"qos-zero"),
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            subscriber.outbound.try_recv(),
+            Ok(Delivery::Publish {
+                packet_id: None,
+                ..
+            })
+        ));
+        actor
+            .ack("rx-one", subscriber.generation, AckKind::Ack, first_id)
+            .await
+            .unwrap();
+        assert!(
+            matches!(subscriber.outbound.try_recv(), Ok(Delivery::Publish { message, packet_id: Some(_), .. }) if message.payload == b"second")
+        );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_receive_maximum_replay_is_paced_after_smaller_reconnect() {
+        let (_directory, mut actor) = actor().await;
+        let policy = |clean, receive_maximum| SessionPolicy {
+            clean,
+            persistent: true,
+            expiry_interval_seconds: None,
+            will_delay_seconds: 0,
+            receive_maximum,
+        };
+        let mut subscriber = actor
+            .register_with_policy_and_delay(
+                "rx-replay".into(),
+                "user".into(),
+                policy(true, 2),
+                None,
+            )
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "rx-replay",
+                subscriber.generation,
+                vec![(filter("test/+"), Some(1))],
+            )
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for payload in [b"one", b"two"] {
+            actor
+                .publish(
+                    "source",
+                    publisher.generation,
+                    message("test/replay", 1, false, payload),
+                    Some(8),
+                )
+                .await
+                .unwrap();
+        }
+        assert!(subscriber.outbound.try_recv().is_ok());
+        assert!(subscriber.outbound.try_recv().is_ok());
+        actor
+            .unregister_with_reason("rx-replay", subscriber.generation, false)
+            .await
+            .unwrap();
+        subscriber = actor
+            .register_with_policy_and_delay(
+                "rx-replay".into(),
+                "user".into(),
+                policy(false, 1),
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(subscriber.resumed);
+        assert_eq!(subscriber.replay.len(), 1);
+        assert_eq!(actor.live["rx-replay"].pending_replay.len(), 1);
+        let Delivery::Publish {
+            packet_id: Some(first_id),
+            ..
+        } = &subscriber.replay[0]
+        else {
+            panic!("expected replay PUBLISH");
+        };
+        actor
+            .ack("rx-replay", subscriber.generation, AckKind::Ack, *first_id)
+            .await
+            .unwrap();
+        assert!(
+            matches!(subscriber.outbound.try_recv(), Ok(Delivery::Publish { message, dup: true, .. }) if message.payload == b"two")
+        );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_receive_maximum_qos2_waits_for_pubcomp() {
+        let (_directory, mut actor) = actor().await;
+        let mut subscriber = actor
+            .register_with_policy_and_delay(
+                "rx-qos2".into(),
+                "user".into(),
+                SessionPolicy {
+                    clean: true,
+                    persistent: true,
+                    expiry_interval_seconds: None,
+                    will_delay_seconds: 0,
+                    receive_maximum: 1,
+                },
+                None,
+            )
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "rx-qos2",
+                subscriber.generation,
+                vec![(filter("test/+"), Some(2))],
+            )
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for (id, payload) in [(1, b"one".as_slice()), (2, b"two".as_slice())] {
+            actor
+                .publish(
+                    "source",
+                    publisher.generation,
+                    message("test/qos2", 2, false, payload),
+                    Some(id),
+                )
+                .await
+                .unwrap();
+            actor
+                .pubrel("source", publisher.generation, id)
+                .await
+                .unwrap();
+        }
+        let Delivery::Publish {
+            packet_id: Some(first_id),
+            ..
+        } = subscriber.outbound.try_recv().unwrap()
+        else {
+            panic!("expected QoS 2 PUBLISH");
+        };
+        assert!(subscriber.outbound.try_recv().is_err());
+        assert!(
+            matches!(actor.ack("rx-qos2", subscriber.generation, AckKind::Rec, first_id).await.unwrap().as_slice(), [Delivery::PubRel(id)] if *id == first_id)
+        );
+        assert!(subscriber.outbound.try_recv().is_err());
+        actor
+            .ack("rx-qos2", subscriber.generation, AckKind::Comp, first_id)
+            .await
+            .unwrap();
+        assert!(
+            matches!(subscriber.outbound.try_recv(), Ok(Delivery::Publish { message, .. }) if message.payload == b"two")
+        );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_receive_maximum_paces_retained_delivery() {
+        let (_directory, mut actor) = actor().await;
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        for (topic, payload) in [
+            ("test/a", b"first".as_slice()),
+            ("test/b", b"second".as_slice()),
+        ] {
+            actor
+                .publish(
+                    "source",
+                    publisher.generation,
+                    message(topic, 1, true, payload),
+                    Some(7),
+                )
+                .await
+                .unwrap();
+        }
+        let mut subscriber = actor
+            .register_with_policy_and_delay(
+                "rx-retained".into(),
+                "user".into(),
+                SessionPolicy {
+                    clean: true,
+                    persistent: true,
+                    expiry_interval_seconds: None,
+                    will_delay_seconds: 0,
+                    receive_maximum: 1,
+                },
+                None,
+            )
+            .await
+            .unwrap();
+        let (_, deliveries) = actor
+            .subscribe(
+                "rx-retained",
+                subscriber.generation,
+                vec![(filter("test/+"), Some(1))],
+            )
+            .await
+            .unwrap();
+        let [
+            Delivery::Publish {
+                packet_id: Some(first_id),
+                message: first,
+                ..
+            },
+        ] = deliveries.as_slice()
+        else {
+            panic!("expected one retained PUBLISH");
+        };
+        assert_eq!(first.payload, b"first");
+        assert_eq!(actor.state.sessions["rx-retained"].offline.len(), 1);
+        actor
+            .ack(
+                "rx-retained",
+                subscriber.generation,
+                AckKind::Ack,
+                *first_id,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            subscriber.outbound.try_recv(),
+            Ok(Delivery::Publish { message, .. }) if message.payload == b"second" && message.retain
+        ));
+        actor.store.shutdown().await.unwrap();
     }
 
     use super::*;
@@ -3912,6 +4337,7 @@ mod tests {
                     persistent: true,
                     expiry_interval_seconds: None,
                     will_delay_seconds: 10,
+                    receive_maximum: u16::MAX,
                 },
                 Some(message("test/will", 0, false, b"survives")),
             )
@@ -3965,6 +4391,7 @@ mod tests {
             persistent: expiry != 0,
             expiry_interval_seconds: (1..u32::MAX).contains(&expiry).then_some(expiry),
             will_delay_seconds: delay,
+            receive_maximum: u16::MAX,
         };
         let source = actor
             .register_with_policy_and_delay(
@@ -4737,6 +5164,7 @@ mod tests {
                 persistent: false,
                 expiry_interval_seconds: None,
                 will_delay_seconds: 0,
+                receive_maximum: u16::MAX,
                 will: None,
                 reply,
             })

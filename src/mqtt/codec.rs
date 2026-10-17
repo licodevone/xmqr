@@ -55,6 +55,7 @@ pub(super) enum Packet {
         client_id: String,
         clean_session: bool,
         session_expiry: u32,
+        receive_maximum: u16,
         keep_alive: u16,
         will: Option<super::store::StoredMessage>,
         will_delay_seconds: u32,
@@ -248,11 +249,12 @@ impl<'a> Cursor<'a> {
     }
 }
 
-fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Option<u32>, &'static str> {
+fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Option<(u32, u16)>, &'static str> {
     let mut properties = Cursor::new(raw);
     let mut expiry_seen = false;
     let mut expiry = 0;
     let mut receive_seen = false;
+    let mut receive_maximum = u16::MAX;
     let mut problem_seen = false;
     let mut response_seen = false;
     let mut alias_seen = false;
@@ -270,7 +272,8 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Option<u32>, &'stati
                     return Err("duplicate MQTT 5 Receive Maximum");
                 }
                 receive_seen = true;
-                if properties.word()? == 0 {
+                receive_maximum = properties.word()?;
+                if receive_maximum == 0 {
                     return Err("zero MQTT 5 Receive Maximum");
                 }
             }
@@ -300,7 +303,7 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Option<u32>, &'stati
             _ => return Ok(None),
         }
     }
-    Ok(Some(expiry))
+    Ok(Some((expiry, receive_maximum)))
 }
 
 fn is_noncharacter(ch: char) -> bool {
@@ -356,13 +359,16 @@ fn decode_for(
             let clean_session = flags & 0x02 != 0;
             let keep_alive = c.word()?;
             let mut session_expiry = 0;
+            let mut receive_maximum = u16::MAX;
             if level == 5 {
                 let property_length = c.variable_integer()?;
                 let properties = c.bytes(property_length)?;
-                let Some(expiry) = mqtt5_connect_properties_supported(properties)? else {
+                let Some((expiry, receive)) = mqtt5_connect_properties_supported(properties)?
+                else {
                     return Ok(Packet::UnsupportedConnect5);
                 };
                 session_expiry = expiry;
+                receive_maximum = receive;
             }
             let client_id = c.text()?;
             let mut will_delay_seconds = 0;
@@ -405,6 +411,7 @@ fn decode_for(
                 client_id,
                 clean_session,
                 session_expiry,
+                receive_maximum,
                 keep_alive,
                 will,
                 will_delay_seconds,
@@ -854,7 +861,11 @@ mod tests {
         let body = [0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 30, 0, 0, 0];
         assert!(matches!(
             decode(0x10, &body).unwrap(),
-            Packet::Connect { mqtt5: true, .. }
+            Packet::Connect {
+                mqtt5: true,
+                receive_maximum: u16::MAX,
+                ..
+            }
         ));
         assert_eq!(encode_mqtt5_connack(0), [0x20, 3, 0, 0, 0]);
         assert_eq!(
@@ -1023,19 +1034,23 @@ mod tests {
         ];
         assert!(matches!(
             decode(0x10, &mosquitto).unwrap(),
-            Packet::Connect { mqtt5: true, .. }
+            Packet::Connect {
+                mqtt5: true,
+                receive_maximum: 20,
+                ..
+            }
         ));
         assert_eq!(
             mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x11, 0, 0, 0, 0]).unwrap(),
-            Some(0)
+            Some((0, 20))
         );
         assert_eq!(
             mqtt5_connect_properties_supported(&[0x11, 255, 255, 255, 255]).unwrap(),
-            Some(u32::MAX)
+            Some((u32::MAX, u16::MAX))
         );
         assert_eq!(
             mqtt5_connect_properties_supported(&[0x11, 0, 0, 0, 1]).unwrap(),
-            Some(1)
+            Some((1, u16::MAX))
         );
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 0]).is_err());
         assert!(mqtt5_connect_properties_supported(&[0x21, 0, 20, 0x21, 0, 5]).is_err());

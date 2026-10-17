@@ -102,6 +102,7 @@ async fn serve_mqtt(
         client_id,
         clean_session,
         session_expiry,
+        receive_maximum,
         keep_alive,
         will,
         will_delay_seconds,
@@ -171,6 +172,7 @@ async fn serve_mqtt(
                     None
                 },
                 will_delay_seconds,
+                receive_maximum,
             },
             will,
             Some(security_generation),
