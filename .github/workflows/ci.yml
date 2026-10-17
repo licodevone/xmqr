@@ -37,6 +37,7 @@ jobs:
       - run: python3 scripts/verify_mqtt5_fixed_header_flags_disconnect.py
       - run: python3 scripts/verify_mqtt5_subscription_user_properties.py
       - run: python3 scripts/verify_mqtt5_subscription_property_disconnect.py
+      - run: python3 scripts/verify_mqtt5_connect_property_reason.py
       - run: python3 scripts/verify_shutdown.py --broker target/debug/mqtt-broker
 
   ubuntu-package:

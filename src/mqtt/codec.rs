@@ -432,7 +432,7 @@ fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Mqtt5ConnectProperti
             _ => {
                 return Ok(Mqtt5ConnectProperties::Unsupported {
                     maximum_packet_size,
-                    reason_code: 0x83,
+                    reason_code: 0x81,
                 });
             }
         }
@@ -626,7 +626,7 @@ fn decode_for(
                             _ => {
                                 return Ok(Packet::UnsupportedConnect5 {
                                     maximum_packet_size,
-                                    reason_code: 0x83,
+                                    reason_code: 0x81,
                                 });
                             }
                         }
@@ -1787,6 +1787,13 @@ mod tests {
                     && will.user_properties == [("k".to_owned(), "1".to_owned()),
                                                 ("k".to_owned(), "2".to_owned())]
         ));
+        assert!(matches!(
+            decode(0x10, &make_connect(&[0x21])).unwrap(),
+            Packet::UnsupportedConnect5 {
+                reason_code: 0x81,
+                maximum_packet_size: None,
+            }
+        ));
         for invalid in [
             vec![0x01, 2],
             vec![0x01, 1, 0x01, 0],
@@ -2740,6 +2747,13 @@ mod tests {
 
     #[test]
     fn mqtt5_maximum_packet_size_connect_property_is_unique_and_nonzero() {
+        assert_eq!(
+            mqtt5_connect_properties_supported(&[0x0b, 1]).unwrap(),
+            Mqtt5ConnectProperties::Unsupported {
+                maximum_packet_size: None,
+                reason_code: 0x81,
+            }
+        );
         assert!(matches!(
             mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 10]).unwrap(),
             Mqtt5ConnectProperties::Supported {
@@ -2754,7 +2768,7 @@ mod tests {
             mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 1, 0x99]).unwrap(),
             Mqtt5ConnectProperties::Unsupported {
                 maximum_packet_size: Some(1),
-                reason_code: 0x83
+                reason_code: 0x81
             }
         );
         assert!(mqtt5_connect_properties_supported(&[0x27, 0, 0, 0, 0]).is_err());
