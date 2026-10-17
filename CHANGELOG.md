@@ -1,6 +1,6 @@
 # Histórico de versões
 
-## Em desenvolvimento após 0.28.0
+## 0.29.0 — Will MQTT 5 e estado v15 (experimental)
 
 - P164: Message Expiry Interval do Will MQTT 5 é persistido como intervalo pendente; o deadline começa na publicação efetiva, inclusive após Will Delay, restart/crash e encerramento administrativo. Estado v15 lê v1–v14; broker 0.28.0 rejeita v15. Admin 0.9.0 transporta backup bruto, mas A19 atualiza o core antes da release. Rollback executável requer backup privado v14.
 - P163: Will MQTT 5 aceita Payload Format Indicator, Content Type, Response Topic, Correlation Data e User Property ordenada, inclusive com Will Delay; os metadados atravessam publicação, retained, fila offline e restart no estado v14. Message Expiry do Will ainda está fora do recorte.

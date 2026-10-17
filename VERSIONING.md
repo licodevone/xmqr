@@ -1,5 +1,15 @@
 # Versionamento
 
+## P165 — candidato broker/admin legado 0.29.0, estado v15
+
+P162–P164 entregam Server Keep Alive e propriedades do Will MQTT 5, inclusive
+Message Expiry iniciado na publicação. O documento lê v1–v14 e grava v15;
+broker 0.28.0 rejeita v15. O admin 0.9.0 transporta backup bruto v15, mas o
+par suportado será admin independente 0.10.0/A19. Para rollback executável,
+preserve backup privado v14 anterior à primeira gravação. Tags apontarão
+ao commit exato após testes, CI, pacotes e hashes; fases globais abertas.
+[Nota](docs/releases/0.29.0.md).
+
 ## P161 — broker/admin legado 0.28.0 publicado
 
 P158–P160 reúnem recusa de métodos AUTH indisponíveis, autenticação inicial

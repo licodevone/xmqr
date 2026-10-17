@@ -1,5 +1,12 @@
 # XMQR
 
+O candidato experimental 0.29.0 reúne P162–P164: limite configurável de
+Keep Alive MQTT 5, metadados do Will e Message Expiry com contagem iniciada
+na publicação. O estado durável v15 requer backup privado v14 anterior para
+rollback executável ao broker 0.28.0. O client 0.26.0/C94–C95 e o admin
+independente 0.10.0/A19 são os parceiros deste marco. Fases 6A–6D e 7–9
+continuam abertas. [Nota de release](docs/releases/0.29.0.md).
+
 A árvore após 0.28.0 também acrescenta P164: `Message Expiry Interval` no
 Will MQTT 5 é persistido como intervalo até a publicação efetiva, inclusive
 se houver atraso ou recuperação após crash. A partir da publicação, vale o
