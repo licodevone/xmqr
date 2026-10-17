@@ -22,6 +22,10 @@ pub(super) const MAX_TOPIC_ALIAS: u8 = 16;
 #[error("unsupported MQTT protocol level {0}")]
 pub(super) struct UnsupportedProtocolLevel(pub(super) u8);
 
+#[derive(Debug, thiserror::Error)]
+#[error("MQTT packet exceeds local size limit")]
+pub(super) struct PacketTooLarge;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -157,7 +161,7 @@ impl FrameReader {
                 return Ok(packet);
             }
             if self.buffer.len() >= MAX_BUFFER {
-                return Err("MQTT input buffer exceeded".into());
+                return Err(PacketTooLarge.into());
             }
             let now = Instant::now();
             let left = self
@@ -237,7 +241,7 @@ fn frame_header(
         };
         value += usize::from(byte & 0x7f) * multiplier;
         if value + index + 1 > MAX_PACKET {
-            return Err("MQTT packet too large".into());
+            return Err(PacketTooLarge.into());
         }
         if byte & 0x80 == 0 {
             return Ok(Some((index + 1, value)));
@@ -2725,6 +2729,11 @@ mod tests {
             Some((4, 65532))
         );
         assert!(frame_header(&[0x10, 0xfd, 0xff, 0x03]).is_err());
+        assert!(
+            frame_header(&[0x10, 0xfd, 0xff, 0x03])
+                .unwrap_err()
+                .is::<PacketTooLarge>()
+        );
         assert!(frame_header(&[0x10, 0x80, 0x80, 0x04]).is_err());
         // Count the actual encoded bytes, including a non-minimal fourth digit.
         assert_eq!(

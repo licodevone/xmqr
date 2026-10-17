@@ -439,7 +439,15 @@ async fn serve_mqtt(
                 () = sleep_until(deadline) => break,
                 incoming = reader.read_packet(connection, deadline) => {
                     last_inbound = Instant::now();
-                    match incoming? {
+                    let packet = match incoming {
+                        Ok(packet) => packet,
+                        Err(error) if mqtt5 && error.is::<codec::PacketTooLarge>() => {
+                            let _ = write_limited(connection, &[0xe0, 2, 0x95, 0], outbound_maximum).await;
+                            return Err(error);
+                        }
+                        Err(error) => return Err(error),
+                    };
+                    match packet {
                         Packet::Subscribe { packet_id, filters, subscription_identifier } => {
                             let requested = filters.into_iter().map(|(filter,qos,retain_handling,subscription_flags)| {
                                 let inner = if mqtt5 { topic::shared_inner(filter.as_str()) } else { None };
