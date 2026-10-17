@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 0.20.0 — limites de fluxo MQTT 5, experimental
+
+- P134: Receive Maximum do assinante limita PUBLISH QoS1/2 vivos, retidos, offline e em replay sem limitar QoS0 ou PUBREL.
+- P136: Maximum Packet Size do assinante limita cada pacote enviado; PUBLISH grande demais é descartado e sua obrigação QoS é concluída duravelmente.
+- O documento durável permanece v8; fases 6A–6D e conformidade MQTT 5 integral continuam abertas.
+
 ## 0.19.0 — expiração e Will MQTT 5, experimental
 
 - P132: Will MQTT 5 com Will Delay opcional; publicação/cancelamento duráveis, restart e migração de estado v7 para v8. Falha do WAL ao agendar Will encerra o ator para recuperar obrigação anterior.

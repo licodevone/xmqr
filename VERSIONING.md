@@ -1,5 +1,11 @@
 # Versionamento
 
+## P137 — marco de limites MQTT 5
+
+Broker e `mqtt-admin` legado 0.20.0 incluem P134/P136: Receive Maximum e
+Maximum Packet Size MQTT 5. Client independente 0.18.0 acompanha. Não há nova
+migração do documento v8. [Nota de release](docs/releases/0.20.0.md).
+
 ## P133 — marco de expiração e Will MQTT 5
 
 Broker e `mqtt-admin` legado 0.19.0 incluem P130–P132: Message Expiry,

@@ -1,5 +1,10 @@
 # XMQR
 
+O marco experimental 0.20.0 acrescenta Receive Maximum e Maximum Packet Size
+do assinante MQTT 5, inclusive entrega retida/offline e replay após reinício.
+Veja a [nota de release](docs/releases/0.20.0.md). O documento de estado
+permanece v8; a fase 6C ainda inclui Topic Alias e metadados de publicação.
+
 O marco experimental 0.19.0 acrescenta Message Expiry, Session Expiry no
 DISCONNECT e Will Delay MQTT 5. O documento durável passa a v8: faça backup
 privado offline antes da atualização, pois 0.18.0 não reabre v7/v8. Consulte
