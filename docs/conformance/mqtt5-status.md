@@ -102,6 +102,12 @@ propriedade fora de contexto e duplicata de propriedade única em AUTH e
 DISCONNECT do client. A recusa não aplica Session Expiry parcialmente; o Will
 segue a transição de erro. Outros erros de AUTH/DISCONNECT seguem sua validação
 anterior e não compõem uma matriz normativa completa.
+P187 aplica DISCONNECT `0x81`/`0x82` respectivamente a identificador de
+propriedade fora de contexto e Reason String duplicada em PUBACK, PUBREC,
+PUBREL e PUBCOMP do client MQTT 5. User Property repetível, Will, replay
+durável e MQTT 3.1.1 foram verificados. Truncamento, UTF-8 inválido, motivos
+inválidos, quotas e limites locais não receberam nova classificação; a matriz
+normativa completa e os aceites 6A/6C seguem abertos.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
