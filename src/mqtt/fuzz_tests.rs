@@ -574,6 +574,7 @@ fn message(topic: &str, payload: Vec<u8>, qos: u8, retain: bool) -> StoredMessag
         payload,
         qos,
         retain,
+        expiry_at_unix_ms: None,
     }
 }
 

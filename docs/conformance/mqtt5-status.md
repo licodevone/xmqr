@@ -6,6 +6,11 @@ O broker informa Session Present conforme o estado durável, conserva assinatura
 e QoS offline após reinício para expiração infinita e remove a sessão ao encerrar
 a conexão com expiração zero. P128 aceita intervalos finitos 1..4294967294,
 grava o prazo após desconexão e remove sessões vencidas no ator e na recuperação.
+P130 acrescenta `Message Expiry Interval` (0x02) em PUBLISH MQTT 5: o broker
+grava deadline absoluto em documento v7, remove cópias retidas/offline vencidas
+antes da entrega e encaminha o prazo restante em PUBLISH MQTT 5. QoS2 recebido
+é avaliado no PUBREL; uma entrega QoS já iniciada conserva seu handshake.
+O client C69 envia `--message-expiry-seconds` em `pub --protocol-version 5`.
 Se o processo cair com a conexão ainda ativa, o instante da queda não é
 durável; por segurança contra perda silenciosa, a contagem começa na recuperação.
 Receive Maximum válido opcional, sem Will. P123 acrescenta Request Problem
@@ -14,7 +19,7 @@ no CONNECT. O broker valida valores e pares, mas não ecoa nem armazena essas
 propriedades e não envia aliases ou informações opcionais de resposta.
 Autenticação, ACL, limites e transporte
 existentes continuam aplicados. Após P122, o `CONNACK` de sucesso omite Maximum QoS,
-indicando o padrão 2, e anuncia Maximum Packet Size=65536. `PUBLISH` sem propriedades em QoS 0/1/2, retained,
+indicando o padrão 2, e anuncia Maximum Packet Size=65536. `PUBLISH` em QoS 0/1/2, com propriedades vazias ou Message Expiry, retained,
 `PUBACK`, `PINGREQ` e `DISCONNECT` simples funcionam; uma publicação MQTT 5
 chega a assinantes MQTT 3.1.1. P116 aceita SUBSCRIBE MQTT 5 com propriedades
 vazias, opções padrão e QoS0/1/2, responde SUBACK com reason code por filtro e
@@ -48,11 +53,12 @@ entrega ainda depende da fase 6C; não se declara conformidade MQTT 5 integral.
 O broker recusa Will e propriedades de CONNECT fora do subconjunto
 P127 com `CONNACK` 5 `0x83` antes de criar sessão. Pacotes fora deste
 subconjunto encerram a conexão. Ainda não há
-propriedades de publicação, expiração de mensagem, Will Delay, flow
+outras propriedades de publicação, Will Delay, flow
 control, Topic Alias ou AUTH. Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. P128 migra o documento durável de v5 para v6 na próxima
 gravação; brokers anteriores não podem reabrir estado v6. Um rollback exige
-backup privado anterior à migração.
+backup privado anterior à migração. P130 migra o documento de v6 para v7;
+v0.18.0 não pode reabrir estado v7 sem backup anterior.
 
 Historicamente, P114 recusava todo `CONNECT` 5 com `CONNACK 0x84`; esse contrato
 foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
@@ -75,6 +81,8 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P127](../../prompts/registros/P127-sessao-mqtt5-zero-infinita.md) e
 [C66](../../../xmqr-client/prompts/registros/C66-sessao-mqtt5-zero-infinita.md),
 [P128](../../prompts/registros/P128-expiracao-finita-sessao-mqtt5.md) e
-[C67](../../../xmqr-client/prompts/registros/C67-expiracao-finita-sessao-mqtt5.md).
+[C67](../../../xmqr-client/prompts/registros/C67-expiracao-finita-sessao-mqtt5.md),
+[P130](../../prompts/registros/P130-message-expiry-mqtt5.md) e
+[C69](../../../xmqr-client/prompts/registros/C69-message-expiry-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

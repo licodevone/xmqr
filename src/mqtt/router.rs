@@ -42,6 +42,21 @@ fn expiry_deadline(now: u64, seconds: u32) -> Result<u64, RouterError> {
         .ok_or(RouterError::Clock)
 }
 
+pub(super) fn message_expiry_deadline(seconds: u32) -> Result<u64, RouterError> {
+    expiry_deadline(unix_ms()?, seconds)
+}
+
+pub(super) fn remaining_message_expiry(deadline: u64) -> Result<u32, RouterError> {
+    let remaining_ms = deadline.saturating_sub(unix_ms()?);
+    u32::try_from(remaining_ms.div_ceil(1000)).map_err(|_| RouterError::Clock)
+}
+
+fn message_expired(message: &StoredMessage, now: u64) -> bool {
+    message
+        .expiry_at_unix_ms
+        .is_some_and(|deadline| deadline <= now)
+}
+
 fn session_expired(session: &DurableSession, now: u64) -> bool {
     session
         .expires_at_unix_ms
@@ -871,16 +886,34 @@ impl Router {
 impl Actor {
     async fn expire_sessions(&mut self) -> Result<(), RouterError> {
         let now = unix_ms()?;
-        if self
+        let expired_sessions = self
             .state
             .sessions
             .iter()
-            .any(|(id, session)| !self.live.contains_key(id) && session_expired(session, now))
-        {
+            .any(|(id, session)| !self.live.contains_key(id) && session_expired(session, now));
+        let expired_messages = self
+            .state
+            .retained
+            .values()
+            .any(|m| message_expired(m, now))
+            || self
+                .state
+                .sessions
+                .values()
+                .any(|s| s.offline.iter().any(|m| message_expired(m, now)));
+        if expired_sessions || expired_messages {
             let mut candidate = self.state.clone();
             candidate
                 .sessions
                 .retain(|id, session| self.live.contains_key(id) || !session_expired(session, now));
+            candidate
+                .retained
+                .retain(|_, message| !message_expired(message, now));
+            for session in candidate.sessions.values_mut() {
+                session
+                    .offline
+                    .retain(|message| !message_expired(message, now));
+            }
             self.commit(candidate).await?;
         }
         Ok(())
@@ -2089,14 +2122,18 @@ fn apply_message(
     auth: &AccessPolicy,
     message: &StoredMessage,
 ) -> Result<Vec<(String, Delivery)>, RouterError> {
+    let expired = message_expired(message, unix_ms()?);
     if message.retain {
-        if message.payload.is_empty() {
+        if message.payload.is_empty() || expired {
             state.retained.remove(&message.topic);
         } else {
             state
                 .retained
                 .insert(message.topic.clone(), message.clone());
         }
+    }
+    if expired {
+        return Ok(Vec::new());
     }
     let mut deliveries = Vec::new();
     for (client_id, session) in &mut state.sessions {
@@ -2167,10 +2204,14 @@ fn drain_offline(
     session: &mut DurableSession,
     actions: &mut Vec<Delivery>,
 ) -> Result<(), RouterError> {
+    let now = unix_ms()?;
     while session.outbound.len() < limits.max_inflight {
         let Some(message) = session.offline.pop_front() else {
             break;
         };
+        if message_expired(&message, now) {
+            continue;
+        }
         actions.push(prepare_delivery(limits, session, message)?);
     }
     Ok(())
@@ -2787,12 +2828,14 @@ mod tests {
             payload: vec![1],
             qos: 1,
             retain: false,
+            expiry_at_unix_ms: None,
         };
         let second = StoredMessage {
             topic: super::super::topic::TopicName::try_from("test/second".to_owned()).unwrap(),
             payload: vec![2],
             qos: 1,
             retain: false,
+            expiry_at_unix_ms: None,
         };
         prepare_delivery(limits, &mut session, first.clone()).unwrap();
         assert!(prepare_delivery(limits, &mut session, second.clone()).is_err());
@@ -2982,6 +3025,7 @@ mod tests {
             payload: payload.to_vec(),
             qos,
             retain,
+            expiry_at_unix_ms: None,
         }
     }
 
@@ -3539,6 +3583,102 @@ mod tests {
             .await
             .unwrap();
         assert!(!new_session.resumed);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_message_expiry_purges_retained_and_offline_after_reopen() {
+        let (directory, mut actor) = actor().await;
+        let subscriber = actor
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "sub",
+                subscriber.generation,
+                vec![(filter("test/#"), Some(1))],
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister("sub", subscriber.generation)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("pub".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut expiring = message("test/expiring", 1, true, b"short-lived");
+        expiring.expiry_at_unix_ms = Some(message_expiry_deadline(1).unwrap());
+        actor
+            .publish("pub", publisher.generation, expiring, Some(7))
+            .await
+            .unwrap();
+        assert!(actor.state.retained.contains_key("test/expiring"));
+        assert_eq!(actor.state.sessions["sub"].offline.len(), 1);
+        actor.store.shutdown().await.unwrap();
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        let (store, state) = MqttStore::open(directory.path()).await.unwrap();
+        let mut reopened = Actor {
+            limits: StateLimits::default(),
+            metrics: Arc::default(),
+            store,
+            state,
+            auth: Arc::clone(&actor.auth),
+            live: BTreeMap::new(),
+            next_generation: 1,
+            fatal: false,
+            commits_since_snapshot: 0,
+        };
+        reopened.expire_sessions().await.unwrap();
+        assert!(!reopened.state.retained.contains_key("test/expiring"));
+        assert!(reopened.state.sessions["sub"].offline.is_empty());
+        let resumed = reopened
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        assert!(resumed.replay.is_empty());
+        reopened.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn mqtt5_expired_immediate_publication_replaces_old_retained_without_delivery() {
+        let (_directory, mut actor) = actor().await;
+        let publisher = actor
+            .register("pub".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut subscriber = actor
+            .register("sub".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "sub",
+                subscriber.generation,
+                vec![(filter("test/state"), Some(1))],
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "pub",
+                publisher.generation,
+                message("test/state", 1, true, b"old"),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        let _ = subscriber.outbound.try_recv();
+        let mut expired = message("test/state", 1, true, b"new");
+        expired.expiry_at_unix_ms = Some(unix_ms().unwrap());
+        actor
+            .publish("pub", publisher.generation, expired, Some(2))
+            .await
+            .unwrap();
+        assert!(!actor.state.retained.contains_key("test/state"));
+        assert!(subscriber.outbound.try_recv().is_err());
         actor.store.shutdown().await.unwrap();
     }
 

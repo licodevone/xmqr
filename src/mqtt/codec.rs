@@ -75,6 +75,7 @@ pub(super) enum Packet {
         retain: bool,
         dup: bool,
         packet_id: Option<u16>,
+        expiry_interval: Option<u32>,
     },
     PubAck(u16),
     PubRec(u16),
@@ -377,6 +378,7 @@ fn decode_for(
                     payload,
                     qos: will_qos,
                     retain: will_retain,
+                    expiry_at_unix_ms: None,
                 })
             } else {
                 None
@@ -469,11 +471,17 @@ fn decode_for(
                 }
                 Some(id)
             };
+            let mut expiry_interval = None;
             if mqtt5 {
                 let property_length = c.variable_integer()?;
-                c.bytes(property_length)?;
-                if property_length != 0 {
-                    return Err("MQTT 5 PUBLISH properties not supported".into());
+                let raw = c.bytes(property_length)?;
+                let mut properties = Cursor::new(raw);
+                while properties.pos < raw.len() {
+                    if properties.byte()? != 0x02 || expiry_interval.is_some() {
+                        return Err("unsupported or duplicate MQTT 5 PUBLISH property".into());
+                    }
+                    expiry_interval =
+                        Some(u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap()));
                 }
             }
             let payload = c.bytes(body.len() - c.pos)?.to_vec();
@@ -487,6 +495,7 @@ fn decode_for(
                 retain,
                 dup,
                 packet_id,
+                expiry_interval,
             }
         }
         0x40 => Packet::PubAck(success_ack_id(&mut c, mqtt5)?),
@@ -663,6 +672,7 @@ pub(super) fn encode_publish(
     encode_publish_for(topic, payload, qos, retain, dup, packet_id, false)
 }
 
+#[cfg(test)]
 pub(super) fn encode_publish_for(
     topic: &str,
     payload: &[u8],
@@ -671,6 +681,20 @@ pub(super) fn encode_publish_for(
     dup: bool,
     packet_id: Option<u16>,
     mqtt5: bool,
+) -> Result<Vec<u8>, &'static str> {
+    encode_publish_with_expiry(topic, payload, qos, retain, dup, packet_id, mqtt5, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn encode_publish_with_expiry(
+    topic: &str,
+    payload: &[u8],
+    qos: Qos,
+    retain: bool,
+    dup: bool,
+    packet_id: Option<u16>,
+    mqtt5: bool,
+    expiry_interval: Option<u32>,
 ) -> Result<Vec<u8>, &'static str> {
     // MQTT-2.3.1-5 and MQTT-3.3.1-2: identifier and DUP follow QoS.
     match (qos, packet_id) {
@@ -682,8 +706,15 @@ pub(super) fn encode_publish_for(
         return Err("invalid outbound MQTT topic or payload");
     }
     let name = topic.as_bytes();
-    let len =
-        2 + name.len() + usize::from(packet_id.is_some()) * 2 + usize::from(mqtt5) + payload.len();
+    if expiry_interval.is_some() && !mqtt5 {
+        return Err("MQTT 5 expiry on MQTT 3.1.1 PUBLISH");
+    }
+    let properties_len: u8 = if expiry_interval.is_some() { 5 } else { 0 };
+    let len = 2
+        + name.len()
+        + usize::from(packet_id.is_some()) * 2
+        + usize::from(mqtt5) * (1 + usize::from(properties_len))
+        + payload.len();
     if name.len() > u16::MAX as usize {
         return Err("outbound MQTT packet too large");
     }
@@ -699,7 +730,11 @@ pub(super) fn encode_publish_for(
         out.extend_from_slice(&id.to_be_bytes());
     }
     if mqtt5 {
-        out.push(0); // No PUBLISH properties.
+        out.push(properties_len);
+        if let Some(seconds) = expiry_interval {
+            out.push(0x02);
+            out.extend_from_slice(&seconds.to_be_bytes());
+        }
     }
     out.extend_from_slice(payload);
     Ok(out)
@@ -708,6 +743,52 @@ pub(super) fn encode_publish_for(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mqtt5_message_expiry_property_vectors_and_rejections() {
+        let body = [0, 1, b't', 5, 2, 0, 0, 0, 7, b'x'];
+        assert!(matches!(
+            decode_for(0x30, &body, true).unwrap(),
+            Packet::Publish { expiry_interval: Some(7), payload, .. } if payload == b"x"
+        ));
+        assert_eq!(
+            encode_publish_with_expiry(
+                "t",
+                b"x",
+                Qos::AtMostOnce,
+                false,
+                false,
+                None,
+                true,
+                Some(7)
+            )
+            .unwrap(),
+            [0x30, 10, 0, 1, b't', 5, 2, 0, 0, 0, 7, b'x']
+        );
+        for properties in [
+            &[10, 2, 0, 0, 0, 1, 2, 0, 0, 0, 2][..],
+            &[4, 2, 0, 0, 0][..],
+            &[1, 0x26][..],
+        ] {
+            let mut invalid = vec![0, 1, b't'];
+            invalid.extend_from_slice(properties);
+            invalid.push(b'x');
+            assert!(decode_for(0x30, &invalid, true).is_err());
+        }
+        assert!(
+            encode_publish_with_expiry(
+                "t",
+                b"x",
+                Qos::AtMostOnce,
+                false,
+                false,
+                None,
+                false,
+                Some(7)
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn mqtt5_connect_uses_versioned_connack() {

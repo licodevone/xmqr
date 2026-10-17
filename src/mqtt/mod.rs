@@ -252,7 +252,7 @@ async fn serve_mqtt(
                             let ack = if mqtt5 { codec::encode_mqtt5_unsuback(packet_id, &codes) } else { encode_unsuback(packet_id).to_vec() };
                             connection.write_all_with_deadline(&ack, WRITE_TIMEOUT).await?;
                         }
-                        Packet::Publish { topic, payload, qos, retain, dup, packet_id } => {
+                        Packet::Publish { topic, payload, qos, retain, dup, packet_id, expiry_interval } => {
                             // DUP is a PUBLISH retransmission hint, not an application dedup key.
                             let _ = dup;
                             if !auth.allowed_publish(&principal, topic.as_str()) {
@@ -266,7 +266,8 @@ async fn serve_mqtt(
                                 warn!(connection_id=connection.id(), "unauthorized publish; closing client");
                                 break;
                             }
-                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain };
+                            let expiry_at_unix_ms = expiry_interval.map(router::message_expiry_deadline).transpose()?;
+                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms };
                             router.publish(&session, message, packet_id).await?;
                             match (qos, packet_id) {
                                 (Qos::AtLeastOnce, Some(id)) => connection.write_all_with_deadline(&encode_puback(id), WRITE_TIMEOUT).await?,
@@ -341,7 +342,7 @@ async fn send_delivery(
             message,
             packet_id,
             dup,
-        } => codec::encode_publish_for(
+        } => codec::encode_publish_with_expiry(
             message.topic.as_str(),
             &message.payload,
             Qos::from_u8(message.qos)?,
@@ -349,6 +350,14 @@ async fn send_delivery(
             dup,
             packet_id,
             mqtt5,
+            if mqtt5 {
+                message
+                    .expiry_at_unix_ms
+                    .map(router::remaining_message_expiry)
+                    .transpose()?
+            } else {
+                None
+            },
         )?,
         Delivery::PubRel(id) => encode_pubrel(id).to_vec(),
     };
