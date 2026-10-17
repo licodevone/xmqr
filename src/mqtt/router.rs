@@ -196,6 +196,8 @@ pub(super) enum RouterError {
     Clock,
     #[error("invalid MQTT 5 DISCONNECT Session Expiry transition")]
     InvalidSessionExpiry,
+    #[error("generated MQTT 5 Client Identifier already belongs to a session")]
+    AssignedIdCollision,
 }
 
 /// A packet to send to a connected subscriber after the durable transition.
@@ -351,6 +353,7 @@ enum Command {
     Register {
         security_generation: Option<u64>,
         client_id: String,
+        assigned_id: bool,
         principal: String,
         clean: bool,
         persistent: bool,
@@ -902,10 +905,50 @@ impl Router {
         will: Option<StoredMessage>,
         security_generation: Option<u64>,
     ) -> Result<Session, RouterError> {
+        self.register_with_policy_inner(
+            client_id,
+            false,
+            principal,
+            policy,
+            will,
+            security_generation,
+        )
+        .await
+    }
+
+    pub(super) async fn register_assigned_with_policy(
+        &self,
+        client_id: String,
+        principal: String,
+        policy: SessionPolicy,
+        will: Option<StoredMessage>,
+        security_generation: Option<u64>,
+    ) -> Result<Session, RouterError> {
+        self.register_with_policy_inner(
+            client_id,
+            true,
+            principal,
+            policy,
+            will,
+            security_generation,
+        )
+        .await
+    }
+
+    async fn register_with_policy_inner(
+        &self,
+        client_id: String,
+        assigned_id: bool,
+        principal: String,
+        policy: SessionPolicy,
+        will: Option<StoredMessage>,
+        security_generation: Option<u64>,
+    ) -> Result<Session, RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::Register {
             security_generation,
             client_id,
+            assigned_id,
             principal,
             clean: policy.clean,
             persistent: policy.persistent,
@@ -1468,6 +1511,7 @@ impl Actor {
             Command::Register {
                 security_generation,
                 client_id,
+                assigned_id,
                 principal,
                 clean,
                 persistent,
@@ -1481,6 +1525,14 @@ impl Actor {
                 let result =
                     if security_generation.is_some_and(|g| g != self.auth.security_generation()) {
                         Err(RouterError::Security)
+                    } else if assigned_id
+                        && (self.state.sessions.contains_key(&client_id)
+                            || self.state.pending_wills.contains_key(&client_id)
+                            || self.live.contains_key(&client_id))
+                    {
+                        // Check inside the actor so concurrent assignments cannot
+                        // replace an existing live or durable session.
+                        Err(RouterError::AssignedIdCollision)
                     } else {
                         self.register_with_policy_and_delay(
                             client_id,
@@ -4398,6 +4450,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn assigned_client_id_collision_never_takes_over_existing_session() {
+        let (_directory, mut actor) = actor().await;
+        let existing = actor
+            .register("assigned".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let before = actor.state.clone();
+        let (reply, result) = oneshot::channel();
+        actor
+            .handle(Command::Register {
+                security_generation: None,
+                client_id: "assigned".into(),
+                assigned_id: true,
+                principal: "user".into(),
+                clean: true,
+                persistent: false,
+                expiry_interval_seconds: None,
+                will_delay_seconds: 0,
+                will_message_expiry_seconds: None,
+                receive_maximum: u16::MAX,
+                will: None,
+                reply,
+            })
+            .await;
+        assert!(matches!(
+            result.await.unwrap(),
+            Err(RouterError::AssignedIdCollision)
+        ));
+        assert_eq!(actor.state, before);
+        assert!(!*existing.closed.borrow());
+        assert_eq!(actor.live["assigned"].generation, existing.generation);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn mqtt5_shared_routes_one_member_per_group_without_initial_retained() {
         let (directory, mut actor) = actor().await;
         let publisher = actor
@@ -6909,6 +6996,7 @@ mod tests {
             .handle(Command::Register {
                 security_generation: Some(1),
                 client_id: "stale".into(),
+                assigned_id: false,
                 principal: "user".into(),
                 clean: true,
                 persistent: false,

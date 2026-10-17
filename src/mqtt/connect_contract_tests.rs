@@ -57,6 +57,43 @@ fn connect5_with_properties(properties: &[u8]) -> Vec<u8> {
     packet
 }
 
+fn connect5_id_properties(id: &[u8], clean: bool, properties: &[u8]) -> Vec<u8> {
+    let mut packet = connect(id, clean, 5);
+    packet[12] = u8::try_from(properties.len()).unwrap();
+    packet.splice(13..13, properties.iter().copied());
+    packet[1] = u8::try_from(packet.len() - 2).unwrap();
+    packet
+}
+
+async fn connack(stream: &mut TcpStream) -> Vec<u8> {
+    let mut header = [0; 2];
+    timeout(Duration::from_secs(3), stream.read_exact(&mut header))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(header[0], 0x20);
+    assert!(header[1] < 128);
+    let mut packet = header.to_vec();
+    packet.resize(usize::from(header[1]) + 2, 0);
+    timeout(Duration::from_secs(3), stream.read_exact(&mut packet[2..]))
+        .await
+        .unwrap()
+        .unwrap();
+    packet
+}
+
+fn assigned_id(packet: &[u8]) -> String {
+    assert_eq!(packet[3], 0, "CONNACK must succeed");
+    let property = packet.iter().position(|byte| *byte == 0x12).unwrap();
+    let length = usize::from(u16::from_be_bytes([
+        packet[property + 1],
+        packet[property + 2],
+    ]));
+    let id = std::str::from_utf8(&packet[property + 3..property + 3 + length]).unwrap();
+    assert!(id.starts_with("xmqr-") && id.len() == 37);
+    id.to_owned()
+}
+
 fn authenticated_connect(id: &[u8], level: u8) -> Vec<u8> {
     let mut packet = connect(id, true, level);
     packet[9] = 0xc2; // Username, password and Clean Start/Clean Session.
@@ -236,7 +273,7 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
     if let Some(code) = code {
         let expected = if code == 0 && packet[8] == 5 {
             MQTT5_SUCCESS_CONNACK.to_vec()
-        } else if matches!(code, 0x83 | 0x86 | 0x8c) {
+        } else if matches!(code, 0x83 | 0x86 | 0x8c | 0x95) {
             vec![0x20, 3, 0, code, 0]
         } else {
             vec![0x20, 2, 0, code]
@@ -269,6 +306,84 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
         assert_eq!(router.metrics().commits.load(Ordering::Relaxed), 0);
     }
     router.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn mqtt5_empty_client_ids_are_unique_and_can_resume_by_assigned_id() {
+    let directory = tempfile::tempdir().unwrap();
+    let auth = Arc::new(AccessPolicy::open_lab());
+    let router = Arc::new(Router::start(directory.path(), auth.clone()).await.unwrap());
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server_router = router.clone();
+    let server = tokio::spawn(async move {
+        let mut tasks = Vec::new();
+        for _ in 0..3 {
+            let (stream, _) = listener.accept().await.unwrap();
+            let connection = BrokerConnection::open_lab_for_test(stream).await.unwrap();
+            let auth = auth.clone();
+            let router = server_router.clone();
+            tasks.push(tokio::spawn(async move {
+                serve_connection(connection, auth, router).await.unwrap();
+            }));
+        }
+        for task in tasks {
+            task.await.unwrap();
+        }
+    });
+    let expiry = [0x11, 0, 0, 0, 60];
+    let tight_connack = [0x11, 0, 0, 0, 60, 0x27, 0, 0, 0, 47];
+    let mut first = TcpStream::connect(address).await.unwrap();
+    first
+        .write_all(&connect5_id_properties(b"", true, &tight_connack))
+        .await
+        .unwrap();
+    let first_packet = connack(&mut first).await;
+    assert_eq!(first_packet.len(), 47);
+    let first_id = assigned_id(&first_packet);
+    assert_eq!(first_packet[2], 0);
+
+    let mut second = TcpStream::connect(address).await.unwrap();
+    second.write_all(&connect(b"", true, 5)).await.unwrap();
+    let second_id = assigned_id(&connack(&mut second).await);
+    assert_ne!(first_id, second_id);
+
+    first.write_all(&[0xe0, 0]).await.unwrap();
+    closed(&mut first).await;
+    let mut resumed = TcpStream::connect(address).await.unwrap();
+    resumed
+        .write_all(&connect5_id_properties(first_id.as_bytes(), false, &expiry))
+        .await
+        .unwrap();
+    let resumed_packet = connack(&mut resumed).await;
+    assert_eq!(resumed_packet[2], 1);
+    assert!(!resumed_packet.contains(&0x12));
+    second.write_all(&[0xe0, 0]).await.unwrap();
+    resumed.write_all(&[0xe0, 0]).await.unwrap();
+    closed(&mut second).await;
+    closed(&mut resumed).await;
+    timeout(Duration::from_secs(3), server)
+        .await
+        .unwrap()
+        .unwrap();
+    router.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn assigned_id_requires_room_in_connack_and_legacy_stays_rejected() {
+    case(connect(b"", true, 4), Some(2)).await;
+    case(authenticated_connect(b"", 5), Some(0x86)).await;
+    case(
+        connect5_id_properties(b"", true, &[0x27, 0, 0, 0, 5]),
+        Some(0x95),
+    )
+    .await;
+    case(
+        connect5_id_properties(b"", true, &[0x27, 0, 0, 0, 46]),
+        Some(0x95),
+    )
+    .await;
+    case(connect5_id_properties(b"", true, &[0x27, 0, 0, 0, 4]), None).await;
 }
 
 #[tokio::test]

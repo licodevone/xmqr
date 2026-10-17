@@ -1034,6 +1034,23 @@ pub(super) fn append_mqtt5_server_keep_alive(mut connack: Vec<u8>, seconds: u16)
     connack.extend_from_slice(&seconds.to_be_bytes());
     connack
 }
+
+pub(super) fn append_mqtt5_assigned_client_id(mut connack: Vec<u8>, id: &str) -> Vec<u8> {
+    // Generated IDs are fixed-length ASCII; the resulting CONNACK lengths
+    // remain one-byte Variable Byte Integers in this bounded subset.
+    debug_assert!(!id.is_empty() && id.len() <= 37);
+    let added = 3 + id.len();
+    connack[1] += u8::try_from(added).expect("bounded assigned ID");
+    connack[4] += u8::try_from(added).expect("bounded assigned ID");
+    connack.push(0x12);
+    connack.extend_from_slice(
+        &u16::try_from(id.len())
+            .expect("bounded assigned ID")
+            .to_be_bytes(),
+    );
+    connack.extend_from_slice(id.as_bytes());
+    connack
+}
 pub(super) fn encode_connack_with_session(
     code: u8,
     session_present: bool,
@@ -1899,6 +1916,19 @@ mod tests {
                 60
             ),
             [0x20, 8, 0, 0, 5, 0x2a, 1, 0x13, 0, 60]
+        );
+    }
+
+    #[test]
+    fn mqtt5_assigned_client_id_is_mandatory_connack_property() {
+        assert_eq!(
+            append_mqtt5_assigned_client_id(
+                encode_mqtt5_shared_available_connack(false).to_vec(),
+                "xmqr-ab"
+            ),
+            [
+                0x20, 15, 0, 0, 12, 0x2a, 1, 0x12, 0, 7, b'x', b'm', b'q', b'r', b'-', b'a', b'b'
+            ]
         );
     }
 

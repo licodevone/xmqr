@@ -1,5 +1,11 @@
 # MQTT 5 — subconjunto das fases 6A–6D
 
+P166, ainda na árvore de desenvolvimento, aceita Client Identifier vazio no
+CONNECT MQTT 5, atribui ID exclusivo e o devolve em CONNACK `0x12`. O pacote
+é recusado antes de registrar sessão se o limite anunciado não comportar a
+propriedade obrigatória. MQTT 3.1.1 mantém a recusa. C97 é o par de CLI;
+esta parcela não encerra o aceite global da fase 6A.
+
 P115 iniciou `CONNECT` MQTT 5 com Clean Start=1 e Session Expiry ausente ou zero.
 P127 acrescenta Clean Start=0/1 independente de Session Expiry=0/infinita (`0xFFFFFFFF`).
 O broker informa Session Present conforme o estado durável, conserva assinaturas

@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Em desenvolvimento — Client Identifier atribuído no MQTT 5
+
+- P166: CONNECT MQTT 5 com Client Identifier vazio recebe ID aleatório exclusivo e propriedade obrigatória `0x12` no CONNACK; colisão é resolvida no ator e limite de pacote insuficiente recusa antes do commit. MQTT 3.1.1 continua recusando ID vazio. Sem tag/release desta parcela.
+
 ## 0.29.0 — Will MQTT 5 e estado v15 (experimental)
 
 - P164: Message Expiry Interval do Will MQTT 5 é persistido como intervalo pendente; o deadline começa na publicação efetiva, inclusive após Will Delay, restart/crash e encerramento administrativo. Estado v15 lê v1–v14; broker 0.28.0 rejeita v15. Admin 0.9.0 transporta backup bruto, mas A19 atualiza o core antes da release. Rollback executável requer backup privado v14.

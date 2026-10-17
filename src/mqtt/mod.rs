@@ -21,8 +21,9 @@ pub(crate) use router::{AdminError, AdminListKind};
 /// This project quota is narrower than MQTT's 65,535-byte string ceiling.
 pub const MAX_TOPIC_BYTES: usize = 1024;
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Write as _, sync::Arc, time::Duration};
 
+use rand_core::{OsRng, RngCore};
 use tokio::time::{Instant, sleep_until};
 use tracing::{debug, warn};
 use zeroize::Zeroizing;
@@ -43,6 +44,16 @@ use store::StoredMessage;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(3);
+
+fn new_assigned_client_id() -> String {
+    let mut random = [0u8; 16];
+    OsRng.fill_bytes(&mut random);
+    let mut id = String::from("xmqr-");
+    for byte in random {
+        write!(&mut id, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    id
+}
 
 fn plain_credentials(data: &[u8]) -> Option<(&str, &[u8])> {
     let mut fields = data.split(|byte| *byte == 0);
@@ -229,16 +240,33 @@ async fn serve_mqtt(
         }
     };
 
-    // MQTT-3.1.3-8/9: XMQR refuses empty IDs rather than assigning one.
-    // The 256-byte ceiling is a local quota shared with durable validation.
+    // MQTT 5 allows the server to assign an ID; MQTT 3.1.1 retains its
+    // earlier refusal. The 256-byte ceiling is shared with durable state.
     // Validate before authentication/actor registration: a refused CONNECT
     // cannot mutate state or process a pipelined publication (3.1.4-5).
-    if client_id.is_empty() || client_id.len() > store::MAX_CLIENT_ID_BYTES {
+    if (!mqtt5 && client_id.is_empty()) || client_id.len() > store::MAX_CLIENT_ID_BYTES {
         metrics.reject(Rejection::Quota);
         write_limited(connection, &refusal(2, 0x85), outbound_maximum).await?;
         return Ok(());
     }
-    let Some(client_id) = auth.scoped_client_id(&client_id) else {
+    let assigned_id = mqtt5 && client_id.is_empty();
+    let mut client_id = if assigned_id {
+        new_assigned_client_id()
+    } else {
+        client_id
+    };
+    let assigned_property_size = if assigned_id { 3 + client_id.len() } else { 0 };
+    if assigned_id
+        && outbound_maximum
+            < 7 + assigned_property_size
+                + usize::from(plain_requested) * 8
+                + usize::from(server_keep_alive.is_some()) * 3
+    {
+        // The Assigned Client Identifier property is mandatory on success.
+        write_limited(connection, &refusal(2, 0x95), outbound_maximum).await?;
+        return Ok(());
+    }
+    let Some(mut scoped_client_id) = auth.scoped_client_id(&client_id) else {
         metrics.reject(Rejection::Quota);
         write_limited(connection, &refusal(2, 0x85), outbound_maximum).await?;
         return Ok(());
@@ -271,41 +299,73 @@ async fn serve_mqtt(
         write_limited(connection, &refusal(5, 0x86), outbound_maximum).await?;
         return Ok(());
     };
-    let mut session = match router
-        .register_with_policy(
-            client_id,
-            principal.clone(),
-            SessionPolicy {
-                clean: clean_session,
-                persistent: if mqtt5 {
-                    session_expiry != 0
-                } else {
-                    !clean_session
-                },
-                expiry_interval_seconds: if mqtt5 && (1..u32::MAX).contains(&session_expiry) {
-                    Some(session_expiry)
-                } else {
-                    None
-                },
-                will_delay_seconds,
-                will_message_expiry_seconds,
-                receive_maximum,
+    let mut attempts = 0;
+    let mut session = loop {
+        attempts += 1;
+        let policy = SessionPolicy {
+            clean: clean_session,
+            persistent: if mqtt5 {
+                session_expiry != 0
+            } else {
+                !clean_session
             },
-            will,
-            Some(security_generation),
-        )
-        .await
-    {
-        Ok(session) => session,
-        Err(RouterError::PrincipalMismatch | RouterError::WillDenied | RouterError::Security) => {
-            write_limited(connection, &refusal(5, 0x87), outbound_maximum).await?;
-            return Ok(());
+            expiry_interval_seconds: if mqtt5 && (1..u32::MAX).contains(&session_expiry) {
+                Some(session_expiry)
+            } else {
+                None
+            },
+            will_delay_seconds,
+            will_message_expiry_seconds,
+            receive_maximum,
+        };
+        let result = if assigned_id {
+            router
+                .register_assigned_with_policy(
+                    scoped_client_id.clone(),
+                    principal.clone(),
+                    policy,
+                    will.clone(),
+                    Some(security_generation),
+                )
+                .await
+        } else {
+            router
+                .register_with_policy(
+                    scoped_client_id.clone(),
+                    principal.clone(),
+                    policy,
+                    will.clone(),
+                    Some(security_generation),
+                )
+                .await
+        };
+        match result {
+            Ok(session) => break session,
+            Err(RouterError::AssignedIdCollision) if assigned_id && attempts < 4 => {
+                client_id = new_assigned_client_id();
+                scoped_client_id = auth
+                    .scoped_client_id(&client_id)
+                    .ok_or("generated Client Identifier exceeds listener quota")?;
+            }
+            Err(RouterError::AssignedIdCollision) => {
+                metrics.reject(Rejection::Quota);
+                write_limited(connection, &refusal(2, 0x97), outbound_maximum).await?;
+                return Ok(());
+            }
+            Err(
+                RouterError::PrincipalMismatch | RouterError::WillDenied | RouterError::Security,
+            ) => {
+                write_limited(connection, &refusal(5, 0x87), outbound_maximum).await?;
+                return Ok(());
+            }
+            Err(error) => return Err(error.into()),
         }
-        Err(error) => return Err(error.into()),
     };
     let mut guard = router.connection_guard(&session);
     let connack_base_budget = outbound_maximum.saturating_sub(
-        usize::from(plain_requested) * 8 + usize::from(server_keep_alive.is_some()) * 3,
+        usize::from(plain_requested) * 8
+            + usize::from(server_keep_alive.is_some()) * 3
+            + assigned_property_size,
     );
     let advertised_alias_maximum = if mqtt5 && connack_base_budget >= 15 {
         u16::from(codec::MAX_TOPIC_ALIAS)
@@ -326,6 +386,9 @@ async fn serve_mqtt(
     }
     if let Some(seconds) = server_keep_alive {
         connack = codec::append_mqtt5_server_keep_alive(connack, seconds);
+    }
+    if assigned_id {
+        connack = codec::append_mqtt5_assigned_client_id(connack, &client_id);
     }
     // Preserve P136/P138's previously negotiated Maximum Packet Size and
     // Topic Alias properties; omit Receive Maximum only when it cannot fit.

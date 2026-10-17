@@ -1,5 +1,12 @@
 # XMQR
 
+A árvore após 0.29.0 acrescenta P166: CONNECT MQTT 5 com Client Identifier
+vazio recebe um identificador novo na propriedade CONNACK `0x12`, preservando
+unicidade entre sessões ativas e duráveis. MQTT 3.1.1 ainda recusa ID vazio;
+um limite de pacote que não comporte a propriedade obrigatória é recusado
+antes de registrar a sessão. O client C97 usa esse modo explicitamente.
+[Prompt P166](prompts/broker/166-assigned-client-id-mqtt5.md).
+
 A release experimental 0.29.0 reúne P162–P164: limite configurável de
 Keep Alive MQTT 5, metadados do Will e Message Expiry com contagem iniciada
 na publicação. O estado durável v15 requer backup privado v14 anterior para
