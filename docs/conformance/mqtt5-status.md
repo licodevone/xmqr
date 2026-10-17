@@ -89,7 +89,8 @@ o indicador é 1. P142/C78, distribuídos em 0.22.0/0.20.0, acrescentam
 Response Topic `0x08`, Correlation Data `0x09` binária e User Property `0x26`
 repetível em ordem no PUBLISH. O broker persiste em documento v10 e omite as
 propriedades em assinantes 3.1.1. O client aceita os argumentos de publicação;
-`sub` ainda não as exibe. Outras propriedades seguem pendentes; não se declara
+C80 passou a exibi-las em `sub --output jsonl` na árvore de desenvolvimento,
+após a release 0.20.0. Outras propriedades seguem pendentes; não se declara
 conformidade MQTT 5 integral.
 
 O broker recusa propriedades de CONNECT e Will fora do subconjunto
@@ -142,6 +143,7 @@ foi substituído por P115. Níveis desconhecidos continuam com recusa 3.1.1
 [P141](../../prompts/registros/P141-publish-payload-format-content-type-mqtt5.md) e
 [C77](../../../xmqr-client/prompts/registros/C77-publish-payload-format-content-type-mqtt5.md),
 [P142](../../prompts/registros/P142-publish-request-properties-mqtt5.md) e
-[C78](../../../xmqr-client/prompts/registros/C78-publish-request-properties-mqtt5.md).
+[C78](../../../xmqr-client/prompts/registros/C78-publish-request-properties-mqtt5.md) e
+[C80](../../../xmqr-client/prompts/registros/C80-subscriber-publish-metadata-mqtt5.md).
 
 Fonte normativa: [OASIS MQTT 5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).
