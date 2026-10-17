@@ -205,6 +205,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fases 6A/6C/P169 parciais: PUBACK negativo MQTT 5 do assinante conclui QoS1, libera quota e preserva conexão/restart; testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P169-negative-puback-mqtt5.md). Demais ACKs negativos e aceite global abertos.
 - [x] ~~Fases 6A/6C/P170 parciais: PUBREC negativo MQTT 5 do assinante encerra QoS2 sem PUBREL, libera quota e não reaparece após restart; testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P170-negative-pubrec-mqtt5.md). PUBREL/PUBCOMP e aceites globais abertos.
 - [x] ~~Fases 6A/6C/P171 parciais: PUBREL/PUBCOMP MQTT 5 `0x92` e diagnósticos válidos, continuação QoS2, entrega seguinte e restart sem replay; testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P171-qos2-completion-reasons-mqtt5.md). Matriz normativa completa e aceites globais abertos.
+- [x] ~~Fases 6A/6B/P172 parciais: DISCONNECT MQTT 5 `0x04` publica Will pela transição durável, com diagnósticos, Session Expiry e restart; testes, TCP e CI PASS.~~ [Registro](../prompts/registros/P172-disconnect-with-will-mqtt5.md). Outros motivos e aceites globais abertos.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

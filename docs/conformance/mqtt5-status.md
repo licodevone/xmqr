@@ -74,7 +74,11 @@ sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
 PUBREC/PUBCOMP com código. O estado QoS2 existente continua durável.
 P126 aceita as três formas de sucesso dos ACKs MQTT 5 recebidos (ID apenas,
 motivo `0x00`, motivo `0x00` com comprimento de propriedades zero) e as formas
-equivalentes de DISCONNECT normal. PUBACK recebido após P169 aceita códigos
+equivalentes de DISCONNECT normal. P172 acrescenta DISCONNECT do client com
+motivo `0x04`, que usa a transição durável do Will em vez de cancelá-lo; aceita
+Reason String única e User Property repetida em `0x00`/`0x04`, mantendo as
+regras de Session Expiry. Outros motivos DISCONNECT seguem pendentes. PUBACK
+recebido após P169 aceita códigos
 negativos válidos do client, Reason String única e User Property repetida;
 conclui QoS1 sem fechar a conexão. P170 aceita PUBREC negativo válido do
 assinante: a tentativa QoS2 é removida do estado durável sem PUBREL e a quota
