@@ -1,9 +1,12 @@
 # Histórico de versões
 
-## Em desenvolvimento — ACKs negativos MQTT 5
+## 0.31.0 — motivos MQTT 5 e interoperabilidade (experimental)
 
+- P172: DISCONNECT MQTT 5 `0x04` publica Will pela transição durável, incluindo atraso e restart; `0x00` continua cancelando.
+- P171: PUBREL/PUBCOMP aceitam `0x92` e diagnósticos válidos; PUBCOMP libera a tentativa QoS2.
 - P170: PUBREC negativo válido do assinante MQTT 5 encerra a tentativa QoS2 sem PUBREL, libera quota e persiste a remoção; parser aceita diagnósticos opcionais e rejeita motivos/propriedades inválidos. Sem tag/release isolada.
 - P169: PUBACK negativo válido do assinante MQTT 5 conclui a tentativa QoS1, libera inflight e preserva a conexão; parser aceita Reason String única e User Property repetida, rejeita códigos/propriedades inválidos. Sem tag/release isolada.
+- P168: Eclipse Paho Python 2.1.0 amplia o gate externo de MQTT 5 para ID atribuído, sessão, QoS0/1/2 e retained, junto ao Mosquitto.
 
 ## 0.30.0 — Client Identifier atribuído no MQTT 5 (experimental)
 

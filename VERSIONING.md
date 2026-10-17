@@ -1,5 +1,15 @@
 # Versionamento
 
+## P173 — candidato broker/admin legado 0.31.0, estado v15
+
+P168–P172 ampliam interop MQTT 5 e motivos de ACK/DISCONNECT, sem migração:
+broker 0.30.0 e admin independente 0.10.0 continuam lendo v15. O client
+independente permanece 0.27.0. Para rollback, parar o broker, preservar backup
+privado e restaurar a versão anterior; para 0.28.0 ou anterior ainda é preciso
+backup v14 anterior à migração. Publicação depende de CI da fonte exata,
+pacote, imagens, hashes remotos e teste de upgrade/rollback. Fases globais
+6A–6D e 7–9 seguem abertas. [Nota candidata](docs/releases/0.31.0.md).
+
 ## P167 — broker/admin legado 0.30.0 publicado, estado v15
 
 P166 acrescenta Client Identifier atribuído no MQTT 5 e CONNACK `0x12`.

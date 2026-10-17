@@ -1,18 +1,12 @@
 # XMQR
 
-A árvore após 0.30.0 também acrescenta P170: um assinante MQTT 5 pode
-recusar PUBLISH QoS2 com PUBREC negativo. O broker não envia PUBREL nessa
-tentativa, libera a quota e mantém a conexão; a recusa não reaparece após
-reinício. PUBREL/PUBCOMP negativos ainda estão fora do recorte.
-[Prompt P170](prompts/broker/170-negative-pubrec-mqtt5.md) e
-[aceite](prompts/registros/P170-negative-pubrec-mqtt5.md).
-
-A árvore após 0.30.0 acrescenta P169: um assinante MQTT 5 pode responder a
-PUBLISH QoS1 com PUBACK negativo válido, inclusive Reason String e User
-Property. O broker conclui a tentativa, libera a quota e mantém a conexão;
-registra só o código, sem payload. Outros ACKs negativos ainda não pertencem
-a este recorte. [Prompt P169](prompts/broker/169-negative-puback-mqtt5.md) e
-[aceite](prompts/registros/P169-negative-puback-mqtt5.md).
+O candidato experimental broker/admin legado 0.31.0 reúne P168–P172:
+interop MQTT 5 adicional com Eclipse Paho; PUBACK/PUBREC negativos de assinante;
+PUBREL/PUBCOMP `0x92`; DISCONNECT `0x04` que publica o Will. A quota e o
+estado durável são preservados nos fluxos testados. O estado continua v15,
+compatível com broker 0.30.0 e admin independente 0.10.0. O client independente
+permanece 0.27.0. Fases 6A–6D e 7–9 seguem abertas.
+[Nota candidata 0.31.0](docs/releases/0.31.0.md).
 
 A release experimental broker/admin legado 0.30.0 distribui P166: o broker atribui um
 Client Identifier exclusivo a CONNECT MQTT 5 com ID vazio e anuncia `0x12`
