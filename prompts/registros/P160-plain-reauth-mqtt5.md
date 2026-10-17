@@ -1,0 +1,6 @@
+# P160 — reautenticação PLAIN com AUTH MQTT 5 no broker (aceito)
+
+- [Prompt P160](../broker/160-plain-reauth-mqtt5.md) commitado antes do código (`b234fed`). Fonte `8231d86b8440936db2094a7b137eec4e15d9933f`; testes ampliados em `fb3164b71e1445b3b3467fd5531b11d17a5a34a3`.
+- Sessão MQTT 5 iniciada por PLAIN/TLS aceita AUTH `0x19` somente com método `PLAIN` e dados SASL PLAIN. Identidade e geração de política permanecem iguais; sucesso responde AUTH `0x00` com método. Credencial incorreta ou identidade diferente recebe DISCONNECT `0x86` e encerramento; motivo, propriedades, método ou sessão incompatíveis terminam sem reutilizar a sessão. Nenhuma migração de estado: v14 permanece.
+- 189 testes de biblioteca PASS/6 ignorados e demais alvos PASS; fmt, Clippy sem avisos, build release, inventário de licenças e seis contratos de distribuição PASS. Mutation sweep de AUTH, `P160_REAUTH_PASS` em TLS-password e mTLS com sucesso/erro, pub/sub após sucesso, bloqueio de identidade trocada, AUTH em sessão convencional e publicação de Will após falha. [CI do commit exato PASS](https://github.com/licodevone/xmqr/actions/runs/39016326584), incluindo pacote Ubuntu 26.04.
+- Parcela 6D somente do broker. O client C91 ainda não envia AUTH; C92, interop independente, reautenticação após rotação de senha e aceite global da fase 6D continuam pendentes. Sem tag/release isolada.
