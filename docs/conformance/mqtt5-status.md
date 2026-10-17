@@ -85,6 +85,12 @@ P183 responde com CONNACK `0x81` quando o identificador de propriedade de
 CONNECT ou Will está fora de contexto, antes de criar sessão/Will. O limite
 Maximum Packet Size conhecido é aplicado ao CONNACK. A classificação não se
 estende a truncamento, UTF-8 inválido, quotas ou outros erros semânticos.
+P184 responde com CONNACK `0x82` para duplicatas de propriedades únicas
+reconhecidas em CONNECT/Will e valores semânticos inválidos selecionados:
+Receive Maximum/Maximum Packet Size zero, indicadores informativos fora de
+0/1, Payload Format Indicator do Will acima de 1 e Authentication Data sem
+Method. O limite do CONNACK e a ausência de sessão/Will são verificados por TCP.
+Truncamento, UTF-8 inválido e limites locais ainda não têm matriz completa.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
@@ -186,8 +192,9 @@ a obrigação; QoS2 continua vinculado à sessão escolhida. Fonte v14 ainda nã
 foi distribuída nem validada pelo admin independente 0.8.0.
 
 O broker recusa identificadores de propriedades de CONNECT e Will fora do
-contexto com `CONNACK` 5 `0x81` após P183, antes de criar sessão. Outros erros
-malformados ainda podem encerrar a conexão sem CONNACK. Ainda não há
+contexto com `CONNACK` 5 `0x81` após P183 e erros semânticos selecionados com
+`0x82` após P184, antes de criar sessão. Outros erros malformados ainda podem
+encerrar a conexão sem CONNACK. Ainda não há
 demais propriedades de publicação, fluxo de envio completo do client ou AUTH.
 Portanto, a fase 6A e o suporte MQTT 5 completo
 permanecem pendentes. P128 migra o documento durável de v5 para v6 na próxima
