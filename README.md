@@ -1,12 +1,13 @@
 # XMQR
 
-O candidato 0.33.0 reúne P180/P181: propriedades User Property repetíveis em
+A release experimental 0.33.0 reúne P180/P181: propriedades User Property repetíveis em
 SUBSCRIBE e UNSUBSCRIBE MQTT 5, com limite de 16 pares/2048 bytes e rejeição
 antes do roteamento. Identificador de propriedade impróprio recebe DISCONNECT
 `0x81`; Subscription Identifier duplicado recebe `0x82`. O estado permanece
-v15. O client C102 é o parceiro na árvore de desenvolvimento; a versão client
-publicada 0.27.0 não expõe essas flags. As fases 6A–6D e 7–9 seguem abertas.
-[Nota candidata 0.33.0](docs/releases/0.33.0.md).
+v15. O client independente 0.28.0/C102 é o par distribuído; a versão 0.27.0
+não expõe essas flags. As fases 6A–6D e 7–9 seguem abertas.
+[Release 0.33.0](https://github.com/licodevone/xmqr/releases/tag/v0.33.0),
+[nota](docs/releases/0.33.0.md) e [aceite P182](prompts/registros/P182-release-0.33.0.md).
 
 A release experimental broker/admin legado 0.32.0 reúne P174–P178:
 DISCONNECT de erro do client com Will e respostas `0x95` para quadro excessivo,

@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado 0.32.0, client independente 0.27.0
+Versões publicadas atuais: broker/admin legado 0.33.0, client independente 0.28.0
 e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
 propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
@@ -216,6 +216,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Distribuição P179: broker/admin legado 0.32.0 com P174–P178, CI, pacote Ubuntu 26.04, upgrade/rollback descartável, imagens numeradas, tag, prerelease e SHA-256 remotos verificados.~~ [Registro](../prompts/registros/P179-release-0.32.0.md). Client independente 0.27.0 e admin independente 0.10.0 permanecem; fases 6A–6D e 7–9 abertas.
 - [x] ~~Fases 6A/6D/P180/C102 parciais: User Property MQTT 5 repetível em SUBSCRIBE/UNSUBSCRIBE no broker/client, limites, rejeição sem alteração de assinatura e integração Mosquitto; testes e CIs PASS.~~ [Broker](../prompts/registros/P180-subscription-user-properties-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C102-subscription-user-properties-mqtt5.md). Matriz global e fases 6A/6D abertas.
 - [x] ~~Fase 6A/P181 parcial: propriedade fora de contexto em SUBSCRIBE/UNSUBSCRIBE recebe DISCONNECT `0x81` e Subscription Identifier duplicado recebe `0x82`, com Will, reconexão durável e CI PASS.~~ [Registro](../prompts/registros/P181-subscription-property-disconnect-mqtt5.md). Matriz normativa global aberta.
+- [x] ~~Distribuição P182/C103: broker/admin legado 0.33.0 e client independente 0.28.0, com CI, pacotes Ubuntu 26.04, ciclo descartável de upgrade/rollback, imagens numeradas por digest, tags, prereleases e SHA-256 remotos verificados.~~ [Broker](../prompts/registros/P182-release-0.33.0.md) e [client](../../xmqr-client/prompts/registros/C103-release-0.28.0.md). Admin independente 0.10.0 permanece; fases 6A–6D e 7–9 abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

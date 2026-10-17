@@ -1,12 +1,13 @@
 # Versionamento
 
-## P182 — candidato broker/admin legado 0.33.0, estado v15
+## P182 — broker/admin legado 0.33.0 publicado, estado v15
 
 P180 aceita User Property de SUBSCRIBE/UNSUBSCRIBE; P181 classifica dois erros
 de propriedade após CONNACK. Não há migração: 0.32.0 e admin independente
-0.10.0 leem v15. A publicação exige CI, pacote Ubuntu 26.04, imagens numeradas,
-upgrade/rollback descartável, hashes remotos e tag anotada. Client parceiro
-C102 será distribuído de modo independente. Fases 6A–6D e 7–9 seguem abertas.
+0.10.0 leem v15. Tag anotada e prerelease publicadas após CI, pacote Ubuntu
+26.04, imagens numeradas, upgrade/rollback descartável e hashes remotos
+conferidos. Client parceiro 0.28.0/C102 foi distribuído de modo independente.
+Fases 6A–6D e 7–9 seguem abertas.
 [Nota](docs/releases/0.33.0.md).
 
 ## P179 — broker/admin legado 0.32.0 publicado, estado v15
