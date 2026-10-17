@@ -68,6 +68,13 @@ P121 aceita UNSUBSCRIBE MQTT 5 com propriedades vazias e responde UNSUBACK
 com motivo por filtro na ordem recebida: `0x00` removido ou `0x11` inexistente.
 Remoções são confirmadas após commit; cancelamento sem alteração não grava.
 C62 aguarda UNSUBACK para cada filtro antes do DISCONNECT após `sub --count`.
+P180 aceita User Property `0x26` repetível em SUBSCRIBE e UNSUBSCRIBE MQTT 5,
+inclusive junto de Subscription Identifier no primeiro. Limites locais: 16
+pares, 2048 bytes codificados por pacote e 256 bytes por campo. Propriedade
+fora de contexto, UTF-8 inválido e truncamento são recusados antes de mudar
+assinaturas; os pares não entram no estado durável. C102 expõe as flags
+correspondentes no client em desenvolvimento. Esta parcela não fecha a matriz
+de propriedades MQTT 5 nem as fases 6A/6D.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
