@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-16.
-Versões publicadas atuais: broker/admin legado0.19.0, client independente0.17.0
+Versões publicadas atuais: broker/admin legado0.20.0, client independente0.18.0
 e xmqr-admin independente0.4.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
@@ -157,6 +157,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Validação física P135: ESP32 COM4 publicou cinco amostras simuladas variáveis QoS 1; broker e subscriber 0.19.0/0.17.0 no Ubuntu/WSL confirmaram tópico, sequência e payload em duas execuções; laboratório temporário limpo.~~ [Evidência](../prompts/registros/P135-esp32-telemetria-wsl.md). É ensaio MQTT 3.1.1 e não encerra a fase 6.
 - [x] ~~Fase 6C/P134/C72 parcial: Receive Maximum de CONNECT MQTT 5 limita PUBLISH QoS1/2 vivo, retained, offline e replay; client expõe `--receive-maximum`; gates locais, interop e CIs PASS.~~ [Broker](../prompts/registros/P134-receive-maximum-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C72-receive-maximum-mqtt5.md). A fase 6C permanece aberta.
 - [x] ~~Fase 6C/P136/C73 parcial: Maximum Packet Size do CONNECT MQTT 5 limita saída do broker em bytes completos; PUBLISH excedente é descartado com conclusão durável da obrigação QoS; client expõe `--maximum-packet-size`; gates e CIs PASS.~~ [Broker](../prompts/registros/P136-maximum-packet-size-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C73-maximum-packet-size-mqtt5.md). A fase 6C permanece aberta.
+- [x] ~~Distribuição P137/C74: tags v0.20.0/v0.18.0, pacotes Ubuntu26, imagens numeradas e prereleases com manifesto, SHA-256 e rollback.~~ [Broker](../prompts/registros/P137-release-0.20.0.md) e [client](../../xmqr-client/prompts/registros/C74-release-0.18.0.md). Fases 6A–6D ainda abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
