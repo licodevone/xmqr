@@ -1,11 +1,12 @@
 # XMQR
 
-A árvore de desenvolvimento 0.27.0 candidata inclui P156: redistribuição de cópias
+A versão experimental publicada 0.27.0 inclui P156: redistribuição de cópias
 compartilhadas QoS1 não reconhecidas quando a sessão escolhida termina. A
 proveniência da cópia migra o documento durável de v13 para v14 na próxima
-gravação. **A release 0.27.0 ainda depende do admin A18 e dos gates de
-distribuição**; admin independente 0.8.0 lê v13, mas não abre v14. Preserve
-backup privado v13 antes de testar esta árvore.
+gravação. O admin independente 0.9.0 lê v14; 0.8.0 lê v13, mas não abre v14.
+Preserve backup privado v13 antes da primeira gravação para rollback.
+[Release 0.27.0](https://github.com/licodevone/xmqr/releases/tag/v0.27.0)
+e [aceite P157](prompts/registros/P157-release-0.27.0.md).
 
 A versão publicada experimental 0.26.0 inclui P153/P154: distribui
 `$share/{grupo}/{filtro}` MQTT 5 entre sessões ativas e acrescenta sessão persistente,

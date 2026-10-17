@@ -1,8 +1,8 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado0.26.0, client independente0.24.0
-e xmqr-admin independente0.8.0. Fases1–5 aceitas em seus recortes documentados;
+Versões publicadas atuais: broker/admin legado0.27.0, client independente0.24.0
+e xmqr-admin independente0.9.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
 segue aberta.
@@ -185,8 +185,8 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6D/P153 parcial: distribuição compartilhada MQTT 5 entre sessões temporárias ativas, sem retained inicial; dois grupos, QoS0/1/2, client e CI PASS.~~ Sessões persistentes e AUTH ainda pendentes neste marco. [Registro](../prompts/registros/P153-live-shared-subscriptions-mqtt5.md).
 - [x] ~~Fase 6D/P154 parcial: grupos compartilhados MQTT 5 persistentes no estado v13, fila offline e retomada QoS2; testes e CI PASS.~~ Admin A16 distribuído; AUTH e recomendação de redistribuição QoS1 após término da sessão seguem pendentes. [Registro](../prompts/registros/P154-durable-shared-subscriptions-mqtt5.md).
 - [x] ~~Distribuição P155/C90/A16: broker 0.26.0, client 0.24.0 e admin independente 0.8.0, com estado v13; CI, pacotes, imagens, rollback, tags e prereleases verificados.~~ [Broker](../prompts/registros/P155-release-0.26.0.md), [client](../../xmqr-client/prompts/registros/C90-release-0.24.0.md), [admin](../../xmqr-admin/prompts/registros/A16-core-v13-release-0.8.md). Fases 6A–6D e 7–9 seguem abertas.
-- [ ] Fase 6D/P156: redistribuir QoS1 não reconhecido após término da sessão compartilhada, com origem durável e compatibilidade admin. [Prompt](../prompts/broker/156-shared-qos1-redistribution.md).
-- [ ] Distribuição P157/A18: broker/admin legado 0.27.0 e admin independente compatível com estado v14, após CI, pacote, rollback, imagens, tags e prereleases. [Prompt P157](../prompts/broker/157-release-0.27.0.md).
+- [x] ~~Fase 6D/P156 parcial: redistribuição de QoS1 não reconhecido após término da sessão compartilhada, com origem durável v14 e compatibilidade admin A18; testes e CI PASS.~~ [Registro](../prompts/registros/P156-shared-qos1-redistribution.md). Fase 6D global aberta.
+- [x] ~~Distribuição P157/A18: broker/admin legado 0.27.0 e admin independente 0.9.0 compatível com estado v14; CI, pacote, rollback, imagens, tags e prereleases verificados.~~ [Broker](../prompts/registros/P157-release-0.27.0.md) e [admin](../../xmqr-admin/prompts/registros/A18-core-v14-release-0.9.md). Client 0.24.0 permaneceu igual; fases globais abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
@@ -235,7 +235,7 @@ para igualar um broker Mosquitto isolado.
 | 6A | Semanas13–15 | P115–P123 aceitam pub/sub MQTT5 QoS0/1/2, unsub, motivos ACL e CONNECT informativo; codec/propriedades completos pendentes | C57–C64 selecionam3.1.1/5, exibem recusa, propriedades CONNECT e aguardam UNSUBACK/PUBCOMP | Negativos normativos e coexistência3.1.1; apenas subconjunto5 anunciado |
 | 6B | Semanas16–18 | P127/P128: Clean Start e Session Expiry; P130: Message Expiry; P131: DISCONNECT expiry; P132: Will Delay e documento v8 | C66/C67: opções de sessão; C69: Message Expiry; C70: Will Delay; retomada QoS do próprio client pendente | Crash/restart, migração e relógio/expiração tratados sem perda silenciosa |
 | 6C | Semanas19–21 | P134/P136 aceitos para Receive Maximum e Maximum Packet Size; P138/P139 aceitam alias de entrada/saída; P141/P142 aceitam metadados PUBLISH e documento v10; P144 anuncia quota inbound onde cabe; P146 trata quota QoS2 retomada | C72/C73 expõem limites de recebimento; C75 aceita alias recebido; C77/C78 publicam metadados; C80 os exibe em JSONL; C81 repete publicações em série; C83 usa alias compacto | Fluxo e tamanho validados em QoS0/1/2, retained e restart; Mosquitto 2.0.22 falha no alias abreviado de saída; aceite global da fase pendente |
-| 6D | Semanas22–24 | P147/P148/P150/P153/P154 aceitos; shared durável no estado v13 e admin A16 distribuídos; P156/v14 em validação, AUTH pendente | C84/C85/C87/C89 aceitos; autenticação5 pendente | Matriz5 por cláusula, interop externa, recursos ausentes declarados; sem alegação integral prematura |
+| 6D | Semanas22–24 | P147/P148/P150/P153/P154/P156 aceitos; shared durável no estado v14 e admin A18 distribuídos; AUTH pendente | C84/C85/C87/C89 aceitos; autenticação5 pendente | Matriz5 por cláusula, interop externa, recursos ausentes declarados; sem alegação integral prematura |
 | 7 | Semanas25–27 | WebSocket/WSS com limites e segurança equivalentes | Transporte WS/WSS e testes de browser quando existir consumidor | Regressão TCP/TLS, fragmentação, limites e desconexão aprovados |
 | 8 | Semanas28–31 | Bridge incremental | CLI de diagnóstico; testes com Mosquitto nas duas pontas | Reconexão limitada, loops, QoS, retenção e ACL explícitos |
 | 9 | Semanas32–35 | Windows nativo e extensões de paridade escolhidas | Serviço/instalador Windows e CLI homologada | Instalar/upgrade/remover, recuperação e permissões testados em Windows |

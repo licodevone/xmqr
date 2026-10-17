@@ -1,14 +1,14 @@
 # Versionamento
 
-## P156/P157 — redistribuição QoS1 e documento v14 (marco 0.27.0 candidato)
+## P156/P157 — redistribuição QoS1 e documento v14 (marco 0.27.0 publicado)
 
 Cópias QoS1 compartilhadas guardam grupo de origem e bit Retain original em
 documento v14 para serem oferecidas a outro membro elegível após término da
 sessão escolhida. O broker lê v1–v13 e escreve v14 no próximo commit. A família
 publicada 0.26.0 e o admin independente 0.8.0 não reabrem v14; preserve backup
 privado v13 antes da primeira gravação para rollback. P156 passou no CI do
-commit funcional; P157 ainda exige compatibilidade admin e distribuição antes
-de nova release. Client 0.24.0 permanece parceiro.
+commit funcional; P157 e admin A18 passaram na distribuição. Client 0.24.0
+permanece parceiro. [Nota de release](docs/releases/0.27.0.md).
 [Registro P156](prompts/registros/P156-shared-qos1-redistribution.md).
 
 ## P155 — marco 0.26.0 e estado v13 (experimental publicado)
