@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-16.
-Versões publicadas atuais: broker/admin legado0.17.0, client independente0.15.0
+Versões publicadas atuais: broker/admin legado0.18.0, client independente0.16.0
 e xmqr-admin independente0.4.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos e
 propriedades informativas de CONNECT MQTT5 QoS0/1/2 (P115–P123/C57–C64);
@@ -148,7 +148,8 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Distribuição P124/C65: tags independentes v0.17.0/v0.15.0, pacotes Ubuntu26, imagens numeradas e prereleases com SHA-256/rollback.~~ [Broker](../prompts/registros/P124-release-0.17.0.md) e [client](../../xmqr-client/prompts/registros/C65-release-0.15.0.md).
 - [x] ~~Fase 6A/P126 parcial: ACKs de sucesso e DISCONNECT normal MQTT 5 com motivo explícito/propriedades vazias; gates locais, integração e CI PASS.~~ [Evidência](../prompts/registros/P126-ack-disconnect-mqtt5.md).
 - [x] ~~Fase 6B/P127/C66 parcial: Clean Start separado de Session Expiry 0/infinita, Session Present, retomada de QoS1 offline após reinício; gates locais, Mosquitto e CIs PASS.~~ [Broker](../prompts/registros/P127-sessao-mqtt5-zero-infinita.md) e [client](../../xmqr-client/prompts/registros/C66-sessao-mqtt5-zero-infinita.md).
-- [ ] Fase 6B/P128/C67 parcial: Session Expiry finita com documento v6, remoção automática e CLI correspondente; gates locais PASS, CI pendente. [Broker](../prompts/registros/P128-expiracao-finita-sessao-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C67-expiracao-finita-sessao-mqtt5.md).
+- [x] ~~Fase 6B/P128/C67 parcial: Session Expiry finita com documento v6, remoção automática e CLI correspondente; gates locais e CIs PASS.~~ [Broker](../prompts/registros/P128-expiracao-finita-sessao-mqtt5.md) e [client](../../xmqr-client/prompts/registros/C67-expiracao-finita-sessao-mqtt5.md).
+- [x] ~~Distribuição P129/C68: tags independentes v0.18.0/v0.16.0, pacotes Ubuntu26, imagens numeradas e prereleases com SHA-256/rollback.~~ [Broker](../prompts/registros/P129-release-0.18.0.md) e [client](../../xmqr-client/prompts/registros/C68-release-0.16.0.md).
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

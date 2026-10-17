@@ -1,0 +1,7 @@
+# P129 — prerelease experimental do broker 0.18.0
+
+- [Prompt P129](../broker/129-release-0.18.0.md) criado antes do bump. Base funcional P128: [CI](https://github.com/licodevone/xmqr/actions/runs/38989862684) PASS; client C67: [CI](https://github.com/licodevone/xmqr-client/actions/runs/38989868018) PASS.
+- Fonte imutável: commit `807af8e5f43088ed2c7a41a6cabed996658d9a72`, tag anotada `v0.18.0`. [CI da fonte](https://github.com/licodevone/xmqr/actions/runs/38990053401) PASS. Gates locais de fmt, testes, Clippy, build, licenças, integração real e pacote Ubuntu26 PASS.
+- [Prerelease](https://github.com/licodevone/xmqr/releases/tag/v0.18.0): pacote `.deb`, imagens broker/admin legado, três arquivos SHA-256, manifesto e SHA-256 do manifesto (oito anexos). Nome, tamanho e digest SHA-256 dos oito anexos remotos conferidos contra os arquivos locais.
+- Docker Hub numerado: `lepinheiro100/xmqr-broker:0.18.0` digest `sha256:6a85d462496af9a829b58065d7649d445fbe10a9069c90c9faa564d7f21a972e`; `lepinheiro100/xmqr-admin:0.18.0` digest `sha256:5eaa4f1be0256303677bb1abe29e4aa4409d1eb9d42716eb3ca89cc516a5ea0c`. Digests remotos conferidos e versões executadas por digest. `latest` não foi movida.
+- Rollback e limites na [nota](../../docs/releases/0.18.0.md). O estado persistente v6 exige backup privado anterior para rollback a v0.17.0. Pacote não foi instalado no WSL do operador; admin independente 0.4.0 inalterado. Fases 6A–6D permanecem abertas.
