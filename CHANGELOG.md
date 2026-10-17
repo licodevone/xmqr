@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Em desenvolvimento após 0.28.0
+
+- P162: limite opcional de Keep Alive MQTT 5 por TOML/ambiente; quando reduz o valor pedido no CONNECT, anuncia Server Keep Alive no CONNACK e usa o mesmo valor para o timeout. Recusa orçamento de CONNACK insuficiente antes da sessão. MQTT 3.1.1 e ausência da opção preservados.
+
 ## 0.28.0 — SASL PLAIN e reautenticação MQTT 5 (experimental)
 
 - P160: broker aceita AUTH MQTT 5 `0x19` para reautenticação PLAIN na mesma identidade em TLS/mTLS, responde AUTH `0x00` com método confirmado ou DISCONNECT `0x86` em falha de credencial. Método/propriedades/motivo inválidos encerram sem alterar a sessão. Client C92 pode iniciar reautenticação explícita antes de pub/sub.

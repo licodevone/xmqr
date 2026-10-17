@@ -24,6 +24,7 @@ mode = "secure-mtls"
 bind = "0.0.0.0:8883"
 # additional_binds = ["127.0.0.1:8884"] # P96, apenas secure-mtls
 state_dir = "/var/lib/xmqr"
+# server_keep_alive_seconds = 60 # MQTT 5, teto opcional de Keep Alive
 
 [tls]
 server_cert = "/etc/xmqr/server.crt"
@@ -42,6 +43,16 @@ bind = "127.0.0.1:9090"
 Os nomes acima são os campos aceitos. Para legado, users_file/acl_file têm equivalência
 com MQTT_USERS_FILE/MQTT_ACL_FILE e as mesmas incompatibilidades por perfil.
 Senhas e hashes permanecem no arquivo de segurança privado, não neste TOML.
+
+P162 acrescenta `[broker].server_keep_alive_seconds` ou
+`MQTT_SERVER_KEEP_ALIVE_SECONDS`, opcional e validado em 1..65535 no startup.
+O ambiente explícito prevalece sobre o TOML. Em MQTT 5, se o CONNECT pede zero
+ou um Keep Alive maior que o teto, o CONNACK de sucesso anuncia Server Keep
+Alive `0x13` e o broker aplica 1,5 vez o valor anunciado ao prazo de
+inatividade. Se o cliente já pede valor menor ou igual, não há propriedade
+nova. Um Maximum Packet Size insuficiente para anunciar o valor exigido recusa
+o CONNECT com 0x95 antes de abrir sessão. MQTT 3.1.1 e a configuração ausente
+conservam o comportamento anterior. A opção exige restart e não migra estado.
 
 ## Limites e etapas
 

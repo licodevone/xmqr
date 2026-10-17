@@ -962,6 +962,17 @@ pub(super) fn append_mqtt5_receive_maximum(mut connack: Vec<u8>, maximum: u16) -
     connack.extend_from_slice(&maximum.to_be_bytes());
     connack
 }
+
+pub(super) fn append_mqtt5_server_keep_alive(mut connack: Vec<u8>, seconds: u16) -> Vec<u8> {
+    // Success CONNACKs in this subset have one-byte Remaining/Property Lengths.
+    debug_assert_eq!(connack[0], 0x20);
+    debug_assert_ne!(seconds, 0);
+    connack[1] += 3;
+    connack[4] += 3;
+    connack.push(0x13);
+    connack.extend_from_slice(&seconds.to_be_bytes());
+    connack
+}
 pub(super) fn encode_connack_with_session(
     code: u8,
     session_present: bool,
@@ -1751,6 +1762,13 @@ mod tests {
         assert_eq!(
             append_mqtt5_receive_maximum(encode_mqtt5_connack(0).to_vec(), 32),
             [0x20, 6, 0, 0, 3, 0x21, 0, 32]
+        );
+        assert_eq!(
+            append_mqtt5_server_keep_alive(
+                encode_mqtt5_shared_available_connack(false).to_vec(),
+                60
+            ),
+            [0x20, 8, 0, 0, 5, 0x2a, 1, 0x13, 0, 60]
         );
     }
 

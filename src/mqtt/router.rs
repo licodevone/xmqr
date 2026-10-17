@@ -414,6 +414,7 @@ pub struct Router {
     metrics: Arc<Metrics>,
     sender: mpsc::Sender<Command>,
     inbound_receive_maximum: u16,
+    server_keep_alive_seconds: Option<u16>,
 }
 
 /// Ensures handler cancellation/panic also closes its accepted connection.
@@ -770,6 +771,7 @@ impl Router {
             metrics,
             sender,
             inbound_receive_maximum: u16::try_from(limits.max_inflight).unwrap_or(u16::MAX),
+            server_keep_alive_seconds: None,
         })
     }
 
@@ -791,6 +793,17 @@ impl Router {
 
     pub(crate) fn inbound_receive_maximum(&self) -> u16 {
         self.inbound_receive_maximum
+    }
+
+    /// Attach the validated MQTT 5 keep-alive ceiling before accepting clients.
+    #[must_use]
+    pub fn with_server_keep_alive(mut self, seconds: Option<u16>) -> Self {
+        self.server_keep_alive_seconds = seconds;
+        self
+    }
+
+    pub(crate) fn server_keep_alive_seconds(&self) -> Option<u16> {
+        self.server_keep_alive_seconds
     }
 
     pub(crate) async fn probe(&self) -> bool {

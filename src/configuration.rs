@@ -32,6 +32,7 @@ const KEYS: &[&str] = &[
     "MQTT_MAX_SUBSCRIPTIONS",
     "MQTT_MAX_OFFLINE",
     "MQTT_MAX_INFLIGHT",
+    "MQTT_SERVER_KEEP_ALIVE_SECONDS",
 ];
 
 /// Configuration file values overlaid with explicit process variables.
@@ -118,6 +119,12 @@ impl Configuration {
             if let Some(value) = value {
                 result.values.insert(name.to_owned(), value.into());
             }
+        }
+        if let Some(value) = document.broker.server_keep_alive_seconds {
+            result.values.insert(
+                "MQTT_SERVER_KEEP_ALIVE_SECONDS".to_owned(),
+                value.to_string().into(),
+            );
         }
         if let Some(enabled) = document.monitor.enabled {
             result.values.insert(
@@ -302,6 +309,22 @@ impl Configuration {
         }
         Ok(value)
     }
+
+    /// Optional MQTT 5 keep-alive ceiling advertised in CONNACK.
+    /// # Errors
+    /// Rejects zero, malformed and non-Unicode overrides at startup.
+    pub fn server_keep_alive_seconds(&self) -> io::Result<Option<u16>> {
+        match self.var("MQTT_SERVER_KEEP_ALIVE_SECONDS") {
+            Ok(value) => match value.parse::<u16>() {
+                Ok(seconds @ 1..=u16::MAX) => Ok(Some(seconds)),
+                _ => Err(invalid("MQTT_SERVER_KEEP_ALIVE_SECONDS must be 1..65535")),
+            },
+            Err(env::VarError::NotPresent) => Ok(None),
+            Err(env::VarError::NotUnicode(_)) => {
+                Err(invalid("invalid MQTT_SERVER_KEEP_ALIVE_SECONDS"))
+            }
+        }
+    }
 }
 
 #[derive(Default, Deserialize)]
@@ -322,6 +345,7 @@ struct Broker {
     mode: Option<String>,
     bind: Option<String>,
     state_dir: Option<PathBuf>,
+    server_keep_alive_seconds: Option<u16>,
     #[serde(default)]
     additional_binds: Vec<String>,
 }
@@ -385,6 +409,46 @@ fn invalid(message: &'static str) -> io::Error {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn server_keep_alive_is_optional_bounded_and_overridable() {
+        assert_eq!(
+            Configuration::default()
+                .server_keep_alive_seconds()
+                .unwrap(),
+            None
+        );
+        for seconds in [1, u16::MAX] {
+            let config = Configuration::parse(
+                &format!("version=1\n[broker]\nserver_keep_alive_seconds={seconds}"),
+                Path::new("."),
+            )
+            .unwrap();
+            assert_eq!(config.server_keep_alive_seconds().unwrap(), Some(seconds));
+        }
+        let mut config = Configuration::parse(
+            "version=1\n[broker]\nserver_keep_alive_seconds=30",
+            Path::new("."),
+        )
+        .unwrap();
+        config
+            .values
+            .insert("MQTT_SERVER_KEEP_ALIVE_SECONDS".into(), "2".into());
+        assert_eq!(config.server_keep_alive_seconds().unwrap(), Some(2));
+        for value in ["0", "65536", "-1", "bad", ""] {
+            config
+                .values
+                .insert("MQTT_SERVER_KEEP_ALIVE_SECONDS".into(), value.into());
+            assert!(config.server_keep_alive_seconds().is_err());
+        }
+        assert!(
+            Configuration::parse(
+                "version=1\n[broker]\nserver_keep_alive_seconds=65536",
+                Path::new("."),
+            )
+            .is_err()
+        );
+    }
+
     #[test]
     fn additional_endpoints_validate_without_changing_defaults() {
         let primary = "127.0.0.1:8883".parse().unwrap();

@@ -10,6 +10,7 @@ max_inflight = 32
 mode = "secure-mtls"
 bind = "0.0.0.0:8883"
 state_dir = "/var/lib/xmqr"
+# server_keep_alive_seconds = 60 # MQTT 5: teto opcional, 1..65535
 [tls]
 server_cert = "/etc/xmqr/server.crt"
 server_key = "/etc/xmqr/server.key"

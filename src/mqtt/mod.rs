@@ -162,6 +162,13 @@ async fn serve_mqtt(
     let outbound_maximum = maximum_packet_size.map_or(usize::MAX, |value| value as usize);
     let plain_authentication = plain_authentication.map(Zeroizing::new);
     let plain_requested = plain_authentication.is_some();
+    let server_keep_alive = if mqtt5 {
+        router
+            .server_keep_alive_seconds()
+            .filter(|limit| keep_alive == 0 || keep_alive > *limit)
+    } else {
+        None
+    };
     if mqtt5 && outbound_maximum < 5 {
         // Even the minimal MQTT 5 CONNACK cannot fit. No session was created.
         return Ok(());
@@ -195,6 +202,16 @@ async fn serve_mqtt(
     }
     if mqtt5 && outbound_maximum < 7 {
         // The negotiated Shared Subscription Available property must fit.
+        write_limited(
+            connection,
+            &codec::encode_mqtt5_connack(0x95),
+            outbound_maximum,
+        )
+        .await?;
+        return Ok(());
+    }
+    if server_keep_alive.is_some() && outbound_maximum < 10 + usize::from(plain_requested) * 8 {
+        // Server Keep Alive must fit when it replaces CONNECT Keep Alive.
         write_limited(
             connection,
             &codec::encode_mqtt5_connack(0x95),
@@ -285,7 +302,9 @@ async fn serve_mqtt(
         Err(error) => return Err(error.into()),
     };
     let mut guard = router.connection_guard(&session);
-    let connack_base_budget = outbound_maximum.saturating_sub(usize::from(plain_requested) * 8);
+    let connack_base_budget = outbound_maximum.saturating_sub(
+        usize::from(plain_requested) * 8 + usize::from(server_keep_alive.is_some()) * 3,
+    );
     let advertised_alias_maximum = if mqtt5 && connack_base_budget >= 15 {
         u16::from(codec::MAX_TOPIC_ALIAS)
     } else {
@@ -302,6 +321,9 @@ async fn serve_mqtt(
     };
     if plain_requested {
         connack = codec::append_mqtt5_plain_method(connack);
+    }
+    if let Some(seconds) = server_keep_alive {
+        connack = codec::append_mqtt5_server_keep_alive(connack, seconds);
     }
     // Preserve P136/P138's previously negotiated Maximum Packet Size and
     // Topic Alias properties; omit Receive Maximum only when it cannot fit.
@@ -339,10 +361,11 @@ async fn serve_mqtt(
         loop {
             // MQTT-3.1.2-24: disconnect after 1.5 times the advertised keep-alive.
             // Zero disables MQTT keep-alive; a server idle cap remains.
-            let idle = if keep_alive == 0 {
+            let effective_keep_alive = server_keep_alive.unwrap_or(keep_alive);
+            let idle = if effective_keep_alive == 0 {
                 Duration::from_secs(300)
             } else {
-                Duration::from_millis(u64::from(keep_alive) * 1500)
+                Duration::from_millis(u64::from(effective_keep_alive) * 1500)
             };
             let deadline = last_inbound + idle;
             tokio::select! {

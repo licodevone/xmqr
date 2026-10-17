@@ -138,6 +138,7 @@ async fn serve(
     let (monitor_config, admin_config) = operational_configs;
     let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
     let (limits, state_limits) = limits;
+    let server_keep_alive_seconds = config.server_keep_alive_seconds()?;
     match mode {
         BrokerMode::SecureMtls | BrokerMode::TlsPassword => {
             let tls_files = if mode == BrokerMode::SecureMtls {
@@ -176,7 +177,14 @@ async fn serve(
                     mode.profile_name()
                 },
             )?;
-            let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
+            let router = start_router(
+                &state_directory,
+                &auth,
+                &metrics,
+                state_limits,
+                server_keep_alive_seconds,
+            )
+            .await?;
             let _security = watch_security(&auth, router.clone())?;
             let _admin = admin_config
                 .as_ref()
@@ -246,7 +254,14 @@ async fn serve(
         BrokerMode::OpenLab => {
             let auth = Arc::new(AccessPolicy::open_lab());
             ensure_state_profile(&state_directory, mode.profile_name())?;
-            let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
+            let router = start_router(
+                &state_directory,
+                &auth,
+                &metrics,
+                state_limits,
+                server_keep_alive_seconds,
+            )
+            .await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
@@ -273,7 +288,14 @@ async fn serve(
                 &required_path(config, "MQTT_USERS_FILE")?,
             )?));
             ensure_state_profile(&state_directory, mode.profile_name())?;
-            let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
+            let router = start_router(
+                &state_directory,
+                &auth,
+                &metrics,
+                state_limits,
+                server_keep_alive_seconds,
+            )
+            .await?;
             let _security = watch_security(&auth, router.clone())?;
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
@@ -298,7 +320,14 @@ async fn serve(
         BrokerMode::AclLab => {
             let auth = load_policy(config, mode).await?;
             ensure_state_profile(&state_directory, mode.profile_name())?;
-            let router = start_router(&state_directory, &auth, &metrics, state_limits).await?;
+            let router = start_router(
+                &state_directory,
+                &auth,
+                &metrics,
+                state_limits,
+                server_keep_alive_seconds,
+            )
+            .await?;
             let _security = watch_security(&auth, router.clone())?;
             let _admin = admin_config
                 .as_ref()
@@ -446,10 +475,11 @@ async fn start_router(
     auth: &Arc<AccessPolicy>,
     metrics: &Arc<Metrics>,
     limits: mqtt::StateLimits,
+    server_keep_alive_seconds: Option<u16>,
 ) -> Result<Arc<Router>, mqtt_broker::transport::HandlerError> {
     Router::start_observed_with_limits(directory, auth.clone(), metrics.clone(), limits)
         .await
-        .map(Arc::new)
+        .map(|router| Arc::new(router.with_server_keep_alive(server_keep_alive_seconds)))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
