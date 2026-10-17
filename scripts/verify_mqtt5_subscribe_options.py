@@ -87,6 +87,9 @@ def exercise(port, clean):
             finally:
                 other.close()
             receive(same, f"other-{qos}".encode(), qos)
+            # Order the subscriber ACK/PUBCOMP before DISCONNECT and restart.
+            same.sendall(b"\xc0\x00")
+            assert packet(same) == (0xd0, b"")
         same.sendall(b"\xe0\x00")
     finally:
         same.close()

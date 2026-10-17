@@ -7,3 +7,5 @@ Objetivo: aceitar No Local e Retain As Published por filtro MQTT 5, mantendo rej
 Aceite: codec, roteador, overlap, sessão persistente/restart e migração v10→v11; TCP real QoS0/1/2 com client C85 e interop Mosquitto 2.0.22, negativos e regressões P147/P146. fmt/test/Clippy/build/licenças/CI. Checklist apenas após gates. Não declarar fase 6D inteira nem compatibilidade do admin 0.5.0 com documento v11: seu core permanece pinado no broker 0.23.0 e precisará de atualização e novo aceite antes de operar estado v11. Sem release isolada nem ESP32.
 
 Fonte normativa: OASIS MQTT 5 §3.8.3.1, https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html.
+
+Revisão rev2 após ensaio de regressão: a sonda enviava PUBCOMP do QoS2 e desconectava imediatamente; um replay legítimo na retomada podia ser confundido com eco da primeira autopublicação. Inserir PINGREQ/PINGRESP como barreira de ordem depois de cada ACK do assinante antes do DISCONNECT/restart, preservando a asserção No Local e repetindo o ensaio. Não relaxar o resultado exigido.
