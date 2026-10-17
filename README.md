@@ -1,30 +1,15 @@
 # XMQR
 
-A árvore após 0.27.0 inclui P160: em sessões MQTT 5 iniciadas com `PLAIN`,
-um AUTH de reautenticação `0x19` com o mesmo método e dados SASL PLAIN válidos
-recebe AUTH de sucesso `0x00`. Senha incorreta ou troca de identidade recebem
-DISCONNECT `0x86` e a conexão é encerrada; AUTH em sessão convencional ou
-com método divergente é recusado como erro de protocolo. A sessão mantém a
-mesma identidade e o estado durável v14. O client C91 ainda não envia AUTH;
-esse fluxo foi exercitado com um cliente de teste TLS/mTLS descartável. Esta
-mudança ainda não tem release.
-[Prompt P160](prompts/broker/160-plain-reauth-mqtt5.md).
-
-A árvore após 0.27.0 inclui P159: MQTT 5 aceita autenticação inicial SASL
-`PLAIN` em TLS quando CONNECT traz Authentication Method `PLAIN` e
-Authentication Data no formato `NUL usuário NUL senha`. O CONNACK confirma
-o método; credenciais comuns continuam disponíveis. O broker recusa PLAIN em
-TCP aberto, dados malformados, método conflitante e tamanho de resposta
-insuficiente antes de criar sessão. Use o client da árvore C91 com
-`--protocol-version 5 --auth-method plain --tls-password`; a senha continua
-vindo de arquivo privado ou prompt. Esta mudança ainda não tem release; AUTH
-posterior e reautenticação permanecem fora do recorte.
-[Prompt P159](prompts/broker/159-enhanced-plain-connect-mqtt5.md).
-
-A árvore após 0.27.0 aceita P158: CONNECT MQTT 5 com Authentication Method
-desconhecido recebe 0x8C (método indisponível), sem criar sessão. AUTH e
-reautenticação ainda não são implementados; esta fatia não tem release própria.
-[Registro P158](prompts/registros/P158-auth-method-refusal-mqtt5.md).
+O candidato experimental 0.28.0 reúne P158–P160: MQTT 5 distingue métodos
+AUTH indisponíveis, aceita autenticação inicial SASL `PLAIN` somente em TLS e
+permite reautenticação AUTH `0x19` da mesma identidade. Uma resposta válida
+recebe AUTH `0x00`; senha incorreta ou troca de identidade encerram a conexão.
+O client C92 pode iniciar essa troca explicitamente antes de pub/sub. O modo
+convencional continua disponível. O documento durável permanece v14 e o admin
+independente 0.9.0 segue compatível. Desafio interativo e reautenticação
+periódica não estão implementados; fases 6A–6D e 7–9 continuam abertas.
+[Nota 0.28.0](docs/releases/0.28.0.md) e
+[prompt P161](prompts/broker/161-release-0.28.0.md).
 
 A versão experimental publicada 0.27.0 inclui P156: redistribuição de cópias
 compartilhadas QoS1 não reconhecidas quando a sessão escolhida termina. A

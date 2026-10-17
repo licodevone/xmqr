@@ -1,21 +1,14 @@
 # Versionamento
 
-P160 acrescenta reautenticação PLAIN pelo broker na árvore após 0.27.0, sem
-migração do estado v14. O client independente C91 ainda não envia AUTH, de
-modo que a paridade de reautenticação e a fase 6D global continuam abertas.
-[Prompt P160](prompts/broker/160-plain-reauth-mqtt5.md).
+## P161 — candidato broker/admin legado 0.28.0
 
-P159 na árvore após 0.27.0 aceita `PLAIN` inicial em MQTT 5 sobre TLS com
-confirmação no CONNACK; o client C91 da árvore após 0.24.0 o exercita. O
-documento durável permanece v14, portanto o admin independente 0.9.0 continua
-compatível. A funcionalidade aguarda próximo marco de release; AUTH posterior,
-reautenticação e fases globais permanecem abertas.
-[Registro P159](prompts/registros/P159-enhanced-plain-connect-mqtt5.md).
-
-P158 na árvore após 0.27.0 classifica e recusa métodos AUTH ainda
-indisponíveis. A versão publicada 0.27.0 não recebe mudança retroativa;
-este comportamento passou no CI e aguarda marco posterior. M10/fase 6D
-permanecem abertos.
+P158–P160 reúnem recusa de métodos AUTH indisponíveis, autenticação inicial
+SASL PLAIN sobre TLS e reautenticação AUTH `0x19` da mesma identidade. O
+client C91/C92 é o par validado. Não há migração: o estado permanece v14 e o
+admin independente 0.9.0 o lê. A versão 0.27.0 não recebe essas mudanças;
+rollback de pacote a 0.27.0 pode reutilizar o estado v14, após backup offline
+privado e verificação. Desafio AUTH e reautenticação periódica ficam fora do
+escopo; fases globais continuam abertas. [Nota](docs/releases/0.28.0.md).
 
 ## P156/P157 — redistribuição QoS1 e documento v14 (marco 0.27.0 publicado)
 
