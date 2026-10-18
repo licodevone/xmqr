@@ -244,11 +244,11 @@ def check_wss_frames(root, port, password):
     for opcode, body in ((1, b"text is not MQTT"), (2, b"x" * (64 * 1024 + 1))):
         with secure_socket(root, port) as stream:
             assert handshake(stream, port).startswith(b"HTTP/1.1 101")
-            send_frame(stream, opcode, body)
             try:
+                send_frame(stream, opcode, body)
                 reply_opcode, _ = receive_frame(stream)
                 assert reply_opcode == 8, reply_opcode
-            except (ConnectionResetError, EOFError, ssl.SSLError):
+            except (BrokenPipeError, ConnectionResetError, EOFError, ssl.SSLError):
                 pass
             except AssertionError as error:
                 assert str(error) == "WebSocket closed before expected bytes", error
@@ -768,8 +768,7 @@ def main():
     broker_bin = ROOT / "target/debug/mqtt-broker"
     admin_bin = ROOT / "target/debug/mqtt-admin"
     assert broker_bin.is_file() and admin_bin.is_file()
-    with tempfile.TemporaryDirectory(prefix="xmqr-p212-",
-                                     dir=os.environ.get("XMQR_BROWSER_TMP")) as temporary:
+    with tempfile.TemporaryDirectory(prefix="xmqr-p212-") as temporary:
         root = Path(temporary)
         root.chmod(0o700)
         certificates(root)
