@@ -224,6 +224,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fases 6A/6C/P187 parciais: PUBACK/PUBREC/PUBREL/PUBCOMP com propriedade fora de contexto/Reason String duplicada recebem DISCONNECT `0x81`/`0x82`, com Will, estado durável preservado e CI PASS.~~ [Registro](../prompts/registros/P187-qos-ack-property-reasons-mqtt5.md). Aceites globais abertos.
 - [x] ~~Fase 6A/P188 parcial: Packet Identifier zero em PUBACK/PUBREC/PUBREL/PUBCOMP MQTT 5 recebe DISCONNECT `0x82`, sem concluir obrigação QoS.~~ [Registro](../prompts/registros/P188-zero-qos-ack-id-mqtt5.md). Gates locais e CI PASS; aceite global 6A aberto.
 - [x] ~~Fase 6A/P189 parcial: Packet Identifier zero em SUBSCRIBE, UNSUBSCRIBE e PUBLISH QoS1/2 MQTT 5 recebe DISCONNECT `0x82`, sem alterar assinatura/publicação.~~ [Registro](../prompts/registros/P189-zero-command-packet-id-mqtt5.md). Gates locais e CI PASS; aceite global 6A aberto.
+- [ ] Fase 6A/P190 parcial: PUBLISH MQTT 5 com QoS reservado 3 recebe `0x81` e QoS 0 com DUP recebe `0x82`, sem entrega/retained. [Registro](../prompts/registros/P190-publish-fixed-header-reasons-mqtt5.md). Testes direcionados PASS; gates completos e CI pendentes.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.

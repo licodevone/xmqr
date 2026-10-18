@@ -119,6 +119,10 @@ assinatura, entrega ou retained. A assinatura durável sobrevive a UNSUBSCRIBE
 inválido; MQTT 3.1.1 segue fechando sem DISCONNECT MQTT 5. PUBLISH QoS 0
 continua sem identificador. Demais erros de campo/ordem e a matriz global
 continuam pendentes.
+P190 classifica as flags fixas inválidas de PUBLISH MQTT 5: QoS reservado 3
+recebe DISCONNECT `0x81`, e DUP ligado em QoS 0 recebe `0x82`. Os quadros são
+recusados antes de entrega/retained; Will e fechamento MQTT 3.1.1 são preservados.
+Demais combinações e a matriz global continuam pendentes.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa

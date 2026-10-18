@@ -78,6 +78,14 @@ pub(super) struct AckPacketIdentifierZero;
 #[error("zero MQTT command Packet Identifier")]
 pub(super) struct CommandPacketIdentifierZero;
 
+#[derive(Debug, thiserror::Error)]
+#[error("reserved MQTT PUBLISH QoS")]
+pub(super) struct PublishQosReserved;
+
+#[derive(Debug, thiserror::Error)]
+#[error("DUP flag set on QoS 0 PUBLISH")]
+pub(super) struct PublishDupQosZero;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -834,13 +842,17 @@ fn decode_for(
             Packet::Unsubscribe { packet_id, filters }
         }
         0x30..=0x3f => {
-            // MQTT-3.3.1-4: QoS 3 is reserved and closes the connection.
-            let qos = Qos::from_u8((header >> 1) & 0x03)?;
+            // MQTT-3.3.1-4: QoS 3 is a Malformed Packet.
+            let qos_bits = (header >> 1) & 0x03;
+            if qos_bits == 3 {
+                return Err(PublishQosReserved.into());
+            }
+            let qos = Qos::from_u8(qos_bits)?;
             let retain = header & 0x01 != 0;
             let dup = header & 0x08 != 0;
             // MQTT-3.3.1-2: QoS 0 PUBLISH may not set DUP.
             if qos == Qos::AtMostOnce && dup {
-                return Err("QoS 0 PUBLISH with DUP flag".into());
+                return Err(PublishDupQosZero.into());
             }
             let topic_name = c.text()?;
             let topic = if mqtt5 && topic_name.is_empty() {
@@ -2742,6 +2754,36 @@ mod tests {
         }
         // QoS 0 has no Packet Identifier and remains valid.
         assert!(decode_for(0x30, &[0, 1, b'x', 0, b'y'], true).is_ok());
+    }
+
+    #[test]
+    fn mqtt5_publish_fixed_header_errors_have_distinct_reasons() {
+        let mqtt5_body = [0, 1, b'x', 0, b'y'];
+        for header in [0x36, 0x37, 0x3e, 0x3f] {
+            assert!(
+                decode_for(header, &mqtt5_body, true)
+                    .unwrap_err()
+                    .is::<PublishQosReserved>(),
+                "{header:#x}"
+            );
+            assert!(decode_for(header, &mqtt5_body, false).is_err());
+        }
+        for header in [0x38, 0x39] {
+            assert!(
+                decode_for(header, &mqtt5_body, true)
+                    .unwrap_err()
+                    .is::<PublishDupQosZero>(),
+                "{header:#x}"
+            );
+            assert!(decode_for(header, &mqtt5_body, false).is_err());
+        }
+        for header in [0x30, 0x31] {
+            assert!(decode_for(header, &mqtt5_body, true).is_ok(), "{header:#x}");
+        }
+        let qos_body = [0, 1, b'x', 0, 1, 0, b'y'];
+        for header in [0x32, 0x3a, 0x34, 0x3c] {
+            assert!(decode_for(header, &qos_body, true).is_ok(), "{header:#x}");
+        }
     }
 
     #[test]

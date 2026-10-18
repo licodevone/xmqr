@@ -44,6 +44,7 @@ jobs:
       - run: python3 scripts/verify_mqtt5_ack_property_reasons.py
       - run: python3 scripts/verify_mqtt5_zero_qos_ack_id.py
       - run: python3 scripts/verify_mqtt5_zero_command_id.py
+      - run: python3 scripts/verify_mqtt5_publish_fixed_header_reasons.py
       - run: python3 scripts/verify_shutdown.py --broker target/debug/mqtt-broker
 
   ubuntu-package:
