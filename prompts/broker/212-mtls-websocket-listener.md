@@ -11,3 +11,5 @@ Estados/segurança: admitir antes dos handshakes; carregar a configuração TLS 
 Aceite: configuração ausente/positiva/negativa; cliente com CA e certificado válidos troca MQTT 3.1.1/5 com TCP, ACL autoriza/nega por tópico; CA/certificado/hostname inválidos, ausência de certificado, `Origin`, caminho/subprotocolo, frame texto e quotas são recusados; rotação e shutdown preservam limites. Executar fmt, suíte, Clippy, build, licença/distribuição e CI da fonte exata. Registrar PASS/FAIL/BLOCKED reais e manter fase 7 global aberta. Sem mudança de versão ou tag nesta fatia.
 
 Revisão 2 após o primeiro `cargo check`: o adaptador `WsStream` exige `Send` para o stream genérico; acrescentar essa restrição em ambas as funções auxiliares de handshake/leitura, sem alterar o contrato de rede, e repetir a compilação. O primeiro resultado é FAIL, não aceite.
+
+Revisão 3 após Clippy: a inclusão de `wss_bind` levou `Configuration::parse` a 101 linhas e o novo braço de erro WSS ficou sem ponto e vírgula. Extrair a inserção dos binds WS/WSS em helper curto e acertar a pontuação; não relaxar o lint. Repetir o gate.
