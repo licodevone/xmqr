@@ -1,4 +1,4 @@
-# P227 v1.13 — concluir a fase 6 de MQTT 5
+# P227 v1.14 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -279,3 +279,16 @@ Sem wildcard, configuraçãoGit global, mudança no host ou desativação geral
 da proteção. Contratar YAML/AST/paths e repetir dispatch de commit público
 exato; mudança só de CI não altera ELFs/testes do runtime043. Admin segue
 seu promptA22 e gates próprios, fonte011 será identificada porSHA.
+
+## Revisão1.14 — artefatosJSON ocultos não podem desaparecer
+
+AdminA22 confirmou annotationNo files found no upload-artifactv4 para
+.evidence apesar do gatefuncionalPASS: arquivos ocultos são excluídos por
+padrão. Cancelar somente runintegrado39142094084 antes de perder relatórios;
+registrar cancelamento, não falhaMQTT. Preparar include-hidden-files:true
+somente com lista EXATA dos13JSON sanitizados previstos, nunca pasta inteira
+ou wildcard amplo. Exigir presença/JSONparse desses arquivos depois do PASS
+do coordenador; missingartefact é erro, não aviso. Falhas continuam com
+uploadalways dos relatórios parciais existentes. Testar seleção/AST e
+actionlint; repetir dispatch da fonte final com peeradmin corrigido2f3609f.
+Sem src/Cargo/ELF/serviços do operador alterados por esta correção de CI.
