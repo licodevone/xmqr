@@ -2,11 +2,12 @@
 
 Versões e pacotes atuais para Ubuntu 26.04/WSL: [guia de releases e instalação](docs/current-releases-wsl.md).
 
-O candidato 0.38.0 reúne P207/P208: CONNECT inicial MQTT 5 com flags
+A prerelease experimental 0.38.0 reúne P207/P208: CONNECT inicial MQTT 5 com flags
 reservadas recebe CONNACK `0x81` quando o corpo permite identificar a versão;
 PUBACK/PUBREC/PUBCOMP com flags reservadas recebem DISCONNECT `0x81`. Estado
-durável v15 sem migração. [Prompt P209](prompts/broker/209-release-0.38.0.md)
-e [nota candidata](docs/releases/0.38.0.md). Fases globais abertas.
+durável v15 sem migração. [Release](https://github.com/licodevone/xmqr/releases/tag/v0.38.0),
+[nota](docs/releases/0.38.0.md) e [registro P209](prompts/registros/P209-release-0.38.0.md).
+Fases globais abertas.
 
 A prerelease experimental 0.37.0 reúne P203–P205: rejeição do tipo de controle
 zero e de AUTH com flags inválidas; corrige a resposta MQTT 5 de PINGREQ e
