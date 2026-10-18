@@ -113,3 +113,13 @@ Revisão independente encontrou metadadosSubscriptionID mutáveis e journal
 P227E também está corrigindo intervalo original/clockregressivo e distinguindo
 envioPrepared deMayHaveSent com formatov16. AdminA21 tem prompt, não aceite.
 Essas pendências impedem conclusão da fase6 ou publicação de marco final.
+
+P227G acrescentou interop de alias com dois peersPaho2.1.0 oficiais: nome+
+alias inicial, forma compactaQoS0/1/2, rebind da entrada, retained e reset de
+conexão da saída. `P227_PAHO_ALIAS_PASS` real noELFD, report exclusivo
+`../.artifacts/p227g-paho-alias-d-1.json`. Paho decodifica wire/propriedades
+e conduz ACKs; o callback do harness faz a resolução do tópico por tabela
+limitada. Isso não é substituição nativa de tópico peloPaho nem homologação
+da recepçãoMosquitto2.0.22. Nenhuma biblioteca/runtime/serviço foi instalado.
+O gate6C passa a exigir essa prova independente, além de conservar o caso
+Mosquitto explicitamente rotulado como reprodução de limitação.

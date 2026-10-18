@@ -128,6 +128,9 @@ def fixtures(root):
         {"file": "verify_phase6_control_progress.py", "phase": "6C",
          "arguments": ["--broker", "{broker}", "--report", "{control_progress_report}"],
          "expected_marker": "P227_CONTROL_PROGRESS_PASS", "timeout_seconds": 60},
+        {"file": "verify_phase6_paho_alias.py", "phase": "6C",
+         "arguments": ["--broker", "{broker}", "--report", "{paho_alias_report}"],
+         "expected_marker": "P227_PAHO_ALIAS_PASS", "timeout_seconds": 120, "requires_paho": True},
         {"file": "verify_phase6_paho_auth.py", "phase": "6D", "arguments": ["--broker", "{broker}", "--admin", "{admin}"],
          "expected_marker": "P227_PAHO_AUTH_PASS", "timeout_seconds": 180, "requires_paho": True},
         {"file": "../../xmqr-admin/scripts/verify_channel_cli.py", "phase": "6D",
@@ -334,6 +337,7 @@ def main():
         report.update(sources=before, binaries=info, external_tools=external_provenance())
         replacements = {name: str(path.resolve()) for name, path in binaries.items()}
         replacements.update(vbi_report=str(args.report.with_name(args.report.stem + "-vbi.json").resolve()),
+                            paho_alias_report=str(args.report.with_name(args.report.stem + "-paho-alias.json").resolve()),
                             control_progress_report=str(args.report.with_name(args.report.stem + "-control-progress.json").resolve()),
                             inbound_report=str(args.report.with_name(args.report.stem + "-inbound.json").resolve()),
                             inbound_compat_report=str(args.report.with_name(args.report.stem + "-inbound-compat.json").resolve()),
