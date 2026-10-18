@@ -244,6 +244,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P203 parcial: tipo de controle reservado zero (`0x00`–`0x0f`) após CONNACK MQTT 5 recebe DISCONNECT `0x81` antes de interpretar o corpo.~~ [Registro](../prompts/registros/P203-reserved-control-type-zero-mqtt5.md). Unitário, TCP/Will, regressão 3.1.1/P201 e CI PASS; fase 6A global aberta.
 - [x] ~~Distribuição C109: client independente 0.30.0 com C107/C108, pacote Ubuntu 26.04, ciclo descartável de upgrade/rollback, imagem por digest, tag e prerelease com seis hashes remotos conferidos.~~ [Registro](../../xmqr-client/prompts/registros/C109-release-0.30.0.md). M03/6B global ainda aberto.
 - [x] ~~Fase 6A/P201 parcial: CONNACK, SUBACK, UNSUBACK e PINGRESP exclusivos do servidor enviados pelo client após CONNACK recebem DISCONNECT `0x82` antes de interpretar corpo.~~ [Registro](../prompts/registros/P201-server-only-control-packets-mqtt5.md). Gates locais, TCP e CI PASS; 6A global aberta.
+- [x] ~~Fase 6A/P203 parcial: tipo de controle zero reservado no MQTT 5 recebe DISCONNECT `0x81` após CONNACK.~~ [Registro](../prompts/registros/P203-reserved-control-type-zero-mqtt5.md). Gates locais, TCP e CI PASS; 6A global aberta.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
