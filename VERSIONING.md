@@ -2,8 +2,9 @@
 
 P212 acrescenta WSS mTLS local em `main`, sem alterar a versão 0.39.0 nem o
 estado v15. A release publicada 0.39.0 não inclui P212. Testes, CI e registro
-passaram no [aceite parcial](prompts/registros/P212-mtls-websocket-listener.md);
-WSS no client e fase 7 global continuam pendentes.
+passaram no [aceite parcial](prompts/registros/P212-mtls-websocket-listener.md).
+Client C114 aceitou o par local depois; distribuição WSS e fase 7 global
+continuam pendentes.
 
 ## P211 — broker/admin legado 0.39.0 publicado, estado v15
 

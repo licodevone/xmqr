@@ -3,8 +3,9 @@
 P212 está aceito em `main`: `MQTT_WSS_BIND` adiciona WSS mTLS
 opcional somente em loopback, com certificado cliente, usuário/senha e ACL.
 O listener compartilha quota, router e rotação TLS com o TCP seguro e recusa
-`Origin`. A prerelease 0.39.0 abaixo ainda não inclui P212; WSS no client,
-acesso remoto, navegador e aceite global da fase 7 permanecem pendentes.
+`Origin`. C114 aceitou depois o client WSS local. A prerelease 0.39.0
+abaixo ainda não inclui P212; acesso remoto, navegador e aceite global
+da fase 7 permanecem pendentes.
 [Prompt P212](prompts/broker/212-mtls-websocket-listener.md) e
 [registro](prompts/registros/P212-mtls-websocket-listener.md).
 
