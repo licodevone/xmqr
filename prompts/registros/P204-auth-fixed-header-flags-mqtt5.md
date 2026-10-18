@@ -1,0 +1,7 @@
+# P204 — bits reservados de AUTH no MQTT 5
+
+- [Prompt P204](../broker/204-auth-fixed-header-flags-mqtt5.md) criado e enviado antes do código (`c3724d6`). A primeira tentativa compartilhou o marcador P178, e o TCP real retornou `0x82` para `0xf1` quando o motivo exigido era `0x81`. Falha registrada na revisão 2 do prompt (`bb82973`) antes da correção; não foi aceita como PASS.
+- Implementação corrigida `a262038266966034c052eb5384e62ef93a753916`: os 15 cabeçalhos AUTH `0xf1`–`0xff` são classificados em marcador próprio antes do corpo e recebem DISCONNECT MQTT 5 `0x81`; P178 mantém `0x82`. [OASIS MQTT 5.0 MQTT-3.15.1-1 e §4.13](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html) exige bits reservados zero e fechamento para valor inválido.
+- Unitário dos 15 valores, corpos vazios/não vazios e MQTT 3.1.1 PASS. TCP real `P204_AUTH_FLAGS_PASS`: `0xf1`/`0xff`, Will entregue, fechamento, MQTT 3.1.1 sem motivo novo e cliente saudável posterior. Regressões P178 (`P178_FIXED_HEADER_FLAGS_PASS`) e P203 (`P203_RESERVED_CONTROL_PASS`) PASS.
+- Ubuntu 26.04/WSL: fmt, suíte completa (225 testes de biblioteca, seis campanhas explicitamente ignoradas), Clippy `-D warnings`, build release, inventário de licenças e seis contratos de distribuição PASS. [CI da fonte exata](https://github.com/licodevone/xmqr/actions/runs/39108483951) PASS em `rust` e `ubuntu-package`, incluindo o novo ensaio TCP.
+- Escopo parcial 6A. Matriz normativa completa, outras plataformas e fases globais 6A–6D/7–9 continuam abertas. Broker publicado segue 0.36.0; sem tag/release isolada.
