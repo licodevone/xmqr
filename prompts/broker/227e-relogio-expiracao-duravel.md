@@ -1,4 +1,4 @@
-# P227E v2.6 — relógio lógico e expiração durável sem renovar TTL
+# P227E v2.7 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -354,6 +354,8 @@ igualdade após recusa, mantendo todos os bytes/respostas e verificações.
 ## Revisão v2.6 após compile do baseline de listas, antes do ajuste de API
 
 Primeiro compile após fix falhou E0308 nas quatro chamadas admin_list do
-baseline: assinatura real é kind,limit,cursor:Option<String>, não offset.
-Corrigir somente argumentos para kind,64,None. Não é FAIL funcional nem
-troca de oráculo; manter snapshots exatos antes/depois da recusa CONNECT.
+baseline. Primeira correção de scaffold também inverteu os argumentos e
+falhou novamente E0308; não é FAIL funcional nem troca de oráculo.
+Assinatura lida integralmente: kind:AdminListKind, cursor:Option<String>,
+limit:usize. Corrigir para kind,None,64, mantendo snapshots exatos antes/
+depois da recusa CONNECT. Os dois compileFAIL permanecem registrados.
