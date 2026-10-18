@@ -1,4 +1,4 @@
-# P227A — VBI canônico MQTT5, em validação integrada
+# P227A — VBI canônico MQTT5 e inventário de propriedades
 
 Data2026-10-18. Pedido coordenado no P227 para corrigir lacuna normativa6A,
 sem executar bridge/admin como desvio. Ownership:codec.rs, script próprio,
@@ -51,8 +51,48 @@ Revisão v1.2 reforça controleswire sem diminuir asserções:CONNECT3.1.1
 histórico, observador para Will indevido de CONNECT5 recusado e cabeçalho
 VBI inválido já completo antes de chegar corpo (total21vetores finais).
 O script captura versão/SHA da cópia do ELF e do próprio harness; todos os
-resultados são JSON exclusivos e cleanup limitado. WireGREEN aguarda ELF0.42
-integrado fornecido pelo coordenador, que também fará suíte/Clippy/release.
+resultados são JSON exclusivos e cleanup limitado.
+
+## Wire GREEN no ELF integrado
+
+Coordenador forneceu cópia congelada em
+`../.artifacts/p227-binaries/mqtt-broker-integrated-0.42.0` após integrar ambos
+os fixes P227A/P227C (fonte de código10d5081, sobre10bab60). Sem rebuild por
+esta frente. Comando efetivamente executado no WSL:
+
+```sh
+python3 scripts/verify_phase6_vbi.py \
+  --broker ../.artifacts/p227-binaries/mqtt-broker-integrated-0.42.0 \
+  --label candidate --state-root /var/tmp \
+  --report ../.artifacts/p227a-vbi-candidate-1.json
+```
+
+21/21PASS, exit0, cleanupPASS, 3.509s observados, concluído
+2026-10-18T13:56:11Z. Versão lida da cópia privada:`mqtt-broker0.42.0`.
+ELF SHA256:`46d79faf91220cdd59e43602c8f3528a2654463a6f71408c542a9c8638b4f809`.
+Harness SHA256:`ccc8ecae90ccd18ecc98d27dc8876ad42453a2f2663576f853b6ff38f07fb064`.
+Controles3.1.1/canônicos, RL2/3/4bytes, fragmentado/antesdocorpo, PropertyLength
+em9contextos estabelecidos, SubscriptionID, CONNECT/Will inicial sem Will e
+MPS4/5 passaram. ReportRED anterior não foi reescrito; contagens diferentes
+são explicadas pelo reforço prévio v1.2, não por remoção de asserção.
+
+## Matriz documental 6A
+
+Revisão v1.4 do prompt preparada antes de
+`docs/conformance/mqtt5-property-matrix.md`: contexto/direção/ID/tipo,
+multiplicidade/valores/tetos locais, referência OASIS, símbolo e20grupos
+unitários/21grupos de scripts. Estado IMPLEMENTED_TEST_AVAILABLE para impedir
+que disponibilidade de teste vire PASS global. Emissões opcionais ausentes
+separadas das entradas aceitas. Revisão por confronto fonte/testes/seções
+OASIS e diff/check; não foi executado reader testing por agente independente.
+Skill doc-coauthoring orientou estrutura e distinções de leitura sem perguntas
+redundantes, pois o contexto/contrato já foi fornecido pelo coordenador.
+
+A matriz revelou divergência R01:alias válido não mapeado+TopicName vazio
+usa0x94, enquanto §3.3.4 caso3a descreve0x82. Coordenador confirmou fonte e
+reservou correção separada P227D; não se afirma conformidade desse vetor por
+W13 atual. Tetos Will e todas as fronteiras UP16 também não são apresentados
+como exaustivamente testados. Nenhuma checklist geral foi fechada pela matriz.
 
 ## Limites e revisão
 
@@ -60,4 +100,6 @@ Testeswire desta fatia são open-labTCP sintético, não provaTLS/mTLS nem aceit
 global6A–6D. Sem migração v15, produção/SLA/powerloss/Windowsbroker/ESP32 novo.
 Skills xmqr-rust-mqtt, xmqr-tests e xmqr-security-review orientaram tipos,
 negativos, bytes independentes e isolamento; não declararam segurança integral.
-Sem push/tag/serviço do operador. Registro será complementado após wireGREEN.
+Sem push/tag/serviço do operador. Suíte/Clippy/release e aceite integrado ficam
+com o coordenador. Commit local de código/harness/registro:10d5081, autorizado;
+matriz/atualização deste registro serão commitadas separadamente.
