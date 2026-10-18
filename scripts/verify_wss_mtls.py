@@ -2,7 +2,9 @@
 """P212: isolated mTLS WebSocket MQTT wire and security checks."""
 import argparse
 import base64
+from contextlib import contextmanager
 import hashlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
@@ -15,6 +17,7 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 sys.dont_write_bytecode = True
@@ -669,19 +672,99 @@ def check_client_wss_restart(root, environment, broker_bin, client, port, passwo
                 broker.wait(timeout=8)
 
 
+@contextmanager
+def https_pages(root, ports):
+    class Page(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"<!doctype html><title>XMQR browser fixture</title>")
+
+        def log_message(self, *unused):
+            pass
+
+    servers = []
+    threads = []
+    try:
+        for port in ports:
+            server = ThreadingHTTPServer(("127.0.0.1", port), Page)
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(str(root / "server.crt"), str(root / "server.key"))
+            server.socket = context.wrap_socket(server.socket, server_side=True)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            servers.append(server)
+            threads.append(thread)
+        yield
+    finally:
+        for server in servers:
+            server.shutdown()
+            server.server_close()
+        for thread in threads:
+            thread.join(timeout=3)
+
+
+def check_real_browser(root, environment, broker_bin, port, password, log_path, node):
+    page_port, wrong_port = free_port(), free_port()
+    assert len({page_port, wrong_port, port}) == 3
+    allowed = f"https://127.0.0.1:{page_port}"
+    config = dict(environment, MQTT_STATE_DIR=str(root / "p220-browser-state"),
+                  MQTT_WSS_ALLOWED_ORIGINS=allowed)
+    windows_node = Path(node).name.lower().endswith(".exe") and sys.platform == "linux"
+
+    def accessible(path):
+        if not windows_node:
+            return str(path)
+        return subprocess.check_output(["wslpath", "-w", str(path)], text=True).strip()
+
+    fixture = {
+        "pageOrigin": allowed,
+        "wrongPageOrigin": f"https://127.0.0.1:{wrong_port}",
+        "wssOrigin": f"https://127.0.0.1:{port}",
+        "wssUrl": f"wss://127.0.0.1:{port}/mqtt",
+        "clientCert": accessible(root / "client.crt"),
+        "clientKey": accessible(root / "client.key"),
+        "password": password.decode(),
+    }
+    fixture_path = root / "p220-browser.json"
+    fixture_path.write_text(json.dumps(fixture))
+    fixture_path.chmod(0o600)
+    script = ROOT / "scripts/verify_browser_wss.cjs"
+    with https_pages(root, (page_port, wrong_port)), log_path.open("ab") as log:
+        broker = subprocess.Popen([str(broker_bin)], env=config, stdout=log, stderr=log)
+        try:
+            wait_port(broker, port)
+            result = subprocess.run([node, accessible(script), accessible(fixture_path)],
+                                    capture_output=True, text=True, timeout=90)
+            assert result.returncode == 0, (
+                result.stdout + "\n" + result.stderr + "\n"
+                + log_path.read_text(errors="replace")[-1800:])
+            assert "P220_REAL_BROWSER_WSS_PASS" in result.stdout, result.stdout
+            broker.send_signal(signal.SIGTERM)
+            assert broker.wait(timeout=8) == 0
+        finally:
+            if broker.poll() is None:
+                broker.kill()
+                broker.wait(timeout=8)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--client", type=Path)
     parser.add_argument("--profile-client", action="store_true")
     parser.add_argument("--outbox-client", action="store_true")
     parser.add_argument("--durable-sub-client", action="store_true")
+    parser.add_argument("--browser-node", metavar="PATH",
+                        help="run the real Chromium fixture using this Node.js executable")
     args = parser.parse_args()
     if (args.profile_client or args.outbox_client or args.durable_sub_client) and not args.client:
         parser.error("--profile-client/--outbox-client/--durable-sub-client exige --client")
     broker_bin = ROOT / "target/debug/mqtt-broker"
     admin_bin = ROOT / "target/debug/mqtt-admin"
     assert broker_bin.is_file() and admin_bin.is_file()
-    with tempfile.TemporaryDirectory(prefix="xmqr-p212-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="xmqr-p212-",
+                                     dir=os.environ.get("XMQR_BROWSER_TMP")) as temporary:
         root = Path(temporary)
         root.chmod(0o700)
         certificates(root)
@@ -761,6 +844,9 @@ def main():
         if args.durable_sub_client:
             check_client_wss_restart(root, environment, broker_bin, args.client, port,
                                      password, log_path)
+        if args.browser_node:
+            check_real_browser(root, environment, broker_bin, port, password, log_path,
+                               args.browser_node)
         (root / "broker.toml").write_text(
             'version=1\n[broker]\n'
             f'wss_bind="127.0.0.1:{port}"\n')
@@ -842,7 +928,8 @@ def main():
           " P214_REMOTE_OPT_IN_PASS P216_BROWSER_ORIGIN_PASS"
           " P218_WSS_RESTART_PASS" +
           " P219_WSS_FRAMES_PASS" +
-          (" P218_CLIENT_WSS_RESTART_PASS" if args.durable_sub_client else ""))
+          (" P218_CLIENT_WSS_RESTART_PASS" if args.durable_sub_client else "") +
+          (" P220_REAL_BROWSER_WSS_PASS" if args.browser_node else ""))
 
 
 if __name__ == "__main__":
