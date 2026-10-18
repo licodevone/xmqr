@@ -1,10 +1,12 @@
 //! Single-owner MQTT session actor. A candidate state is fsynced before ACKs
 //! or fan-out, so no async mutex is held across storage I/O.
 
+#[cfg(test)]
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     path::Path,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 
 use sha2::{Digest, Sha256};
@@ -17,9 +19,11 @@ use crate::transport::HandlerError;
 use std::sync::{Arc, atomic::Ordering};
 
 use super::StateLimits;
+use super::clock::{ExpiryClock, ExpiryPermit};
 use super::store::{
     AdminReceipt, DurableSession, DurableState, InboundQos2, MAX_ADMIN_RECEIPTS, MqttStore,
-    OutboundInflight, OutboundStage, PendingWill, SharedOrigin, StateError, StoredMessage,
+    OutboundInflight, OutboundStage, OutboundTransmission, PendingWill, SharedOrigin, StateError,
+    StoredMessage,
 };
 use super::topic::{TopicFilter, TopicName};
 
@@ -34,10 +38,12 @@ struct SharedCandidate {
     identifier: Option<u32>,
 }
 
+#[cfg(test)]
 fn unix_ms() -> Result<u64, RouterError> {
     unix_ms_from(SystemTime::now())
 }
 
+#[cfg(test)]
 fn unix_ms_from(instant: SystemTime) -> Result<u64, RouterError> {
     let elapsed = instant
         .duration_since(UNIX_EPOCH)
@@ -50,13 +56,9 @@ fn expiry_deadline(now: u64, seconds: u32) -> Result<u64, RouterError> {
         .ok_or(RouterError::Clock)
 }
 
+#[cfg(test)]
 pub(super) fn message_expiry_deadline(seconds: u32) -> Result<u64, RouterError> {
     expiry_deadline(unix_ms()?, seconds)
-}
-
-pub(super) fn remaining_message_expiry(deadline: u64) -> Result<u32, RouterError> {
-    let remaining_ms = deadline.saturating_sub(unix_ms()?);
-    u32::try_from(remaining_ms.div_ceil(1000)).map_err(|_| RouterError::Clock)
 }
 
 fn message_expired(message: &StoredMessage, now: u64) -> bool {
@@ -69,6 +71,7 @@ fn will_publication(will: &PendingWill, now: u64) -> Result<StoredMessage, Route
     let mut message = will.message.clone();
     if let Some(seconds) = will.message_expiry_interval_seconds {
         message.expiry_at_unix_ms = Some(expiry_deadline(now, seconds)?);
+        message.expiry_interval_seconds = Some(seconds);
     }
     Ok(message)
 }
@@ -92,8 +95,8 @@ fn reconcile_recovered_sessions(
     state: &mut DurableState,
     auth: &AccessPolicy,
     limits: StateLimits,
+    now: u64,
 ) -> Result<(), RouterError> {
-    let now = unix_ms()?;
     let ended: Vec<_> = state
         .sessions
         .values()
@@ -142,6 +145,8 @@ fn reconcile_recovered_sessions(
             .retain(|message| auth.allowed_delivery(&session.principal, message.topic.as_str()));
         session.outbound.retain(|entry| {
             auth.allowed_delivery(&session.principal, entry.message.topic.as_str())
+                && (entry.transmission != OutboundTransmission::Prepared
+                    || !message_expired(&entry.message, now))
         });
         // Accepted inbound QoS2 remains owned after later ACL changes.
     }
@@ -152,6 +157,7 @@ fn reconcile_recovered_sessions(
         auth,
         ended,
         &mut Vec::new(),
+        now,
     )?;
     Ok(())
 }
@@ -190,6 +196,8 @@ pub(super) enum RouterError {
     WillDenied,
     #[error("stale or disconnected MQTT session")]
     Stale,
+    #[error("superseded outbound expiry obligation")]
+    ObsoleteDelivery,
     #[error("session actor unavailable")]
     Unavailable,
     #[error("system clock unavailable for MQTT session expiry")]
@@ -404,6 +412,14 @@ enum Command {
         packet_id: u16,
         reply: oneshot::Sender<Result<(), RouterError>>,
     },
+    PrepareExpiry {
+        client_id: String,
+        generation: u64,
+        deadline: u64,
+        original: Option<u32>,
+        obligation: Option<(u16, Option<u64>)>,
+        reply: oneshot::Sender<Result<ExpiryPermit, RouterError>>,
+    },
     Unregister {
         client_id: String,
         generation: u64,
@@ -425,6 +441,9 @@ pub(super) enum AckKind {
 /// the state map directly, and every mutation is serialized by the actor.
 #[derive(Clone)]
 pub struct Router {
+    #[cfg(test)]
+    expiry_test_hook: Option<Arc<dyn Fn() -> Duration + Send + Sync>>,
+    clock: Arc<ExpiryClock>,
     metrics: Arc<Metrics>,
     sender: mpsc::Sender<Command>,
     inbound_receive_maximum: u16,
@@ -473,6 +492,33 @@ impl Drop for ConnectionGuard {
 }
 
 impl Router {
+    pub(super) fn expiry_deadline(&self, seconds: u32) -> Result<u64, RouterError> {
+        expiry_deadline(self.clock.now()?, seconds)
+    }
+
+    pub(super) fn expiry_permit_current(&self, permit: ExpiryPermit) -> Result<bool, RouterError> {
+        permit.current(&self.clock)
+    }
+
+    pub(super) async fn prepare_expiry(
+        &self,
+        session: &Session,
+        deadline: u64,
+        original: Option<u32>,
+        obligation: Option<(u16, Option<u64>)>,
+    ) -> Result<ExpiryPermit, RouterError> {
+        let (reply, result) = oneshot::channel();
+        self.send(Command::PrepareExpiry {
+            client_id: session.client_id.clone(),
+            generation: session.generation,
+            deadline,
+            original,
+            obligation,
+            reply,
+        })
+        .await?;
+        result.await.map_err(|_| RouterError::Unavailable)?
+    }
     pub(crate) async fn admin_audit_rotate(
         &self,
         request_id: String,
@@ -652,26 +698,70 @@ impl Router {
     /// Recover and start with validated, immutable logical quotas.
     /// # Errors
     /// Rejects state above the configured quotas before recovery transitions.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "recovery reconciles sessions and Wills before the actor becomes visible"
-    )]
     pub async fn start_observed_with_limits(
         directory: &Path,
         auth: Arc<AccessPolicy>,
         metrics: Arc<Metrics>,
         limits: StateLimits,
     ) -> Result<Self, HandlerError> {
-        let (store, mut state) = MqttStore::open_with_limits(directory, limits).await?;
+        let (store, state) = MqttStore::open_with_limits(directory, limits).await?;
+        Self::start_from_store(store, state, auth, metrics, limits).await
+    }
+
+    #[cfg(test)]
+    pub(super) async fn start_with_expiry_clock_for_test(
+        directory: impl AsRef<Path>,
+        auth: Arc<AccessPolicy>,
+        metrics: Arc<Metrics>,
+        limits: StateLimits,
+        clock: Arc<ExpiryClock>,
+    ) -> Result<Self, HandlerError> {
+        let (mut store, state) = MqttStore::open_with_limits(directory, limits).await?;
+        store.set_clock(clock);
+        Self::start_from_store(store, state, auth, metrics, limits).await
+    }
+
+    #[cfg(test)]
+    pub(super) fn with_expiry_hook_for_test(
+        mut self,
+        hook: Arc<dyn Fn() -> Duration + Send + Sync>,
+    ) -> Self {
+        self.expiry_test_hook = Some(hook);
+        self
+    }
+
+    #[cfg(test)]
+    pub(super) async fn expiry_hook_for_test(&self) {
+        if let Some(hook) = &self.expiry_test_hook {
+            let delay = hook();
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
+            }
+        }
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "recovery reconciles sessions and Wills before the actor becomes visible"
+    )]
+    async fn start_from_store(
+        store: MqttStore,
+        mut state: DurableState,
+        auth: Arc<AccessPolicy>,
+        metrics: Arc<Metrics>,
+        limits: StateLimits,
+    ) -> Result<Self, HandlerError> {
+        let clock = store.clock();
         let before = state.clone();
-        if let Err(error) = reconcile_recovered_sessions(&mut state, &auth, limits) {
+        let now = clock.now()?;
+        state.expiry_clock_unix_ms = now;
+        if let Err(error) = reconcile_recovered_sessions(&mut state, &auth, limits, now) {
             store.shutdown().await?;
             return Err(error.into());
         }
         // After crash the exact connection-loss time is unknown. Start an
         // active delayed Will's clock at recovery; a disconnected Will keeps
         // its committed absolute deadline.
-        let now = unix_ms()?;
         for (client_id, will) in &mut state.pending_wills {
             if will.publish_at_unix_ms.is_none() {
                 let deadline = state.sessions.get(client_id).map_or(Ok(now), |session| {
@@ -709,6 +799,7 @@ impl Router {
                     &auth,
                     &will_publication(&will, now)?,
                     None,
+                    now,
                 ) {
                     store.shutdown().await?;
                     return Err(error.into());
@@ -782,10 +873,13 @@ impl Router {
             }
         });
         Ok(Self {
+            clock,
             metrics,
             sender,
             inbound_receive_maximum: u16::try_from(limits.max_inflight).unwrap_or(u16::MAX),
             server_keep_alive_seconds: None,
+            #[cfg(test)]
+            expiry_test_hook: None,
         })
     }
 
@@ -1129,8 +1223,12 @@ impl Router {
 }
 
 impl Actor {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "expiry commits durable state and live quota as one candidate before delivery"
+    )]
     async fn expire_sessions(&mut self) -> Result<(), RouterError> {
-        let now = unix_ms()?;
+        let now = self.store.now()?;
         let due_wills: Vec<_> = self
             .state
             .pending_wills
@@ -1156,13 +1254,16 @@ impl Actor {
             .retained
             .values()
             .any(|m| message_expired(m, now))
-            || self
-                .state
-                .sessions
-                .values()
-                .any(|s| s.offline.iter().any(|m| message_expired(m, now)));
+            || self.state.sessions.values().any(|s| {
+                s.offline.iter().any(|m| message_expired(m, now))
+                    || s.outbound.iter().any(|entry| {
+                        entry.transmission == OutboundTransmission::Prepared
+                            && message_expired(&entry.message, now)
+                    })
+            });
         if expired_sessions || expired_messages || !due_wills.is_empty() {
             let mut candidate = self.state.clone();
+            let mut candidate_live = self.live.clone();
             let expired_ids: Vec<_> = candidate
                 .sessions
                 .iter()
@@ -1178,19 +1279,77 @@ impl Actor {
             candidate
                 .retained
                 .retain(|_, message| !message_expired(message, now));
-            for session in candidate.sessions.values_mut() {
+            let mut deliveries = Vec::new();
+            for (client_id, session) in &mut candidate.sessions {
                 session
                     .offline
                     .retain(|message| !message_expired(message, now));
+                let expired: BTreeSet<_> = session
+                    .outbound
+                    .iter()
+                    .filter(|entry| {
+                        entry.transmission == OutboundTransmission::Prepared
+                            && message_expired(&entry.message, now)
+                    })
+                    .map(|entry| entry.packet_id)
+                    .collect();
+                if expired.is_empty() {
+                    continue;
+                }
+                session
+                    .outbound
+                    .retain(|entry| !expired.contains(&entry.packet_id));
+                if let Some(live) = candidate_live.get_mut(client_id) {
+                    live.sent_unacked.retain(|id| !expired.contains(id));
+                    live.pending_replay.retain(|delivery| {
+                        !matches!(delivery,
+                        Delivery::Publish { packet_id: Some(id), .. } if expired.contains(id))
+                    });
+                    let mut actions = Vec::new();
+                    while live.sent_unacked.len() + actions.len() < live.receive_maximum {
+                        let Some(pending) = live.pending_replay.pop_front() else {
+                            break;
+                        };
+                        actions.push(pending);
+                    }
+                    if live.pending_replay.is_empty() {
+                        drain_offline(
+                            self.limits,
+                            session,
+                            &mut actions,
+                            live.receive_maximum,
+                            live.sent_unacked.len(),
+                            now,
+                        )?;
+                    }
+                    deliveries.extend(
+                        actions
+                            .into_iter()
+                            .map(|delivery| (client_id.clone(), delivery)),
+                    );
+                }
             }
-            let mut deliveries = Vec::new();
+            // Account for planned sends when routing Wills/shared copies, without
+            // publishing their live reservations before the durable barrier.
+            let mut scheduling_live = candidate_live.clone();
+            for (id, delivery) in &deliveries {
+                if let Delivery::Publish {
+                    packet_id: Some(packet_id),
+                    ..
+                } = delivery
+                    && let Some(live) = scheduling_live.get_mut(id)
+                {
+                    live.sent_unacked.insert(*packet_id);
+                }
+            }
             reassign_ended_shared_qos1(
                 self.limits,
                 &mut candidate,
-                &self.live,
+                &scheduling_live,
                 &self.auth,
                 ended,
                 &mut deliveries,
+                self.store.now()?,
             )?;
             let mut published = 0;
             for id in due_wills {
@@ -1205,15 +1364,17 @@ impl Actor {
                     deliveries.extend(apply_message(
                         self.limits,
                         &mut candidate,
-                        &self.live,
+                        &scheduling_live,
                         &self.auth,
                         &will_publication(&will, now)?,
                         None,
+                        self.store.now()?,
                     )?);
                     published += 1;
                 }
             }
             self.commit(candidate).await?;
+            self.live = candidate_live;
             self.metrics.wills.fetch_add(published, Ordering::Relaxed);
             self.deliver(deliveries);
         }
@@ -1239,8 +1400,9 @@ impl Actor {
             &self.auth,
             ended,
             &mut Vec::new(),
+            self.store.now()?,
         )?;
-        let now = unix_ms()?;
+        let now = self.store.now()?;
         for session in candidate.sessions.values_mut() {
             if let Some(seconds) = session.expiry_interval_seconds
                 && session.expires_at_unix_ms.is_none()
@@ -1270,6 +1432,7 @@ impl Actor {
                         &self.auth,
                         &will_publication(&will, now)?,
                         None,
+                        self.store.now()?,
                     )?;
                     published += 1;
                 } else {
@@ -1289,6 +1452,10 @@ impl Actor {
         self.reload_security_with_receipt(policy, None).await
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one atomic security reload includes clock, Will and receipt transitions"
+    )]
     async fn reload_security_with_receipt(
         &mut self,
         policy: AuthPolicy,
@@ -1307,7 +1474,7 @@ impl Actor {
             .cloned()
             .collect();
         candidate.sessions.retain(|_, s| s.persistent);
-        let now = unix_ms()?;
+        let now = self.store.now()?;
         for session in candidate.sessions.values_mut() {
             if let Some(seconds) = session.expiry_interval_seconds
                 && session.expires_at_unix_ms.is_none()
@@ -1351,6 +1518,7 @@ impl Actor {
             &view,
             ended,
             &mut Vec::new(),
+            self.store.now()?,
         )?;
         let mut published = 0;
         for (client_id, mut will) in std::mem::take(&mut candidate.pending_wills) {
@@ -1371,6 +1539,7 @@ impl Actor {
                         &view,
                         &will_publication(&will, now)?,
                         None,
+                        self.store.now()?,
                     )?;
                     published += 1;
                 } else {
@@ -1625,6 +1794,20 @@ impl Actor {
             } => {
                 let result = self
                     .discard_outbound(&client_id, generation, packet_id)
+                    .await;
+                self.record_result(&result);
+                let _ = reply.send(result);
+            }
+            Command::PrepareExpiry {
+                client_id,
+                generation,
+                deadline,
+                original,
+                obligation,
+                reply,
+            } => {
+                let result = self
+                    .prepare_expiry(&client_id, generation, deadline, original, obligation)
                     .await;
                 self.record_result(&result);
                 let _ = reply.send(result);
@@ -2040,6 +2223,7 @@ impl Actor {
     }
 
     async fn commit(&mut self, mut candidate: DurableState) -> Result<(), RouterError> {
+        candidate.expiry_clock_unix_ms = candidate.expiry_clock_unix_ms.max(self.store.now()?);
         prune_shared_group_cursors(&mut candidate);
         let started = std::time::Instant::now();
         let result = self.store.commit(&candidate).await;
@@ -2078,6 +2262,56 @@ impl Actor {
             self.commits_since_snapshot = 0;
         }
         Ok(())
+    }
+
+    async fn prepare_expiry(
+        &mut self,
+        client_id: &str,
+        generation: u64,
+        deadline: u64,
+        original: Option<u32>,
+        obligation: Option<(u16, Option<u64>)>,
+    ) -> Result<ExpiryPermit, RouterError> {
+        self.current(client_id, generation)?;
+        let now = self.store.now()?;
+        let remaining = super::clock::remaining_at(deadline, original, now)?;
+        let mut candidate = self.state.clone();
+        let mut discard_unattempted = obligation.is_none();
+        if let Some((packet_id, identity)) = obligation {
+            let entry = candidate
+                .sessions
+                .get_mut(client_id)
+                .and_then(|session| {
+                    session
+                        .outbound
+                        .iter_mut()
+                        .find(|entry| entry.packet_id == packet_id)
+                })
+                .ok_or(RouterError::ObsoleteDelivery)?;
+            if entry.message.expiry_at_unix_ms != Some(deadline)
+                || entry.message.expiry_interval_seconds != original
+                || entry.message.expiry_delivery_id != identity
+                || entry.stage == OutboundStage::AwaitPubComp
+            {
+                return Err(RouterError::ObsoleteDelivery);
+            }
+            if remaining > 0 {
+                entry.transmission = OutboundTransmission::MayHaveSent;
+            }
+            discard_unattempted = entry.transmission == OutboundTransmission::Prepared;
+        }
+        candidate.expiry_clock_unix_ms = candidate.expiry_clock_unix_ms.max(now);
+        self.commit(candidate).await?;
+        Ok(ExpiryPermit {
+            disposition: if remaining == 0 && discard_unattempted {
+                super::clock::ExpiryDisposition::DiscardUnattempted
+            } else {
+                super::clock::ExpiryDisposition::PreserveUncertain
+            },
+            remaining,
+            deadline,
+            original,
+        })
     }
 
     fn fail_closed(&mut self) {
@@ -2163,7 +2397,7 @@ impl Actor {
             will_message_expiry_seconds,
             receive_maximum,
         } = policy;
-        let now = unix_ms()?;
+        let now = self.store.now()?;
         let old = self
             .state
             .sessions
@@ -2206,6 +2440,7 @@ impl Actor {
                     &self.auth,
                     &will_publication(&prior, now)?,
                     None,
+                    self.store.now()?,
                 )?;
                 prior_will_published = true;
             }
@@ -2225,6 +2460,7 @@ impl Actor {
             &self.auth,
             ended,
             &mut prior_deliveries,
+            self.store.now()?,
         )?;
         if !session_present {
             candidate.sessions.insert(
@@ -2260,13 +2496,17 @@ impl Actor {
                 .sessions
                 .get_mut(&client_id)
                 .ok_or(RouterError::Stale)?;
+            session.outbound.retain(|record| {
+                record.transmission != OutboundTransmission::Prepared
+                    || !message_expired(&record.message, now)
+            });
             for record in &session.outbound {
                 let delivery = match record.stage {
                     OutboundStage::AwaitPubComp => Delivery::PubRel(record.packet_id),
                     OutboundStage::AwaitPubAck | OutboundStage::AwaitPubRec => Delivery::Publish {
                         message: record.message.clone(),
                         packet_id: Some(record.packet_id),
-                        dup: true,
+                        dup: record.transmission == OutboundTransmission::MayHaveSent,
                     },
                 };
                 if matches!(delivery, Delivery::Publish { .. }) {
@@ -2280,7 +2520,14 @@ impl Actor {
                 replay.push(delivery);
             }
             if pending_replay.is_empty() {
-                drain_offline(self.limits, session, &mut replay, effective_maximum, 0)?;
+                drain_offline(
+                    self.limits,
+                    session,
+                    &mut replay,
+                    effective_maximum,
+                    0,
+                    self.store.now()?,
+                )?;
                 for delivery in &replay {
                     if let Delivery::Publish {
                         packet_id: Some(packet_id),
@@ -2547,6 +2794,7 @@ impl Actor {
             &self.auth,
             &message,
             Some(client_id),
+            self.store.now()?,
         )?;
         self.commit(candidate).await?;
         self.metrics.received[qos].fetch_add(1, Ordering::Relaxed);
@@ -2581,6 +2829,7 @@ impl Actor {
             &self.auth,
             &pending.message,
             Some(client_id),
+            self.store.now()?,
         )?;
         self.commit(candidate).await?;
         if let Some(live) = self.live.get_mut(client_id) {
@@ -2635,6 +2884,7 @@ impl Actor {
                         &mut actions,
                         receive_maximum,
                         live.sent_unacked.len() - usize::from(replenishes_quota),
+                        self.store.now()?,
                     )?;
                 }
                 self.commit(candidate).await?;
@@ -2659,6 +2909,7 @@ impl Actor {
                 // MQTT-4.6.0-4: persist PUBREL replay in PUBREC arrival order.
                 // Pending PUBLISH records retain their relative send order.
                 let mut record = session.outbound.remove(index);
+                record.transmission = OutboundTransmission::MayHaveSent;
                 record.stage = OutboundStage::AwaitPubComp;
                 session.outbound.push(record);
                 self.commit(candidate).await?;
@@ -2707,6 +2958,7 @@ impl Actor {
                 &mut actions,
                 receive_maximum,
                 live.sent_unacked.len() - usize::from(replenishes_quota),
+                self.store.now()?,
             )?;
         }
         self.commit(candidate).await?;
@@ -2764,7 +3016,7 @@ impl Actor {
         }
         let will = candidate.pending_wills.remove(client_id);
         let had_will = will.is_some();
-        let now = unix_ms()?;
+        let now = self.store.now()?;
         if let Some(session) = candidate.sessions.get_mut(client_id)
             && let Some(seconds) = session.expiry_interval_seconds
         {
@@ -2789,6 +3041,7 @@ impl Actor {
             &self.auth,
             ended,
             &mut deliveries,
+            self.store.now()?,
         )?;
         let mut published = false;
         if let Some(mut will) = will.filter(|_| !graceful)
@@ -2811,6 +3064,7 @@ impl Actor {
                     &self.auth,
                     &will_publication(&will, now)?,
                     None,
+                    self.store.now()?,
                 ) {
                     Ok(deliveries) => deliveries,
                     Err(error) => {
@@ -2914,8 +3168,9 @@ fn apply_message(
     auth: &AccessPolicy,
     message: &StoredMessage,
     publisher_id: Option<&str>,
+    now: u64,
 ) -> Result<Vec<(String, Delivery)>, RouterError> {
-    let expired = message_expired(message, unix_ms()?);
+    let expired = message_expired(message, now);
     if message.retain {
         if message.payload.is_empty() || expired {
             state.retained.remove(&message.topic);
@@ -3111,8 +3366,8 @@ fn reassign_ended_shared_qos1(
     auth: &AccessPolicy,
     ended: Vec<DurableSession>,
     deliveries: &mut Vec<(String, Delivery)>,
+    now: u64,
 ) -> Result<(), RouterError> {
-    let now = unix_ms()?;
     for session in ended {
         let pending = session
             .outbound
@@ -3121,6 +3376,8 @@ fn reassign_ended_shared_qos1(
             .map(|entry| entry.message)
             .chain(session.offline);
         for mut message in pending {
+            // This is a different member's obligation, not the old attempt.
+            message.expiry_delivery_id = None;
             let Some(origin) = message.shared_origin.clone() else {
                 continue;
             };
@@ -3236,9 +3493,10 @@ fn reassign_ended_shared_qos1(
 fn prepare_delivery(
     limits: StateLimits,
     session: &mut DurableSession,
-    message: StoredMessage,
+    mut message: StoredMessage,
 ) -> Result<Delivery, RouterError> {
     if message.qos == 0 {
+        message.expiry_delivery_id = None;
         return Ok(Delivery::Publish {
             message,
             packet_id: None,
@@ -3249,12 +3507,27 @@ fn prepare_delivery(
         return Err(StateError::Limit("outbound inflight").into());
     }
     let packet_id = allocate_packet_id(session)?;
+    if message.expiry_at_unix_ms.is_some() {
+        session.next_expiry_delivery_id = session
+            .next_expiry_delivery_id
+            .checked_add(1)
+            .filter(|id| i64::try_from(*id).is_ok())
+            .ok_or(StateError::Limit("expiry delivery identities"))?;
+        message.expiry_delivery_id = Some(session.next_expiry_delivery_id);
+    } else {
+        message.expiry_delivery_id = None;
+    }
     let stage = if message.qos == 1 {
         OutboundStage::AwaitPubAck
     } else {
         OutboundStage::AwaitPubRec
     };
     session.outbound.push(OutboundInflight {
+        transmission: if message.expiry_at_unix_ms.is_some() {
+            OutboundTransmission::Prepared
+        } else {
+            OutboundTransmission::MayHaveSent
+        },
         packet_id,
         message: message.clone(),
         stage,
@@ -3272,8 +3545,8 @@ fn drain_offline(
     actions: &mut Vec<Delivery>,
     receive_maximum: usize,
     sent_unacked: usize,
+    now: u64,
 ) -> Result<(), RouterError> {
-    let now = unix_ms()?;
     while session.outbound.len() < limits.max_inflight
         && sent_unacked
             + actions
@@ -3913,6 +4186,8 @@ mod tests {
             qos: 1,
             retain: false,
             expiry_at_unix_ms: None,
+            expiry_interval_seconds: None,
+            expiry_delivery_id: None,
             payload_format_indicator: None,
             content_type: None,
             response_topic: None,
@@ -3927,6 +4202,8 @@ mod tests {
             qos: 1,
             retain: false,
             expiry_at_unix_ms: None,
+            expiry_interval_seconds: None,
+            expiry_delivery_id: None,
             payload_format_indicator: None,
             content_type: None,
             response_topic: None,
@@ -3939,11 +4216,27 @@ mod tests {
         assert!(prepare_delivery(limits, &mut session, second.clone()).is_err());
         session.offline.push_back(second.clone());
         let mut actions = Vec::new();
-        drain_offline(limits, &mut session, &mut actions, limits.max_inflight, 0).unwrap();
+        drain_offline(
+            limits,
+            &mut session,
+            &mut actions,
+            limits.max_inflight,
+            0,
+            unix_ms().unwrap(),
+        )
+        .unwrap();
         assert!(actions.is_empty());
         assert_eq!(session.offline.front(), Some(&second));
         session.outbound.clear();
-        drain_offline(limits, &mut session, &mut actions, limits.max_inflight, 0).unwrap();
+        drain_offline(
+            limits,
+            &mut session,
+            &mut actions,
+            limits.max_inflight,
+            0,
+            unix_ms().unwrap(),
+        )
+        .unwrap();
         assert_eq!(actions.len(), 1);
         assert!(session.offline.is_empty());
         assert_eq!(session.outbound[0].message, second);
@@ -4403,6 +4696,548 @@ mod tests {
             Err(RouterError::Clock)
         ));
         assert_eq!(expiry_deadline(1_000, 2).unwrap(), 3_000);
+    }
+
+    #[tokio::test]
+    async fn p227e_actor_checkpoint_and_restore_keep_retained_offline_original_ttl() {
+        let (directory, mut actor) = actor().await;
+        let (clock, input) = ExpiryClock::manual(10_000, 0);
+        actor.store.set_clock(clock.clone());
+        let member = actor
+            .register("expiry-member".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "expiry-member",
+                member.generation,
+                vec![(filter("test/state"), Some(1))],
+            )
+            .await
+            .unwrap();
+        actor
+            .unregister("expiry-member", member.generation)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("expiry-source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut publication = message("test/state", 1, true, b"expires");
+        publication.expiry_at_unix_ms = Some(20_000);
+        publication.expiry_interval_seconds = Some(10);
+        actor
+            .publish("expiry-source", publisher.generation, publication, Some(1))
+            .await
+            .unwrap();
+        input.set(13_000, 3_000);
+        let first = actor
+            .prepare_expiry(
+                "expiry-source",
+                publisher.generation,
+                20_000,
+                Some(10),
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(first.remaining, 7);
+        assert!(actor.state.expiry_clock_unix_ms >= 13_000);
+        input.set(1_000, 4_000);
+        assert!(!first.current(&clock).unwrap());
+        let refreshed = actor
+            .prepare_expiry(
+                "expiry-source",
+                publisher.generation,
+                20_000,
+                Some(10),
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(refreshed.remaining, 6);
+        assert!(actor.state.expiry_clock_unix_ms >= 14_000);
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(
+            recovered.retained["test/state"].expiry_interval_seconds,
+            Some(10)
+        );
+        assert_eq!(
+            recovered.sessions["expiry-member"].offline[0].expiry_interval_seconds,
+            Some(10)
+        );
+        let (restored_clock, restored_input) =
+            ExpiryClock::manual(1_000, recovered.expiry_clock_unix_ms);
+        assert_eq!(restored_clock.remaining(20_000, Some(10)).unwrap(), 6);
+        actor.store = store;
+        actor.store.set_clock(restored_clock);
+        actor.state = recovered;
+        actor.live.clear();
+        restored_input.set(1_000, 6_000);
+        actor.expire_sessions().await.unwrap();
+        assert!(!actor.state.retained.contains_key("test/state"));
+        assert!(actor.state.sessions["expiry-member"].offline.is_empty());
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227e_failed_checkpoint_keeps_qos_ownership_and_refuses_permit() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (_directory, mut actor) = actor().await;
+        let (clock, input) = ExpiryClock::manual(10_000, 0);
+        actor.store.set_clock(clock);
+        let member = actor
+            .register("expiry-member".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "expiry-member",
+                member.generation,
+                vec![(filter("test/state"), Some(2))],
+            )
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("expiry-source".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let mut publication = message("test/state", 2, true, b"owned");
+        publication.expiry_at_unix_ms = Some(20_000);
+        publication.expiry_interval_seconds = Some(10);
+        actor
+            .publish("expiry-source", publisher.generation, publication, Some(7))
+            .await
+            .unwrap();
+        let before = actor.state.clone();
+        assert_eq!(before.sessions["expiry-source"].inbound_qos2.len(), 1);
+        input.set(1_000, 4_000);
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(
+            actor
+                .prepare_expiry(
+                    "expiry-source",
+                    publisher.generation,
+                    20_000,
+                    Some(10),
+                    None
+                )
+                .await
+                .is_err()
+        );
+        assert_eq!(actor.state, before);
+        assert_eq!(actor.state.sessions["expiry-source"].inbound_qos2.len(), 1);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    async fn p227e_intent_fixture() -> (TempDir, Actor, super::Session, u16) {
+        let (directory, mut actor) = actor().await;
+        let (clock, _) = ExpiryClock::manual(10_000, 0);
+        actor.store.set_clock(clock);
+        let member = actor
+            .register("intent-member".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "intent-member",
+                member.generation,
+                vec![(filter("test/state"), Some(1))],
+            )
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("intent-source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut publication = message("test/state", 1, false, b"intent");
+        publication.expiry_at_unix_ms = Some(20_000);
+        publication.expiry_interval_seconds = Some(10);
+        actor
+            .publish("intent-source", publisher.generation, publication, Some(1))
+            .await
+            .unwrap();
+        let id = actor.state.sessions["intent-member"].outbound[0].packet_id;
+        (directory, actor, member, id)
+    }
+
+    #[tokio::test]
+    async fn p227e_intent_new_expiring_copy_is_prepared_before_any_permit() {
+        let (_directory, actor, _member, _) = p227e_intent_fixture().await;
+        let phase = actor.state.sessions["intent-member"].outbound[0].transmission;
+        actor.store.shutdown().await.unwrap();
+        assert_eq!(phase, OutboundTransmission::Prepared);
+    }
+
+    async fn p227e_intent_recover(
+        phase: OutboundTransmission,
+        now: u64,
+        qos: u8,
+    ) -> (TempDir, Actor, super::Session) {
+        let (directory, mut actor, _member, _) = p227e_intent_fixture().await;
+        let mut candidate = actor.state.clone();
+        let entry = &mut candidate
+            .sessions
+            .get_mut("intent-member")
+            .unwrap()
+            .outbound[0];
+        entry.message.qos = qos;
+        entry.stage = if qos == 1 {
+            OutboundStage::AwaitPubAck
+        } else {
+            OutboundStage::AwaitPubRec
+        };
+        candidate
+            .sessions
+            .get_mut("intent-member")
+            .unwrap()
+            .outbound[0]
+            .transmission = phase;
+        actor.commit(candidate).await.unwrap();
+        actor.store.shutdown().await.unwrap();
+        let (store, state) = MqttStore::open(directory.path()).await.unwrap();
+        let (clock, _) = ExpiryClock::manual(now, state.expiry_clock_unix_ms);
+        actor.store = store;
+        actor.store.set_clock(clock);
+        actor.state = state;
+        actor.live.clear();
+        let resumed = actor
+            .register("intent-member".into(), "user".into(), false)
+            .await
+            .unwrap();
+        assert!(resumed.resumed);
+        (directory, actor, resumed)
+    }
+
+    #[tokio::test]
+    async fn p227e_intent_restore_discards_expired_prepared_copy_before_first_attempt() {
+        let (_directory, actor, resumed) =
+            p227e_intent_recover(OutboundTransmission::Prepared, 30_000, 1).await;
+        let replay_empty = resumed.replay.is_empty();
+        let outbound_empty = actor.state.sessions["intent-member"].outbound.is_empty();
+        actor.store.shutdown().await.unwrap();
+        assert!(replay_empty && outbound_empty);
+    }
+
+    #[tokio::test]
+    async fn p227e_intent_restore_fresh_prepared_copy_is_first_send_not_dup() {
+        let (_directory, actor, resumed) =
+            p227e_intent_recover(OutboundTransmission::Prepared, 11_000, 1).await;
+        let fresh = matches!(
+            resumed.replay.as_slice(),
+            [Delivery::Publish { dup: false, .. }]
+        );
+        actor.store.shutdown().await.unwrap();
+        assert!(fresh);
+    }
+
+    #[tokio::test]
+    async fn p227e_intent_may_have_sent_expired_copy_keeps_qos_handshake() {
+        let (_directory, actor, resumed) =
+            p227e_intent_recover(OutboundTransmission::MayHaveSent, 30_000, 1).await;
+        let uncertain = matches!(
+            resumed.replay.as_slice(),
+            [Delivery::Publish { dup: true, .. }]
+        );
+        let owned = actor.state.sessions["intent-member"].outbound.len();
+        actor.store.shutdown().await.unwrap();
+        assert!(uncertain && owned == 1);
+    }
+
+    #[tokio::test]
+    async fn p227e_intent_qos2_expired_prepared_is_not_replayed() {
+        let (_directory, actor, resumed) =
+            p227e_intent_recover(OutboundTransmission::Prepared, 30_000, 2).await;
+        assert!(resumed.replay.is_empty());
+        assert_eq!(actor.state.sessions["intent-member"].outbound, Vec::new());
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227e_intent_expired_qos2_uncertain_survives_pubrel_restart_until_comp() {
+        let (directory, mut actor, resumed) =
+            p227e_intent_recover(OutboundTransmission::MayHaveSent, 30_000, 2).await;
+        let id = match resumed.replay.as_slice() {
+            [
+                Delivery::Publish {
+                    packet_id: Some(id),
+                    dup: true,
+                    ..
+                },
+            ] => *id,
+            _ => panic!("expired uncertain QoS2 PUBLISH remains owned"),
+        };
+        assert!(
+            matches!(actor.ack("intent-member", resumed.generation, AckKind::Rec, id)
+            .await.unwrap().as_slice(), [Delivery::PubRel(found)] if *found == id)
+        );
+        actor.store.shutdown().await.unwrap();
+        let (store, state) = MqttStore::open(directory.path()).await.unwrap();
+        let (clock, _) = ExpiryClock::manual(40_000, state.expiry_clock_unix_ms);
+        actor.store = store;
+        actor.store.set_clock(clock);
+        actor.state = state;
+        actor.live.clear();
+        let resumed = actor
+            .register("intent-member".into(), "user".into(), false)
+            .await
+            .unwrap();
+        assert!(matches!(resumed.replay.as_slice(), [Delivery::PubRel(found)] if *found == id));
+        actor
+            .ack("intent-member", resumed.generation, AckKind::Comp, id)
+            .await
+            .unwrap();
+        assert_eq!(actor.state.sessions["intent-member"].outbound, Vec::new());
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227e_intent_successful_positive_permit_commits_may_have_sent() {
+        let (_directory, mut actor, member, id) = p227e_intent_fixture().await;
+        actor
+            .state
+            .sessions
+            .get_mut("intent-member")
+            .unwrap()
+            .outbound[0]
+            .transmission = OutboundTransmission::Prepared;
+        let permit = actor
+            .prepare_expiry(
+                "intent-member",
+                member.generation,
+                20_000,
+                Some(10),
+                Some((id, Some(1))),
+            )
+            .await
+            .unwrap();
+        assert!(permit.remaining > 0);
+        let phase = actor.state.sessions["intent-member"].outbound[0].transmission;
+        actor.store.shutdown().await.unwrap();
+        assert_eq!(phase, OutboundTransmission::MayHaveSent);
+    }
+
+    #[tokio::test]
+    async fn p227e_intent_zero_permit_does_not_reserve_an_attempt() {
+        let (_directory, mut actor, member, id) = p227e_intent_fixture().await;
+        actor
+            .state
+            .sessions
+            .get_mut("intent-member")
+            .unwrap()
+            .outbound[0]
+            .transmission = OutboundTransmission::Prepared;
+        let (clock, _) = ExpiryClock::manual(30_000, 10_000);
+        actor.store.set_clock(clock);
+        let permit = actor
+            .prepare_expiry(
+                "intent-member",
+                member.generation,
+                20_000,
+                Some(10),
+                Some((id, Some(1))),
+            )
+            .await
+            .unwrap();
+        assert_eq!(permit.remaining, 0);
+        assert_eq!(
+            actor.state.sessions["intent-member"].outbound[0].transmission,
+            OutboundTransmission::Prepared
+        );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227e_prune_expired_prepared_releases_quota_one_and_drains_backlog() {
+        let (_directory, mut actor, mut member, id) = p227e_intent_fixture().await;
+        actor.limits.max_inflight = 1;
+        actor.live.get_mut("intent-member").unwrap().receive_maximum = 1;
+        let source_generation = actor.live["intent-source"].generation;
+        let _stale_queued = member.outbound.recv().await.unwrap();
+        actor
+            .publish(
+                "intent-source",
+                source_generation,
+                message("test/state", 1, false, b"after-expired"),
+                Some(2),
+            )
+            .await
+            .unwrap();
+        assert_eq!(actor.state.sessions["intent-member"].offline.len(), 1);
+        let (clock, _) = ExpiryClock::manual(30_000, 10_000);
+        actor.store.set_clock(clock);
+        actor.expire_sessions().await.unwrap();
+        let records = &actor.state.sessions["intent-member"].outbound;
+        let progressed = records.len() == 1
+            && records[0].message.payload == b"after-expired"
+            && actor.state.sessions["intent-member"].offline.is_empty()
+            && !actor.live["intent-member"].sent_unacked.contains(&id)
+            && matches!(member.outbound.try_recv(), Ok(Delivery::Publish { .. }));
+        actor.store.shutdown().await.unwrap();
+        assert!(
+            progressed,
+            "expired unattempted copy must release quota without ACK"
+        );
+    }
+
+    #[tokio::test]
+    async fn p227e_prune_wal_failure_does_not_change_durable_or_live_quota() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (_directory, mut actor, _member, _) = p227e_intent_fixture().await;
+        let before = actor.state.clone();
+        let live_before = actor.live["intent-member"].sent_unacked.clone();
+        let (clock, _) = ExpiryClock::manual(30_000, 10_000);
+        actor.store.set_clock(clock);
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        let failed = actor.expire_sessions().await.is_err();
+        let unchanged =
+            actor.state == before && actor.live["intent-member"].sent_unacked == live_before;
+        actor.store.shutdown().await.unwrap();
+        assert!(
+            failed && unchanged,
+            "expired Prepared pruning must cross WAL before publishing Live"
+        );
+    }
+
+    #[tokio::test]
+    async fn p227e_identity_reused_packet_and_equal_metadata_never_authorize_old_delivery() {
+        let (_directory, mut actor, member, id) = p227e_intent_fixture().await;
+        let old = actor.state.sessions["intent-member"].outbound[0]
+            .message
+            .clone();
+        actor
+            .ack("intent-member", member.generation, AckKind::Ack, id)
+            .await
+            .unwrap();
+        actor
+            .state
+            .sessions
+            .get_mut("intent-member")
+            .unwrap()
+            .next_packet_id = id;
+        let source_generation = actor.live["intent-source"].generation;
+        let mut next = message("test/state", 1, false, b"different obligation");
+        next.expiry_at_unix_ms = old.expiry_at_unix_ms;
+        next.expiry_interval_seconds = old.expiry_interval_seconds;
+        actor
+            .publish("intent-source", source_generation, next, Some(2))
+            .await
+            .unwrap();
+        let before = actor.state.clone();
+        let record = &before.sessions["intent-member"].outbound[0];
+        assert_eq!(record.packet_id, id);
+        assert_ne!(record.message.expiry_delivery_id, old.expiry_delivery_id);
+        assert!(matches!(
+            actor
+                .prepare_expiry(
+                    "intent-member",
+                    member.generation,
+                    20_000,
+                    Some(10),
+                    Some((id, old.expiry_delivery_id))
+                )
+                .await,
+            Err(RouterError::ObsoleteDelivery)
+        ));
+        assert_eq!(actor.state, before);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227e_intent_wal_failure_keeps_prepared_without_permission() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (_directory, mut actor, member, id) = p227e_intent_fixture().await;
+        let before = actor.state.clone();
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(
+            actor
+                .prepare_expiry(
+                    "intent-member",
+                    member.generation,
+                    20_000,
+                    Some(10),
+                    Some((id, Some(1)))
+                )
+                .await
+                .is_err()
+        );
+        assert_eq!(actor.state, before);
+        assert_eq!(
+            actor.state.sessions["intent-member"].outbound[0].transmission,
+            OutboundTransmission::Prepared
+        );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227e_prune_drains_pending_replay_before_offline_after_expiry() {
+        let (_directory, mut actor, mut member, _) = p227e_intent_fixture().await;
+        let source_generation = actor.live["intent-source"].generation;
+        let mut next = message("test/state", 1, false, b"pending");
+        next.expiry_at_unix_ms = Some(40_000);
+        next.expiry_interval_seconds = Some(30);
+        actor
+            .publish("intent-source", source_generation, next, Some(2))
+            .await
+            .unwrap();
+        let _first = member.outbound.recv().await.unwrap();
+        let second = member.outbound.recv().await.unwrap();
+        let second_id = match &second {
+            Delivery::Publish {
+                packet_id: Some(id),
+                ..
+            } => *id,
+            _ => unreachable!(),
+        };
+        let live = actor.live.get_mut("intent-member").unwrap();
+        live.sent_unacked.remove(&second_id);
+        live.receive_maximum = 1;
+        live.pending_replay.push_back(second);
+        actor
+            .publish(
+                "intent-source",
+                source_generation,
+                message("test/state", 1, false, b"offline"),
+                Some(3),
+            )
+            .await
+            .unwrap();
+        let (clock, _) = ExpiryClock::manual(30_000, 10_000);
+        actor.store.set_clock(clock);
+        actor.expire_sessions().await.unwrap();
+        assert!(actor.live["intent-member"].pending_replay.is_empty());
+        assert_eq!(
+            actor.live["intent-member"].sent_unacked,
+            BTreeSet::from([second_id])
+        );
+        assert_eq!(actor.state.sessions["intent-member"].offline.len(), 1);
+        assert!(
+            matches!(member.outbound.try_recv(), Ok(Delivery::Publish { message, .. })
+            if message.payload == b"pending")
+        );
+        actor.store.shutdown().await.unwrap();
     }
 
     #[tokio::test]
@@ -4910,7 +5745,13 @@ mod tests {
         );
         actor.store.shutdown().await.unwrap();
         let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
-        reconcile_recovered_sessions(&mut recovered, &actor.auth, actor.limits).unwrap();
+        reconcile_recovered_sessions(
+            &mut recovered,
+            &actor.auth,
+            actor.limits,
+            unix_ms().unwrap(),
+        )
+        .unwrap();
         assert!(recovered.sessions.is_empty());
         store.shutdown().await.unwrap();
     }
@@ -5037,7 +5878,13 @@ mod tests {
         ));
         actor.store.shutdown().await.unwrap();
         let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
-        reconcile_recovered_sessions(&mut recovered, &actor.auth, actor.limits).unwrap();
+        reconcile_recovered_sessions(
+            &mut recovered,
+            &actor.auth,
+            actor.limits,
+            unix_ms().unwrap(),
+        )
+        .unwrap();
         assert!(!recovered.sessions.contains_key("alpha"));
         assert_eq!(recovered.sessions["beta"].offline.len(), 1);
         assert_eq!(
@@ -5222,6 +6069,7 @@ mod tests {
             retained: false,
         });
         ended.outbound.push(OutboundInflight {
+            transmission: OutboundTransmission::MayHaveSent,
             packet_id: 1,
             message: unacked,
             stage: OutboundStage::AwaitPubAck,
@@ -5236,6 +6084,7 @@ mod tests {
             &actor.auth,
             vec![ended],
             &mut deliveries,
+            unix_ms().unwrap(),
         )
         .unwrap();
         assert_eq!(actor.state, before);
@@ -5454,7 +6303,13 @@ mod tests {
         );
         actor.store.shutdown().await.unwrap();
         let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
-        reconcile_recovered_sessions(&mut recovered, &actor.auth, actor.limits).unwrap();
+        reconcile_recovered_sessions(
+            &mut recovered,
+            &actor.auth,
+            actor.limits,
+            unix_ms().unwrap(),
+        )
+        .unwrap();
         assert!(
             recovered.sessions["durable"]
                 .shared_filters
@@ -5521,7 +6376,13 @@ mod tests {
         assert!(second.outbound.try_recv().is_err());
         actor.store.shutdown().await.unwrap();
         let (store, mut recovered) = MqttStore::open(directory.path()).await.unwrap();
-        reconcile_recovered_sessions(&mut recovered, &actor.auth, actor.limits).unwrap();
+        reconcile_recovered_sessions(
+            &mut recovered,
+            &actor.auth,
+            actor.limits,
+            unix_ms().unwrap(),
+        )
+        .unwrap();
         actor.store = store;
         actor.state = recovered;
         actor.live.clear();
@@ -5791,6 +6652,8 @@ mod tests {
             qos,
             retain,
             expiry_at_unix_ms: None,
+            expiry_interval_seconds: None,
+            expiry_delivery_id: None,
             payload_format_indicator: None,
             content_type: None,
             response_topic: None,
@@ -6913,6 +7776,7 @@ mod tests {
                 &actor.auth,
                 &message("$SYS/state", 0, false, b"denied"),
                 None,
+                unix_ms().unwrap()
             )
             .unwrap()
             .is_empty()

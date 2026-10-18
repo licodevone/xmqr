@@ -575,6 +575,8 @@ fn message(topic: &str, payload: Vec<u8>, qos: u8, retain: bool) -> StoredMessag
         qos,
         retain,
         expiry_at_unix_ms: None,
+        expiry_interval_seconds: None,
+        expiry_delivery_id: None,
         payload_format_indicator: None,
         content_type: None,
         response_topic: None,
@@ -599,6 +601,7 @@ fn base_state() -> DurableState {
         message: message("fuzz/a", vec![2], 2, false),
     });
     session.outbound.push(OutboundInflight {
+        transmission: crate::mqtt::store::OutboundTransmission::MayHaveSent,
         packet_id: 8,
         message: message("fuzz/a", vec![3], 1, false),
         stage: OutboundStage::AwaitPubAck,

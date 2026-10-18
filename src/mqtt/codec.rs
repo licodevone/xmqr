@@ -148,7 +148,7 @@ pub(super) enum Packet {
         maximum_packet_size: Option<u32>,
         topic_alias_maximum: u16,
         keep_alive: u16,
-        will: Option<super::store::StoredMessage>,
+        will: Option<Box<super::store::StoredMessage>>,
         will_delay_seconds: u32,
         will_message_expiry_seconds: Option<u32>,
         username: Option<String>,
@@ -866,12 +866,14 @@ fn decode_for_inner(
                 if payload.len() > MAX_PAYLOAD {
                     return Err("Will payload too large".into());
                 }
-                Some(super::store::StoredMessage {
+                Some(Box::new(super::store::StoredMessage {
                     topic,
                     payload,
                     qos: will_qos,
                     retain: will_retain,
                     expiry_at_unix_ms: None,
+                    expiry_interval_seconds: None,
+                    expiry_delivery_id: None,
                     payload_format_indicator,
                     content_type,
                     response_topic,
@@ -879,7 +881,7 @@ fn decode_for_inner(
                     user_properties,
                     subscription_identifiers: Vec::new(),
                     shared_origin: None,
-                })
+                }))
             } else {
                 None
             };
@@ -1860,9 +1862,9 @@ mod tests {
             (&b"\x80\x01"[..], 128),
             (&b"\xff\x7f"[..], 16383),
             (&b"\x80\x80\x01"[..], 16384),
-            (&b"\xff\xff\x7f"[..], 2097151),
-            (&b"\x80\x80\x80\x01"[..], 2097152),
-            (&b"\xff\xff\xff\x7f"[..], 268435455),
+            (&b"\xff\xff\x7f"[..], 2_097_151),
+            (&b"\x80\x80\x80\x01"[..], 2_097_152),
+            (&b"\xff\xff\xff\x7f"[..], 268_435_455),
         ] {
             let mut cursor = Cursor::new(encoded);
             assert_eq!(cursor.variable_integer().unwrap(), value);

@@ -9,6 +9,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     path::Path,
+    sync::Arc,
 };
 
 use serde::{Deserialize, Serialize};
@@ -17,16 +18,25 @@ use thiserror::Error;
 use crate::persistence::{StorageError, actor::PersistenceHandle};
 
 use super::StateLimits;
+use super::clock::ExpiryClock;
 use super::topic::{TopicFilter, TopicName};
 
 const KEY: &[u8] = b"mqtt311.state.v1";
-const FORMAT_VERSION: u16 = 15;
+const FORMAT_VERSION: u16 = 16;
 pub(super) const MAX_ADMIN_RECEIPTS: usize = 128;
 pub(super) const MAX_RETIRED_ADMIN_IDS: usize = 256;
 const MAX_DOCUMENT_BYTES: usize = 1_000_000;
 pub(super) const MAX_CLIENT_ID_BYTES: usize = 256;
 const MAX_PRINCIPAL_BYTES: usize = 256;
 const MAX_PAYLOAD_BYTES: usize = 4096;
+
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip predicate receives a reference"
+)]
+fn is_zero(value: &u64) -> bool {
+    *value == 0
+}
 
 #[derive(Debug, Error)]
 pub(super) enum StateError {
@@ -40,6 +50,8 @@ pub(super) enum StateError {
     Limit(&'static str),
     #[error("MQTT durable storage worker failed")]
     WorkerUnavailable,
+    #[error("MQTT expiry clock unavailable")]
+    Clock,
 }
 
 /// One committed, versioned image. Mutate only from the router's single-owner
@@ -47,10 +59,12 @@ pub(super) enum StateError {
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct DurableState {
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub expiry_clock_unix_ms: u64,
     /// Process-local shared subscription scheduler; omitted from the document.
     #[serde(skip)]
     pub shared_cursor: u64,
-    /// Per-complete-filter scheduler cache. Recovery resets selection, not QoS ownership.
+    /// Per-complete-filter scheduler cache. Recovery resets selection, not `QoS` ownership.
     #[serde(skip)]
     pub shared_group_cursors: BTreeMap<TopicFilter, u64>,
     pub sessions: BTreeMap<String, DurableSession>,
@@ -124,6 +138,8 @@ pub(super) struct DurableSession {
     pub inbound_qos2: Vec<InboundQos2>,
     pub outbound: Vec<OutboundInflight>,
     pub next_packet_id: u16,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_expiry_delivery_id: u64,
 }
 
 impl DurableSession {
@@ -141,6 +157,7 @@ impl DurableSession {
             inbound_qos2: Vec::new(),
             outbound: Vec::new(),
             next_packet_id: 1,
+            next_expiry_delivery_id: 0,
         }
     }
 }
@@ -157,6 +174,12 @@ pub(super) struct StoredMessage {
     pub retain: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expiry_at_unix_ms: Option<u64>,
+    /// Original interval for new messages; legacy documents cannot reconstruct it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expiry_interval_seconds: Option<u32>,
+    /// Per-session identity of one expiring outbound obligation, not a wire ID.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expiry_delivery_id: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub payload_format_indicator: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -210,9 +233,29 @@ pub(super) enum OutboundStage {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct OutboundInflight {
+    #[serde(default, skip_serializing_if = "OutboundTransmission::may_have_sent")]
+    pub transmission: OutboundTransmission,
     pub packet_id: u16,
     pub message: StoredMessage,
     pub stage: OutboundStage,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum OutboundTransmission {
+    Prepared,
+    #[default]
+    MayHaveSent,
+}
+
+impl OutboundTransmission {
+    #[expect(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "serde skip predicate receives a reference"
+    )]
+    fn may_have_sent(&self) -> bool {
+        *self == Self::MayHaveSent
+    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -222,11 +265,12 @@ struct Envelope {
     state: DurableState,
 }
 
-/// Thin adapter over the bounded single-writer WAL actor. It intentionally
-/// has no shared mutable state; callers serialize commits themselves.
+/// Thin adapter over the bounded single-writer WAL actor. MQTT state remains
+/// single-owner; only the atomic monotonic expiry clock is shared.
 pub(super) struct MqttStore {
     writer: PersistenceHandle,
     limits: StateLimits,
+    clock: Arc<ExpiryClock>,
 }
 
 impl MqttStore {
@@ -263,7 +307,21 @@ impl MqttStore {
             Ok(state)
         })();
         match recovered {
-            Ok(state) => Ok((Self { writer, limits }, state)),
+            Ok(state) => {
+                if let Ok(clock) = ExpiryClock::new(state.expiry_clock_unix_ms) {
+                    Ok((
+                        Self {
+                            writer,
+                            limits,
+                            clock: Arc::new(clock),
+                        },
+                        state,
+                    ))
+                } else {
+                    writer.shutdown().await?;
+                    Err(StateError::Clock)
+                }
+            }
             Err(error) => {
                 writer.shutdown().await?;
                 Err(error)
@@ -274,6 +332,19 @@ impl MqttStore {
     pub(super) async fn probe(&self) -> Result<(), StateError> {
         self.writer.probe().await?;
         Ok(())
+    }
+
+    pub(super) fn clock(&self) -> Arc<ExpiryClock> {
+        Arc::clone(&self.clock)
+    }
+
+    pub(super) fn now(&self) -> Result<u64, super::router::RouterError> {
+        self.clock.now()
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_clock(&mut self, clock: Arc<ExpiryClock>) {
+        self.clock = clock;
     }
 
     #[cfg(test)]
@@ -437,6 +508,9 @@ pub(super) fn validate_with_limits(
         if session.principal.is_empty() || session.principal.len() > MAX_PRINCIPAL_BYTES {
             return Err(StateError::Limit("principal bytes"));
         }
+        if session.next_expiry_delivery_id > i64::MAX as u64 {
+            return Err(StateError::Malformed);
+        }
         if session
             .expiry_interval_seconds
             .is_some_and(|seconds| seconds == 0 || seconds == u32::MAX)
@@ -470,7 +544,7 @@ pub(super) fn validate_with_limits(
         }
         for message in &session.offline {
             validate_message(message)?;
-            if message.qos == 0 {
+            if message.qos == 0 || message.expiry_delivery_id.is_some() {
                 return Err(StateError::Malformed);
             }
         }
@@ -485,16 +559,35 @@ pub(super) fn validate_with_limits(
                 return Err(StateError::Malformed);
             }
             validate_message(&entry.message)?;
-            if entry.message.qos != 2 || entry.message.shared_origin.is_some() {
+            if entry.message.qos != 2
+                || entry.message.shared_origin.is_some()
+                || entry.message.expiry_delivery_id.is_some()
+            {
                 return Err(StateError::Malformed);
             }
         }
         let mut outgoing_ids = HashSet::new();
+        let mut expiry_ids = HashSet::new();
         for entry in &session.outbound {
+            if entry.transmission == OutboundTransmission::Prepared
+                && (entry.message.expiry_at_unix_ms.is_none()
+                    || entry.stage == OutboundStage::AwaitPubComp
+                    || entry.message.expiry_delivery_id.is_none())
+            {
+                return Err(StateError::Malformed);
+            }
             if entry.packet_id == 0 || !outgoing_ids.insert(entry.packet_id) {
                 return Err(StateError::Malformed);
             }
             validate_message(&entry.message)?;
+            if entry.message.expiry_delivery_id.is_some_and(|id| {
+                id == 0
+                    || id > session.next_expiry_delivery_id
+                    || id > i64::MAX as u64
+                    || !expiry_ids.insert(id)
+            }) {
+                return Err(StateError::Malformed);
+            }
             match (entry.message.qos, entry.stage) {
                 (1, OutboundStage::AwaitPubAck)
                 | (2, OutboundStage::AwaitPubRec | OutboundStage::AwaitPubComp) => {}
@@ -508,6 +601,7 @@ pub(super) fn validate_with_limits(
             || message.payload.is_empty()
             || !message.retain
             || message.shared_origin.is_some()
+            || message.expiry_delivery_id.is_some()
         {
             return Err(StateError::Malformed);
         }
@@ -516,6 +610,14 @@ pub(super) fn validate_with_limits(
 }
 
 fn validate_message(message: &StoredMessage) -> Result<(), StateError> {
+    if message.expiry_interval_seconds.is_some() && message.expiry_at_unix_ms.is_none() {
+        return Err(StateError::Malformed);
+    }
+    if message.expiry_delivery_id.is_some()
+        && (message.expiry_at_unix_ms.is_none() || message.qos == 0)
+    {
+        return Err(StateError::Malformed);
+    }
     if message.payload.len() > MAX_PAYLOAD_BYTES {
         return Err(StateError::Limit("payload bytes"));
     }
@@ -768,6 +870,8 @@ mod tests {
             qos,
             retain: false,
             expiry_at_unix_ms: None,
+            expiry_interval_seconds: None,
+            expiry_delivery_id: None,
             payload_format_indicator: None,
             content_type: None,
             response_topic: None,
@@ -800,11 +904,13 @@ mod tests {
                     message: message(2),
                 }],
                 outbound: vec![OutboundInflight {
+                    transmission: OutboundTransmission::MayHaveSent,
                     packet_id: 8,
                     message: message(2),
                     stage: OutboundStage::AwaitPubComp,
                 }],
                 next_packet_id: 9,
+                next_expiry_delivery_id: 0,
             },
         );
         let mut retained = message(1);
@@ -972,8 +1078,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reads_v1_to_v14_and_commits_v15_without_losing_retained() {
-        for version in 1..=14 {
+    async fn reads_v1_to_v15_and_commits_v16_without_losing_retained() {
+        for version in 1..=15 {
             let directory = tempdir().unwrap();
             let expected = state();
             {
@@ -998,13 +1104,13 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 15);
+            assert_eq!(envelope.version, 16);
             assert_eq!(envelope.state, expected);
         }
     }
 
     #[tokio::test]
-    async fn reads_v7_and_v14_wills_without_expiry_and_commits_v15() {
+    async fn reads_v7_and_v14_wills_without_expiry_and_commits_v16() {
         let mut expected = state();
         expected.pending_wills.insert(
             "sensor-1".into(),
@@ -1037,8 +1143,98 @@ mod tests {
             let writer = Store::open(directory.path()).unwrap();
             let bytes = writer.get(KEY).unwrap();
             let envelope: Envelope = toml::from_str(std::str::from_utf8(bytes).unwrap()).unwrap();
-            assert_eq!(envelope.version, 15);
+            assert_eq!(envelope.version, 16);
             assert_eq!(envelope.state, expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn p227e_legacy_v15_does_not_fabricate_original_interval() {
+        let directory = tempdir().unwrap();
+        let mut expected = state();
+        expected
+            .retained
+            .values_mut()
+            .next()
+            .unwrap()
+            .expiry_at_unix_ms = Some(30_000);
+        {
+            let mut writer = Store::open(directory.path()).unwrap();
+            let document = toml::to_string(&Envelope {
+                version: 15,
+                state: expected.clone(),
+            })
+            .unwrap();
+            assert!(!document.contains("expiry_interval_seconds"));
+            assert!(!document.contains("expiry_clock_unix_ms"));
+            writer.put(KEY, document.as_bytes()).unwrap();
+        }
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, expected);
+        assert_eq!(
+            recovered
+                .retained
+                .values()
+                .next()
+                .unwrap()
+                .expiry_interval_seconds,
+            None
+        );
+        store.commit(&recovered).await.unwrap();
+        store.shutdown().await.unwrap();
+        let writer = Store::open(directory.path()).unwrap();
+        let envelope: Envelope =
+            toml::from_str(std::str::from_utf8(writer.get(KEY).unwrap()).unwrap()).unwrap();
+        assert_eq!(envelope.version, 16);
+        assert_eq!(envelope.state, expected);
+    }
+
+    #[tokio::test]
+    async fn p227e_v16_preserves_watermark_original_and_rejects_interval_without_deadline() {
+        let directory = tempdir().unwrap();
+        let mut expected = state();
+        expected.expiry_clock_unix_ms = 20_000;
+        let retained = expected.retained.values_mut().next().unwrap();
+        retained.expiry_at_unix_ms = Some(30_000);
+        retained.expiry_interval_seconds = Some(10);
+        let (store, _) = MqttStore::open(directory.path()).await.unwrap();
+        store.commit(&expected).await.unwrap();
+        store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, expected);
+        store.shutdown().await.unwrap();
+        let mut invalid = message(1);
+        invalid.expiry_interval_seconds = Some(1);
+        assert!(matches!(
+            validate_message(&invalid),
+            Err(StateError::Malformed)
+        ));
+    }
+
+    #[test]
+    fn p227e_prepared_requires_expiry_identity_and_publish_stage() {
+        let mut valid = state();
+        let session = valid.sessions.get_mut("sensor-1").unwrap();
+        session.next_expiry_delivery_id = 1;
+        let entry = &mut session.outbound[0];
+        entry.transmission = OutboundTransmission::Prepared;
+        entry.stage = OutboundStage::AwaitPubRec;
+        entry.message.expiry_at_unix_ms = Some(20_000);
+        entry.message.expiry_interval_seconds = Some(10);
+        entry.message.expiry_delivery_id = Some(1);
+        validate(&valid).unwrap();
+        for case in 0..5 {
+            let mut invalid = valid.clone();
+            let session = invalid.sessions.get_mut("sensor-1").unwrap();
+            let entry = &mut session.outbound[0];
+            match case {
+                0 => entry.stage = OutboundStage::AwaitPubComp,
+                1 => entry.message.expiry_delivery_id = None,
+                2 => entry.message.expiry_at_unix_ms = None,
+                3 => entry.message.expiry_delivery_id = Some(2),
+                _ => session.next_expiry_delivery_id = u64::MAX,
+            }
+            assert!(matches!(validate(&invalid), Err(StateError::Malformed)));
         }
     }
 

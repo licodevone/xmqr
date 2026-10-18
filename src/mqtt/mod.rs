@@ -2,6 +2,7 @@
 //! and durable CleanSession=0 state. Topic filters support MQTT 3.1.1 `+` and
 //! `#`, with durable Last Will. MQTT 5 has an initial pub/sub subset.
 
+mod clock;
 mod codec;
 #[cfg(all(test, unix))]
 mod connect_contract_tests;
@@ -171,6 +172,7 @@ async fn serve_mqtt(
     else {
         return Err("first MQTT packet must be CONNECT".into());
     };
+    let will = will.map(|message| *message);
     let outbound_maximum = maximum_packet_size.map_or(usize::MAX, |value| value as usize);
     let plain_authentication = plain_authentication.map(Zeroizing::new);
     let plain_requested = plain_authentication.is_some();
@@ -572,8 +574,8 @@ async fn serve_mqtt(
                                 warn!(connection_id=connection.id(), "unauthorized publish; closing client");
                                 break;
                             }
-                            let expiry_at_unix_ms = expiry_interval.map(router::message_expiry_deadline).transpose()?;
-                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms, payload_format_indicator, content_type, response_topic, correlation_data, user_properties, subscription_identifiers: Vec::new(), shared_origin: None };
+                            let expiry_at_unix_ms = expiry_interval.map(|seconds| router.expiry_deadline(seconds)).transpose()?;
+                            let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms, expiry_interval_seconds: expiry_interval, expiry_delivery_id: None, payload_format_indicator, content_type, response_topic, correlation_data, user_properties, subscription_identifiers: Vec::new(), shared_origin: None };
                             match router.publish(&session, message, packet_id).await {
                                 Err(RouterError::InboundQos2Quota) if mqtt5 && qos == Qos::ExactlyOnce => {
                                     let id = packet_id.ok_or("QoS 2 PUBLISH without identifier")?;
@@ -709,78 +711,88 @@ async fn send_delivery(
         Delivery::Publish { packet_id, .. } => *packet_id,
         Delivery::PubRel(_) => None,
     };
-    let mut pending_alias = None;
-    let bytes = match delivery {
-        Delivery::Publish {
-            message,
-            packet_id,
-            dup,
-        } => {
-            let expiry = if mqtt5 {
-                message
-                    .expiry_at_unix_ms
-                    .map(router::remaining_message_expiry)
-                    .transpose()?
-            } else {
-                None
+    let mut expiry_refresh = clock::ExpiryRefreshBudget::new(Instant::now());
+    while expiry_refresh.allow(Instant::now()) {
+        let expiry_permit = if let Delivery::Publish { message, dup, .. } = &delivery
+            && let Some(deadline) = message.expiry_at_unix_ms
+        {
+            let permit = tokio::time::timeout_at(
+                expiry_refresh.deadline,
+                router.prepare_expiry(
+                    session,
+                    deadline,
+                    message.expiry_interval_seconds,
+                    packet_id_to_discard.map(|id| (id, message.expiry_delivery_id)),
+                ),
+            )
+            .await
+            .map_err(|_| "expiry checkpoint deadline")?;
+            let permit = match permit {
+                Ok(permit) => permit,
+                Err(router::RouterError::ObsoleteDelivery) => return Ok(()),
+                Err(error) => return Err(error.into()),
             };
-            let topic = message.topic.as_str();
-            let payload_format_indicator = if mqtt5 {
-                message.payload_format_indicator
-            } else {
-                None
-            };
-            let content_type = if mqtt5 {
-                message.content_type.as_deref()
-            } else {
-                None
-            };
-            let response_topic = if mqtt5 {
-                message
-                    .response_topic
-                    .as_ref()
-                    .map(topic::TopicName::as_str)
-            } else {
-                None
-            };
-            let correlation_data = if mqtt5 {
-                message.correlation_data.as_deref()
-            } else {
-                None
-            };
-            let user_properties = if mqtt5 {
-                message.user_properties.as_slice()
-            } else {
-                &[]
-            };
-            let subscription_identifiers = if mqtt5 {
-                message.subscription_identifiers.as_slice()
-            } else {
-                &[]
-            };
-            let alias_mode = aliases.candidate(topic);
-            let mut encoded = codec::encode_publish_with_subscription_ids(
-                topic,
-                &message.payload,
-                Qos::from_u8(message.qos)?,
-                message.retain,
-                dup,
+            if permit.disposition == clock::ExpiryDisposition::DiscardUnattempted {
+                if let Some(packet_id) = packet_id_to_discard {
+                    router.discard_outbound(session, packet_id).await?;
+                }
+                return Ok(());
+            }
+            if permit.remaining == 0 && !dup {
+                return Err("expiry elapsed after uncertain send intent".into());
+            }
+            Some(permit)
+        } else {
+            None
+        };
+        let mut pending_alias = None;
+        let bytes = match delivery.clone() {
+            Delivery::Publish {
+                message,
                 packet_id,
-                mqtt5,
-                expiry,
-                alias_mode,
-                payload_format_indicator,
-                content_type,
-                response_topic,
-                correlation_data,
-                user_properties,
-                subscription_identifiers,
-            )?;
-            if matches!(alias_mode, TopicAliasMode::Establish(_))
-                && encoded.len() > outbound_maximum
-            {
-                // Do not establish an alias with a packet the peer cannot receive.
-                encoded = codec::encode_publish_with_subscription_ids(
+                dup,
+            } => {
+                let expiry = if mqtt5 {
+                    expiry_permit.map(|permit| permit.remaining)
+                } else {
+                    None
+                };
+                let topic = message.topic.as_str();
+                let payload_format_indicator = if mqtt5 {
+                    message.payload_format_indicator
+                } else {
+                    None
+                };
+                let content_type = if mqtt5 {
+                    message.content_type.as_deref()
+                } else {
+                    None
+                };
+                let response_topic = if mqtt5 {
+                    message
+                        .response_topic
+                        .as_ref()
+                        .map(topic::TopicName::as_str)
+                } else {
+                    None
+                };
+                let correlation_data = if mqtt5 {
+                    message.correlation_data.as_deref()
+                } else {
+                    None
+                };
+                let user_properties = if mqtt5 {
+                    message.user_properties.as_slice()
+                } else {
+                    &[]
+                };
+                let subscription_identifiers = if mqtt5 {
+                    message.subscription_identifiers.as_slice()
+                } else {
+                    &[]
+                };
+                let alias_mode = aliases.candidate(topic);
+                let mut encoded = codec::encode_publish_with_subscription_ids(
                     topic,
                     &message.payload,
                     Qos::from_u8(message.qos)?,
@@ -789,7 +801,7 @@ async fn send_delivery(
                     packet_id,
                     mqtt5,
                     expiry,
-                    TopicAliasMode::None,
+                    alias_mode,
                     payload_format_indicator,
                     content_type,
                     response_topic,
@@ -797,30 +809,68 @@ async fn send_delivery(
                     user_properties,
                     subscription_identifiers,
                 )?;
-            } else if let TopicAliasMode::Establish(alias) = alias_mode {
-                pending_alias = Some((topic.to_owned(), alias));
+                if matches!(alias_mode, TopicAliasMode::Establish(_))
+                    && encoded.len() > outbound_maximum
+                {
+                    // Do not establish an alias with a packet the peer cannot receive.
+                    encoded = codec::encode_publish_with_subscription_ids(
+                        topic,
+                        &message.payload,
+                        Qos::from_u8(message.qos)?,
+                        message.retain,
+                        dup,
+                        packet_id,
+                        mqtt5,
+                        expiry,
+                        TopicAliasMode::None,
+                        payload_format_indicator,
+                        content_type,
+                        response_topic,
+                        correlation_data,
+                        user_properties,
+                        subscription_identifiers,
+                    )?;
+                } else if let TopicAliasMode::Establish(alias) = alias_mode {
+                    pending_alias = Some((topic.to_owned(), alias));
+                }
+                encoded
             }
-            encoded
+            Delivery::PubRel(id) => encode_pubrel(id).to_vec(),
+        };
+        if bytes.len() > outbound_maximum {
+            if bytes[0] >> 4 != 3 {
+                return Err("essential MQTT packet exceeds client Maximum Packet Size".into());
+            }
+            if let Some(packet_id) = packet_id_to_discard {
+                router.discard_outbound(session, packet_id).await?;
+            }
+            return Ok(());
         }
-        Delivery::PubRel(id) => encode_pubrel(id).to_vec(),
-    };
-    if bytes.len() > outbound_maximum {
-        if bytes[0] >> 4 != 3 {
-            return Err("essential MQTT packet exceeds client Maximum Packet Size".into());
+        if auth.security_generation() != security_generation {
+            return Err("security generation changed".into());
         }
-        if let Some(packet_id) = packet_id_to_discard {
-            router.discard_outbound(session, packet_id).await?;
+        #[cfg(test)]
+        if expiry_permit.is_some() {
+            router.expiry_hook_for_test().await;
+        }
+        if expiry_permit.is_some() && Instant::now() >= expiry_refresh.deadline {
+            return Err("expiry checkpoint deadline".into());
+        }
+        if let Some(permit) = expiry_permit
+            && !router.expiry_permit_current(permit)?
+        {
+            continue;
+        }
+        write_limited(connection, &bytes, outbound_maximum).await?;
+        if let Some((topic, alias)) = pending_alias {
+            aliases.topics.insert(topic, alias);
+        }
+        if bytes[0] >> 4 == 3 {
+            metrics.sent[usize::from((bytes[0] >> 1) & 3)].fetch_add(1, Ordering::Relaxed);
         }
         return Ok(());
     }
-    write_limited(connection, &bytes, outbound_maximum).await?;
-    if let Some((topic, alias)) = pending_alias {
-        aliases.topics.insert(topic, alias);
-    }
-    if bytes[0] >> 4 == 3 {
-        metrics.sent[usize::from((bytes[0] >> 1) & 3)].fetch_add(1, Ordering::Relaxed);
-    }
-    Ok(())
+    Err("expiry checkpoint refresh limit".into())
 }
 
 async fn write_limited(
@@ -836,6 +886,9 @@ async fn write_limited(
         .await?;
     Ok(())
 }
+
+#[cfg(all(test, unix))]
+mod expiry_contract_tests;
 
 #[cfg(test)]
 mod plain_auth_tests {
