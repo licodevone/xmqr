@@ -1,4 +1,4 @@
-# P227E v1.7 — relógio lógico e expiração durável sem renovar TTL
+# P227E v1.8 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -225,3 +225,15 @@ None permanece para cópias legado/QoS0. Prepared exige Some válido e único
 entre outbound, com teto i64::MAX para formato TOML. Reassignment cria nova
 identidade no destino. Delivery obsoleto retorna erro interno específico que
 handler trata como supressão bem-sucedida, sem discard por packetID reusado.
+
+## Revisão v1.8 antes do canto positivo→vencido e seu fix
+
+Coordenador aprovou outro negativo da mesma fronteira: primeiro permit R>0
+marca MayHaveSent; commit/encode seguintes podem cruzar até R0 sem write.
+O teste TCP deve reproduzir política anterior de descartar por !dup, antes
+da correção. Permit terá disposition explícita: somente Prepared&&R0 ou
+QoS0 ainda não iniciado podem ser descartados. MayHaveSent R0 no handler
+original DUP0 retorna erro limitado sem novos bytes, preservando replay
+incerto. Recovery DUP1 prossegue handshake conservador com TTL0. Não apagar
+por expiry/refresh/timeout após intenção durável, nem prometer primeiro byte
+observado. Fuzz acrescenta teste direto; owner executa RED antes do fix.
