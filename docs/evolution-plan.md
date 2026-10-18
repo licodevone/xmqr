@@ -232,7 +232,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [ ] Fase 6D: opções de assinatura, Subscription Identifier, shared subscriptions e AUTH.
 - [ ] Fase 7: WebSocket/WSS no broker e client, com regressão TCP/TLS.
 - [ ] Fase 8: bridge, reconexão, mapeamento de tópicos e prevenção de loops.
-- [ ] Fase 9: Windows nativo, serviço, instalador, persistência e permissões homologados.
+- [ ] Fase 9: Windows nativo, serviço, instalador, persistência e permissões homologados. [Relatório de planejamento](windows-native-evolution-plan.md); implementação futura, sem aceite nesta entrega.
 - [ ] Distribuição: homologar instalação/units Ubuntu24, arm64 e repositório APT assinado.
 - [ ] Extensões de paridade: avaliar plugins/hooks, TLS PSK, sockets Unix e opções avançadas conforme demanda.
 
