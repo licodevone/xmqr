@@ -1,13 +1,16 @@
 # Versionamento
 
-## P228 — candidato0.43.0, estado16, não publicado
+## P228 — broker/admin legado 0.43.0 publicado, estado v16
 
 P227E migra documentos1–15 para16 na gravação, sem fabricar intervalo
 original legado. Novo contador de identidade cobre QoS1/2 e descarte seguro.
-Voltar ao broker15 exige backup15 anterior à migração. AdminA21/0.11.0 ainda
-em validação; client0.38.0 publicado separadamente. Fullsuite final, CI e
-distribuição broker/admin compatível permanecem pendentes; não confundir
-manifest candidato com tag/release. [Nota](docs/releases/0.43.0.md).
+Voltar ao broker0.42.0 exige backup v15 anterior à migração, restaurado em
+destino novo com o broker parado. A [CI integrada](https://github.com/licodevone/xmqr/actions/runs/39164217059)
+passou 69/69 cenários M01–M10 nas fontes fixadas; pacote Ubuntu 26.04 passou
+instalação, upgrade e rollback em container. Admin independente0.11.0 e
+client0.40.0 são pares publicados separadamente. [Release](https://github.com/licodevone/xmqr/releases/tag/v0.43.0)
+e [nota](docs/releases/0.43.0.md). O aceite é finito e experimental, sem
+certificação MQTT 5 integral ou prontidão de produção.
 
 ## P217 — broker/admin legado 0.42.0 publicado, estado v15
 

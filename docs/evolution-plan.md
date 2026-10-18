@@ -1,15 +1,13 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-18.
-Versões publicadas atuais: broker/admin legado 0.42.0, client independente 0.38.0
-e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
-a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
-propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
-segue aberta. A fase 7 foi aceita no contrato de transporte T01 após P222,
-sem encerrar 6A–6D nem declarar prontidão de produção.
-Client0.38.0/C131 tem prerelease, .deb e imagem numerada verificados; fonte
-em branchrelease própria, sem incorporar alteraçõesC128dirty do clone original.
-O [aceite fase6](phase6-acceptance.md) permanece aberto para core16/admin.
+Versões publicadas atuais: broker/admin legado 0.43.0, client independente
+0.40.0 e xmqr-admin independente 0.11.0. Fases1–5 e 6A–6D foram aceitas
+nos recortes documentados. A [fase 6](phase6-acceptance.md) passou 69/69
+cenários integrados com estado v16 e pares exatos; pacote, imagens e release
+0.43.0 foram conferidos por SHA remoto. A fase 7 foi aceita no contrato de
+transporte T01 após P222. Isso não declara prontidão de produção nem
+certificação MQTT 5 integral.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42/P86/P88, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
@@ -285,10 +283,10 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P203 parcial: tipo de controle zero reservado no MQTT 5 recebe DISCONNECT `0x81` após CONNACK.~~ [Registro](../prompts/registros/P203-reserved-control-type-zero-mqtt5.md). Gates locais, TCP e CI PASS; 6A global aberta.
 - [x] ~~Fase 6A/P204 parcial: AUTH MQTT 5 com bits reservados não zero recebe DISCONNECT `0x81`, com P178 preservado.~~ [Registro](../prompts/registros/P204-auth-fixed-header-flags-mqtt5.md). Gates locais, TCP e CI PASS; 6A global aberta.
 - [x] ~~Fase 6A/P205 parcial: PINGREQ/DISCONNECT MQTT 5 com flags reservadas recebem `0x81` em `main`, corrigindo P178.~~ [Registro](../prompts/registros/P205-fixed-header-malformed-correction-mqtt5.md). Gates locais, TCP e CI PASS; 6A global aberta.
-- [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
-- [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
-- [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
-- [ ] Fase 6D: opções de assinatura, Subscription Identifier, shared subscriptions e AUTH.
+- [x] ~~Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.~~ 32/32 fixtures na [CI integrada](https://github.com/licodevone/xmqr/actions/runs/39164217059); limites da matriz documentados no [aceite](phase6-acceptance.md).
+- [x] ~~Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.~~ 13/13 fixtures, migrações reais e rollback do estado v16; [aceite](phase6-acceptance.md).
+- [x] ~~Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.~~ 12/12 fixtures; [aceite](phase6-acceptance.md).
+- [x] ~~Fase 6D: opções de assinatura, Subscription Identifier, shared subscriptions e AUTH.~~ 12/12 fixtures e decisão AUTH explícita; [aceite](phase6-acceptance.md).
 - [x] ~~Fase 7: WebSocket/WSS no broker e client, com regressão TCP/TLS, client independente e navegador real.~~ [Aceite T01](phase7-acceptance.md). Limites de produção e MQTT 5 global explícitos.
 - [ ] Fase 8: bridge com reconexão, mapeamento de tópicos e prevenção de loops. C125 QoS 0, C126 QoS 1, C127 guardião de topologia gerenciada e C134/C135 QoS 2/journal/distribuição experimental concluídos; faltam política retained vivo completa, semântica entre brokers, journal adicional e proteção para bridges externas.
 - [ ] Fase 9: Windows nativo, serviço, instalador, persistência e permissões homologados. [Relatório de planejamento](windows-native-evolution-plan.md); implementação futura, sem aceite nesta entrega.
@@ -308,7 +306,7 @@ e o link do registro. Manter itens em validação desmarcados e indicar seu bloq
 | Listeners | Até três endpoints mTLS adicionais, políticas por endpoint, TLS-senha e rotação aceitos na fase4 | Ampliar além do limite atual somente com nova demanda e validação |
 | Administração | Canal local autenticado, bundle, ações, auditoria e diagnóstico aceitos na fase5; painel somente leitura | Administração remota e plugins permanecem fora do escopo atual |
 | Métricas/logs | Monitor loopback e contadores administrativos de cardinalidade fixa; `$SYS` não gerado por decisão B14 | Exportação adicional conforme demanda |
-| MQTT5 | P115–P123/C57–C64: pub/sub QoS0/1/2 e unsub com sessão limpa, diagnóstico parcial e propriedades informativas de CONNECT | Codec/propriedades completos, negociação de sessões, expiração, fluxo, opções de assinatura e autenticação estendida |
+| MQTT5 | Fase 6/M01–M10 aceita no contrato finito: 69/69 fixtures com broker0.43.0, client0.40.0 e admin0.11.0 | Extensões opcionais, matriz normativa exaustiva, carga prolongada e certificação integral não comprovadas; ver [limites](phase6-acceptance.md) |
 | WebSocket | Fase 7/T01 aceita por P222: WS/WSS, MQTT 3.1.1/5 no subconjunto disponível, mTLS/Origin/ACL, client independente 0.36.0, Chromium, estado durável por URL, reinício/crash, quadros/limites e regressões TCP/TLS | Carga prolongada, power loss, múltiplos inflight e conformidade MQTT 5 global não inferidos |
 | Bridge | Sidecar `mqtt-bridge 0.2.0` no client 0.40.0: C125–C134 direção única TLS/mTLS QoS 0/1/2, journal privado QoS 2, retomada condicionada à sessão, reconexão limitada e guardião de topologia gerenciada; XMQR↔Mosquitto PASS; pacote/imagem publicados por C135 | Retained vivo não preservável integralmente em MQTT 3.1.1, transação entre brokers, loops com bridges externas, mapeamento múltiplo e aceite global T02; fase 8 aberta |
 | Distribuição | Deb26 amd64; sem APT próprio | Ubuntu24 validado, arm64, repositório APT assinado e política de upgrade |

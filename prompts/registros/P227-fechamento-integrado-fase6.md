@@ -372,3 +372,9 @@ M01–M10 cumprem o recorte funcional pelos gates disponíveis; distribuição
 broker043 está em publicaçãoP228. Só após conferência remota atualizar o
 checklist global. Eall6 e CI39162215519 continuamFAIL; novosPASS não os
 reescrevem nem provam causa de cada erro histórico.
+
+A [prerelease broker0.43.0](https://github.com/licodevone/xmqr/releases/tag/v0.43.0)
+foi posteriormente publicada com 12 anexos e digests remotos conferidos,
+incluindo os 13 JSON desta campanha em archive sanitizado. O checklist
+6A–6D pode ser marcado no recorte M01–M10 descrito no aceite; as limitações
+de certificação, produção e energia permanecem explícitas.

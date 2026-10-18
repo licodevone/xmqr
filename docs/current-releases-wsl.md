@@ -1,33 +1,35 @@
 # Versões publicadas e instalação no WSL
 
-Fotografia verificada em 2026-10-18. As três releases abaixo são experimentais para Ubuntu 26.04 amd64; cada repositório tem sua própria numeração.
+Fotografia verificada em 18 de outubro de 2026. As três releases são experimentais para Ubuntu 26.04 amd64 e têm numeração independente.
 
 | Sistema | Versão | Pacote `.deb` | Comando de versão | Release |
 | --- | --- | --- | --- | --- |
-| Broker | 0.42.0 | `xmqr-broker_0.42.0-1_amd64.deb` | `mqtt-broker --version` | [xmqr v0.42.0](https://github.com/licodevone/xmqr/releases/tag/v0.42.0) |
-| Client | 0.36.0 | `xmqr-client_0.36.0-1_amd64.deb` | `mqtt-client --version` | [xmqr-client v0.36.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.36.0) |
-| Admin independente | 0.10.0 | `xmqr-admin_0.10.0-1_amd64.deb` | `xmqr-admin --version` | [xmqr-admin v0.10.0](https://github.com/licodevone/xmqr-admin/releases/tag/v0.10.0) |
+| Broker | 0.43.0 | `xmqr-broker_0.43.0-1_amd64.deb` | `mqtt-broker --version` | [xmqr v0.43.0](https://github.com/licodevone/xmqr/releases/tag/v0.43.0) |
+| Client | 0.40.0 | `xmqr-client_0.40.0-1_amd64.deb` | `mqtt-client --version` | [xmqr-client v0.40.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.40.0) |
+| Admin independente | 0.11.0 | `xmqr-admin_0.11.0-1_amd64.deb` | `xmqr-admin --version` | [xmqr-admin v0.11.0](https://github.com/licodevone/xmqr-admin/releases/tag/v0.11.0) |
 
-O pacote do broker inclui também o comando legado `mqtt-admin`. Ele é diferente do programa `xmqr-admin` independente. Os hashes SHA-256 dos `.deb`, respectivamente, são:
+O pacote do broker também instala o comando legado `mqtt-admin` versão 0.43.0. Ele é diferente do programa independente `xmqr-admin`. SHA-256 dos pacotes publicados:
 
 ```text
-914d38e4fcd16b2d52a6a3e3e56710cc1371248976b9436c8b7570c04dc0e354  xmqr-broker_0.42.0-1_amd64.deb
-904c9731ac9a9c218e9533a4b89388859f07c0767f68fb7ba14409ffdbac4040  xmqr-client_0.36.0-1_amd64.deb
-1d5d50adbac415a84aead1bcb8c0d4630f587970c4d77cbf930dbd4a714e9f7c  xmqr-admin_0.10.0-1_amd64.deb
+c2341ab3a341b1854e85ebb2f0bec9535968374b226a12a60cee58aa7cef3d4e  xmqr-broker_0.43.0-1_amd64.deb
+5f453fbc17e0fbc919f457877176dd3149bf041f4aca565f2d9028d1f07a0fe6  xmqr-client_0.40.0-1_amd64.deb
+fe03ffc858e7583e7d8ce6808b4f56495c688beb69d47870db7fe0c1b8b55469  xmqr-admin_0.11.0-1_amd64.deb
 ```
 
-Baixe os três `.deb` e seus `.sha256` pelas páginas de release. Na distribuição Ubuntu 26.04 do WSL, dentro da pasta de downloads, confirme `dpkg --print-architecture` como `amd64` e execute:
+Baixe cada `.deb` e seu `.sha256` na respectiva página de release. No Ubuntu 26.04 do WSL, dentro da pasta de downloads, confirme `dpkg --print-architecture` como `amd64` e execute:
 
 ```sh
-sha256sum -c xmqr-broker_0.42.0-1_amd64.deb.sha256
-sha256sum -c xmqr-client_0.36.0-1_amd64.deb.sha256
-sha256sum -c xmqr-admin_0.10.0-1_amd64.deb.sha256
-sudo apt install ./xmqr-broker_0.42.0-1_amd64.deb ./xmqr-client_0.36.0-1_amd64.deb ./xmqr-admin_0.10.0-1_amd64.deb
+sha256sum -c xmqr-broker_0.43.0-1_amd64.deb.sha256
+sha256sum -c xmqr-client_0.40.0-1_amd64.deb.sha256
+sha256sum -c xmqr-admin_0.11.0-1_amd64.deb.sha256
+sudo apt install ./xmqr-broker_0.43.0-1_amd64.deb ./xmqr-client_0.40.0-1_amd64.deb ./xmqr-admin_0.11.0-1_amd64.deb
 mqtt-broker --version
 mqtt-client --version
 xmqr-admin --version
 ```
 
-O `--version` do broker funciona sem `MQTT_STATE_DIR`. Instalar o broker não inicia o serviço; antes de habilitá-lo, configure `/etc/xmqr/broker.env` e os arquivos de segurança conforme [Ubuntu/systemd](ubuntu-systemd.md). Para upgrade, confirme compatibilidade do estado e backup no guia de cada release.
+O `--version` do broker funciona sem `MQTT_STATE_DIR`. A instalação não inicia automaticamente o serviço; antes de habilitá-lo, configure `/etc/xmqr/broker.env` e os arquivos de segurança conforme [Ubuntu/systemd](ubuntu-systemd.md).
 
-O [plano de evolução](evolution-plan.md) registra as fases 1–5 aceitas no escopo delimitado. As fases 6A–6D acumulam entregas parciais de MQTT 5, mas os critérios globais ainda estão abertos. A [fase 7/T01](phase7-acceptance.md) foi aceita no contrato de transporte com WS/WSS, navegador Chromium, client independente, mTLS/Origin/ACL, reinício/crash e regressões TCP/TLS. A fase 8 tem a primeira fatia `mqtt-bridge 0.1.0-dev` apenas no código `xmqr-client/main`, fora do pacote 0.36.0; o aceite global e a fase 9 (Windows nativo) permanecem abertos. O broker 0.42.0 e o client 0.36.0 são prereleases experimentais; isso não equivale a MQTT 5 integral nem homologação para produção.
+**Upgrade do broker 0.42.0 para 0.43.0:** preserve um backup privado do estado v15 antes da primeira inicialização da 0.43.0. A nova versão grava estado v16; o binário 0.42.0 recusa esse estado. Para rollback executável, restaure o backup v15 em diretório novo com o broker parado. O ciclo em container Ubuntu 26.04 passou; veja a [nota da release](releases/0.43.0.md) e o [aceite da fase 6](phase6-acceptance.md).
+
+O [plano de evolução](evolution-plan.md) registra as fases 1–5 e o contrato finito M01–M10 da fase 6 aceitos, sem declarar certificação MQTT 5 integral ou prontidão de produção. A [fase 7/T01](phase7-acceptance.md) foi aceita no contrato de transporte WS/WSS. A fase 8 tem bridge experimental no client 0.40.0, mas o aceite global segue aberto; a fase 9 (Windows nativo e distribuição estendida) também permanece aberta.

@@ -1,11 +1,12 @@
 # Plano de paridade funcional do XMQR com Mosquitto
 
-Atualizado em2026-10-18. Fases1–5 aceitas em seus recortes; fase6 em
-validaçãoP227, sem fechamento antecipado; transporteT01/fase7 já aceito.
-Marcos publicados: broker/legadoadmin0.42.0, client0.38.0 e admin0.10.0.
-Client038 foi publicado em branch própria, preservando trabalhoC128dirty
-no clone original. Core/estado16 e admin compatível ainda não publicados.
-Evidências e pendências: [aceite fase6](phase6-acceptance.md).
+Atualizado em 2026-10-18. Fases1–5 e fase6 aceitas em seus contratos finitos;
+transporteT01/fase7 também aceito. Marcos publicados: broker/legadoadmin
+0.43.0, client0.40.0 e admin independente0.11.0. Estado v16, migração e
+rollback foram validados. [Aceite fase6](phase6-acceptance.md) delimita a
+prova de M01–M10. As linhas históricas M01–M10 abaixo registram entregas
+parciais de paridade ampla com Mosquitto; não convertem o aceite finito em
+certificação MQTT 5 integral.
 O planejamento está completo como backlog
 executável; as funcionalidades pendentes não estão implementadas por isso.
 O propósito é evoluir um broker MQTT e seus utilitários com contratos próprios,

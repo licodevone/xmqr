@@ -94,3 +94,33 @@ rótulos/UID10001 das duas imagens. Oito anexos originais maisSHA256SUMS e
 ZIP13JSON/sidecar totalizam11anexos preparados, ainda sem anúncio remoto.
 Publicação foi liberada ao ownerP228B somente depois do SUCCESS final;
 reconferir tagGit/Hub/release antes de escrever e não moverlatest/tagsantigas.
+
+## Publicação v0.43.0 verificada
+
+Tag anotada `v0.43.0` criada e enviada sem force; resolve para a fonte
+`db472bc64558bf0e376a902b7780a259247c5149` da CI integrada69/69PASS.
+[Prerelease GitHub](https://github.com/licodevone/xmqr/releases/tag/v0.43.0)
+publicada com 12 anexos. Para cada anexo, `size` e digest SHA-256 remotos
+foram comparados com arquivo local: `REMOTE_ASSETS_PASS 12`. O manifesto
+original mantém SHA256 `499c409f3d3a0b8bcbdfd2de9bb6d6b97dd7869d17fe7d1aef780b3146cb1859`;
+o `.deb` oficial mantém `c2341ab3a341b1854e85ebb2f0bec9535968374b226a12a60cee58aa7cef3d4e`.
+Além dos oito exports originais, a publicação contém `SHA256SUMS`, inventário
+de licenças, archive dos notices originais extraídos do pacote e archive
+dos 13 JSON sanitizados do aceite. O `SHA256SUMS` local validou os 11
+demais anexos. O archive de evidência não é o ZIP produzido pelo serviço
+GitHub e não assume o SHA dele.
+
+Imagens numeradas publicadas e conferidas pelo digest remoto: broker
+`sha256:475b31c8258d853ae011cd46431b180556d19ce319db45b73923252c1f9c061b`,
+admin legado `sha256:673a062c7fd6ccaeedc34afb9ad1748f90fc7fba9367458ca49a642da649fafc`.
+Sem mover `latest` ou tags anteriores.
+
+Root repetiu o lifecycle com o pacote exato da fonte publicada em container
+Ubuntu26 descartável: cinco etapas PASS, incluindo recusa de estado16 pelo
+leitor042 e rollback executável de backup15. Relatório local ignorado
+`dist/qa-reports/p228-lifecycle-db472bc-systemd.json` (13,1116s).
+Tentativas preliminares falharam antes dos cenários por invocação fora do
+container, ausência do opt-in explícito, caminho de pacote relativo para
+`apt-get` e falta de `systemd-analyze` na imagem-base; não foram contadas
+como PASS nem como falhas do broker. O retry usou o harness original e
+instalou apenas dependências no container descartável.
