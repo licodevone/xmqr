@@ -368,3 +368,43 @@ quotas, limites de pacotes, integrações e pacote install/upgrade/rollback acei
 Os BLOCKED anteriores desta página são históricos. Ver [aceite da fase1](phase1-acceptance.md).
 Naquele checkpoint, fase2 ainda não havia sido executada. Posteriormente, P62
 entregou a baseline inicial; a fase2 permanece em andamento, conforme checklist.
+
+## Prioridades adicionais após as fases 6–9
+
+O mantenedor escolheu prosseguir nessa ordem. Estes itens ampliam o plano e
+permanecem **não implementados**; cada um exige prompt, desenho de estado,
+testes e aceite próprios. A ordem não substitui os critérios abertos de MQTT 5,
+WebSocket/WSS, bridge e Windows nativo acima. Não há prazo ou versão atribuídos.
+
+- [ ] **Prioridade 10 — limites por identidade e diagnóstico:** quotas e limites de
+  taxa por usuário/dispositivo/listener, com recusa explícita e sem perda de
+  estado já confirmado; visão operacional de conexão, sessão, filas e motivo de
+  recusa com cardinalidade limitada e sem expor payload ou credenciais. Antes
+  do aceite, provar isolamento entre identidades, reinício, saturação,
+  compatibilidade ACL e métricas em carga. Começar após estabilizar os gates
+  atuais de persistência e segurança.
+- [ ] **Prioridade 11 — regras e integração de dados:** regras opt-in para
+  filtrar/transformar/encaminhar mensagens a destinos externos, seguidas de
+  validação de formato/esquema quando houver caso de uso. Definir limites de
+  CPU, memória e fila, retries, idempotência e política de falha antes do
+  código. O ACK MQTT não poderá prometer gravação no banco ou Google Sheets
+  sem confirmação separada desse destino. Testar entrega duplicada, destino
+  indisponível, ACL e retomada; não colocar segredo em regras ou logs.
+- [ ] **Prioridade 12 — cluster nativo:** nós XMQR compartilhando roteamento e
+  sessões com política explícita de consistência, falha de nó, partição de rede,
+  recuperação e upgrade. Primeiro definir garantias de QoS/ordem e o modelo de
+  estado distribuído; somente então implementar e medir failover, split-brain,
+  replay e perda de mensagens. Bridge da fase 8 não comprova cluster.
+
+Referências de mercado que motivam estas prioridades: o [EMQX documenta
+cluster nativo](https://docs.emqx.com/en/emqx/latest/develop/cluster/introduction.html),
+[regras e encaminhamento](https://docs.emqx.com/en/emqx/latest/develop/data-integration/rules.html)
+e [diagnóstico operacional](https://docs.emqx.com/en/emqx/latest/guides/observability/overview.html);
+o [HiveMQ Data Hub documenta validação por esquema](https://docs.hivemq.com/hivemq/latest/data-hub/validation.html).
+São referências de funcionalidade, não prova de paridade ou autorização para
+copiar suas implementações. Alguns recursos e formas de implantação dependem
+de licença comercial. O [Mosquitto já documenta bridge, WebSocket e
+plugins](https://mosquitto.org/man/mosquitto-conf-5.html), além de
+[segurança dinâmica](https://mosquitto.org/documentation/dynamic-security/);
+esses recursos não devem ser descritos como ausentes dele. Fontes oficiais
+consultadas em 2026-10-18; confirmar novamente antes de cada implementação.
