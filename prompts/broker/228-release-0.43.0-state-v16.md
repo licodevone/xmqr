@@ -1,4 +1,4 @@
-# P228 v1.0 — distribuir broker0.43.0 e estado16
+# P228 v1.1 — distribuir broker0.43.0 e estado16
 
 Preparado em2026-10-18 antes de bump/build/publicação. Pedido vigente:
 concluir fase6 e distribuir broker, client e admin com prompts, testes,
@@ -56,3 +56,12 @@ Comparar tamanho/SHA remoto dos anexos e digests remotos das imagens. Não
 anunciar produção, certificação MQTT5 integral, perda de energia ou SLA por
 campanha finita. MIT própria e licenças de terceiros preservadas. Depois
 do aceite6, prosseguir fases restantes com prompts e critérios próprios.
+
+## Revisão1.1 — ambiente do inventário após FAIL de launcher
+
+Fullsuite043 passou311testes/6campanhas opt-in ignoradas; inventário foi
+chamado em outro processoWSL sem o PATH explícito deRust usado pelo Cargo.
+FalhouFileNotFoundError:cargo antes de produzir inventário, não uma licença
+rejeitada. Preservar FAIL; repetir script original em subprocesso com PATH
+da toolchain conhecida, TMPDIR=/var/tmp e modoCargooffline. Não instalar
+ferramentas, alterar perfil/global ou modificar o script para esconder erro.
