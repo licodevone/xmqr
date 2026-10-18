@@ -125,6 +125,9 @@ def fixtures(root):
          "expected_marker": "P227_CRASH_MATRIX_PASS", "timeout_seconds": 240},
         {"file": "verify_phase6_shared_will.py", "phase": "6D", "arguments": ["--broker", "{broker}", "--report", "{shared_will_report}"],
          "expected_marker": "P227_SHARED_WILL_PASS", "timeout_seconds": 120},
+        {"file": "verify_phase6_control_progress.py", "phase": "6C",
+         "arguments": ["--broker", "{broker}", "--report", "{control_progress_report}"],
+         "expected_marker": "P227_CONTROL_PROGRESS_PASS", "timeout_seconds": 60},
         {"file": "verify_phase6_paho_auth.py", "phase": "6D", "arguments": ["--broker", "{broker}", "--admin", "{admin}"],
          "expected_marker": "P227_PAHO_AUTH_PASS", "timeout_seconds": 180, "requires_paho": True},
         {"file": "../../xmqr-admin/scripts/verify_channel_cli.py", "phase": "6D",
@@ -132,6 +135,12 @@ def fixtures(root):
          "expected_marker": "CHANNEL_CLI_PASS", "timeout_seconds": 180},
         {"file": "../../xmqr-admin/scripts/verify_core_028_state_v15.py", "phase": "6B", "arguments": [],
          "expected_marker": "A19_V15_PASS", "timeout_seconds": 120},
+        {"file": "../../xmqr-client/scripts/verify_subscription_inbound_journal_mqtt5.py", "phase": "6B",
+         "arguments": ["--client", "{client}", "--report", "{inbound_report}"],
+         "expected_marker": "C129_INBOUND_JOURNAL_PASS", "timeout_seconds": 120},
+        {"file": "../../xmqr-client/scripts/verify_c129_compatibility.py", "phase": "6B",
+         "arguments": ["--client", "{client}", "--report", "{inbound_compat_report}"],
+         "expected_marker": "C129_COMPATIBILITY_PASS", "timeout_seconds": 240},
     ])
     for item in result:
         if item["file"] in ("verify_mqtt5_plain_auth.py", "verify_mqtt5_reauth.py"):
@@ -325,6 +334,9 @@ def main():
         report.update(sources=before, binaries=info, external_tools=external_provenance())
         replacements = {name: str(path.resolve()) for name, path in binaries.items()}
         replacements.update(vbi_report=str(args.report.with_name(args.report.stem + "-vbi.json").resolve()),
+                            control_progress_report=str(args.report.with_name(args.report.stem + "-control-progress.json").resolve()),
+                            inbound_report=str(args.report.with_name(args.report.stem + "-inbound.json").resolve()),
+                            inbound_compat_report=str(args.report.with_name(args.report.stem + "-inbound-compat.json").resolve()),
                             alias_reason_report=str(args.report.with_name(args.report.stem + "-alias-reason.json").resolve()),
                             crash_report=str(args.report.with_name(args.report.stem + "-crash.json").resolve()),
                             shared_will_report=str(args.report.with_name(args.report.stem + "-shared-will.json").resolve()))

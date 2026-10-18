@@ -62,3 +62,54 @@ não equivale a executá-las novamente.
 Não foram alterados serviços, firewall, ESP32, segredos ou estado do operador.
 Resultados finitos não demonstram perda de energia, SLA, produção ou
 certificação completa MQTT5. MIT própria e notices de terceiros preservados.
+
+## Continuação — integração D, C129 e revisão do executor
+
+P227D corrigiu alias válido não mapeado com tópico vazio para0x82, preservando
+zero/excesso0x94. ELF D SHA256
+`dca22b2624b7f36175d4e939c640b6f5730220bcc9510580eef9054a6af8ef57`,
+runtime `d28f832`, versão de candidato0.42.0. Wire final9/9PASS; VBI21/21PASS.
+O primeiro testeD com MPS7 tinha expectativa incorreta: esse CONNACK omite
+TopicAliasMaximum, portantoalias1 é excesso e0x94 é correto. Prompt revisado
+antes do ajuste; FAILs preservados no [registroD](P227D-fase6-alias-nao-mapeado.md).
+
+A primeira tentativa do agregado foiBLOCKED/OSError antes dos cenários.
+Diagnósticos posteriores identificaram divergência de normalizaçãoGit entre
+Windows/WSL nos clones; opção autocrlf foi alinhada só nesses clones, sem
+editar configuração global ou árvores do operador. A causa do OSError
+original não foi comprovada só pelo tipo. Outra chamada nem iniciouPython
+por WSL/Service/0x8007274c; repetição posterior voltou a funcionar sem reinício.
+
+Revisão independente do executor reproduziu falsos positivos de markers
+NOT_*_PASS e stderrBLOCKED ignorado; identificou possível filho remanescente
+após exit0 e orçamento tardio de logs. P227v1.7/v1.8 precederam correções:
+markers específicos por fixture, duas linhas obrigatórias cross/sessions,
+negativos nos dois canais, pipes com memória limitada, limpeza do grupo
+privado mesmo em sucesso e estágio/errno sanitizados. Primeiro gate14 teve
+13PASS/1FAIL de expectativa do motivo mais estrito; após revisão15/15PASS.
+Mosquitto/OpenSSL agora têm versão/hash; Paho tem hashes dos módulosPython,
+não apenas__init__.py. `mosquitto_pub/sub --help` retorna1 normalmente,
+validado pela linha de versão e tratado explicitamente como tal.
+
+Campanha **selecionada6A**, não fechamento6A–6D:
+`../.artifacts/p227-acceptance-d-6a-2.json`,32/32fixturesPASS,94,986s,
+fontes/binariesunchangedtrue. Snapshotbroker `8160858`, clientbaseb9f46cb,
+admin17c3cff. Client036 foi extraído do.debpublicadoSHA256
+`904c9731ac9a9c218e9533a4b89388859f07c0767f68fb7ba14409ffdbac4040`,
+sem instalação: mesmo ELFrelease copiado para os caminhos debug/release de
+teste, não anúncio de duas compilações. O runtime mqtt-client não mudou entre
+a tag036 e b9f46cb; o sidecarbridge adicional não foi exercitado neste gate.
+O admin010 foi reutilizado e seu runtime comparado à tag, sem alterações.
+
+P227F cobriu controle no mesmo peer com ReceiveMaximum1 esgotado: QoS1 antes
+PUBACK e QoS2 antesPUBCOMP, PINGRESP/SUBACK/UNSUBACK e QoS0 progridem;
+segunda cópia aguarda ACKterminal e depois conclui.2/2PASS noELFD,2,89s,
+`../.artifacts/p227f-control-d-baseline-2.json`. Não foi preciso mudar runtime.
+
+C129 foi integrado por commits próprios sem incorporarC128dirty.175Rust,
+18TCP e6compatPASS constam no [registro do client](../../xmqr-client/prompts/registros/C129-subscription-inbound-state.md).
+Revisão independente encontrou metadadosSubscriptionID mutáveis e journal
+órfão semmanifesto: correçõesC129v1.12 ainda em andamento antes de push final.
+P227E também está corrigindo intervalo original/clockregressivo e distinguindo
+envioPrepared deMayHaveSent com formatov16. AdminA21 tem prompt, não aceite.
+Essas pendências impedem conclusão da fase6 ou publicação de marco final.
