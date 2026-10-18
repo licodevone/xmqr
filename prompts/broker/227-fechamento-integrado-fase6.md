@@ -267,12 +267,14 @@ commit clone/cherry-pick inexistente no GitHub pode substituir fonte pública.
 
 CIadminA22 observou FAILreal exit128 detected dubious ownership emUbuntu26/
 Git2.53 apóscheckoutv4. Workflowintegrado usa o mesmo container e consulta
-rev/status dos cinco repositórios; cancelar somente seu run39141241671
+rev/status dos repositórios; cancelar somente seu run39141241671
 para evitar consumir todos os builds antes desse bloqueio conhecido. Não
 chamar o cancelamento de falha MQTT ou PASS. Preservar o FAIL do jobadmin.
 
 Configurar safe.directory via GIT_CONFIG_COUNT/KEY/VALUE só no ambiente do
-jobCI, com os cinco caminhos EXATOS de checkout derivados degithub.workspace.
+jobCI, com os seis caminhos EXATOS de checkout (cinco projetos maisPaho)
+derivados degithub.workspace. Provar rev/status limpos antes de compilar,
+guardar as revisões no relatório inicial e usar artefatos exclusivos.
 Sem wildcard, configuraçãoGit global, mudança no host ou desativação geral
 da proteção. Contratar YAML/AST/paths e repetir dispatch de commit público
 exato; mudança só de CI não altera ELFs/testes do runtime043. Admin segue

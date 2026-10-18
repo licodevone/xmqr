@@ -225,3 +225,31 @@ a5ccc205... em ambos caminhos de fixture, não duas builds diferentes.
 Correção do harness de teardownC131 foi integrada isoladamente em main pelo
 C132/dd3d2f8 e enviada aoGitHub, sem CI/Cargo/bridgeC128dirty. Root repetiu
 migração com ELF109ec→a5ccc:PASS0,2733s, sem saída duplicada e cleanupPASS.
+
+## Campanha ampla Eall6 — FAIL preservado
+
+Relatório ../.artifacts/p227-acceptance-e-all-6.json:69fixtures,65PASS/4FAIL,
+208,554s. Brokerba6/ELFfce43, clientfca/ELFa5ccc038, adminba7/ELF732011;
+sources/binaries/legacyunchangedtrue. MigrationsA21/journal, crash, controles,
+PahoAUTH/aliases e todos os scripts MQTT5 históricos passaram. Falharam:
+
+- VBI ealiasReason:nonzero_exit/OSError, última linha203, stdout0;
+- sharedWill:setupOSError antes de cenários, cleanupPASS,0,881s;
+- channelCLI:AssertionError no stop/linha110; repetição isolada do owner
+ admin antes da campanha havia passado, sem comprovar a causa desta falha.
+
+O intervalo coincidiu com builds próprios/ENOMEM, mas OSError semerrno não
+prova essa causa específica. Não transformar Eall6 emPASS por repetição.
+P227J foi delegado para hashes de ELF emstream limitado em vez de read_bytes,
+sem alterar oráculos de protocolo. ChannelCLI exige diagnóstico separado.
+RegistroP228 preserva FAILrelease e retryserial posterior aprovado.
+
+## CI integrada — cancelamento preventivo e trust delimitado
+
+Run39141241671 na fonte pública ba6/clientfca/adminba7 foi cancelado por
+ação própria antes do gatefinal; GitHub confirmou completed/cancelled. Não é
+FAILMQTT nemPASS. JobadminA22 detectou emUbuntu26/Git2.53 erroreal de dubious
+ownership, portanto P227v1.13 precedeu proteção de processoGit somente para
+seis caminhos exatos de checkout, semwildcard/global/host. Novo preflight
+registra revisões/statuslimpos antes de builds e artefatosJSON exclusivos.
+YAML/ASTtrêsblocos e contratos seispathsPASS; dispatch corrigido pendente.
