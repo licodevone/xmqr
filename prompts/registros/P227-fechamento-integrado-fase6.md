@@ -313,3 +313,21 @@ execução; não é anunciado comoPASS. P227v1.16 precedeu a consolidação.
 O admin011 foi publicado separadamente; seu helper de readiness/cleanup
 precisa constar no peer efetivamente validado, conferido pelo manifesto.
 Distribuição broker043 e aceite global6 permanecem pendentes neste ponto.
+
+## Eall8 — repetição local nas fontes finais
+
+`../.artifacts/p227-acceptance-final-all-8.json`:69/69PASS,198,043s,
+SHA25667a45f7bd68f56d47ebbb9b76654cb534d42e7cc19c636956ab35db4645a7f5e.
+Fontes limpas brokerdb472bc/clientfca6fc8/admin4483a35; três verificações
+unchanged=true. Contratos do coordenadordb:22/22PASS0,440s. Nenhum Cargo
+foi compilado nesta repetição: broker/adminlegado extraídos do pacote oficial
+CI39164202189 mantêm hashes1ee611b0/3081297f; clienta5ccc205 e adminrelease
+90dfc90a foram copiados dos artefatos congelados correspondentes.
+
+O helper administrativo agora éd27d67d556b7292827ca8d548765620e9023286729f49db9e22b09f0fa3a3e14,
+com readinessMQTT/cleanup corrigidos porA22. O canal, A21v16, migrações,
+inbound21/compat6, crash12 e os outros gates passaram. Não atribuir esse
+helper à campanhaEall7 anterior. LegacybrokerDdca continua candidato042
+real de formato15, não o .deb público042; a campanhaCI compila separadamente
+a fonte pública histórica24d2198. O clientlegado109ec973 é a implementação
+draftv1 anterior, identificada separadamente. CI39164217059 ainda em execução.

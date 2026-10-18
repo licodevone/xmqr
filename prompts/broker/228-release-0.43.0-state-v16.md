@@ -79,3 +79,23 @@ nunca daemon/serviço global, processos do operador, prune ou restartWSL.
 Dar prioridade ao adminA21, depois release nativa do broker, depoisDocker.
 Repetir comandos/perfil originais depois de cada slot liberado, sem reduzir
 gates nem alterarRAM/swap/perfilLTO global para fabricarPASS. Manter FAIL.
+
+## Revisão1.3 — conferência final e documentação de instalação
+
+Congelar fonte de artefatos/tag emdb472bc64558bf0e376a902b7780a259247c5149.
+A CI padrão39164202189 passou; a CI integrada39164217059 precisa concluir
+e ter seus13JSON baixados/conferidos antes da publicação. Eall8 local passou
+69/69 com fontesdb/fca/4483 e binários oficiais extraídos dos pacotes, mas
+isso não substitui o gate remoto. Preservar FAILs e candidatos anteriores.
+
+Depois do aceite, conferir Hub por digest e anexos por download/tamanho/SHA.
+Guardar evidência sanitizada da campanha junto à release; não incluir estado,
+logs brutos ou credenciais. Atualizar também docs/current-releases-wsl.md com
+versões e hashes realmente publicados: broker043, admin011 e client040 já
+distribuído porC135. Diferenciar o client038 usado como referência na campanha
+de fase6 do client040/bridge posterior. Não alegar que a fase8 foi concluída.
+
+Os dois aliases Docker LOCAIS043 anteriores (fonte1574ab9) podem ser preservados
+em nomes próprios antes de apontar os aliases locais para os candidatosdb.
+Isso não autoriza reescrever qualquer tag remota publicada. Verificar ausência
+remota antes do primeiro push; publicação incerta exige reconciliar o digest.
