@@ -1,4 +1,4 @@
-# P228B v1.6 — QA isolado dos artefatos broker0.43.0
+# P228B v1.7 — QA isolado dos artefatos broker0.43.0
 
 Preparado em2026-10-18 antes da autoria do harness. Complementa P228v1.1;
 owner não altera runtime/manifests/CI nem o registro global P228 do coordenador.
@@ -181,3 +181,30 @@ O driver pode reconhecer alias já final com backup esperado para retry
 idempotente, mas qualquer IID diferente causa recusa. Sem apagar imagens.
 Depois, checkout LIMPO exato db para executar release_assets original;
 branch própria mantém todos os prompts/evidências e será retomada após export.
+
+## Revisão1.7 — publicação exclusivamente liberada após CI final
+
+Coordenador liberou esta frente como owner exclusivo de tagGit043,
+Hubbroker/legacyadmin043, prerelease e verificação remota. CI39164217059
+completed/success/head_sha db472bc conferidos pela API. ZIP fornecido contém
+13JSON íntegros; phase6.json SHAfe2757b81cda6f77a98713e9944bcae2500c7eaaab5bbf4074de34b3ff4f1ec5,
+PASS69/69 em169,757s, fontes/binários/legados unchangedtrue. Peer efetivo
+client0.40.0/501cde2 e admin0.11.0/4483; CI padrão39164202189 success/db.
+BundleZIP SHA4066321fa7b021a709f3dde6207c5e4954f76a622ed355a4271f323a7438cadf;
+SHA256SUMS agora cobre cinco principais e pasta tem onze assets.
+
+Reconfirmar ausência remota tagGit, imagens043 e release antes das escritas;
+qualquer resultado incerto exige reconciliação, nunca force/overwrite.
+Criar tag ANOTADA exata db472bc e push SOMENTE dessa tag, não main/branch.
+Publicar apenas Docker043 de IIDs475b31c8.../673a062c..., sem latest. Obter
+digests remotos, pull/inspect/run e repetir QA mTLS/WSS/admin por DIGEST,
+preferindo peer040 digest1eca2f2b...; registrar par realmente executado.
+
+Criar prereleaseGitHub com onze assets e notas próprias atuais, não copiar
+cegamente docs de candidato. Notas citam CI69, versões043/040/011, estado16,
+backup15+marcador original separado, recorteAUTH/limitesPaho/alias, MIT e
+terceiros e ausência de homologação de produção. Usar draft para conferir
+metadata/assets antes de publicar como prerelease NÃO latest. Após publicar,
+baixar TODOS para destino novo e conferir nomes/tamanhos/SHA/sidecars,
+manifesto e ZIP13JSON. Só então reportar remotos verificados. Root cuida
+docs/checklist/main/P227/P228principal; esta frente altera só seus arquivos.
