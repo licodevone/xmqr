@@ -54,6 +54,13 @@ class AcceptanceContracts(unittest.TestCase):
         self.assertEqual({row["phase"] for row in rows}, {"6A", "6B", "6C", "6D"})
         self.assertTrue(all(row["timeout_seconds"] <= 240 for row in rows))
 
+    def test_explicit_candidate_label_is_present_for_required_harnesses(self):
+        rows = {row["file"]: row for row in fixtures(Path(__file__).resolve().parents[1])}
+        for name in ("verify_phase6_vbi.py", "verify_phase6_alias_reason.py"):
+            args = rows[name]["arguments"]
+            self.assertIn("--label", args)
+            self.assertEqual(args[args.index("--label") + 1], "candidate")
+
     @unittest.skipUnless(os.name == "posix", "private process groups require Linux/WSL")
     def test_failure_does_not_disclose_output(self):
         with tempfile.TemporaryDirectory() as directory:

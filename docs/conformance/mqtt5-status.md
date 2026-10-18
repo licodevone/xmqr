@@ -1,5 +1,22 @@
 # MQTT 5 — subconjunto das fases 6A–6D
 
+## Checkpoint de fechamento P227 — 2026-10-18
+
+Fase6 ainda em validação. A [matriz por propriedade/contexto](mqtt5-property-matrix.md)
+separa implementação disponível de execução integrada. O
+[registro P227](../../prompts/registros/P227-fechamento-integrado-fase6.md)
+identifica os candidatos modificados, hashes, testes efetivos e pendências.
+Não confundir esses candidatos com os artefatos publicadosv0.42.0.
+A [decisão AUTH M10](../architecture/adr-0007-mqtt5-auth-scope.md) explicita
+PLAIN inicial TLS/mTLS e reautenticação da mesma identidade; extensões
+ausentes e interop de reauth não são anunciadas como aprovadas.
+
+Os parágrafos incrementais abaixo preservam o histórico de cada fatia;
+afirmações antigas como AUTH ausente referem-se àquele checkpoint, não
+ao estado atual. O fechamento depende dos gates finais, não desse histórico.
+
+## Histórico incremental
+
 P168 acrescenta Eclipse Paho Python 2.1.0 ao gate MQTT 5 com ID atribuído,
 Session Present, QoS0/1/2, retained e fila offline. O gate Mosquitto existente
 continua na CI; duas bibliotecas externas cobrem esses cenários selecionados.

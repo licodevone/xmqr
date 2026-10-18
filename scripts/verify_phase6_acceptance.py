@@ -55,8 +55,10 @@ def fixtures(root):
     result.extend([
         {"file": "verify_paho_mqtt5.py", "phase": "6A", "arguments": ["--broker", "{broker}"],
          "expected_marker": "P168_PAHO_MQTT5_PASS", "timeout_seconds": 120, "requires_paho": True},
-        {"file": "verify_phase6_vbi.py", "phase": "6A", "arguments": ["--broker", "{broker}", "--report", "{vbi_report}"],
+        {"file": "verify_phase6_vbi.py", "phase": "6A", "arguments": ["--broker", "{broker}", "--label", "candidate", "--report", "{vbi_report}"],
          "expected_marker": "PASS", "timeout_seconds": 180},
+        {"file": "verify_phase6_alias_reason.py", "phase": "6A", "arguments": ["--broker", "{broker}", "--label", "candidate", "--report", "{alias_reason_report}"],
+         "expected_marker": "P227_ALIAS_REASON_PASS", "timeout_seconds": 120},
         {"file": "verify_phase6_crash_matrix.py", "phase": "6B", "arguments": ["--broker", "{broker}", "--report", "{crash_report}"],
          "expected_marker": "P227_CRASH_MATRIX_PASS", "timeout_seconds": 240},
         {"file": "verify_phase6_shared_will.py", "phase": "6D", "arguments": ["--broker", "{broker}", "--report", "{shared_will_report}"],
@@ -199,6 +201,7 @@ def main():
         report.update(sources=before, binaries=info)
         replacements = {name: str(path.resolve()) for name, path in binaries.items()}
         replacements.update(vbi_report=str(args.report.with_name(args.report.stem + "-vbi.json").resolve()),
+                            alias_reason_report=str(args.report.with_name(args.report.stem + "-alias-reason.json").resolve()),
                             crash_report=str(args.report.with_name(args.report.stem + "-crash.json").resolve()),
                             shared_will_report=str(args.report.with_name(args.report.stem + "-shared-will.json").resolve()))
         environment = {key: value for key, value in os.environ.items()
