@@ -13,3 +13,5 @@ Aceite: configuração ausente/positiva/negativa; cliente com CA e certificado v
 Revisão 2 após o primeiro `cargo check`: o adaptador `WsStream` exige `Send` para o stream genérico; acrescentar essa restrição em ambas as funções auxiliares de handshake/leitura, sem alterar o contrato de rede, e repetir a compilação. O primeiro resultado é FAIL, não aceite.
 
 Revisão 3 após Clippy: a inclusão de `wss_bind` levou `Configuration::parse` a 101 linhas e o novo braço de erro WSS ficou sem ponto e vírgula. Extrair a inserção dos binds WS/WSS em helper curto e acertar a pontuação; não relaxar o lint. Repetir o gate.
+
+Revisão 4: Clippy recusou os nomes vizinhos `ws_bind` e `wss_bind` no mesmo escopo. Renomear as variáveis locais para deixar explícitos laboratório WS e WSS seguro, mantendo as chaves públicas existentes, e repetir o gate.
