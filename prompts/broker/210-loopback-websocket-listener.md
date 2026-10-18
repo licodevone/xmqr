@@ -17,3 +17,5 @@ Revisão 4: a integração WS/TCP e a suíte Rust passaram, mas Clippy `-D warni
 Revisão 5: após as correções locais, Clippy avançou e identificou oito argumentos em `serve`, acima do limite sete. Incluir o bind WS na tupla existente de endereços, preservando a interface como um único argumento, e repetir Clippy; não relaxar o lint.
 
 Revisão 6: o teste de fio e a suíte passaram, mas o coletor de avisos da distribuição recusou a dependência `pharos` por não haver arquivo LICENSE no crate. O client C112 já registrou suplemento verificável para `pharos` e `ws_stream_tungstenite`, com VCS/hash da declaração no README original. Aplicar a mesma checagem exata no broker, repetir coleta, inventário e distribuição; não aceitar o resultado anterior do coletor.
+
+Revisão 7: ao ampliar o teste de shutdown, a fixture tentou abrir WS imediatamente após fechar um cliente TCP com quota global 1 e recebeu reset. O socket TCP ainda estava sendo drenado pelo broker; a tentativa imediata não prova vazamento de quota. Enviar DISCONNECT MQTT no TCP e aguardar em prazo limitado a liberação da vaga antes de afirmar o shutdown com WS ativo. Repetir o cenário.
