@@ -1,4 +1,4 @@
-# P227E v1.9 — relógio lógico e expiração durável sem renovar TTL
+# P227E v2.0 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -247,3 +247,16 @@ mesmafaixa, cruzamento, quatro refresh, deadline3s e WAL antesappend.
 Negativo positivo→R0 falhou pois send_delivery retornou Ok pelo descarte
 !dup. Corrigir agora disposition explícita e manter o oráculo6º inalterado;
 não usar o GREEN parcial para declarar contrato fechado.
+
+## Revisão v2.0 antes da segunda correção de lint e controles QoS2
+
+GREEN29/29 em27,13scompile/5,69stest. Regressões completas dos módulos
+router84/84 (34,34s) e store19/19 (0,37s) PASS, filtros sobrepostos ao E.
+Clippy --lib --tests -Dwarnings FAIL: expansão de StoredMessage tornou
+Packet::Connect376bytes/Publish165, ativando large_enum_variant; comparação
+de ID com i64::MAX pede TryFrom. Corrigir cast com TryFrom. Solicitar ao
+coordenador exceção localizada para Packet, justificando enum bounded sem
+nova alocação, sem alterar parser/framing/Box ou esconder outros avisos.
+Somente aplicar essa exceção após autorização. Adicionar controles unitários
+QoS2 Prepared vencido sem replay e MayHaveSent expirado que retoma PUBLISH,
+PUBREC/PUBREL, reinicia e completa PUBCOMP com o mesmo ID; escopo original.
