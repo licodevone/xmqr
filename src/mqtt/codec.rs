@@ -39,6 +39,10 @@ pub(super) struct MalformedRemainingLength;
 pub(super) struct FixedHeaderFlagsInvalid;
 
 #[derive(Debug, thiserror::Error)]
+#[error("malformed MQTT 5 AUTH fixed header flags")]
+pub(super) struct AuthFixedHeaderFlagsInvalid;
+
+#[derive(Debug, thiserror::Error)]
 #[error("second CONNECT on an established MQTT connection")]
 pub(super) struct SecondConnect;
 
@@ -628,6 +632,9 @@ fn decode_for_inner(
     }
     if mqtt5 && matches!(header, 0x20 | 0x90 | 0xb0 | 0xd0) {
         return Err(ServerOnlyPacketFromClient.into());
+    }
+    if mqtt5 && header >> 4 == 15 && header & 0x0f != 0 {
+        return Err(AuthFixedHeaderFlagsInvalid.into());
     }
     if mqtt5 && matches!(header >> 4, 12 | 14) && header & 0x0f != 0 {
         return Err(FixedHeaderFlagsInvalid.into());
@@ -2970,6 +2977,22 @@ mod tests {
             }
         }
         assert!(matches!(decode_for(0xc0, &[], true), Ok(Packet::PingReq)));
+    }
+
+    #[test]
+    fn mqtt5_auth_reserved_flags_are_malformed_before_body() {
+        for flags in 1..=15 {
+            let header = 0xf0 | flags;
+            for body in [&[][..], &[0xff, 0x00][..]] {
+                assert!(
+                    decode_for(header, body, true)
+                        .unwrap_err()
+                        .is::<AuthFixedHeaderFlagsInvalid>(),
+                    "{header:#x}"
+                );
+                assert!(decode_for(header, body, false).is_err(), "{header:#x}");
+            }
+        }
     }
 
     #[test]

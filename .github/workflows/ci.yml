@@ -53,6 +53,7 @@ jobs:
       - run: python3 scripts/verify_mqtt5_subscription_pubrel_fixed_flags.py
       - run: python3 scripts/verify_mqtt5_server_only_packet_reasons.py
       - run: python3 scripts/verify_mqtt5_reserved_control_type.py
+      - run: python3 scripts/verify_mqtt5_auth_fixed_flags.py
       - run: python3 scripts/verify_shutdown.py --broker target/debug/mqtt-broker
 
   ubuntu-package:

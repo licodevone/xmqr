@@ -457,6 +457,10 @@ async fn serve_mqtt(
                             let _ = write_limited(connection, &[0xe0, 2, 0x82, 0], outbound_maximum).await;
                             return Err(error);
                         }
+                        Err(error) if mqtt5 && error.is::<codec::AuthFixedHeaderFlagsInvalid>() => {
+                            let _ = write_limited(connection, &[0xe0, 2, 0x81, 0], outbound_maximum).await;
+                            return Err(error);
+                        }
                         Err(error) if mqtt5 && error.is::<codec::SecondConnect>() => {
                             let _ = write_limited(connection, &[0xe0, 2, 0x82, 0], outbound_maximum).await;
                             return Err(error);
