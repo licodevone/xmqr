@@ -21,3 +21,5 @@ Revisão 5 após o primeiro fio WSS: CONNECT e SUBACK chegaram, mas a fixture co
 Revisão 6: o negativo de ACL recebeu PUBACK MQTT 5, mas a fixture procurou o reason code no último byte; o pacote inclui comprimento zero de propriedades depois dele. Verificar tipo e razão no deslocamento de protocolo, repetir os negativos e a rotação. A asserção anterior é FAIL da fixture.
 
 Revisão 7: no ensaio de quota 1, a sondagem de prontidão abriu e fechou um socket, mas sua vaga ainda drenava quando o WSS de teste tentou conectar. Aguardar por prazo limitado a liberação dessa vaga transitória antes de manter o cliente WSS; a tentativa imediata não comprova falha de admissão. Repetir quota, recuperação e shutdown.
+
+Revisão 8 para o gate CI: a fixture WSS passou localmente, mas importou a emissão de certificados do checkout irmão `xmqr-client`, ausente no checkout isolado da CI do broker. Incorporar somente a geração temporária de CA/server/client e o helper OpenSSL necessários ao ensaio no próprio script, mantendo material apenas no diretório descartável. Repetir a fixture e adicionar o gate à CI.
