@@ -1,16 +1,15 @@
 # XMQR
 
-O candidato experimental 0.39.0 distribui P210: listener WebSocket MQTT opt-in `MQTT_WS_BIND`
+A prerelease experimental 0.39.0 distribui P210: listener WebSocket MQTT opt-in `MQTT_WS_BIND`
 somente no perfil `open-lab`. Exemplo local: `MQTT_MODE=open-lab
 MQTT_BIND=127.0.0.1:1883 MQTT_WS_BIND=127.0.0.1:8083
 MQTT_STATE_DIR=/caminho/privado mqtt-broker`; o caminho é `/mqtt` e o
 subprotocolo exigido é `mqtt`. As portas TCP e WS compartilham
 `MQTT_MAX_CONNECTIONS`. Handshakes de navegador com `Origin` são recusados.
 [Prompt](prompts/broker/210-loopback-websocket-listener.md)
-e [registro](prompts/registros/P210-loopback-websocket-listener.md). [Gate P211](prompts/broker/211-release-0.39.0.md)
-e [nota candidata](docs/releases/0.39.0.md). WSS,
-listener remoto e fase 7 completa ainda não foram aceitos. A versão publicada
-0.38.0 não contém P210.
+e [registro](prompts/registros/P210-loopback-websocket-listener.md). [Release](https://github.com/licodevone/xmqr/releases/tag/v0.39.0),
+[nota](docs/releases/0.39.0.md) e [registro P211](prompts/registros/P211-release-0.39.0.md). WSS,
+listener remoto e fase 7 completa ainda não foram aceitos.
 
 Versões e pacotes atuais para Ubuntu 26.04/WSL: [guia de releases e instalação](docs/current-releases-wsl.md).
 

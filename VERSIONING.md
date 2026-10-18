@@ -1,13 +1,14 @@
 # Versionamento
 
-## P211 — candidato broker/admin legado 0.39.0, estado v15
+## P211 — broker/admin legado 0.39.0 publicado, estado v15
 
 P210 adiciona listener WS MQTT somente em loopback `open-lab`, com router e
 quota compartilhados com TCP, subprotocolo `mqtt` e `Origin` recusado. WSS e
 browser permanecem pendentes; sem migração do estado. Broker 0.38.0 e admin
-independente 0.10.0 leem v15. Client 0.32.0 é candidato com C112; o publicado
-0.31.0 continua. [Gate P211](prompts/broker/211-release-0.39.0.md). Fases
-globais abertas.
+independente 0.10.0 leem v15. Client independente 0.32.0 distribui C112.
+CI, pacote Ubuntu 26.04, upgrade/rollback descartável, imagens numeradas,
+tag e prerelease com oito hashes remotos passaram. [Nota](docs/releases/0.39.0.md)
+e [registro](prompts/registros/P211-release-0.39.0.md). Fases globais abertas.
 
 ## P209 — broker/admin legado 0.38.0 publicado, estado v15
 
