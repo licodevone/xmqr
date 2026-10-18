@@ -1,7 +1,7 @@
 # MQTT 5 — matriz de propriedades do broker XMQR
 
-Inventário técnico preparado pelo P227A em 2026-10-18, fonte integrada
-`d28f832` (0.42.0), incluindo diagnóstico P227D. Não é certificação MQTT nem
+Inventário técnico preparado pelo P227A em2026-10-18 e atualizado para o
+candidato6b8cf4b (0.43.0), incluindo P227D/E/I. Não é certificação MQTT nem
 aceite global das fases 6A–6D.
 Esta matriz complementa, mas não substitui, o plano e os registros de execução.
 
@@ -91,14 +91,15 @@ de texto/binário excedidos podem fechar sem CONNACK específico; ver limitaçõ
 ## PUBLISH C→S e propriedades encaminhadas S→C
 
 Símbolos: ramo PUBLISH de `decode_for_inner`, `FrameReader::try_take_packet`,
-`encode_publish_with_subscription_ids`; `send_delivery` em mod.rs e
-`remaining_message_expiry` no roteador. Metadados MQTT5 não são prefixados ao
+`encode_publish_with_subscription_ids`; `send_delivery` em mod.rs,
+`prepare_expiry` no roteador e `ExpiryClock::remaining` em clock.rs.
+Metadados MQTT5 não são prefixados ao
 payload de destinatário MQTT3.1.1. A normalização não modifica valores de texto.
 
 | Propriedade | ID/tipo | Multiplicidade, valores e tratamento no XMQR | OASIS | Testes |
 |---|---|---|---|---|
 | Payload Format Indicator | 0x01/B | 1; 0/1; preservado. Broker não valida payload UTF-8; essa validação é opcional para o receptor | §3.3.2.3.2 | T06, W10 |
-| Message Expiry Interval | 0x02/U32 | 1; 0..U32_MAX; ausência não expira; entrega calcula tempo restante; retenção/fila expiram sem renovar relógio | §3.3.2.3.3; MQTT-3.3.2-5/-6 | T07, W11 |
+| Message Expiry Interval | 0x02/U32 | 1; 0..U32_MAX; ausência não expira; clock lógico/piso durável e intervalo original limitam TTL; v15 legado não inventa original; Prepared vencido pode ser removido, MayHaveSent conserva handshake | §3.3.2.3.3; MQTT-3.3.2-5/-6 | T07, W11; P227E38 dirigidos |
 | Content Type | 0x03/UTF8 | 1; até 256 bytes; preservado | §3.3.2.3.9 | T06, W10 |
 | Response Topic | 0x08/UTF8 | 1; TopicName concreto até 1.024 bytes; preservado; não cria uma resposta de aplicação automaticamente | §3.3.2.3.5 | T08, T17, W12 |
 | Correlation Data | 0x09/BIN | 1; até 256 bytes; preservado byte a byte | §3.3.2.3.6 | T08, W12 |
@@ -211,6 +212,7 @@ contextos de entrada aceitos são somente os discriminados nas tabelas.
 | T18 | mod.rs: `requires_empty_authorization_id_and_exact_utf8_fields` |
 | T19 (novos P227A) | `mqtt5_vbi_canonical_integer_boundaries`; `mqtt5_vbi_rejects_redundant_internal_integer_digits`; `mqtt5_vbi_rejects_noncanonical_established_remaining_length`; `mqtt5_vbi_keeps_legacy_remaining_length_and_canonical_fragments`; `mqtt5_vbi_initial_connect_remaining_length_is_rejected_before_acceptance`; `mqtt5_vbi_property_length_is_strict_in_each_established_context`; `mqtt5_vbi_initial_connect_and_will_property_lengths_never_accept`; `mqtt5_vbi_subscription_identifier_is_canonical` |
 | T20 | `packet_quota_counts_complete_header_before_waiting_for_body`; `complete_packet_boundary_survives_fragmentation_and_concatenation`; `publish_payload_boundary_is_preserved_for_all_qos` |
+| T21 (P227I) | módulo `p227i_metadata_boundaries`: nove grupos de Content Type/Correlation Data256/257, User Property campos256/257,16/17pares,total2048/2049, duplicatas/ordem e contexto; entradasWill/PUBLISH/SUB/UNSUB pertinentes e frames PUBLISH de saída independentes |
 
 | Chave | Scripts de integração/wire |
 |---|---|
@@ -278,16 +280,20 @@ Ressalvas e trabalho restante, sem modificar checklists globais:
    Zero/excesso continuam0x94, inclusive se CONNACK omite TopicAliasMaximum e
    seu default é0. W13 histórico foi corrigido; novos9vetores estão verdes.
    Não generalizar esse resultado a outros motivos de erro ou certificação.
-2. T05 verifica metadados/duplicidades Will, mas não enumera cada fronteira
-   exata de UP16/ContentType/CorrelationData nesse ramo. T08/T10 testam vários
-   excessos, não todas as combinações exatas2048/2049 e256/257 em ambos sentidos.
-   Tetos constam do código; não são anunciados como cobertura de fronteira total.
+2. **Fronteiras ampliadas porP227I:** T21 executou9/9PASS após corrigir somente
+   o contexto do helperWill; o FAIL inicial3PASS/6FAIL ficou registrado.
+   Vetores isolam ContentType/CorrelationData256/257 e UP campos256/257,
+   quantidade16/17 e total2048/2049, incluindo quatro contextos de entrada
+   pertinentes e encoderPUBLISH com frame independente. Isso não enumera
+   todas as combinações de propriedades/QoS/estados nem prova interop externa.
 3. Nem toda recusa semântica/local tem tipo diagnóstico dedicado: por exemplo
    SubscriptionIdentifier0, TopicName vazio sem alias e excesso de metadados
    fecham por erro genérico. Não afirmar emissão universal de0x81/0x82/0x95.
 4. W17 é open-labTCP sintético. Não comprova TLS/mTLS, durabilidade, fairness,
    todas as combinações QoS, todos os estados de AUTH ou cada plataforma.
-5. Full fmt/test/Clippy, regressão3.1.1, dois clientes externos, campanhas de
+5. CoreE teve38 testes dirigidosPASS e codecP227I78PASS/6campanhasfuzz opt-in
+   ignoradas; não somar filtros sobrepostos como testes únicos. Fullsuite043
+   e admin16 ainda em validação. Full fmt/test/Clippy, regressão3.1.1, dois clientes externos, campanhas de
    crash e demais gates finais são consolidados pelo coordenador com hashes
    e resultados próprios. O status geral6A–6D não muda por criar esta tabela.
 
