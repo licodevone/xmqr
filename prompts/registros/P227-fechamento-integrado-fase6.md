@@ -188,3 +188,17 @@ prepare valida identidade durável, mas descarte posterior só porpacketID
 poderia remover nova obrigação após poda/reutilização. OwnerE recebeu pedido
 de reproduzirRED e corrigir descarte condicionado à mesma identidade. Nenhum
 resultado acima aceita essa corrida, encerra fase6 ou autoriza tag antecipada.
+
+## Preparação CI exata, ainda NOT_RUN
+
+P227v1.12 precedeu .github/workflows/phase6-acceptance.yml: dispatchmanual,
+Ubuntu26 descartável, Rust1.99, quatro inputsSHA completos validados antes
+checkout, Pahooficial fixadoaf64a43 e projetos/legacies isolados. Compila
+fontes específicas, executa gatesRust e registra manifestoELF→commit/SHA,
+depois contratos/coordenador com relatórios exclusivos sanitizados. Artefatos
+JSON preservados viaalways mesmo após falha. Nenhuma instalação no host do
+operador ou execução automática sobre serviços existentes.
+
+Validação local: YAML parse PyYAML6.0.3, quatroinputs/defaultsSHA e duas
+seçõesPython embutidas porAST PASS; gitdiffcheckPASS. Não equivale a CI:
+dispatch/aceite continuaNOT_RUN, aguardando coreE, peers públicos e A21.

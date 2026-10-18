@@ -1,0 +1,152 @@
+name: Phase6 exact-peer acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      client_ref:
+        description: Public xmqr-client full commit SHA
+        required: true
+      admin_ref:
+        description: Public xmqr-admin full commit SHA
+        required: true
+      legacy_client_ref:
+        description: Real historical client with draft-v1 journal
+        required: true
+        default: 235f20d097b674fadcbdf85d8c8f1c581ff1eba9
+      legacy_broker_ref:
+        description: Real historical broker with state-v15
+        required: true
+        default: 24d219816fdac3e47115bcb2e59edd55b0c11407
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    timeout-minutes: 60
+    env:
+      TMPDIR: /var/tmp
+      CARGO_BUILD_JOBS: 1
+      PYTHONDONTWRITEBYTECODE: 1
+    steps:
+      - name: Install tools in disposable CI container
+        run: apt-get update -qq && apt-get install -y --no-install-recommends git curl ca-certificates build-essential cmake perl pkg-config python3 mosquitto-clients openssl
+      - name: Validate peer inputs without shell interpolation
+        env:
+          CLIENT_REF: ${{ inputs.client_ref }}
+          ADMIN_REF: ${{ inputs.admin_ref }}
+          LEGACY_CLIENT_REF: ${{ inputs.legacy_client_ref }}
+          LEGACY_BROKER_REF: ${{ inputs.legacy_broker_ref }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          for name in ('CLIENT_REF', 'ADMIN_REF', 'LEGACY_CLIENT_REF', 'LEGACY_BROKER_REF'):
+              if not re.fullmatch('[0-9a-f]{40}', os.environ[name]):
+                  raise SystemExit('full lowercase commit SHA required: ' + name)
+          PY
+      - uses: actions/checkout@v4
+        with:
+          path: integrations/xmqr
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: licodevone/xmqr-client
+          ref: ${{ inputs.client_ref }}
+          path: integrations/xmqr-client
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: licodevone/xmqr-admin
+          ref: ${{ inputs.admin_ref }}
+          path: integrations/xmqr-admin
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: licodevone/xmqr-client
+          ref: ${{ inputs.legacy_client_ref }}
+          path: integrations/legacy-client
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: licodevone/xmqr
+          ref: ${{ inputs.legacy_broker_ref }}
+          path: integrations/legacy-broker
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: eclipse-paho/paho.mqtt.python
+          ref: af64a4365c6ac5a7a4d339e7b00f44df91353b35
+          path: integrations/paho
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.99.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            integrations/xmqr
+            integrations/xmqr-client
+            integrations/xmqr-admin
+            integrations/legacy-client
+            integrations/legacy-broker
+      - name: Build exact sources and enforce Rust gates
+        run: |
+          for repo in xmqr xmqr-client xmqr-admin; do
+            cd "$GITHUB_WORKSPACE/integrations/$repo"
+            cargo fmt --all -- --check
+            cargo test --locked -j 1
+            cargo clippy --locked --all-targets -j 1 -- -D warnings
+            cargo build --locked --bins -j 1
+            cargo build --locked --release --bins -j 1
+            python3 scripts/license_inventory.py --check
+          done
+          cd "$GITHUB_WORKSPACE/integrations/legacy-client"
+          cargo build --locked --bin mqtt-client -j 1
+          cd "$GITHUB_WORKSPACE/integrations/legacy-broker"
+          cargo build --locked --bin mqtt-broker -j 1
+      - name: Record ELF to source build provenance
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          base = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
+          output = base / '.evidence'
+          output.mkdir()
+          rows = []
+          for repo, binaries in (
+              ('xmqr', ('mqtt-broker', 'mqtt-admin')),
+              ('xmqr-client', ('mqtt-client',)),
+              ('xmqr-admin', ('xmqr-admin',)),
+              ('legacy-client', ('mqtt-client',)),
+              ('legacy-broker', ('mqtt-broker',)),
+          ):
+              source = base / 'integrations' / repo
+              revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=source, text=True).strip()
+              for binary in binaries:
+                  for profile in (('debug',) if repo.startswith('legacy-') else ('debug', 'release')):
+                      path = source / 'target' / profile / binary
+                      with path.open('rb') as stream:
+                          digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+                      version = subprocess.check_output([str(path), '--version'], text=True, timeout=5).strip()
+                      rows.append(dict(repository=repo, revision=revision, profile=profile,
+                                       binary=binary, version=version, sha256=digest))
+          tools = subprocess.check_output(['rustc', '--version'], text=True).strip()
+          (output / 'build-provenance.json').write_text(json.dumps(dict(rustc=tools, binaries=rows), indent=2) + '\n')
+          PY
+      - name: Test coordinator contracts
+        working-directory: integrations/xmqr
+        run: python3 scripts/test_phase6_acceptance.py
+      - name: Run all finite MQTT5 acceptance fixtures
+        working-directory: integrations/xmqr
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/integrations/paho/src" python3 scripts/verify_phase6_acceptance.py \
+            --legacy-broker "$GITHUB_WORKSPACE/integrations/legacy-broker/target/debug/mqtt-broker" \
+            --legacy-client "$GITHUB_WORKSPACE/integrations/legacy-client/target/debug/mqtt-client" \
+            --report "$GITHUB_WORKSPACE/.evidence/phase6.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase6-exact-peer-evidence
+          path: .evidence/*.json
+          if-no-files-found: warn
