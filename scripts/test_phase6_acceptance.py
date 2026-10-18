@@ -7,8 +7,9 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from verify_phase6_acceptance import classify, execute, failure_diagnostic, fixtures, inspect_legacy, legacy_inputs, verify_versions
+from verify_phase6_acceptance import classify, execute, failure_diagnostic, fixture_environment, fixtures, inspect_legacy, legacy_inputs, verify_versions
 
 
 class AcceptanceContracts(unittest.TestCase):
@@ -92,6 +93,36 @@ class AcceptanceContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(FileNotFoundError):
                 inspect_legacy(Path(directory) / "missing")
+
+    def test_fixture_environment_cannot_target_operator_mosquitto(self):
+        inherited = {"P147_MOSQUITTO_PORT": "1883", "MQTT_PASSWORD": "private-token",
+                     "PYTHONOPTIMIZE": "1", "PATH": "isolated-path", "PYTHONPATH": "isolated-peer"}
+        result = fixture_environment(inherited)
+        self.assertNotIn("P147_MOSQUITTO_PORT", result)
+        self.assertNotIn("MQTT_PASSWORD", result)
+        self.assertNotIn("PYTHONOPTIMIZE", result)
+        self.assertEqual(result["PATH"], "isolated-path")
+        self.assertEqual(result["PYTHONPATH"], "isolated-peer")
+        self.assertEqual(result["TMPDIR"], "/var/tmp")
+        self.assertIn("P147_MOSQUITTO_PORT", inherited)
+
+    @unittest.skipUnless(os.name == "posix", "private process groups require Linux/WSL")
+    def test_interrupted_capture_reaps_its_private_child_and_reraises(self):
+        children = []
+
+        def interrupt(process, *_args):
+            children.append(process)
+            raise KeyboardInterrupt
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch("verify_phase6_acceptance.capture_process", side_effect=interrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    execute([sys.executable, "-c", "import time; time.sleep(30)"],
+                            "PASS", 3, Path(directory), dict(os.environ))
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].poll())
+        self.assertTrue(children[0].stdout.closed)
+        self.assertTrue(children[0].stderr.closed)
 
     @unittest.skipUnless(os.name == "posix", "executable script fixture requires Linux/WSL")
     def test_legacy_version_is_identified_not_matched_to_current_manifest(self):

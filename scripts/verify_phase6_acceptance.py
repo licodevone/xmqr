@@ -181,12 +181,31 @@ def classify(returncode, output, expected_marker, timed_out=False, error_output=
 
 def execute(command, expected_marker, timeout, cwd, environment):
     began = time.monotonic()
-    timed_out = False
-    budget_exceeded = False
-    captured = {"stdout": bytearray(), "stderr": bytearray()}
     process = subprocess.Popen(command, cwd=cwd, env=environment,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                start_new_session=True)
+    try:
+        return capture_process(process, expected_marker, timeout, began)
+    except BaseException:
+        # The child has its own session: terminal cancellation will not reach it.
+        # Only this freshly created private group is eligible for cleanup.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        finally:
+            try:
+                process.wait(timeout=5)
+            finally:
+                process.stdout.close()
+                process.stderr.close()
+        raise
+
+
+def capture_process(process, expected_marker, timeout, began):
+    timed_out = False
+    budget_exceeded = False
+    captured = {"stdout": bytearray(), "stderr": bytearray()}
     with selectors.DefaultSelector() as selector:
         selector.register(process.stdout, selectors.EVENT_READ, "stdout")
         selector.register(process.stderr, selectors.EVENT_READ, "stderr")
@@ -347,6 +366,14 @@ def inspect_legacy(path):
     return path, {"version": version, "sha256": before}
 
 
+def fixture_environment(inherited):
+    environment = {key: value for key, value in inherited.items()
+                   if not key.startswith("MQTT_")
+                   and key not in ("PYTHONOPTIMIZE", "P147_MOSQUITTO_PORT")}
+    environment.update(TMPDIR="/var/tmp", PYTHONDONTWRITEBYTECODE="1")
+    return environment
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report", type=Path, required=True)
@@ -395,9 +422,7 @@ def main():
                             alias_reason_report=str(args.report.with_name(args.report.stem + "-alias-reason.json").resolve()),
                             crash_report=str(args.report.with_name(args.report.stem + "-crash.json").resolve()),
                             shared_will_report=str(args.report.with_name(args.report.stem + "-shared-will.json").resolve()))
-        environment = {key: value for key, value in os.environ.items()
-                       if not key.startswith("MQTT_") and key not in ("PYTHONOPTIMIZE",)}
-        environment.update(TMPDIR="/var/tmp", PYTHONDONTWRITEBYTECODE="1")
+        environment = fixture_environment(os.environ)
         for fixture in selected:
             row = {"file": fixture["file"], "phase": fixture["phase"]}
             stage = "fixture:" + fixture["file"]

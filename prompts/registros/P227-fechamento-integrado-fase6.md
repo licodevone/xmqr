@@ -161,3 +161,10 @@ harnesses. Isto não é execução de A21 nem da migração wire. Campanha final
 aguarda coreE congelado, admin pinado compatível e fonteC131 com teardown
 corrigido: seu CI anterior confirmou dados MQTT mas falhou ao remover pasta
 antes de encerrar filho, não pode ser tratado como aprovação da distribuição.
+
+Revisão independente do executor identificou opt-inP147_MOSQUITTO_PORT herdado
+e falta de cleanup se captura fosse interrompida. P227v1.11 precedeu remoção
+do seletor do ambiente dos filhos e proteção de captura emBaseException com
+kill/wait/close somente do grupo privado criado.21contratosPASS em0,342s,
+incluindo interrupção injetada com filho real próprio e repropagação de
+KeyboardInterrupt. Não foi consultado/alterado Mosquitto do operador.
