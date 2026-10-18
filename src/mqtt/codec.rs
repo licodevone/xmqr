@@ -655,6 +655,10 @@ fn decode_for_inner(
     if mqtt5 && matches!(header >> 4, 6 | 8 | 10) && header & 0x0f != 0x02 {
         return Err(MalformedPacketStructure.into());
     }
+    // MQTT-3.4.1-1, 3.5.1-1, 3.7.1-1: QoS ACK flags are all zero.
+    if mqtt5 && matches!(header >> 4, 4 | 5 | 7) && header & 0x0f != 0 {
+        return Err(MalformedPacketStructure.into());
+    }
     if mqtt5
         && !matches!(
             header,
@@ -2940,6 +2944,26 @@ mod tests {
         for header in [0x32, 0x3a, 0x34, 0x3c] {
             assert!(decode_for(header, &qos_body, true).is_ok(), "{header:#x}");
         }
+    }
+
+    #[test]
+    fn mqtt5_qos_ack_reserved_flags_are_malformed_before_body() {
+        for control_type in [4, 5, 7] {
+            for flags in 1..=15 {
+                let header = (control_type << 4) | flags;
+                for body in [&[][..], &[0xff, 0x00][..]] {
+                    assert!(
+                        decode_for(header, body, true)
+                            .unwrap_err()
+                            .is::<MalformedPacketStructure>(),
+                        "{header:#x}"
+                    );
+                    assert!(decode_for(header, body, false).is_err(), "{header:#x}");
+                }
+            }
+            assert!(decode_for(control_type << 4, &[0, 1], true).is_ok());
+        }
+        assert!(decode_for(0x62, &[0, 1], true).is_ok());
     }
 
     #[test]
