@@ -622,6 +622,11 @@ fn decode_for_inner(
     if mqtt5 && matches!(header >> 4, 12 | 14) && header & 0x0f != 0 {
         return Err(FixedHeaderFlagsInvalid.into());
     }
+    // MQTT-3.6.1-1, 3.8.1-1, 3.10.1-1: these packets require 0b0010.
+    // Classify the header before reading a body that must not be applied.
+    if mqtt5 && matches!(header >> 4, 6 | 8 | 10) && header & 0x0f != 0x02 {
+        return Err(MalformedPacketStructure.into());
+    }
     if mqtt5
         && !matches!(
             header,
@@ -2906,6 +2911,22 @@ mod tests {
         let qos_body = [0, 1, b'x', 0, 1, 0, b'y'];
         for header in [0x32, 0x3a, 0x34, 0x3c] {
             assert!(decode_for(header, &qos_body, true).is_ok(), "{header:#x}");
+        }
+    }
+
+    #[test]
+    fn mqtt5_subscription_and_pubrel_reserved_flags_are_malformed_before_body() {
+        for control_type in [6, 8, 10] {
+            for flags in [0, 1, 3, 15] {
+                let header = (control_type << 4) | flags;
+                assert!(
+                    decode_for(header, &[], true)
+                        .unwrap_err()
+                        .is::<MalformedPacketStructure>(),
+                    "{header:#x}"
+                );
+                assert!(decode_for(header, &[], false).is_err(), "{header:#x}");
+            }
         }
     }
 

@@ -10,8 +10,9 @@ CONNECT MQTT 5, atribui ID exclusivo e o devolve em CONNACK `0x12`. O pacote
 é recusado antes de registrar sessão se o limite anunciado não comportar a
 propriedade obrigatória. MQTT 3.1.1 mantém a recusa. C97 é o par de CLI; C98
 permite reutilizar o ID de 37 bytes e C99 criar uma sessão com expiração
-configurada para posterior reconexão manual. O client não persiste estado QoS local;
-esta parcela não encerra o aceite global da fase 6A.
+configurada para posterior reconexão manual. C105 acrescenta uma outbox
+opt-in para um QoS 1 de saída no Linux/WSL; os demais fluxos locais seguem
+sem persistência. Esta parcela não encerra o aceite global da fase 6A.
 
 P115 iniciou `CONNECT` MQTT 5 com Clean Start=1 e Session Expiry ausente ou zero.
 P127 acrescenta Clean Start=0/1 independente de Session Expiry=0/infinita (`0xFFFFFFFF`).
@@ -25,8 +26,8 @@ antes da entrega e encaminha o prazo restante em PUBLISH MQTT 5. QoS2 recebido
 é avaliado no PUBREL; uma entrega QoS já iniciada conserva seu handshake.
 O client C69 envia `--message-expiry-seconds` em `pub --protocol-version 5`.
 P131 aceita Session Expiry Interval no DISCONNECT normal MQTT 5, aplicado no
-mesmo commit do encerramento. O client independente ainda envia DISCONNECT sem
-essa propriedade.
+mesmo commit do encerramento. O client C104 pode enviar essa propriedade por
+opção explícita; o padrão conserva DISCONNECT sem ela.
 P132 aceita Will MQTT 5 com propriedade Will Delay Interval opcional. O Will
 fica durável até publicação após o atraso ou término da sessão, o que ocorrer
 primeiro; retomada Clean Start=0 antes do prazo e DISCONNECT normal cancelam.
@@ -123,6 +124,12 @@ P190 classifica as flags fixas inválidas de PUBLISH MQTT 5: QoS reservado 3
 recebe DISCONNECT `0x81`, e DUP ligado em QoS 0 recebe `0x82`. Os quadros são
 recusados antes de entrega/retained; Will e fechamento MQTT 3.1.1 são preservados.
 Demais combinações e a matriz global continuam pendentes.
+P200 classifica como Malformed Packet as flags reservadas diferentes de `0x2`
+em SUBSCRIBE, UNSUBSCRIBE e PUBREL após CONNACK MQTT 5: tenta DISCONNECT
+`0x81` e fecha antes de ler ou aplicar o corpo. A assinatura, o cancelamento e
+o estado QoS 2 não sofrem alteração parcial; Will e MQTT 3.1.1 permanecem
+conforme a transição anterior. Outros cabeçalhos e a matriz global seguem
+pendentes.
 P194 trata um segundo CONNECT após CONNACK MQTT 5 como Protocol Error: tenta
 DISCONNECT `0x82` e fecha antes de ler o corpo, sem trocar sessão, identidade ou
 Will. O primeiro CONNECT continua normal; MQTT 3.1.1 fecha sem resposta MQTT 5.
