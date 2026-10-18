@@ -157,6 +157,7 @@ async fn serve(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (bind_address, additional_binds, lab_websocket_bind, secure_websocket_bind) =
         bind_addresses;
+    let wss_allowed_origins = parse_wss_allowed_origins(config, secure_websocket_bind.is_some())?;
     let (monitor_config, admin_config) = operational_configs;
     let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
     let (limits, state_limits) = limits;
@@ -236,7 +237,7 @@ async fn serve(
             let wss_transport = if let Some((address, remote_enabled)) = secure_websocket_bind {
                 Some(
                     transport
-                        .bind_websocket_secure(address, remote_enabled)
+                        .bind_websocket_secure(address, remote_enabled, wss_allowed_origins)
                         .await?,
                 )
             } else {
@@ -503,6 +504,90 @@ fn parse_wss_bind(
         ));
     }
     Ok(Some((address, remote_enabled)))
+}
+
+fn parse_wss_allowed_origins(config: &Configuration, wss_enabled: bool) -> io::Result<Vec<String>> {
+    let value = match config.var("MQTT_WSS_ALLOWED_ORIGINS") {
+        Ok(value) if wss_enabled => value,
+        Ok(_) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "MQTT_WSS_ALLOWED_ORIGINS requires MQTT_WSS_BIND",
+            ));
+        }
+        Err(env::VarError::NotPresent) => return Ok(Vec::new()),
+        Err(env::VarError::NotUnicode(_)) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid MQTT_WSS_ALLOWED_ORIGINS",
+            ));
+        }
+    };
+    parse_origin_list(&value)
+}
+
+fn parse_origin_list(value: &str) -> io::Result<Vec<String>> {
+    if value.is_empty() {
+        return Ok(Vec::new());
+    }
+    let origins: Vec<String> = value.split(',').map(str::to_owned).collect();
+    if value.len() > 4096
+        || origins.len() > 16
+        || origins.iter().any(|origin| !valid_https_origin(origin))
+        || origins
+            .iter()
+            .enumerate()
+            .any(|(index, origin)| origins[..index].contains(origin))
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid MQTT_WSS_ALLOWED_ORIGINS",
+        ));
+    }
+    Ok(origins)
+}
+
+fn valid_https_origin(origin: &str) -> bool {
+    let Some(authority) = origin.strip_prefix("https://") else {
+        return false;
+    };
+    if authority.is_empty()
+        || authority.len() > 255
+        || authority.bytes().any(|byte| {
+            !byte.is_ascii()
+                || byte.is_ascii_whitespace()
+                || matches!(byte, b'/' | b'?' | b'#' | b'@' | b'*' | b'%' | b'\\')
+        })
+    {
+        return false;
+    }
+    if let Some(bracketed) = authority.strip_prefix('[') {
+        let Some((host, remainder)) = bracketed.split_once(']') else {
+            return false;
+        };
+        return host.parse::<std::net::Ipv6Addr>().is_ok()
+            && (remainder.is_empty() || valid_origin_port(remainder));
+    }
+    let (host, port) = authority
+        .split_once(':')
+        .map_or((authority, None), |(host, port)| (host, Some(port)));
+    let valid_host = host.parse::<std::net::Ipv4Addr>().is_ok()
+        || (!host.is_empty()
+            && host.split('.').all(|label| {
+                !label.is_empty()
+                    && !label.starts_with('-')
+                    && !label.ends_with('-')
+                    && label.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+                    })
+            }));
+    valid_host && port.is_none_or(|port| valid_origin_port(&format!(":{port}")))
+}
+
+fn valid_origin_port(value: &str) -> bool {
+    value
+        .strip_prefix(':')
+        .is_some_and(|port| port.parse::<u16>().is_ok_and(|number| number > 0))
 }
 
 async fn shutdown_signal() -> io::Result<()> {
@@ -786,6 +871,49 @@ fn required_path(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn wss_browser_origins_are_explicit_https_only() {
+        use super::{parse_origin_list, valid_https_origin};
+
+        let good = [
+            "https://example.com",
+            "https://sub.example.com:8443",
+            "https://127.0.0.1:443",
+            "https://[::1]:8443",
+        ];
+        for origin in good {
+            assert!(valid_https_origin(origin), "{origin}");
+        }
+        for origin in [
+            "",
+            "null",
+            "http://example.com",
+            "https://example.com/",
+            "https://example.com/path",
+            "https://example.com?q=1",
+            "https://example.com#x",
+            "https://user@example.com",
+            "https://*.example.com",
+            "https://EXAMPLE.com",
+            "https://example.com:0",
+            "https://example.com:99999",
+            "https://example.com ",
+            "https://example.com,https://other.com",
+            "https://[::1",
+            "https://-bad.example",
+        ] {
+            assert!(!valid_https_origin(origin), "{origin}");
+        }
+        assert_eq!(
+            parse_origin_list("https://example.com,https://other.com")
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(parse_origin_list("https://example.com,https://example.com").is_err());
+        assert!(parse_origin_list("https://example.com,").is_err());
+        assert_eq!(parse_origin_list("").unwrap(), Vec::<String>::new());
+    }
     use super::{BrokerMode, ensure_state_profile, validate_open_lab_bind};
 
     #[tokio::test]

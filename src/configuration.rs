@@ -16,6 +16,7 @@ const KEYS: &[&str] = &[
     "MQTT_WS_BIND",
     "MQTT_WSS_BIND",
     "MQTT_WSS_REMOTE_ENABLED",
+    "MQTT_WSS_ALLOWED_ORIGINS",
     "MQTT_STATE_DIR",
     "MQTT_SERVER_CERT",
     "MQTT_SERVER_KEY",
@@ -134,6 +135,7 @@ impl Configuration {
                 ("MQTT_MONITOR_ENABLED", document.monitor.enabled),
             ],
         );
+        insert_wss_origins(&mut result.values, document.broker.wss_allowed_origins);
         for (name, value) in [
             ("MQTT_STATE_DIR", document.broker.state_dir),
             ("MQTT_SERVER_CERT", document.tls.server_cert),
@@ -349,6 +351,7 @@ struct Broker {
     ws_bind: Option<String>,
     wss_bind: Option<String>,
     wss_remote_enabled: Option<bool>,
+    wss_allowed_origins: Option<Vec<String>>,
     state_dir: Option<PathBuf>,
     server_keep_alive_seconds: Option<u16>,
     #[serde(default)]
@@ -430,12 +433,46 @@ fn insert_bool_values<const N: usize>(
     }
 }
 
+fn insert_wss_origins(values: &mut BTreeMap<String, OsString>, origins: Option<Vec<String>>) {
+    if let Some(origins) = origins {
+        values.insert(
+            "MQTT_WSS_ALLOWED_ORIGINS".to_owned(),
+            origins.join(",").into(),
+        );
+    }
+}
+
 fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn wss_origin_list_toml_and_environment_precedence() {
+        let text = "version=1\n[broker]\nwss_bind='127.0.0.1:8443'\nwss_allowed_origins=['https://a.example', 'https://b.example:8443']";
+        let config = Configuration::parse(text, Path::new(".")).unwrap();
+        assert_eq!(
+            config.var("MQTT_WSS_ALLOWED_ORIGINS").unwrap(),
+            "https://a.example,https://b.example:8443"
+        );
+        let mut overridden = config;
+        overridden.values.insert(
+            "MQTT_WSS_ALLOWED_ORIGINS".to_owned(),
+            "https://override.example".into(),
+        );
+        assert_eq!(
+            overridden.var("MQTT_WSS_ALLOWED_ORIGINS").unwrap(),
+            "https://override.example"
+        );
+        assert!(
+            Configuration::parse(
+                "version=1\n[broker]\nwss_allowed_origins='https://a.example'",
+                Path::new(".")
+            )
+            .is_err()
+        );
+    }
     #[test]
     fn remote_wss_setting_is_boolean_and_overridable() {
         let text = "version=1\n[broker]\nwss_bind='0.0.0.0:8443'\nwss_remote_enabled=true";

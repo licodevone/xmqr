@@ -15,7 +15,8 @@ O listener aceita somente TLS com certificado de cliente obrigatório. A cadeia 
 - `MQTT_SERVER_KEY` — chave privada PEM do servidor, com permissões restritas.
 - `MQTT_CLIENT_CA` — CA raiz/intermediária confiável para dispositivos.
 - `MQTT_CLIENT_CRL` — CRL PEM opcional; sem ela não há informação offline de revogação.
-- `MQTT_WSS_BIND` — listener MQTT sobre WSS opcional em IP loopback e porta própria, somente `secure-mtls`; `broker.wss_bind` no TOML é equivalente. Para bind fora de loopback, use `MQTT_WSS_REMOTE_ENABLED=true` ou `broker.wss_remote_enabled=true`, preservando mTLS, credenciais e ACL. Handshakes com `Origin` são recusados.
+- `MQTT_WSS_BIND` — listener MQTT sobre WSS opcional em IP loopback e porta própria, somente `secure-mtls`; `broker.wss_bind` no TOML é equivalente. Para bind fora de loopback, use `MQTT_WSS_REMOTE_ENABLED=true` ou `broker.wss_remote_enabled=true`, preservando mTLS, credenciais e ACL. Handshakes com `Origin` são recusados por padrão.
+- `MQTT_WSS_ALLOWED_ORIGINS` — lista opcional, separada por vírgula, de até 16 origens HTTPS exatas (por exemplo `https://painel.exemplo:8443`), apenas com WSS mTLS. Em TOML, use `broker.wss_allowed_origins = ["https://painel.exemplo:8443"]`. Sem lista, `Origin` é recusado. Origem não autentica o usuário: certificado cliente, CONNECT com credenciais e ACL continuam necessários. Esta opção P216 está em validação em `main` e não integra a release 0.41.0.
 - `RUST_LOG` — nível de logs, por exemplo `info`.
 
 ## Controles implementados

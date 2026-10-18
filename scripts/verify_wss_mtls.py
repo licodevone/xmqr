@@ -86,9 +86,9 @@ def handshake(stream, port, *, path="/mqtt", protocol="mqtt", origin=None):
     return bytes(response)
 
 
-def authenticated_ws(root, port, version, password, client_id):
+def authenticated_ws(root, port, version, password, client_id, *, origin=None):
     stream = secure_socket(root, port)
-    assert handshake(stream, port).startswith(b"HTTP/1.1 101")
+    assert handshake(stream, port, origin=origin).startswith(b"HTTP/1.1 101")
     send_frame(stream, 2, connect_packet(version, client_id, b"device", password))
     reply = mqtt_packet(stream, bytearray())
     assert reply[0] == 0x20 and reply[2:4] == b"\x00\x00", reply
@@ -209,6 +209,49 @@ def check_rejections(root, port, password):
                 raise AssertionError(f"invalid TLS client accepted: {kwargs}, {reply!r}")
         except (ssl.SSLError, OSError, EOFError):
             pass
+
+
+def check_browser_origin(root, port, password):
+    allowed = "https://browser.example"
+    for origin in ("https://other.example", "https://browser.example/", "null"):
+        with secure_socket(root, port) as stream:
+            assert handshake(stream, port, origin=origin).startswith(b"HTTP/1.1 400")
+    for version in (4, 5):
+        subscriber = authenticated_ws(root, port, version, password,
+                                      b"p216-browser-sub", origin=allowed)
+        publisher = authenticated_ws(root, port, version, password,
+                                     b"p216-browser-pub", origin=allowed)
+        try:
+            topic = b"p212/allowed"
+            subscribe = b"\x00\x01" + (b"\x00" if version == 5 else b"")
+            subscribe += len(topic).to_bytes(2, "big") + topic + b"\x00"
+            send_frame(subscriber, 2, b"\x82" + bytes([len(subscribe)]) + subscribe)
+            assert mqtt_packet(subscriber, bytearray())[-1] == 0
+            payload = b"browser-origin-" + str(version).encode()
+            body = len(topic).to_bytes(2, "big") + topic
+            if version == 5:
+                body += b"\x00"
+            body += payload
+            send_frame(publisher, 2, b"\x30" + bytes([len(body)]) + body)
+            assert mqtt_packet(subscriber, bytearray()).endswith(payload)
+        finally:
+            subscriber.close()
+            publisher.close()
+    denied = authenticated_ws(root, port, 5, password,
+                              b"p216-browser-acl", origin=allowed)
+    try:
+        topic = b"p212/denied"
+        subscribe = b"\x00\x02\x00" + len(topic).to_bytes(2, "big") + topic + b"\x00"
+        send_frame(denied, 2, b"\x82" + bytes([len(subscribe)]) + subscribe)
+        assert mqtt_packet(denied, bytearray())[-1] == 0x87
+    finally:
+        denied.close()
+    try:
+        with secure_socket(root, port, certificate=False) as stream:
+            handshake(stream, port, origin=allowed)
+            raise AssertionError("allowed Origin bypassed client certificate")
+    except (ssl.SSLError, OSError, EOFError):
+        pass
 
 
 def check_admission(root, port, tcp_port, password):
@@ -362,6 +405,10 @@ def main():
             {"MQTT_WSS_BIND": f"0.0.0.0:{port}", "MQTT_WSS_REMOTE_ENABLED": "false"},
             {"MQTT_WSS_BIND": f"0.0.0.0:{port}", "MQTT_WSS_REMOTE_ENABLED": "true",
              "MQTT_MODE": "open-lab"},
+            {"MQTT_WSS_ALLOWED_ORIGINS": "http://browser.example"},
+            {"MQTT_WSS_ALLOWED_ORIGINS": "https://*.example"},
+            {"MQTT_WSS_ALLOWED_ORIGINS": "https://browser.example/"},
+            {"MQTT_WSS_ALLOWED_ORIGINS": "https://browser.example,https://browser.example"},
         ):
             rejected = subprocess.run([str(broker_bin)], env=dict(environment, **override),
                                       capture_output=True, timeout=5)
@@ -369,6 +416,10 @@ def main():
         no_remote_bind = dict(environment, MQTT_WSS_REMOTE_ENABLED="true")
         no_remote_bind.pop("MQTT_WSS_BIND")
         assert subprocess.run([str(broker_bin)], env=no_remote_bind,
+                              capture_output=True, timeout=5).returncode != 0
+        no_wss_origin = dict(environment, MQTT_WSS_ALLOWED_ORIGINS="https://browser.example")
+        no_wss_origin.pop("MQTT_WSS_BIND")
+        assert subprocess.run([str(broker_bin)], env=no_wss_origin,
                               capture_output=True, timeout=5).returncode != 0
         log_path = root / "broker.log"
         with log_path.open("wb") as log:
@@ -425,10 +476,46 @@ def main():
                 if broker.poll() is None:
                     broker.kill()
                     broker.wait(timeout=8)
+        browser_env = dict(environment, MQTT_STATE_DIR=str(root / "browser-state"),
+                           MQTT_WSS_ALLOWED_ORIGINS="https://browser.example")
+        with log_path.open("ab") as log:
+            broker = subprocess.Popen([str(broker_bin)], env=browser_env,
+                                      stdout=log, stderr=log)
+            try:
+                wait_port(broker, port)
+                check_browser_origin(root, port, password)
+                check_mqtt(root, port, tcp_port, password)
+                broker.send_signal(signal.SIGTERM)
+                assert broker.wait(timeout=8) == 0
+            finally:
+                if broker.poll() is None:
+                    broker.kill()
+                    broker.wait(timeout=8)
+        (root / "browser.toml").write_text(
+            'version=1\n[broker]\n'
+            f'wss_bind="127.0.0.1:{port}"\n'
+            'wss_allowed_origins=["https://browser.example"]\n')
+        toml_env = dict(environment, MQTT_CONFIG=str(root / "browser.toml"),
+                        MQTT_STATE_DIR=str(root / "browser-toml-state"))
+        toml_env.pop("MQTT_WSS_BIND")
+        with log_path.open("ab") as log:
+            broker = subprocess.Popen([str(broker_bin)], env=toml_env,
+                                      stdout=log, stderr=log)
+            try:
+                wait_port(broker, port)
+                with authenticated_ws(root, port, 5, password,
+                                      b"p216-toml", origin="https://browser.example"):
+                    pass
+                broker.send_signal(signal.SIGTERM)
+                assert broker.wait(timeout=8) == 0
+            finally:
+                if broker.poll() is None:
+                    broker.kill()
+                    broker.wait(timeout=8)
     print("P212_WSS_MTLS_WIRE_PASS" +
           (" C114_CLIENT_CROSS_PASS" if args.client else "") +
           (" C116_PROFILE_BROKER_PASS" if args.profile_client else "") +
-          " P214_REMOTE_OPT_IN_PASS")
+          " P214_REMOTE_OPT_IN_PASS P216_BROWSER_ORIGIN_PASS")
 
 
 if __name__ == "__main__":

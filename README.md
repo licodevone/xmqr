@@ -1,5 +1,12 @@
 # XMQR
 
+P216 em `main`, ainda em validação após a prerelease 0.41.0, introduz
+`MQTT_WSS_ALLOWED_ORIGINS=https://painel.exemplo` (ou lista TOML
+`broker.wss_allowed_origins`) somente para WSS mTLS. Sem lista, `Origin`
+continua recusado; a origem autorizada não substitui certificado cliente,
+usuário/senha ou ACL. O WS `open-lab` continua recusando `Origin`.
+[Prompt P216](prompts/broker/216-wss-browser-origin-allowlist.md).
+
 A prerelease experimental 0.41.0 inclui P214: WSS mTLS
 fora de loopback somente com `MQTT_WSS_BIND` remoto e
 `MQTT_WSS_REMOTE_ENABLED=true` (ou campos TOML equivalentes). A mesma

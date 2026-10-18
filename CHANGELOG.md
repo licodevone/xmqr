@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Não publicado — P216 em validação
+
+- WSS mTLS pode aceitar `Origin` de navegador somente se constar em lista HTTPS exata configurada; lista ausente/vazia mantém recusa. WS aberto, certificado cliente, credenciais MQTT e ACL não são relaxados. Ainda não integra a release 0.41.0.
+
 ## 0.41.0 — WSS mTLS remoto explícito (experimental)
 
 - P214 introduz opt-in separado para bind WSS mTLS fora de loopback, mantendo política mTLS/ACL e recusa de `Origin`; acesso por navegador não está incluído.

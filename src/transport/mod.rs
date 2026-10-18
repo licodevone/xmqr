@@ -335,6 +335,7 @@ pub struct WebSocketLabTransport {
 pub struct WebSocketSecureTransport {
     listener: TcpListener,
     tls_config: watch::Receiver<Arc<ServerConfig>>,
+    allowed_origins: Arc<Vec<String>>,
     connection_slots: Arc<Semaphore>,
     next_connection_id: Arc<AtomicU64>,
     metrics: Option<Arc<Metrics>>,
@@ -390,6 +391,7 @@ impl SecureTransport {
         &self,
         address: SocketAddr,
         remote_enabled: bool,
+        allowed_origins: Vec<String>,
     ) -> io::Result<WebSocketSecureTransport> {
         if !self.require_client_certificate
             || address.ip().is_loopback() == remote_enabled
@@ -404,6 +406,7 @@ impl SecureTransport {
         Ok(WebSocketSecureTransport {
             listener: TcpListener::bind(address).await?,
             tls_config: self.tls_config.clone(),
+            allowed_origins: Arc::new(allowed_origins),
             connection_slots: Arc::clone(&self.connection_slots),
             next_connection_id: Arc::clone(&self.next_connection_id),
             metrics: self.metrics.clone(),
@@ -806,6 +809,7 @@ impl WebSocketSecureTransport {
                 continue;
             }
             let tls_acceptor = TlsAcceptor::from(self.tls_config.borrow().clone());
+            let allowed_origins = Arc::clone(&self.allowed_origins);
             let client_handler = handler.clone();
             let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
             let metrics = self.metrics.clone();
@@ -817,6 +821,7 @@ impl WebSocketSecureTransport {
                         peer_addr,
                         socket,
                         tls_acceptor,
+                        allowed_origins,
                     )
                     .await?;
                     client_handler(connection)
@@ -849,7 +854,7 @@ async fn establish_websocket_connection(
     peer_addr: SocketAddr,
     socket: TcpStream,
 ) -> Result<BrokerConnection, ClientError> {
-    let mut stream = accept_mqtt_websocket(socket).await?;
+    let mut stream = accept_mqtt_websocket(socket, Arc::new(Vec::new())).await?;
     let initial_mqtt_bytes = read_initial_websocket_mqtt(&mut stream).await?;
     info!(id, %peer_addr, "OPEN LAB WebSocket MQTT transport established without TLS");
     Ok(BrokerConnection {
@@ -866,6 +871,7 @@ async fn establish_secure_websocket_connection(
     peer_addr: SocketAddr,
     socket: TcpStream,
     tls_acceptor: TlsAcceptor,
+    allowed_origins: Arc<Vec<String>>,
 ) -> Result<BrokerConnection, ClientError> {
     let tls_stream = timeout(INITIAL_IO_TIMEOUT, tls_acceptor.accept(socket))
         .await
@@ -879,7 +885,7 @@ async fn establish_secure_websocket_connection(
     if peer_certificates.is_empty() {
         return Err(ClientError::MissingPeerCertificate);
     }
-    let mut stream = accept_mqtt_websocket(tls_stream).await?;
+    let mut stream = accept_mqtt_websocket(tls_stream, allowed_origins).await?;
     let initial_mqtt_bytes = read_initial_websocket_mqtt(&mut stream).await?;
     info!(id, %peer_addr, "mTLS WebSocket MQTT transport established");
     Ok(BrokerConnection {
@@ -892,15 +898,18 @@ async fn establish_secure_websocket_connection(
 }
 
 #[allow(clippy::result_large_err)] // tungstenite fixes the handshake callback's HTTP error type.
-async fn accept_mqtt_websocket<S>(socket: S) -> Result<WsStream<TokioAdapter<S>>, ClientError>
+async fn accept_mqtt_websocket<S>(
+    socket: S,
+    allowed_origins: Arc<Vec<String>>,
+) -> Result<WsStream<TokioAdapter<S>>, ClientError>
 where
     S: AsyncRead + AsyncWrite + Send + Unpin,
 {
-    let callback = |request: &Request, mut response: Response| {
+    let callback = move |request: &Request, mut response: Response| {
         let protocol = request.headers().get("Sec-WebSocket-Protocol");
         if request.uri().path() != "/mqtt"
             || request.uri().query().is_some()
-            || request.headers().contains_key("Origin")
+            || !origin_permitted(request, &allowed_origins)
             || protocol.is_none_or(|value| value != "mqtt")
         {
             return Err(http::Response::builder()
@@ -925,6 +934,17 @@ where
     .map_err(|_| ClientError::HandshakeTimeout)?
     .map_err(|_| ClientError::WebSocketHandshake)?;
     Ok(WsStream::new(websocket))
+}
+
+fn origin_permitted(request: &Request, allowed_origins: &[String]) -> bool {
+    let mut origins = request.headers().get_all("Origin").iter();
+    let Some(origin) = origins.next() else {
+        return true;
+    };
+    origins.next().is_none()
+        && origin
+            .to_str()
+            .is_ok_and(|value| allowed_origins.iter().any(|allowed| allowed == value))
 }
 
 async fn read_initial_websocket_mqtt<S>(
@@ -1214,7 +1234,39 @@ fn load_crls(path: &Path) -> Result<Vec<CertificateRevocationListDer<'static>>, 
 
 #[cfg(test)]
 mod tests {
-    use super::{OpenLabTransport, TransportLimits};
+    #[test]
+    fn websocket_origin_header_is_single_and_exact() {
+        let allowed = vec!["https://browser.example".to_owned()];
+        let request = |origins: &[&str]| {
+            let mut builder = http::Request::builder().uri("/mqtt");
+            for origin in origins {
+                builder = builder.header("Origin", *origin);
+            }
+            builder.body(()).unwrap()
+        };
+        assert!(origin_permitted(&request(&[]), &allowed));
+        assert!(origin_permitted(
+            &request(&["https://browser.example"]),
+            &allowed
+        ));
+        assert!(!origin_permitted(
+            &request(&["https://browser.example"]),
+            &[]
+        ));
+        assert!(!origin_permitted(
+            &request(&["https://other.example"]),
+            &allowed
+        ));
+        assert!(!origin_permitted(
+            &request(&["https://browser.example/"]),
+            &allowed
+        ));
+        assert!(!origin_permitted(
+            &request(&["https://browser.example", "https://browser.example"]),
+            &allowed
+        ));
+    }
+    use super::{OpenLabTransport, TransportLimits, http, origin_permitted};
     use std::{
         io,
         pin::Pin,
