@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 
-from verify_phase6_acceptance import classify, execute, failure_diagnostic, fixtures, verify_versions
+from verify_phase6_acceptance import classify, execute, failure_diagnostic, fixtures, inspect_legacy, legacy_inputs, verify_versions
 
 
 class AcceptanceContracts(unittest.TestCase):
@@ -71,6 +71,38 @@ class AcceptanceContracts(unittest.TestCase):
                          ("FAIL", "success_marker_missing"))
         self.assertEqual(classify(0, "FIRST_PASS\nLAST_PASS\n", ["FIRST_PASS", "LAST_PASS"]),
                          ("PASS", None))
+
+    def test_real_migrations_require_explicit_separate_inputs(self):
+        rows = {row["file"]: row for row in fixtures(Path(__file__).resolve().parents[1])}
+        self.assertNotIn("../../xmqr-admin/scripts/verify_core_028_state_v15.py", rows)
+        for filename, role, flag in (
+            ("../../xmqr-admin/scripts/verify_core_v16_expiry.py", "legacy_broker", "--legacy-broker"),
+            ("../../xmqr-client/scripts/verify_c129_v1_migration.py", "legacy_client", "--legacy-client"),
+        ):
+            row = rows[filename]
+            self.assertEqual(row["phase"], "6B")
+            self.assertEqual(legacy_inputs(row, {}), [role])
+            self.assertEqual(legacy_inputs(row, {role: Path("explicit-legacy")}), [])
+            self.assertEqual(row["arguments"][row["arguments"].index(flag) + 1], "{" + role + "}")
+        for row in rows.values():
+            if row["phase"] != "6B":
+                self.assertEqual(legacy_inputs(row, {}), [])
+
+    def test_missing_legacy_is_not_silently_replaced_by_current(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(FileNotFoundError):
+                inspect_legacy(Path(directory) / "missing")
+
+    @unittest.skipUnless(os.name == "posix", "executable script fixture requires Linux/WSL")
+    def test_legacy_version_is_identified_not_matched_to_current_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "legacy"
+            path.write_text("#!/bin/sh\nprintf 'legacy 0.1.0\\n'\n")
+            path.chmod(0o700)
+            resolved, info = inspect_legacy(path)
+            self.assertEqual(resolved, path.resolve())
+            self.assertEqual(info["version"], "legacy 0.1.0")
+            self.assertEqual(len(info["sha256"]), 64)
 
     def test_explicit_candidate_label_is_present_for_required_harnesses(self):
         rows = {row["file"]: row for row in fixtures(Path(__file__).resolve().parents[1])}

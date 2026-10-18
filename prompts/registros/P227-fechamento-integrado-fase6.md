@@ -145,3 +145,19 @@ As correções foram enviadas aGitHubmain, preservandoC128dirty no original.
 C131 prepara client038 em clone/branchseparados: nenhuma release038 é
 anunciada como existente só por essa preparação. E/admin16 permanecem
 abertos, de modo que esta campanha ainda não encerra a fase6.
+
+## Executor v16 — entradas legadas explícitas
+
+P227v1.10 precedeu a integração de A21 e da migração real do journalC129.
+O registro corrente preserva o script históricoA19, mas exige a fixtureA21
+para formato16. --legacy-broker e --legacy-client são obrigatórios nos
+respectivos gates6B: ausência resultaBLOCKED, sem fallback para binário
+corrente ou interferir nas seleções6A/6C/6D. Versão/SHA legados são registrados
+separadamente e conferidos ao término, sem exigir versão igual ao manifesto.
+
+Contratos do executor:19/19PASS em0,237s, Python3.14 Ubuntu26.04/WSL,
+incluindo ausência de entrada, versão antiga independente e argumentos dos
+harnesses. Isto não é execução de A21 nem da migração wire. Campanha final
+aguarda coreE congelado, admin pinado compatível e fonteC131 com teardown
+corrigido: seu CI anterior confirmou dados MQTT mas falhou ao remover pasta
+antes de encerrar filho, não pode ser tratado como aprovação da distribuição.

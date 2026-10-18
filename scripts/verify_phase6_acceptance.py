@@ -136,14 +136,22 @@ def fixtures(root):
         {"file": "../../xmqr-admin/scripts/verify_channel_cli.py", "phase": "6D",
          "arguments": ["--broker", "{broker}", "--admin", "{independent_admin}"],
          "expected_marker": "CHANNEL_CLI_PASS", "timeout_seconds": 180},
-        {"file": "../../xmqr-admin/scripts/verify_core_028_state_v15.py", "phase": "6B", "arguments": [],
-         "expected_marker": "A19_V15_PASS", "timeout_seconds": 120},
+        {"file": "../../xmqr-admin/scripts/verify_core_v16_expiry.py", "phase": "6B",
+         "arguments": ["--broker", "{broker}", "--admin", "{independent_admin}",
+                       "--legacy-broker", "{legacy_broker}", "--report", "{admin_v16_report}"],
+         "required_legacy": ["legacy_broker"],
+         "expected_marker": "A21_CORE_V16_EXPIRY_PASS", "timeout_seconds": 180},
         {"file": "../../xmqr-client/scripts/verify_subscription_inbound_journal_mqtt5.py", "phase": "6B",
          "arguments": ["--client", "{client}", "--report", "{inbound_report}"],
          "expected_marker": "C129_INBOUND_JOURNAL_PASS", "timeout_seconds": 120},
         {"file": "../../xmqr-client/scripts/verify_c129_compatibility.py", "phase": "6B",
          "arguments": ["--client", "{client}", "--report", "{inbound_compat_report}"],
          "expected_marker": "C129_COMPATIBILITY_PASS", "timeout_seconds": 240},
+        {"file": "../../xmqr-client/scripts/verify_c129_v1_migration.py", "phase": "6B",
+         "arguments": ["--client", "{client}", "--legacy-client", "{legacy_client}",
+                       "--report", "{inbound_migration_report}"],
+         "required_legacy": ["legacy_client"],
+         "expected_marker": "C129_V1_MIGRATION_PASS", "timeout_seconds": 120},
     ])
     for item in result:
         if item["file"] in ("verify_mqtt5_plain_auth.py", "verify_mqtt5_reauth.py"):
@@ -323,10 +331,28 @@ def external_provenance():
     return result
 
 
+def legacy_inputs(fixture, paths):
+    """Optional CLI inputs become mandatory only for their selected fixtures."""
+    return [role for role in fixture.get("required_legacy", []) if not paths.get(role)]
+
+
+def inspect_legacy(path):
+    path = path.resolve(strict=True)
+    if not path.is_file():
+        raise RuntimeError("legacy_input_not_file")
+    before = digest(path)
+    version = subprocess.check_output([str(path), "--version"], text=True, timeout=5).strip()
+    if digest(path) != before:
+        raise RuntimeError("legacy_input_changed_during_inspection")
+    return path, {"version": version, "sha256": before}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--phase", choices=("all", "6A", "6B", "6C", "6D"), default="all")
+    parser.add_argument("--legacy-broker", type=Path)
+    parser.add_argument("--legacy-client", type=Path)
     args = parser.parse_args()
     if os.name != "posix" or sys.flags.optimize:
         parser.error("Linux/WSL with Python assertions enabled is required")
@@ -348,8 +374,20 @@ def main():
         stage = "preflight"
         binaries, info = preflight(root)
         report.update(sources=before, binaries=info, external_tools=external_provenance())
+        selected = [fixture for fixture in fixtures(root)
+                    if args.phase == "all" or fixture["phase"] == args.phase]
+        legacy_paths = {"legacy_broker": args.legacy_broker, "legacy_client": args.legacy_client}
+        required = {role for fixture in selected for role in fixture.get("required_legacy", [])}
+        legacy_info = {}
+        for role in sorted(required):
+            if legacy_paths[role] is not None:
+                legacy_paths[role], legacy_info[role] = inspect_legacy(legacy_paths[role])
+        report["legacy_binaries"] = legacy_info
         replacements = {name: str(path.resolve()) for name, path in binaries.items()}
+        replacements.update({role: str(path) for role, path in legacy_paths.items() if path is not None})
         replacements.update(vbi_report=str(args.report.with_name(args.report.stem + "-vbi.json").resolve()),
+                            admin_v16_report=str(args.report.with_name(args.report.stem + "-admin-v16.json").resolve()),
+                            inbound_migration_report=str(args.report.with_name(args.report.stem + "-inbound-migration.json").resolve()),
                             paho_alias_report=str(args.report.with_name(args.report.stem + "-paho-alias.json").resolve()),
                             control_progress_report=str(args.report.with_name(args.report.stem + "-control-progress.json").resolve()),
                             inbound_report=str(args.report.with_name(args.report.stem + "-inbound.json").resolve()),
@@ -360,12 +398,14 @@ def main():
         environment = {key: value for key, value in os.environ.items()
                        if not key.startswith("MQTT_") and key not in ("PYTHONOPTIMIZE",)}
         environment.update(TMPDIR="/var/tmp", PYTHONDONTWRITEBYTECODE="1")
-        for fixture in fixtures(root):
-            if args.phase != "all" and fixture["phase"] != args.phase:
-                continue
+        for fixture in selected:
             row = {"file": fixture["file"], "phase": fixture["phase"]}
             stage = "fixture:" + fixture["file"]
             report["scenarios"].append(row)
+            missing = legacy_inputs(fixture, legacy_paths)
+            if missing:
+                row.update(status="BLOCKED", reason="missing_explicit_legacy_input", missing_roles=missing)
+                continue
             source = root / "scripts" / fixture["file"]
             if not source.is_file():
                 row.update(status="BLOCKED", reason="missing_fixture")
@@ -393,8 +433,10 @@ def main():
         after = provenance(root)
         report["source_unchanged"] = after == before
         report["binaries_unchanged"] = all(digest(path) == info[role]["sha256"] for role, path in binaries.items())
+        report["legacy_binaries_unchanged"] = all(
+            digest(legacy_paths[role]) == value["sha256"] for role, value in legacy_info.items())
         statuses = {row["status"] for row in report["scenarios"]}
-        report["status"] = ("FAIL" if "FAIL" in statuses or not report["source_unchanged"] or not report["binaries_unchanged"]
+        report["status"] = ("FAIL" if "FAIL" in statuses or not report["source_unchanged"] or not report["binaries_unchanged"] or not report["legacy_binaries_unchanged"]
                             else "BLOCKED" if "BLOCKED" in statuses else "PASS" if statuses else "FAIL")
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         report.update(status="BLOCKED", error_type=type(error).__name__, error_stage=stage,
