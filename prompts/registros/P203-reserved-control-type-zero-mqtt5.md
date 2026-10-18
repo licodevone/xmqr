@@ -1,0 +1,7 @@
+# P203 — tipo de controle reservado zero no MQTT 5
+
+- [Prompt P203](../broker/203-reserved-control-type-zero-mqtt5.md) criado e enviado antes do código (`2c3abd4`). Revisão de implementação `25ed619a9f50d8b735e77c21c57f704cf45766c1` enviada a `main`; broker publicado permanece em 0.36.0, sem tag/release isolada.
+- O decoder MQTT 5 classifica `0x00`–`0x0f` como estrutura malformada antes de ler o corpo. O tratamento existente responde DISCONNECT `0x81` após CONNACK e encerra. MQTT 3.1.1 mantém a recusa anterior. [OASIS MQTT 5.0 §2.1.2 e §4.13](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html) reserva o tipo zero e especifica o fechamento com motivo adequado; `0x81` é a classificação adotada para pacote malformado.
+- Unitário com `0x00`/`0x0f`, corpo vazio/não vazio e regressão MQTT 3.1.1 PASS. Fixture TCP com broker real PASS (`P203_RESERVED_CONTROL_PASS`): DISCONNECT `0x81`, fechamento, Will entregue, cliente 3.1.1 fechado sem novo motivo, conexão normal posterior com PINGREQ e publicação. Regressão P201 PASS.
+- Ubuntu 26.04/WSL: fmt, suíte Rust completa (224 testes de biblioteca; 6 campanhas explicitamente ignoradas), Clippy `-D warnings`, build release, inventário de licenças e seis contratos de distribuição PASS. [CI da fonte exata](https://github.com/licodevone/xmqr/actions/runs/39107787015) PASS em `rust` e `ubuntu-package`, incluindo o novo ensaio TCP.
+- Escopo parcial 6A. Outros cabeçalhos reservados, matriz normativa completa, Windows nativo, Ubuntu 24.04/arm64 e fases globais 6A–6D/7–9 permanecem abertos.
