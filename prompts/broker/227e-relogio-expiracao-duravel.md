@@ -1,4 +1,4 @@
-# P227E v1.0 — relógio lógico e expiração durável sem renovar TTL
+# P227E v1.1 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -95,3 +95,20 @@ Principal faz gates completos, wire e distribuição após congelar fonte/ELF.
 Não alterar codec, CI, Cargo/versão, bridge/C129 alheios, hardware/firewall,
 tags/push/release nesta implementação. MIT/terceiros preservados; registrar
 PASS/FAIL/BLOCKED e limitações sem promover evidência histórica.
+
+## Revisão v1.1 após RED, antes do fix e dos novos inicializadores
+
+Prompt inicial commitado fc3b40a. Extraído o cálculo existente para módulo
+clock com fonte sintética por instância e comportamento inicial UTC-only,
+sem watermark/progresso monotônico aplicado ainda. RED unitário real, não
+wire nem relógio host: cargo test --locked --lib p227e_ -j1 resultou3FAIL
+de asserção/exit1 em0,02s após64s de compilação; live/restore retornaram19
+em vez de6 e salto adiante seguido de recuo retornou10 em vez de0.
+Dois avisos temporários de campo/construtor ainda não integrados não são
+PASS de Clippy. Nenhum dado do operador foi lido ou relógio alterado.
+
+Agora integrar a correção. Coordenador autorizou adicionalmente somente os
+inicializadores mecânicos de StoredMessage em codec.rs e fuzz_tests.rs,
+com expiry_interval_seconds:None, necessários ao novo campo. Parser,
+framing e testes P227D não mudam. Will pendente continua sem intervalo no
+StoredMessage até will_publication criar prazo+intervalo no instante certo.
