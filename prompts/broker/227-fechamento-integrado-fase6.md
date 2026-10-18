@@ -1,4 +1,4 @@
-# P227 v1.7 — concluir a fase 6 de MQTT 5
+# P227 v1.8 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -196,3 +196,14 @@ gitWSLdirty vs gitWindowsclean nos clones Windows. A opção por chamada
 core.autocrlf=true resolveu o status sem diff real de fonte; alinhar só
 configuração Git local dos clones de teste ao checkoutWindows, preservando
 detecção de mudanças reais e sem configurar global/alterar árvore do operador.
+
+## Revisão 1.8 — retorno real dos contratos do executor
+
+Primeira tentativa de testes adicionais não iniciou Python por falha de
+conexão WSL/Service/0x8007274c; nenhuma reinicialização/configuração feita.
+Repetição segura executou14testes:13PASS/1FAIL. O FAIL esperava motivo
+success_marker_missing para NOT_P227_PASS, que agora é corretamente
+rejeitado antes por negative_marker_present. Atualizar somente a expectativa
+do diagnóstico; manter obrigatório statusFAIL. Repetir todos os contratos.
+Mapear markers específicos reais, inclusive duas linhas cross/sessions e
+variante retain_handling sem homologar Mosquitto ausente por opt-in.
