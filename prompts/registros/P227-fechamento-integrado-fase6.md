@@ -168,3 +168,23 @@ do seletor do ambiente dos filhos e proteção de captura emBaseException com
 kill/wait/close somente do grupo privado criado.21contratosPASS em0,342s,
 incluindo interrupção injetada com filho real próprio e repropagação de
 KeyboardInterrupt. Não foi consultado/alterado Mosquitto do operador.
+
+## Fullsuite P227E inicial — FAIL preservado
+
+Fonte runtime88906d63c4384961f7a9215945840905f3568b4d; comandoUbuntu26WSL
+cargo test --locked --offline -j1, Rust1.99, TMPDIR=/var/tmp. Compilação75s;
+lib66,69s:263PASS/8FAIL/6ignored, exit1. As seis campanhasfuzz ignoradas
+são opt-in históricas explícitas, não homologadas nesta execução. Cargo
+interrompeu apóslib, portanto integrações/binários posteriores NOT_RUN.
+
+Oito falhas em connect_contract_tests linha306 exigiam contador absoluto0;
+o startupP227E grava watermark antes do primeiro CONNECT, observado1. O
+contrato que continua obrigatório é ausência de commit adicional pelo
+CONNECT recusado, não substituir zero por um literal. OwnerE revisará prompt
+antes de capturar baseline após startup e repetir negativos/invariantes.
+
+Revisão independente também identificou possível corrida permit→descarte:
+prepare valida identidade durável, mas descarte posterior só porpacketID
+poderia remover nova obrigação após poda/reutilização. OwnerE recebeu pedido
+de reproduzirRED e corrigir descarte condicionado à mesma identidade. Nenhum
+resultado acima aceita essa corrida, encerra fase6 ou autoriza tag antecipada.
