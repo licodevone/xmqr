@@ -1,4 +1,4 @@
-# P228 v1.2 — distribuir broker0.43.0 e estado16
+# P228 v1.3 — distribuir broker0.43.0 e estado16
 
 Preparado em2026-10-18 antes de bump/build/publicação. Pedido vigente:
 concluir fase6 e distribuir broker, client e admin com prompts, testes,

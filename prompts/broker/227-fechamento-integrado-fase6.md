@@ -1,4 +1,4 @@
-# P227 v1.14 — concluir a fase 6 de MQTT 5
+# P227 v1.17 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -343,3 +343,18 @@ CHANGELOG, VERSIONING, SECURITY e nota 0.43.0. Distribuição P228B tem owner
 separado. Não editar Rust, dependências, bridge, serviços ou segredos nesta
 fatia. Se surgir falha nova, preservar evidência e revisar prompt antes de
 qualquer correção. Marcar a fase 6 somente depois da aceitação efetiva.
+
+## Revisão1.17 — registrar os peers efetivos da campanha remota
+
+Os13JSON do run39164217059 foram baixados e conferidos: brokerdb472bc,
+client040/501cde2ffbae6985f033ed8be60d9ad6dd8c18c4 e admin4483a35;
+69/69PASS169,757s, três verificaçõesunchanged=true. Portanto substituir a
+referência038 na tabela de seleção FINAL pelo client040 efetivamente
+compilado/exercitado na CI. Preservar Eall8 como campanha local038 distinta,
+sem atribuir seu tempo/ELF ao040. Não modificar inputs, fontes ou oráculos.
+
+O helper administrativod27d67d5 confere com4483. Hashes dos ELFs exercitados
+constam no build-provenance e coincidem com os do relatório. Antes da
+publicação, confirmar conclusãoSUCCESS do run (post-cache ainda em execução
+neste checkpoint). AnexarZIP somente dos13JSON validados, com checksum,
+sem diretório de estado. Registrar fonte e hashes dos artefatos publicados.
