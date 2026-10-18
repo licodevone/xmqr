@@ -1,4 +1,4 @@
-# P227 v1.11 — concluir a fase 6 de MQTT 5
+# P227 v1.12 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -245,3 +245,20 @@ propagado automaticamente aos descendentes. Proteger captura com limpeza
 em exceções BaseException, incluindo encerramento do grupo privado e pipes,
 antes de propagar interrupção. Testar com interrupção determinística e filho
 real próprio. Nenhum kill de serviço global ou processo não criado pelo gate.
+
+## Revisão1.12 — CI integrada rastreável com peers independentes
+
+Preparar workflow manual phase6-acceptance para executar o coordenador em
+Ubuntu26 descartável com Rust1.99, OpenSSL/Mosquitto e Paho2.1 isolado.
+Receber SHAs completos dos peers client/admin e legacies; validar formato
+antes de checkout, não interpolar inputs em comandos de shell. Os defaults
+legados são commits públicos históricos, nunca branch móvel. Checkouts
+ficam em integrations/ dentro do workspaceCI, três projetos com nomes que
+o executor espera e legacies separados. Não instalar nada no host do operador.
+
+Compilar fontes exatas para todos os binários exigidos e guardar manifesto
+ELF→commit/SHA/version, ferramentas e inputs. Executar contratos do runner,
+A21 e journal migration pelo agregador sem skip; salvar JSON sanitizado
+mesmo após FAIL. Inputs válidos não são aceite; workflow preparado é NOT_RUN
+até dispatch real e confirmação do run/artefatos. Nenhum placeholder ou
+commit clone/cherry-pick inexistente no GitHub pode substituir fonte pública.
