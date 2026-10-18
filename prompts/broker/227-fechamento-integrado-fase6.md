@@ -292,3 +292,23 @@ do coordenador; missingartefact é erro, não aviso. Falhas continuam com
 uploadalways dos relatórios parciais existentes. Testar seleção/AST e
 actionlint; repetir dispatch da fonte final com peeradmin corrigido2f3609f.
 Sem src/Cargo/ELF/serviços do operador alterados por esta correção de CI.
+
+## Revisão1.15 — raiz de estado nativa para as três fixtures de durabilidade
+
+O run integrado 39162215519 na fonte 1574ab9 concluiu 66/69 cenários
+PASS. VBI, aliasReason e sharedWill encerraram com exit2 antes de criar seus
+JSON. As três exigem `--state-root` em filesystem Linux nativo; no container
+Ubuntu26, `/var/tmp` é overlayfs (reprodução local), incompatível com o
+preflight dessas fixtures. Tratar essa causa como hipótese até o rerun.
+
+Antes de modificar o coordenador/workflow, registrar este FAIL e preservar
+seu artefato. Adicionar `--state-root` explícito ao coordenador, repassando-o
+somente às três fixtures e mantendo `/var/tmp` como default local. No CI,
+criar um diretório privativo dentro do workspace montado pelo host, verificar
+que `stat -f -c %T` retorna filesystem permitido e passar esse caminho ao
+coordenador. Falhar claramente se não houver filesystem nativo; nunca
+relaxar a exigência de disco durável nos oráculos ou alegar PASS por skip.
+
+Testar contratos e YAML; executar novamente os 69 cenários com os mesmos
+peers e legacies por SHA, baixar/validar os 13 JSON, registrar run/revisão,
+resultados e limitações. Só marcar 6A–6D após todos os gates exigidos PASS.
