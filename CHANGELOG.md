@@ -1,6 +1,10 @@
 # Histórico de versões
 
-## 0.40.0 — WSS mTLS local (candidato experimental)
+## Não publicado — teste cruzado C116
+
+- Fixture do broker cobre o perfil WSS mTLS local do client após a release 0.33.0. Sem alteração de runtime ou estado do broker 0.40.0.
+
+## 0.40.0 — WSS mTLS local (experimental)
 
 - WSS mTLS opt-in em loopback via `MQTT_WSS_BIND`/`broker.wss_bind`; quota, router, ACL e rotação TLS compartilhados com TCP. `Origin` recusado; client WSS, navegador e remoto pendentes. Sem migração de estado.
 
