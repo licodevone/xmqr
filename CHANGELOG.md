@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 0.38.0 — flags fixas MQTT 5 adicionais (experimental)
+
+- P207: CONNECT inicial com flags reservadas não zero recebe CONNACK `0x81` se o corpo comprova MQTT 5 e o limite permite a resposta; sem sessão/Will.
+- P208: PUBACK/PUBREC/PUBCOMP com flags reservadas não zero recebem DISCONNECT `0x81` antes do corpo.
+
+Estado durável v15 sem migração. Client independente 0.31.0 e admin independente 0.10.0 permanecem. Fases globais 6A–6D/7–9 continuam abertas.
+
 ## 0.37.0 — cabeçalhos MQTT 5 reservados (experimental)
 
 - P203: tipo de controle zero reservado após CONNACK recebe DISCONNECT `0x81`.

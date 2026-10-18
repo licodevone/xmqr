@@ -1,5 +1,14 @@
 # Versionamento
 
+## P209 — broker/admin legado 0.38.0 candidato, estado v15
+
+P207/P208 classificam CONNECT inicial e ACKs QoS com bits reservados MQTT 5.
+Sem migração; broker 0.37.0 e admin independente 0.10.0 leem v15. Client
+independente 0.31.0 permanece. Rollback exige backup privado; broker 0.28.0
+ou anterior requer backup v14. Tag, pacote, imagens e prerelease aguardam
+CI da fonte exata e gates de distribuição. [Nota candidata](docs/releases/0.38.0.md).
+Fases globais abertas.
+
 ## P206 — broker/admin legado 0.37.0 publicado, estado v15
 
 P203–P205 classificam tipo zero, AUTH com flags reservadas e corrigem P178
