@@ -72,3 +72,25 @@ O pacote selecionado para publicação deverá ser o da CI39164202189,
 fonte exata `db472bc64558bf0e376a902b7780a259247c5149`, com hashes e
 lifecycle repetidos pelo ownerP228B. A campanha global remota ainda está
 em execução; este registro não autoriza antecipar tag, Hub ou release.
+
+## Gates finais aceitos e início da publicação
+
+CI padrão39164202189 e CI integrada39164217059 SUCCESS na fonte congelada
+db472bc64558bf0e376a902b7780a259247c5149. Esta última exercitou client040 e
+admin011 em69fixturesPASS com13JSON baixados/conferidos; detalhes emP227.
+Broker/adminrelease do build-provenance da CI integrada coincidem com os
+ELFs1ee611b0/3081297f extraídos do pacote oficial da CI padrão.
+
+Pacote selecionado:2.953.782bytes,SHA256
+`c2341ab3a341b1854e85ebb2f0bec9535968374b226a12a60cee58aa7cef3d4e`.
+Lifecycle finalP228B:5etapasPASS27,3274s com pacote/sourceCI reais. Imagens
+Bookworm buildcache de runtime inalterado, VCS_REFdb, gatesmTLS/WSS/admin
+e166pacotes/323notices originaisPASS. IDs locais475b31c8/673a062c.
+
+Export original executado em checkout limpoEXATOdb, não na branch de merge:
+manifestoSHA256499c409f3d3a0b8bcbdfd2de9bb6d6b97dd7869d17fe7d1aef780b3146cb1859.
+Root repetiu comparações de tamanho/hash dos três artefatos do manifesto e
+rótulos/UID10001 das duas imagens. Oito anexos originais maisSHA256SUMS e
+ZIP13JSON/sidecar totalizam11anexos preparados, ainda sem anúncio remoto.
+Publicação foi liberada ao ownerP228B somente depois do SUCCESS final;
+reconferir tagGit/Hub/release antes de escrever e não moverlatest/tagsantigas.

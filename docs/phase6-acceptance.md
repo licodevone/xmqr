@@ -15,12 +15,12 @@ discrimina entradas, emissões, quotas e escolhas opcionais.
 | Componente | Fonte selecionada | Situação |
 | --- | --- | --- |
 | Broker e admin legado 0.43.0 | `db472bc64558bf0e376a902b7780a259247c5149` | [CI padrão PASS](https://github.com/licodevone/xmqr/actions/runs/39164202189); [CI integrada em execução](https://github.com/licodevone/xmqr/actions/runs/39164217059); release pendente |
-| Client 0.38.0, referência MQTT 5 | `fca6fc82117b7ee2b770dc2e4ce673b53764b211` | [Publicado com pacote e imagem](https://github.com/licodevone/xmqr-client/releases/tag/v0.38.0); journal inbound C129/C131 |
+| Client 0.40.0 | `501cde2ffbae6985f033ed8be60d9ad6dd8c18c4` | [Publicado com pacote e imagem](https://github.com/licodevone/xmqr-client/releases/tag/v0.40.0); SHA efetivamente compilado e exercitado na CI integrada |
 | Admin independente 0.11.0 | `4483a356196db93f99340bc7aa3b3cabfc4af810` | [Publicado](https://github.com/licodevone/xmqr-admin/releases/tag/v0.11.0); [CI exata PASS](https://github.com/licodevone/xmqr-admin/actions/runs/39143572778), compatibilidade A21 e distribuição A22 verificadas |
 
-O client [0.40.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.40.0)
-é uma entrega posterior da bridge. Não substitui silenciosamente o SHA do
-client usado nesta campanha. O admin fixa o core público `ba6ef50`; o diff
+O client0.40.0 mantém o journal inbound C129/C131 e acrescenta a bridge
+distribuída porC135; o aceite global da fase8 continua separado. O admin
+fixa o core público `ba6ef50`; o diff
 de `src`, Cargo e Docker até o candidato broker selecionado é vazio. Igualdade
 de versão, isoladamente, não prova equivalência das fontes.
 
@@ -36,7 +36,7 @@ de versão, isoladamente, não prova equivalência das fontes.
 Os números representam grupos de teste que podem se sobrepor. Não somar
 unitários filtrados, repetições ou casos internos ao total de 69 fixtures.
 
-Eall8 local: 198,043s, fontes db472bc/fca6fc8/4483a35 limpas e verificações
+Eall8 local com client0.38.0: 198,043s, fontes db472bc/fca6fc8/4483a35 limpas e verificações
 de fonte, binários e legados inalterados. SHA256 do relatório:
 `67a45f7bd68f56d47ebbb9b76654cb534d42e7cc19c636956ab35db4645a7f5e`.
 Broker/admin legado usam os ELFs extraídos do pacote CI39164202189; admin

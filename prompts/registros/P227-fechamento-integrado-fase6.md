@@ -331,3 +331,44 @@ helper à campanhaEall7 anterior. LegacybrokerDdca continua candidato042
 real de formato15, não o .deb público042; a campanhaCI compila separadamente
 a fonte pública histórica24d2198. O clientlegado109ec973 é a implementação
 draftv1 anterior, identificada separadamente. CI39164217059 ainda em execução.
+
+## CI final39164217059 — SUCCESS, evidências conferidas
+
+[Run da fonte exata](https://github.com/licodevone/xmqr/actions/runs/39164217059)
+completed/success. Build/gatesRust dos três projetos e builds legadosPASS
+(27min23s); contratos do coordenadorPASS; campanha **69/69PASS169,757s**;
+verificação dos13JSON e uploadPASS. Post-cache também terminou; não foi
+ignorado para antecipar a conclusão do run. Os gates usamRust1.99.0,
+Git2.53.0, Mosquitto2.0.22, OpenSSL3.5.5 e Pahooficialaf64a43.
+
+Fontes limpas observadas no manifesto baixado, não inferidas dos defaults:
+
+| Repositório | Commit |
+| --- | --- |
+| Broker043 | db472bc64558bf0e376a902b7780a259247c5149 |
+| Client040 | 501cde2ffbae6985f033ed8be60d9ad6dd8c18c4 |
+| Admin011 | 4483a356196db93f99340bc7aa3b3cabfc4af810 |
+| Clientlegado036/draftv1 | 235f20d097b674fadcbdf85d8c8f1c581ff1eba9 |
+| Brokerlegado042/estado15 | 24d219816fdac3e47115bcb2e59edd55b0c11407 |
+| Paho2.1.0 | af64a4365c6ac5a7a4d339e7b00f44df91353b35 |
+
+Não atribuir essa campanha ao client038 de Eall8 local. O helperA22d27d67d5
+foi conferido pelo hash rastreado. source_unchanged/binaries_unchanged/
+legacy_binaries_unchanged=true. Hashes dos ELFs exercitados conferem com
+build-provenance. Relatórios completos ficam no artifact12150812518,
+baixados em ../.artifacts/p227-ci-final-39164217059;13arquivos exatos,
+parseáveis/PASS, não simbólicos e menores que4MiB. Verificador independente
+root: P227_REMOTE_EVIDENCE_13_SOURCE_ELF_69_PASS.
+
+SHA256phase6.json:
+`fe2757b81cda6f77a98713e9944bcae2500c7eaaab5bbf4074de34b3ff4f1ec5`.
+O ZIP de release foi produzido SOMENTE desses13JSON, não do diretório de
+estado; nomes/bytes de todas as entradas reconferidos via streaming:
+`4066321fa7b021a709f3dde6207c5e4954f76a622ed355a4271f323a7438cadf`.
+SHA256SUMS dos cinco artefatos principaisPASS. Sem alegar que o ZIP criado
+localmente tem o digest do ZIP original do serviçoGitHub.
+
+M01–M10 cumprem o recorte funcional pelos gates disponíveis; distribuição
+broker043 está em publicaçãoP228. Só após conferência remota atualizar o
+checklist global. Eall6 e CI39162215519 continuamFAIL; novosPASS não os
+reescrevem nem provam causa de cada erro histórico.
