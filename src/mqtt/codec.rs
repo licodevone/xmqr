@@ -4393,7 +4393,10 @@ mod p227i_metadata_boundaries {
         properties: &[u8],
     ) -> Result<Packet, Box<dyn Error + Send + Sync>> {
         let (header, body) = body(context, properties);
-        decode_for(header, &body, true)
+        match context {
+            Context::Will => decode(header, &body),
+            _ => decode_for(header, &body, true),
+        }
     }
 
     fn assert_metadata(

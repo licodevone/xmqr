@@ -1,4 +1,4 @@
-# P227I — fronteiras exatas de metadados, testes preparados
+# P227I — fronteiras exatas de metadados, testes direcionados aprovados
 
 2026-10-18, Windows/PowerShell, Rustfmt1.9.0-stable. Entrada do prompt:
 broker0.42.0/HEAD1f25c4c, P227E88906d6 integrado; mod/router em trabalho E.
@@ -69,3 +69,55 @@ fronteiras, negativos e independência do oráculo, sem substituir os gates.
 Referências OASIS foram conferidas pelo link oficial do prompt, sem copiar
 texto normativo para o produto. Sem serviço, segredo, dado real, push/tag
 ou publicação. Commit/gates finais ficam coordenados com o mantenedor.
+
+## Revisão v1.1 — falha real do helper e correção mínima
+
+O checkpoint de preparação acima continua histórico, não foi convertido em
+PASS retroativo. A raiz integrou os nove grupos em cf6cef4 e executou o
+filtro:9testes,3PASS/6FAIL,compile2.07s/testes0.02s. Os seis grupos com Will
+falharam no controle positivo, codec4406 unwrap Err SecondConnect. O helper
+chamava decode_for(header,body,true): esse boolean representa conexão MQTT5
+já estabelecida, na qual CONNECT é corretamente recusado. Portanto foi um
+erro de contexto da fixture, não evidência de bug do parser nos metadados.
+
+Promptv1.1 em c1b9c97 precedeu a correção do helper. Apenas Context::Will
+agora chama decode inicial, que identifica a versão no CONNECT; demais
+contextos mantêm decode_for(...,true). Diff funcional do codec:3linhas
+adicionadas/1removida. Máximos, bytes sintéticos, construções, tipos de
+refusa, controles válidos e expectativas de ordem/duplicatas inalterados.
+Não houve modificação no runtime para tornar verdes os testes.
+
+## Gates reais posteriores
+
+Raiz liberou Cargo/cache após E encerrar sua execução. WSL Ubuntu26.04,
+Ruststable1.99, target padrão do repositório, sem override CARGO_TARGET_DIR,
+TMPDIR=/var/tmp. Cargo usado pelo caminho explícito da toolchain estável,
+com seu bin no PATH do processo; sem instalação/network/limpeza de cache.
+
+```text
+cargo test --locked --offline -j1 --lib p227i_ -- --nocapture
+cargo test --locked --offline -j1 --lib mqtt::codec::
+cargo clippy --locked --offline -j1 --all-targets -- -D warnings
+```
+
+| Gate | Resultado real | Compilação/check | Testes |
+| --- | --- | --- | --- |
+| Filtro p227i_ |9PASS,0FAIL,exit0|11.56s|0.01s|
+| Codec completo, incluindo P227I |78PASS,0FAIL,6ignored,exit0|2.29s|0.05s|
+| Clippy all-targets/-Dwarnings |PASS sem avisos,exit0|15.15s|—|
+| Rustfmt localizado e diff --check |PASS,exit0|—|—|
+
+Os seis ignored são campanhas P90 explícitas, não propriedades P227I
+ignoradas nem campanha de fuzzing executada por este comando. Os filtros
+se sobrepõem: não somar9+78 como87 casos distintos. Não foi rodada suíte
+global, build de bins/release ou nova campanha wire por esta frente.
+Runtime E de entrada já era c3713c839e17020d76dbca60e737c36c9b271860;
+essa contribuição apenas ajustou o contexto de teste após registrar o RED.
+
+SHA256 final do codec neste freeze:
+279eb28a179c5abfbc9f930e601b748af3a99796f3b0a8b0c2e172f7674295a7.
+Cache liberado para a raiz após Clippy. A ressalva2 da matriz P227A agora
+tem evidência direcionada para os exatos vetores descritos, não para todo
+produto cartesiano de propriedades, QoS, estado, transporte ou plataforma.
+Atualização do aceite/checklist global, artefatos e distribuição permanece
+com o coordenador. Sem push/tag/publicação nesta contribuição.
