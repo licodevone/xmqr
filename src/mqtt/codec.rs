@@ -406,6 +406,39 @@ fn rejected_connect_property(
     }
 }
 
+// Inspect only known CONNECT property boundaries. An opaque/invalid suffix is
+// not safe to search bytewise for 0x27: it might be text or binary data.
+fn mqtt5_connect_maximum_packet_size(raw: &[u8]) -> Result<Option<u32>, &'static str> {
+    let mut properties = Cursor::new(raw);
+    let mut maximum = None;
+    while properties.pos < raw.len() {
+        match properties.byte()? {
+            0x11 => {
+                properties.bytes(4)?;
+            }
+            0x21 | 0x22 => {
+                properties.bytes(2)?;
+            }
+            0x27 => {
+                let value = u32::from_be_bytes(properties.bytes(4)?.try_into().unwrap());
+                maximum = Some(maximum.map_or(value, |previous: u32| previous.min(value)));
+            }
+            0x17 | 0x19 => {
+                properties.byte()?;
+            }
+            0x15 | 0x16 => {
+                properties.binary()?;
+            }
+            0x26 => {
+                properties.binary()?;
+                properties.binary()?;
+            }
+            _ => return Err("unknown MQTT 5 CONNECT property boundary"),
+        }
+    }
+    Ok(maximum)
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "CONNECT property validation must classify unsupported AUTH before session creation"
@@ -592,7 +625,18 @@ fn decode_for(
             if level == 5 {
                 let property_length = c.variable_integer()?;
                 let properties = c.bytes(property_length)?;
-                match mqtt5_connect_properties_supported(properties)? {
+                let parsed = match mqtt5_connect_properties_supported(properties) {
+                    Ok(parsed) => parsed,
+                    Err(error) if error.is::<MalformedUtf8>() => {
+                        let maximum_packet_size = mqtt5_connect_maximum_packet_size(properties)?;
+                        return Ok(Packet::UnsupportedConnect5 {
+                            maximum_packet_size,
+                            reason_code: 0x81,
+                        });
+                    }
+                    Err(error) => return Err(error),
+                };
+                match parsed {
                     Mqtt5ConnectProperties::Supported {
                         expiry,
                         receive_maximum: receive,
@@ -617,7 +661,21 @@ fn decode_for(
                     }
                 }
             }
-            let client_id = c.text()?;
+            macro_rules! connect_text {
+                ($cursor:expr) => {{
+                    match $cursor.text() {
+                        Ok(value) => value,
+                        Err(error) if level == 5 && error.is::<MalformedUtf8>() => {
+                            return Ok(Packet::UnsupportedConnect5 {
+                                maximum_packet_size,
+                                reason_code: 0x81,
+                            });
+                        }
+                        Err(error) => return Err(error),
+                    }
+                }};
+            }
+            let client_id = connect_text!(c);
             let mut will_delay_seconds = 0;
             let mut will_message_expiry_seconds = None;
             // MQTT-3.1.3-1: Will precedes username/password. Message is binary.
@@ -656,14 +714,15 @@ fn decode_for(
                                 payload_format_indicator = Some(value);
                             }
                             0x03 if content_type.is_none() => {
-                                let value = properties.text()?;
+                                let value = connect_text!(properties);
                                 if value.len() > 256 {
                                     return Err("MQTT 5 Will Content Type too long".into());
                                 }
                                 content_type = Some(value);
                             }
                             0x08 if response_topic.is_none() => {
-                                response_topic = Some(TopicName::try_from(properties.text()?)?);
+                                response_topic =
+                                    Some(TopicName::try_from(connect_text!(properties))?);
                             }
                             0x09 if correlation_data.is_none() => {
                                 let value = properties.binary()?;
@@ -673,8 +732,8 @@ fn decode_for(
                                 correlation_data = Some(value.to_vec());
                             }
                             0x26 => {
-                                let key = properties.text()?;
-                                let value = properties.text()?;
+                                let key = connect_text!(properties);
+                                let value = connect_text!(properties);
                                 if key.len() > 256 || value.len() > 256 {
                                     return Err("MQTT 5 Will User Property field too long".into());
                                 }
@@ -700,7 +759,7 @@ fn decode_for(
                         }
                     }
                 }
-                let topic = TopicName::try_from(c.text()?)?;
+                let topic = TopicName::try_from(connect_text!(c))?;
                 let payload = c.binary()?.to_vec();
                 if payload.len() > MAX_PAYLOAD {
                     return Err("Will payload too large".into());
@@ -722,7 +781,11 @@ fn decode_for(
             } else {
                 None
             };
-            let username = has_username.then(|| c.text()).transpose()?;
+            let username = if has_username {
+                Some(connect_text!(c))
+            } else {
+                None
+            };
             let password = has_password
                 .then(|| c.binary().map(<[u8]>::to_vec))
                 .transpose()?;
@@ -2872,6 +2935,92 @@ mod tests {
             "truncated text has a distinct parse error"
         );
         assert!(decode_for(0x30, &[0, 1, b't'], false).is_ok());
+    }
+
+    #[test]
+    fn mqtt5_initial_connect_invalid_utf8_uses_connack_reason_and_limit() {
+        let connect = |properties: &[u8],
+                       client: &[u8],
+                       will_properties: Option<&[u8]>,
+                       will_topic: &[u8],
+                       username: Option<&[u8]>| {
+            let flags = 2
+                | if will_properties.is_some() { 4 } else { 0 }
+                | if username.is_some() { 0x80 } else { 0 };
+            let mut body = vec![0, 4, b'M', b'Q', b'T', b'T', 5, flags, 0, 30];
+            body.push(u8::try_from(properties.len()).unwrap());
+            body.extend_from_slice(properties);
+            body.extend_from_slice(&u16::try_from(client.len()).unwrap().to_be_bytes());
+            body.extend_from_slice(client);
+            if let Some(will_properties) = will_properties {
+                body.push(u8::try_from(will_properties.len()).unwrap());
+                body.extend_from_slice(will_properties);
+                body.extend_from_slice(&u16::try_from(will_topic.len()).unwrap().to_be_bytes());
+                body.extend_from_slice(will_topic);
+                body.extend_from_slice(&[0, 1, b'w']);
+            }
+            if let Some(username) = username {
+                body.extend_from_slice(&u16::try_from(username.len()).unwrap().to_be_bytes());
+                body.extend_from_slice(username);
+            }
+            body
+        };
+        let max5 = [0x27, 0, 0, 0, 5];
+        let max4 = [0x27, 0, 0, 0, 4];
+        let bad_pair = [0x26, 0, 1, 0xff, 0, 1, b'v'];
+        for properties in [
+            [&max5[..], &bad_pair[..]].concat(),
+            [&bad_pair[..], &max5[..]].concat(),
+        ] {
+            assert!(matches!(
+                decode_for(0x10, &connect(&properties, b"id", None, b"", None), false),
+                Ok(Packet::UnsupportedConnect5 {
+                    maximum_packet_size: Some(5),
+                    reason_code: 0x81
+                })
+            ));
+        }
+        let fake_id_in_text = [0x26, 0, 2, 0xff, 0x27, 0, 1, b'v'];
+        let properties = [&fake_id_in_text[..], &max4[..]].concat();
+        assert_eq!(mqtt5_connect_maximum_packet_size(&properties), Ok(Some(4)));
+        assert!(matches!(
+            decode_for(0x10, &connect(&properties, b"id", None, b"", None), false),
+            Ok(Packet::UnsupportedConnect5 {
+                maximum_packet_size: Some(4),
+                reason_code: 0x81
+            })
+        ));
+        for body in [
+            connect(&max5, &[0xff], None, b"", None),
+            connect(&max5, &[0], None, b"", None),
+            connect(&max5, b"id", Some(&[0x03, 0, 1, 0xff]), b"will/check", None),
+            connect(&max5, b"id", Some(&[0x08, 0, 1, 0xff]), b"will/check", None),
+            connect(&max5, b"id", Some(&bad_pair), b"will/check", None),
+            connect(&max5, b"id", Some(&[]), &[0xff], None),
+            connect(&max5, b"id", None, b"", Some(&[0xff])),
+        ] {
+            assert!(matches!(
+                decode_for(0x10, &body, false),
+                Ok(Packet::UnsupportedConnect5 {
+                    maximum_packet_size: Some(5),
+                    reason_code: 0x81
+                })
+            ));
+        }
+        assert!(matches!(
+            decode_for(0x10, &connect(&[], b"id", None, b"", None), false),
+            Ok(Packet::Connect { mqtt5: true, .. })
+        ));
+        let mut truncated = connect(&[], b"id", None, b"", None);
+        truncated[11] = 0;
+        truncated[12] = 3; // Advertise three Client ID bytes, supply two.
+        assert!(decode_for(0x10, &truncated, false).is_err());
+        let legacy = [0, 4, b'M', b'Q', b'T', b'T', 4, 2, 0, 30, 0, 1, 0xff];
+        assert!(
+            decode_for(0x10, &legacy, false)
+                .unwrap_err()
+                .is::<MalformedUtf8>()
+        );
     }
 
     #[test]

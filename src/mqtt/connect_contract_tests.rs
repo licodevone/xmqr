@@ -451,12 +451,16 @@ async fn mqtt5_connect_informational_properties_accept_and_reject_before_commit(
     ] {
         case(connect5_with_properties(properties), Some(0x82)).await;
     }
-    for properties in [
-        &[0x26, 0, 1, 0xff, 0, 1, b'b'][..],
-        &[0x26, 0, 1, b'a', 0, 2, b'b'][..],
-    ] {
-        case(connect5_with_properties(properties), None).await;
-    }
+    case(
+        connect5_with_properties(&[0x26, 0, 1, 0xff, 0, 1, b'b']),
+        Some(0x81),
+    )
+    .await;
+    case(
+        connect5_with_properties(&[0x26, 0, 1, b'a', 0, 2, b'b']),
+        None,
+    )
+    .await;
     case(connect5_with_properties(&[0x27, 0, 0, 1, 0]), Some(0)).await;
     for properties in [
         &[0x27, 0, 0, 0, 0][..],

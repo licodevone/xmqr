@@ -131,8 +131,16 @@ P195 tipa textos rejeitados pelo leitor comum (UTF-8 malformado, U+0000 e
 caracteres de controle/não caracteres já proibidos pela política local). Após
 CONNACK MQTT 5, tenta DISCONNECT `0x81` antes de processar PUBLISH, SUBSCRIBE,
 UNSUBSCRIBE, AUTH, DISCONNECT ou diagnósticos de ACKs afetados; MQTT 3.1.1
-continua fechando sem pacote MQTT 5. A classificação de CONNECT/Will inicial,
-truncamento e outros erros semânticos ainda está pendente.
+continua fechando sem pacote MQTT 5. Truncamento e outros erros semânticos
+ainda estão pendentes.
+P196 classifica textos UTF-8 malformados ou U+0000 no CONNECT inicial MQTT 5,
+incluindo propriedades de CONNECT, Client ID, propriedades/tópico do Will e
+User Name, com CONNACK `0x81` e fechamento antes de criar sessão ou Will. O
+limite Maximum Packet Size é localizado por fronteiras estruturais conhecidas,
+inclusive depois do texto malformado: limite 4 fecha sem CONNACK, limite 5
+permite a resposta mínima. Um byte `0x27` dentro de texto não vira propriedade.
+MQTT 3.1.1 mantém fechamento sem CONNACK 5; truncamentos, propriedades de
+fronteira desconhecida e a matriz normativa completa ainda estão pendentes.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
