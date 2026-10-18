@@ -202,3 +202,26 @@ operador ou execução automática sobre serviços existentes.
 Validação local: YAML parse PyYAML6.0.3, quatroinputs/defaultsSHA e duas
 seçõesPython embutidas porAST PASS; gitdiffcheckPASS. Não equivale a CI:
 dispatch/aceite continuaNOT_RUN, aguardando coreE, peers públicos e A21.
+
+## Checkpoints seguintes, sem aceite global antecipado
+
+CoreE corrigido emc3713c839e17020d76dbca60e737c36c9b271860: owner reportou
+E38/router93/store19/connect14/codec67PASS, ClippytestsfmtPASS. DescarteR0
+fica no mesmo comando do ator e MPS verifica identidade/metadados/estágio;
+root leu helpers e aguarda fullsuite. Resultados dirigidos não substituem
+o gate completo, migração/admin16 ou distribuição.
+
+Root executou novos9gruposP227I:3PASS/6FAIL, compile2,07s/test0,02s.
+Os seis falharam em codec4406 comSecondConnect, pois o helperWill usava
+decoder de conexão já estabelecida. Owner revisou prompt antes de mudar
+somente o contexto inicial; repetição9/9PASS, sem parser/tetos/oráculos
+alterados. RegistroP227I preserva falhas e gates subsequentes; repetição
+completa ainda pendente neste checkpoint.
+
+Client038: root confirmou viaGitHubCLI prerelease/seisassets e viaHubCLI
+índiceOCI remoto SHA256b025a82ab4172f82223e8b01b125570996f374a27ee524a04cc62eac81a148f9.
+Aceite clone client foi fixado emtagfca6fc8 e recebeu o ELFrelease congelado
+a5ccc205... em ambos caminhos de fixture, não duas builds diferentes.
+Correção do harness de teardownC131 foi integrada isoladamente em main pelo
+C132/dd3d2f8 e enviada aoGitHub, sem CI/Cargo/bridgeC128dirty. Root repetiu
+migração com ELF109ec→a5ccc:PASS0,2733s, sem saída duplicada e cleanupPASS.
