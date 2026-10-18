@@ -100,6 +100,10 @@ próprios. Não se anuncia certificação integral ou paridade exaustiva.
 
 ## Matriz de entregas
 
+As linhas M01–M10 abaixo preservam detalhes dos candidatos anteriores;
+o estado **vigente** da fase 6 é o aceite finito 69/69 em
+[fase 6](phase6-acceptance.md). A tabela não reabre esses requisitos.
+
 Cada ID é uma fatia futura de trabalho, não uma tag, versão prometida ou
 prompt já executado. Preparar prompt específico no repositório responsável
 antes do código. Critérios da coluna final são condições de aceite futuras.
@@ -149,7 +153,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | M09 | Broker: assinaturas compartilhadas | Em aceite P227C/H | Grupo ativo/durável e redistribuiçãoQoS1 preservados; escalonamento independente por grupo e Will takeover3/3wirePASS no candidato anterior. Fairness é por vida do processo; não é garantia através de reinícios contínuos. Repetir integração no core final |
 | M10 | Broker/client: autenticação estendida AUTH | Decisão documentada ADR0007; integração final pendente | Recorte: PLAIN inicial sobreTLS/mTLS e reautenticação explícita da mesma identidade. Paho independente testou autenticação inicial e negativos, não reauth. Desafios arbitrários e reautenticação periódica não oferecidos; não são requisitos implicitamente entregues. [Decisão e limites](architecture/adr-0007-mqtt5-auth-scope.md) |
 | T01 | Broker/client: WebSocket/WSS | ACCEPTED no transporte por P222: P210–P221/C112–C124 | [Matriz T01](phase7-acceptance.md) e ADR 0003; MQTT 5 global 6A–6D, carga prolongada e produção não inferidos |
-| T02 | Broker: bridge entre brokers | Parcial P223–P225/C125–C127: sidecar TLS/mTLS QoS 0/1 unidirecional e CI XMQR↔Mosquitto; QoS 1 ACK após destino e guardião de topologia gerenciada | B08/B11/C07; retained vivo não preservado integralmente no MQTT 3.1.1, QoS 2, journal, loops externos e pacote ainda abertos |
+| T02 | Broker/client: bridge entre brokers | Parcial C125–C138: sidecar TLS/mTLS unidirecional, QoS 0/1/2 no modo MQTT 3.1.1, journal QoS 2, guardião da topologia gerenciada e origem MQTT 5 QoS 0/1 com Retain As Published; client 0.41.0/bridge 0.3.0 distribuídos e XMQR↔Mosquitto validados | Retained vivo MQTT 3.1.1, origem MQTT 5/QoS 2, propriedades, ciclos externos, mapeamento múltiplo e transação entre brokers; [registro C138](https://github.com/licodevone/xmqr-client/blob/main/prompts/registros/C138-release-0.41.0.md) |
 | T03 | Broker: Unix domain sockets | Decisão | B09/A04; permissões, credencial do processo, ACL e portability sem substituir TLS remoto |
 | T04 | Broker: TLS PSK e opções TLS avançadas | Decisão | B11; verificar suporte do provider e modelo de identidade antes de prometer implementação |
 | X01 | Broker: hooks/plugins | Decisão | B08/A04; fronteira isolada/limitada, ABI/versionamento, falha fechada e nenhuma callback bloqueante no hot path |
@@ -289,8 +293,9 @@ responsável, dependência e aceite definidos; execução permanece no checklist
 
 ## Próxima etapa após a fase6
 
-Prosseguir com os requisitos ainda abertos de T02/fase8. Client040/C135 já
-distribui a bridgeQoS0/1/2 e seu journal; isso não resolve integralmente
-retained vivo, transações entre brokers ou loops de bridges externas. Depois
+Prosseguir com os requisitos ainda abertos de T02/fase8. Client 0.41.0/C138
+distribui a bridge QoS 0/1/2 no modo MQTT 3.1.1, origem MQTT 5/QoS 0/1 e
+seu journal QoS 2 antigo; isso não resolve retained vivo MQTT 3.1.1,
+propriedades, transações entre brokers ou loops de bridges externas. Depois
 vêm fase9/Windows nativo e as prioridades adicionais do plano de evolução.
 Preparar prompts, validar e distribuir cada fatia sem mover tags anteriores.
