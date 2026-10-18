@@ -477,6 +477,157 @@ def check_client_durable_subscription(root, port, client, password):
             first.communicate(timeout=5)
 
 
+def persistent_connect(client_id, password):
+    def field(value):
+        return len(value).to_bytes(2, "big") + value
+    body = (b"\x00\x04MQTT\x05\xc0\x00\x1e\x05\x11\x00\x00\x00\x78"
+            + field(client_id) + field(b"device") + field(password))
+    assert len(body) < 128
+    return bytes([0x10, len(body)]) + body
+
+
+def check_wss_restart(root, environment, broker_bin, port, password, log_path):
+    """Keep a QoS 1 offline message and session across a clean broker restart."""
+    state = root / "p218-restart-state"
+    config = dict(environment, MQTT_STATE_DIR=str(state))
+    topic = b"p212/allowed"
+    client_id = b"p218-wss-session"
+    payload = b"p218-offline-after-restart"
+
+    def connect():
+        stream = secure_socket(root, port)
+        assert handshake(stream, port).startswith(b"HTTP/1.1 101")
+        send_frame(stream, 2, persistent_connect(client_id, password))
+        connack = mqtt_packet(stream, bytearray())
+        assert connack[0] == 0x20 and connack[3] == 0, connack
+        return stream, connack[2] & 1
+
+    with log_path.open("ab") as log:
+        broker = subprocess.Popen([str(broker_bin)], env=config, stdout=log, stderr=log)
+        try:
+            wait_port(broker, port)
+            subscriber, present = connect()
+            assert present == 0
+            subscribe = b"\x00\x01\x00" + len(topic).to_bytes(2, "big") + topic + b"\x01"
+            send_frame(subscriber, 2, bytes([0x82, len(subscribe)]) + subscribe)
+            suback = mqtt_packet(subscriber, bytearray())
+            assert suback[0] == 0x90 and suback[-1] == 1, suback
+            subscriber.close()
+            time.sleep(.2)
+            with authenticated_ws(root, port, 5, password, b"p218-wss-publisher") as pub:
+                body = (len(topic).to_bytes(2, "big") + topic + b"\x00\x09\x00"
+                        + payload)
+                send_frame(pub, 2, bytes([0x32, len(body)]) + body)
+                puback = mqtt_packet(pub, bytearray())
+                assert puback[0] == 0x40 and puback[2:4] == b"\x00\x09", puback
+            broker.send_signal(signal.SIGTERM)
+            assert broker.wait(timeout=8) == 0
+        finally:
+            if broker.poll() is None:
+                broker.kill()
+                broker.wait(timeout=8)
+
+    with log_path.open("ab") as log:
+        broker = subprocess.Popen([str(broker_bin)], env=config, stdout=log, stderr=log)
+        try:
+            wait_port(broker, port)
+            subscriber, present = connect()
+            with subscriber:
+                assert present == 1, "persistent WSS session was lost on restart"
+                publication = mqtt_packet(subscriber, bytearray())
+                assert publication[0] & 0xf0 == 0x30 and publication.endswith(payload), publication
+                topic_size = int.from_bytes(publication[2:4], "big")
+                packet_id = publication[4 + topic_size:6 + topic_size]
+                assert packet_id != b"\x00\x00" and publication[0] & 0x06 == 0x02
+                send_frame(subscriber, 2, b"\x40\x02" + packet_id)
+        finally:
+            if broker.poll() is None:
+                broker.send_signal(signal.SIGTERM)
+                assert broker.wait(timeout=8) == 0
+
+
+def check_client_wss_restart(root, environment, broker_bin, client, port, password,
+                             log_path):
+    """Exercise C123's manifest against a broker restarted with the same state."""
+    state = root / "p218-client-broker-state"
+    manifest_dir = root / "p218-client-manifest"
+    manifest_dir.mkdir(mode=0o700)
+    config = dict(environment, MQTT_STATE_DIR=str(state))
+    secret_file = root / "p218-client-password"
+    secret_file.write_bytes(password + b"\n")
+    secret_file.chmod(0o600)
+    url = f"wss://127.0.0.1:{port}/mqtt"
+    common = ["--ws-url", url, "--username", "device", "--ca", str(root / "ca.crt"),
+              "--cert", str(root / "client.crt"), "--key", str(root / "client.key"),
+              "--password-file", str(secret_file), "--protocol-version", "5"]
+    subscription = [str(client), "sub", *common, "--topic", "p212/allowed",
+                    "--qos", "1", "--client-id", "p218-client-wss-sub",
+                    "--clean-start", "false", "--session-expiry-seconds", "120",
+                    "--subscription-state-dir", str(manifest_dir), "--output", "jsonl"]
+    payload = b"p218-client-offline"
+
+    with log_path.open("ab") as log:
+        broker = subprocess.Popen([str(broker_bin)], env=config, stdout=log, stderr=log)
+        try:
+            wait_port(broker, port)
+            first = subprocess.Popen(subscription, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, text=True)
+            try:
+                wait_subscription(first)
+                manifest = manifest_dir / "subscription.json"
+                assert json.loads(manifest.read_text())["pending"]["stage"] == "Active"
+            finally:
+                if first.poll() is None:
+                    first.kill()
+                first.communicate(timeout=5)
+            before = manifest.read_bytes()
+            wrong = [f"wss://127.0.0.1:{port + 1}/mqtt" if arg == url else arg
+                     for arg in subscription]
+            rejected = subprocess.run(wrong, capture_output=True, timeout=8)
+            assert rejected.returncode != 0 and b"manifesto" in rejected.stderr.lower()
+            assert manifest.read_bytes() == before
+            time.sleep(.2)
+            published = subprocess.run(
+                [str(client), "pub", *common, "--topic", "p212/allowed",
+                 "--message", payload.decode(), "--qos", "1",
+                 "--client-id", "p218-client-wss-pub"], capture_output=True, timeout=12)
+            assert published.returncode == 0, published.stderr.decode(errors="replace")
+            broker.send_signal(signal.SIGTERM)
+            assert broker.wait(timeout=8) == 0
+        finally:
+            if broker.poll() is None:
+                broker.kill()
+                broker.wait(timeout=8)
+
+    with log_path.open("ab") as log:
+        broker = subprocess.Popen([str(broker_bin)], env=config, stdout=log, stderr=log)
+        try:
+            wait_port(broker, port)
+            resumed = subprocess.Popen(subscription, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, bufsize=0)
+            try:
+                for _ in range(4):
+                    ready, _, _ = select.select([resumed.stdout], [], [], 8)
+                    assert ready, "offline WSS message was not delivered after restart"
+                    line = resumed.stdout.readline()
+                    assert line, "subscriber exited before offline WSS delivery"
+                    if bytes(json.loads(line)["payload_bytes"]) == payload:
+                        break
+                else:
+                    raise AssertionError("offline WSS payload mismatch")
+                assert manifest.read_bytes() == before
+            finally:
+                if resumed.poll() is None:
+                    resumed.kill()
+                resumed.communicate(timeout=5)
+            broker.send_signal(signal.SIGTERM)
+            assert broker.wait(timeout=8) == 0
+        finally:
+            if broker.poll() is None:
+                broker.kill()
+                broker.wait(timeout=8)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--client", type=Path)
@@ -564,6 +715,10 @@ def main():
                 if broker.poll() is None:
                     broker.kill()
                     broker.wait(timeout=8)
+        check_wss_restart(root, environment, broker_bin, port, password, log_path)
+        if args.durable_sub_client:
+            check_client_wss_restart(root, environment, broker_bin, args.client, port,
+                                     password, log_path)
         (root / "broker.toml").write_text(
             'version=1\n[broker]\n'
             f'wss_bind="127.0.0.1:{port}"\n')
@@ -642,7 +797,9 @@ def main():
           (" C119_WSS_QOS1_BROKER_PASS C122_WSS_QOS2_BROKER_PASS"
            if args.outbox_client else "") +
           (" C123_WSS_DURABLE_SUB_BROKER_PASS" if args.durable_sub_client else "") +
-          " P214_REMOTE_OPT_IN_PASS P216_BROWSER_ORIGIN_PASS")
+          " P214_REMOTE_OPT_IN_PASS P216_BROWSER_ORIGIN_PASS"
+          " P218_WSS_RESTART_PASS" +
+          (" P218_CLIENT_WSS_RESTART_PASS" if args.durable_sub_client else ""))
 
 
 if __name__ == "__main__":
