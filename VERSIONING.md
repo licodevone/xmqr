@@ -1,5 +1,16 @@
 # Versionamento
 
+## P202 — broker/admin legado 0.36.0 candidato, estado v15
+
+P199–P201 ampliam os motivos MQTT 5 em CONNECT estruturalmente inválido,
+flags reservadas de assinatura/PUBREL e pacotes exclusivos do servidor
+enviados pelo client. Sem migração: broker 0.35.0 e admin independente 0.10.0
+leem v15; client independente 0.30.0 permanece. Rollback exige backup
+privado; broker 0.28.0 ou anterior requer backup v14 anterior à migração.
+Tag e prerelease aguardam CI do commit fonte exato, pacote Ubuntu 26.04,
+upgrade/rollback descartável, imagens numeradas e oito hashes remotos.
+[Nota](docs/releases/0.36.0.md). Fases globais abertas.
+
 ## P198 — broker/admin legado 0.35.0 publicado, estado v15
 
 P194–P197 classificam segundo CONNECT, texto UTF-8 malformado antes/depois

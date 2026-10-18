@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 0.36.0 — diagnóstico de pacotes MQTT 5 adicionais (experimental)
+
+- P199: CONNECT inicial com bloco de propriedades íntegro, mas campos seguintes truncados ou extras, recebe CONNACK `0x81` quando o limite permite, antes de criar sessão ou Will.
+- P200: flags reservadas inválidas de SUBSCRIBE, UNSUBSCRIBE e PUBREL após CONNACK recebem DISCONNECT `0x81` sem aplicar estado parcial.
+- P201: CONNACK, SUBACK, UNSUBACK e PINGRESP exclusivos do servidor enviados pelo client após CONNACK recebem DISCONNECT `0x82` antes de interpretar o corpo.
+
+Documento durável v15 sem migração. Client independente 0.30.0 e admin independente 0.10.0 não mudam. Fases globais 6A–6D/7–9 e a matriz MQTT 5 permanecem abertas.
+
 ## 0.35.0 — erros de sequência e formato MQTT 5 (experimental)
 
 - P194: um segundo CONNECT após CONNACK MQTT 5 recebe DISCONNECT `0x82` antes de trocar a sessão.
