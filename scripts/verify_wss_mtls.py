@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import select
 import shutil
 import signal
 import socket
@@ -19,7 +20,7 @@ import time
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from verify_multi_endpoint import free_port, hash_fixture, wait_port
+from verify_multi_endpoint import free_port, hash_fixture, wait_port, wait_subscription
 from verify_websocket_lab import exact, mqtt_packet, send_frame, tcp_packet
 
 
@@ -419,14 +420,72 @@ def check_client_qos2_outbox(root, port, client, password):
     assert b"c122-durable-qos2-wss" in result.stdout, result.stdout
 
 
+def check_client_durable_subscription(root, port, client, password):
+    secret_file = root / "client-password"
+    secret_file.write_bytes(password + b"\n")
+    secret_file.chmod(0o600)
+    state = root / "c123-wss-subscription"
+    state.mkdir(mode=0o700)
+    common = ["--ws-url", f"wss://127.0.0.1:{port}/mqtt",
+              "--username", "device", "--ca", str(root / "ca.crt"),
+              "--cert", str(root / "client.crt"), "--key", str(root / "client.key"),
+              "--password-file", str(secret_file), "--protocol-version", "5"]
+    subscription = [str(client), "sub", *common, "--topic", "p212/allowed",
+                    "--qos", "1", "--client-id", "c123-wss-sub",
+                    "--clean-start", "false", "--session-expiry-seconds", "60",
+                    "--subscription-state-dir", str(state), "--output", "jsonl"]
+    first = subprocess.Popen(subscription, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             text=True)
+    try:
+        wait_subscription(first)
+        manifest = state / "subscription.json"
+        assert json.loads(manifest.read_text())["pending"]["stage"] == "Active"
+        first.kill()
+        first.communicate(timeout=5)
+        before = manifest.read_bytes()
+        wrong = [f"wss://127.0.0.1:{port + 1}/mqtt" if arg == common[1] else arg
+                 for arg in subscription]
+        rejected = subprocess.run(wrong, capture_output=True, timeout=8)
+        assert rejected.returncode != 0 and b"manifesto" in rejected.stderr.lower()
+        assert manifest.read_bytes() == before
+        time.sleep(.2)
+        published = subprocess.run(
+            [str(client), "pub", *common, "--topic", "p212/allowed",
+             "--message", "c123-offline-wss", "--qos", "1",
+             "--client-id", "c123-wss-pub"], capture_output=True, timeout=12)
+        assert published.returncode == 0, published.stderr.decode(errors="replace")
+        resumed = subprocess.Popen(subscription, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, bufsize=0)
+        try:
+            lines = []
+            for _ in range(4):
+                ready, _, _ = select.select([resumed.stdout], [], [], 8)
+                assert ready, ("offline WSS publication not delivered", lines)
+                lines.append(resumed.stdout.readline())
+                if bytes(json.loads(lines[-1])["payload_bytes"]) == b"c123-offline-wss":
+                    break
+            assert any(bytes(json.loads(line)["payload_bytes"]) == b"c123-offline-wss"
+                       for line in lines), lines
+            assert manifest.read_bytes() == before
+        finally:
+            if resumed.poll() is None:
+                resumed.kill()
+            resumed.communicate(timeout=5)
+    finally:
+        if first.poll() is None:
+            first.kill()
+            first.communicate(timeout=5)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--client", type=Path)
     parser.add_argument("--profile-client", action="store_true")
     parser.add_argument("--outbox-client", action="store_true")
+    parser.add_argument("--durable-sub-client", action="store_true")
     args = parser.parse_args()
-    if (args.profile_client or args.outbox_client) and not args.client:
-        parser.error("--profile-client/--outbox-client exige --client")
+    if (args.profile_client or args.outbox_client or args.durable_sub_client) and not args.client:
+        parser.error("--profile-client/--outbox-client/--durable-sub-client exige --client")
     broker_bin = ROOT / "target/debug/mqtt-broker"
     admin_bin = ROOT / "target/debug/mqtt-admin"
     assert broker_bin.is_file() and admin_bin.is_file()
@@ -497,6 +556,8 @@ def main():
                     if args.outbox_client:
                         check_client_qos1_outbox(root, port, args.client, password)
                         check_client_qos2_outbox(root, port, args.client, password)
+                    if args.durable_sub_client:
+                        check_client_durable_subscription(root, port, args.client, password)
                 broker.send_signal(signal.SIGTERM)
                 assert broker.wait(timeout=8) == 0
             finally:
@@ -580,6 +641,7 @@ def main():
           (" C116_PROFILE_BROKER_PASS" if args.profile_client else "") +
           (" C119_WSS_QOS1_BROKER_PASS C122_WSS_QOS2_BROKER_PASS"
            if args.outbox_client else "") +
+          (" C123_WSS_DURABLE_SUB_BROKER_PASS" if args.durable_sub_client else "") +
           " P214_REMOTE_OPT_IN_PASS P216_BROWSER_ORIGIN_PASS")
 
 
