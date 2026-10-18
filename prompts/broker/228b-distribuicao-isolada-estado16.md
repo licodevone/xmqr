@@ -1,4 +1,4 @@
-# P228B v1.7 — QA isolado dos artefatos broker0.43.0
+# P228B v1.10 — QA isolado dos artefatos broker0.43.0
 
 Preparado em2026-10-18 antes da autoria do harness. Complementa P228v1.1;
 owner não altera runtime/manifests/CI nem o registro global P228 do coordenador.
@@ -208,3 +208,50 @@ metadata/assets antes de publicar como prerelease NÃO latest. Após publicar,
 baixar TODOS para destino novo e conferir nomes/tamanhos/SHA/sidecars,
 manifesto e ZIP13JSON. Só então reportar remotos verificados. Root cuida
 docs/checklist/main/P227/P228principal; esta frente altera só seus arquivos.
+
+## Revisão1.8 — reconciliar publicação existente sem escrever remotos
+
+Preflight desta frente encontrou tag043 nova e ABORTOU antes de qualquer
+tag/pushHub/release. Coordenador também negou sua autoria e reconciliou
+publicação externa já concluída. Autoria não é necessária para auditar bytes;
+não reivindicá-la. Tag anotada89df8f91755e3dbe231a281e1ece9d9881e96b0b aponta
+db exato. Release416718751 pública/prerelease21:17:23Z; digestsHub iguais
+aos finais475b31c8.../673a062c.... Reclassificar frente para AUDITORIA.
+
+NÃO executar tagpush/Hubpush/releasecreate/edit/upload. Baixar os12assets
+REAIS para destino novo: oito exports originais mais SHA256SUMS1150B,
+phase6-evidence-39164217059.tar.gz, third-party-licenses.md e noticesTar.
+ZIP local planejado NÃO foi publicado e não deve ser descrito como anexo.
+Adaptar validador próprio antes da execução: comparar nomes/tamanhos/SHA
+com API, oito exports locais/sidecars/manifest/SUMS, TARs com caminhos seguros,
+evidência13JSON contra ZIP originalCI e notices166/323 byte a byte contra
+coleta locked independente. Não extrair TAR arbitrário no host.
+
+Pull/inspect das duas imagens publicadas POR DIGEST, conferir labels/ELFs e
+repetir MQTTmTLS/WSS/admin com peer040 digest1eca2f2b.... Registro factual de
+recurso existente, sem afirmar que este agente publicou. Notar diferenças
+de notas/artefatos sem corrigi-las remotamente; root cuida docs/checklist.
+Permitido commit/push SOMENTE branch própria do registro após os resultados.
+
+## Revisão1.9 — FAIL de EOL no inventário Markdown próprio
+
+Auditoria1 preservada FAIL `inventory_source_bytes`: o inventário Markdown
+próprio publicado é byte idêntico ao workingtree Windows (8454bytes,
+176CRLF, SHA09cd0ecd...), enquanto blobGitdb tem LF (8278bytes,SHA73e0df9d...).
+Comparação canônica confirma equivalência completa; não é texto estrangeiro
+alterado. Antes do retry, permitir SOMENTE neste Markdown de inventário
+próprio CRLF→LF, exigindo ainda bytes remotos idênticos ao workingtree e
+equivalência com blobGitdb. Registrar ambos hashes/modos. Licenças/notices
+estrangeiros permanecem estritamente byte a byte; nada remoto é modificado.
+Report novo separado, sem substituir FAIL1. QA MQTT/admin por digest040 PASS.
+
+## Revisão1.10 — versionar o auditor aceito, sem refazer publicação
+
+Auditoria2 passou12/12assets,13JSON e notices166/323; smokes040 por digest
+passaram. Promover o helper próprio validado de dist para
+`scripts/verify_p228_publication.py`, com cabeçalhoMIT e função main importável,
+sem mudar oráculos/baixados/recursos remotos. Reexecutar somente leitura com
+report novo para provar o caminho versionado. Preservar FAIL1 e resultados
+anteriores. Commit/push apenas P228B, novo auditor e registro próprios na
+branch existente; não integrar/editar main044/P227/P228principal nem forçar
+qualquer referência ou asset publicado. Registrar autoria apenas da auditoria.
