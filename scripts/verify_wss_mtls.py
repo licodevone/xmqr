@@ -369,13 +369,40 @@ def check_client(root, port, tcp_port, client, password, profile_client=False):
         assert rejected.returncode != 0, rejected.stdout
 
 
+def check_client_qos1_outbox(root, port, client, password):
+    secret_file = root / "client-password"
+    secret_file.write_bytes(password + b"\n")
+    secret_file.chmod(0o600)
+    outbox = root / "c119-wss-outbox"
+    outbox.mkdir(mode=0o700)
+    common = ["--ws-url", f"wss://127.0.0.1:{port}/mqtt",
+              "--username", "device", "--ca", str(root / "ca.crt"),
+              "--cert", str(root / "client.crt"), "--key", str(root / "client.key"),
+              "--password-file", str(secret_file), "--protocol-version", "5",
+              "--client-id", "c119-wss-pub", "--topic", "p212/allowed"]
+    result = subprocess.run(
+        [str(client), "pub", *common, "--message", "c119-durable-wss",
+         "--qos", "1", "--retain", "true", "--clean-start", "false",
+         "--session-expiry-seconds", "60", "--outbox-dir", str(outbox)],
+        capture_output=True, timeout=12)
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    assert not (outbox / "pending.json").exists()
+    result = subprocess.run(
+        [str(client), "sub", *common[:-4], "--client-id", "c119-wss-sub",
+         "--topic", "p212/allowed", "--count", "1"],
+        capture_output=True, timeout=12)
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    assert b"c119-durable-wss" in result.stdout, result.stdout
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--client", type=Path)
     parser.add_argument("--profile-client", action="store_true")
+    parser.add_argument("--outbox-client", action="store_true")
     args = parser.parse_args()
-    if args.profile_client and not args.client:
-        parser.error("--profile-client exige --client")
+    if (args.profile_client or args.outbox_client) and not args.client:
+        parser.error("--profile-client/--outbox-client exige --client")
     broker_bin = ROOT / "target/debug/mqtt-broker"
     admin_bin = ROOT / "target/debug/mqtt-admin"
     assert broker_bin.is_file() and admin_bin.is_file()
@@ -443,6 +470,8 @@ def main():
                 if args.client:
                     check_client(root, port, tcp_port, args.client, password,
                                  profile_client=args.profile_client)
+                    if args.outbox_client:
+                        check_client_qos1_outbox(root, port, args.client, password)
                 broker.send_signal(signal.SIGTERM)
                 assert broker.wait(timeout=8) == 0
             finally:
@@ -524,6 +553,7 @@ def main():
     print("P212_WSS_MTLS_WIRE_PASS" +
           (" C114_CLIENT_CROSS_PASS" if args.client else "") +
           (" C116_PROFILE_BROKER_PASS" if args.profile_client else "") +
+          (" C119_WSS_QOS1_BROKER_PASS" if args.outbox_client else "") +
           " P214_REMOTE_OPT_IN_PASS P216_BROWSER_ORIGIN_PASS")
 
 
