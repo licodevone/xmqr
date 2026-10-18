@@ -23,6 +23,7 @@ version = 1
 mode = "secure-mtls"
 bind = "0.0.0.0:8883"
 # additional_binds = ["127.0.0.1:8884"] # P96, apenas secure-mtls
+# wss_bind = "127.0.0.1:8084" # P212 em main, mTLS WSS local opt-in
 state_dir = "/var/lib/xmqr"
 # server_keep_alive_seconds = 60 # MQTT 5, teto opcional de Keep Alive
 
@@ -78,9 +79,20 @@ No perfil `open-lab`, `MQTT_WS_BIND=127.0.0.1:8083` (ou `ws_bind` na seção
 subprotocolo `mqtt`. O endereço deve ser IP loopback com porta positiva,
 distinto de `MQTT_BIND`. Nenhum listener WS é ativado por padrão; os demais
 perfis rejeitam essa opção. TCP e WS compartilham a quota
-`MQTT_MAX_CONNECTIONS` e o estado do router. WSS permanece pendente.
+`MQTT_MAX_CONNECTIONS` e o estado do router. WSS seguro é descrito abaixo.
 Handshakes com `Origin` são recusados neste recorte sem autenticação; uso por
 navegador exigirá uma política de origem própria.
+
+P212 em `main` acrescenta `MQTT_WSS_BIND=127.0.0.1:8084` ou
+`[broker].wss_bind` para WSS `/mqtt` no perfil `secure-mtls` com política
+compartilhada. A porta deve ser positiva, numérica, loopback e distinta de
+todos os listeners TCP. A configuração recusa políticas estáticas por endpoint
+em conjunto com WSS nesta primeira fatia. O handshake exige certificado de
+cliente, subprotocolo `mqtt` e não aceita `Origin`; usuário/senha e ACL
+continuam obrigatórios no CONNECT. TCP/WSS compartilham
+`MQTT_MAX_CONNECTIONS`, geração TLS e rotação SIGUSR1. Sem valor, WSS fica
+desativado. Alterar o bind exige restart. O pacote 0.39.0 ainda não contém
+P212; acesso remoto e navegador não foram homologados.
 
 Configuração TOML imutável por processo; mudanças de bind exigem restart. SIGHUP
 continua reservado ao bundle de segurança. SIGUSR1 relê apenas os arquivos TLS

@@ -15,6 +15,7 @@ O listener aceita somente TLS com certificado de cliente obrigatório. A cadeia 
 - `MQTT_SERVER_KEY` — chave privada PEM do servidor, com permissões restritas.
 - `MQTT_CLIENT_CA` — CA raiz/intermediária confiável para dispositivos.
 - `MQTT_CLIENT_CRL` — CRL PEM opcional; sem ela não há informação offline de revogação.
+- `MQTT_WSS_BIND` — listener MQTT sobre WSS opcional em IP loopback e porta própria, somente `secure-mtls`; `broker.wss_bind` no TOML é equivalente.
 - `RUST_LOG` — nível de logs, por exemplo `info`.
 
 ## Controles implementados
@@ -24,6 +25,7 @@ O listener aceita somente TLS com certificado de cliente obrigatório. A cadeia 
 - TLS 1.2/1.3 apenas, com provider AWS-LC do rustls e suites AEAD modernas.
 - mTLS obrigatório, sem caminho anônimo.
 - Limite de conexões concorrentes antes da criação de estado caro.
+- P212 em `main`: WSS em `/mqtt` exige subprotocolo `mqtt`, certificado cliente válido, usuário/senha e ACL como o TCP mTLS. TCP e WSS compartilham quota, roteador, estado e geração TLS. Requisições com `Origin` são recusadas; não há acesso remoto ou navegador neste recorte. O pacote 0.39.0 publicado ainda não contém P212.
 - Um `tokio::spawn` por cliente e captura de panic na fronteira da tarefa.
 - Deadlines explícitos disponíveis para leituras e escritas posteriores.
 - Desde0.11.4, shutdown/flushTLS tem deadline3s. Um peer não leitor não

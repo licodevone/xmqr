@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## Não publicado — P212 em validação
+
+- WSS mTLS opt-in em loopback via `MQTT_WSS_BIND`/`broker.wss_bind`; quota, router, ACL e rotação TLS compartilhados com TCP. `Origin` recusado; client WSS, navegador e remoto pendentes. Sem migração de estado.
+
 ## 0.39.0 — WebSocket MQTT de laboratório (experimental)
 
 - P210: `MQTT_WS_BIND` ou `broker.ws_bind` habilita um listener WS em IP loopback no perfil `open-lab`, caminho `/mqtt`, subprotocolo `mqtt`, quota de conexões e router compartilhados com TCP.

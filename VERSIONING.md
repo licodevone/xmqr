@@ -1,5 +1,10 @@
 # Versionamento
 
+P212 acrescenta WSS mTLS local em `main`, sem alterar a versão 0.39.0 nem o
+estado v15. A release publicada 0.39.0 não inclui P212. Testes, CI e registro
+precisam passar antes de considerar a fatia aceita; WSS no client e fase 7
+global continuam pendentes.
+
 ## P211 — broker/admin legado 0.39.0 publicado, estado v15
 
 P210 adiciona listener WS MQTT somente em loopback `open-lab`, com router e

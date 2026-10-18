@@ -63,9 +63,17 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     }
     .parse()?;
-    let ws_bind = parse_ws_bind(&config, mode, bind_address)?;
+    let lab_websocket_bind = parse_ws_bind(&config, mode, bind_address)?;
     let additional_binds = config.additional_binds(bind_address)?;
+    let secure_websocket_bind = parse_wss_bind(&config, mode, bind_address, &additional_binds)?;
     let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
+    if secure_websocket_bind.is_some() && !endpoint_policies.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "MQTT_WSS_BIND requires a shared secure-mtls policy",
+        )
+        .into());
+    }
     if mode != BrokerMode::SecureMtls && !additional_binds.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -116,7 +124,12 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     serve(
         &config,
         mode,
-        (bind_address, additional_binds, ws_bind),
+        (
+            bind_address,
+            additional_binds,
+            lab_websocket_bind,
+            secure_websocket_bind,
+        ),
         state_directory,
         (limits, state_limits),
         (monitor_config, admin_config),
@@ -129,13 +142,19 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 async fn serve(
     config: &Configuration,
     mode: BrokerMode,
-    bind_addresses: (SocketAddr, Vec<SocketAddr>, Option<SocketAddr>),
+    bind_addresses: (
+        SocketAddr,
+        Vec<SocketAddr>,
+        Option<SocketAddr>,
+        Option<SocketAddr>,
+    ),
     state_directory: PathBuf,
     limits: (TransportLimits, mqtt::StateLimits),
     operational_configs: (MonitorConfig, Option<AdminChannelConfig>),
     metrics: Arc<Metrics>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let (bind_address, additional_binds, ws_bind) = bind_addresses;
+    let (bind_address, additional_binds, lab_websocket_bind, secure_websocket_bind) =
+        bind_addresses;
     let (monitor_config, admin_config) = operational_configs;
     let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
     let (limits, state_limits) = limits;
@@ -212,6 +231,11 @@ async fn serve(
             for address in additional_binds {
                 transports.push(transport.bind_additional(address).await?);
             }
+            let wss_transport = if let Some(address) = secure_websocket_bind {
+                Some(transport.bind_websocket_secure(address).await?)
+            } else {
+                None
+            };
             let _tls_watch = watch_tls(tls_files, transport.tls_reloader())?;
             metrics.set_listener_ready(true);
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
@@ -221,7 +245,9 @@ async fn serve(
             transports.insert(0, transport);
             run_until_shutdown(
                 async move {
-                    let mut listeners = Vec::new();
+                    let mut listeners: Vec<
+                        std::pin::Pin<Box<dyn std::future::Future<Output = io::Result<()>> + Send>>,
+                    > = Vec::new();
                     for (index, transport) in transports.into_iter().enumerate() {
                         let auth = scoped.as_ref().map_or_else(
                             || Arc::clone(&auth),
@@ -229,6 +255,17 @@ async fn serve(
                         let router = Arc::clone(&router);
                         listeners.push(Box::pin(async move {
                             transport.serve(move |connection| {
+                                let auth = Arc::clone(&auth);
+                                let router = Arc::clone(&router);
+                                async move { mqtt::serve_connection(connection, auth, router).await }
+                            }).await
+                        }));
+                    }
+                    if let Some(wss_transport) = wss_transport {
+                        let auth = Arc::clone(&auth);
+                        let router = Arc::clone(&router);
+                        listeners.push(Box::pin(async move {
+                            wss_transport.serve(move |connection| {
                                 let auth = Arc::clone(&auth);
                                 let router = Arc::clone(&router);
                                 async move { mqtt::serve_connection(connection, auth, router).await }
@@ -267,7 +304,7 @@ async fn serve(
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
                     .await?;
-            let ws_transport = if let Some(address) = ws_bind {
+            let ws_transport = if let Some(address) = lab_websocket_bind {
                 Some(transport.bind_websocket(address).await?)
             } else {
                 None
@@ -399,6 +436,39 @@ fn parse_ws_bind(
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "MQTT_WS_BIND requires open-lab, a distinct loopback IP and nonzero port",
+        ));
+    }
+    Ok(Some(address))
+}
+
+fn parse_wss_bind(
+    config: &Configuration,
+    mode: BrokerMode,
+    tcp_bind: SocketAddr,
+    additional_binds: &[SocketAddr],
+) -> io::Result<Option<SocketAddr>> {
+    let value = match config.var("MQTT_WSS_BIND") {
+        Ok(value) => value,
+        Err(env::VarError::NotPresent) => return Ok(None),
+        Err(env::VarError::NotUnicode(_)) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid MQTT_WSS_BIND",
+            ));
+        }
+    };
+    let address: SocketAddr = value
+        .parse()
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid MQTT_WSS_BIND"))?;
+    if mode != BrokerMode::SecureMtls
+        || !address.ip().is_loopback()
+        || address.port() == 0
+        || address == tcp_bind
+        || additional_binds.contains(&address)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "MQTT_WSS_BIND requires secure-mtls and a distinct loopback port",
         ));
     }
     Ok(Some(address))

@@ -14,6 +14,7 @@ const KEYS: &[&str] = &[
     "MQTT_MODE",
     "MQTT_BIND",
     "MQTT_WS_BIND",
+    "MQTT_WSS_BIND",
     "MQTT_STATE_DIR",
     "MQTT_SERVER_CERT",
     "MQTT_SERVER_KEY",
@@ -112,16 +113,16 @@ impl Configuration {
                 .values
                 .insert("MQTT_MAX_CONNECTIONS".to_owned(), value.to_string().into());
         }
-        for (name, value) in [
-            ("MQTT_MODE", document.broker.mode),
-            ("MQTT_BIND", document.broker.bind),
-            ("MQTT_WS_BIND", document.broker.ws_bind),
-            ("MQTT_MONITOR_BIND", document.monitor.bind),
-        ] {
-            if let Some(value) = value {
-                result.values.insert(name.to_owned(), value.into());
-            }
-        }
+        insert_string_values(
+            &mut result.values,
+            [
+                ("MQTT_MODE", document.broker.mode),
+                ("MQTT_BIND", document.broker.bind),
+                ("MQTT_WS_BIND", document.broker.ws_bind),
+                ("MQTT_WSS_BIND", document.broker.wss_bind),
+                ("MQTT_MONITOR_BIND", document.monitor.bind),
+            ],
+        );
         if let Some(value) = document.broker.server_keep_alive_seconds {
             result.values.insert(
                 "MQTT_SERVER_KEEP_ALIVE_SECONDS".to_owned(),
@@ -346,6 +347,7 @@ struct Broker {
     mode: Option<String>,
     bind: Option<String>,
     ws_bind: Option<String>,
+    wss_bind: Option<String>,
     state_dir: Option<PathBuf>,
     server_keep_alive_seconds: Option<u16>,
     #[serde(default)]
@@ -405,6 +407,17 @@ struct Document {
     #[serde(default)]
     admin: Admin,
 }
+fn insert_string_values<const N: usize>(
+    values: &mut BTreeMap<String, OsString>,
+    entries: [(&'static str, Option<String>); N],
+) {
+    for (name, value) in entries {
+        if let Some(value) = value {
+            values.insert(name.to_owned(), value.into());
+        }
+    }
+}
+
 fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }

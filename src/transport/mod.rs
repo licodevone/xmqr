@@ -34,7 +34,7 @@ use rustls::{
 };
 use thiserror::Error;
 use tokio::{
-    io::{AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::{Semaphore, watch},
     time::{sleep, timeout},
@@ -85,6 +85,7 @@ enum ConnectionStream {
     Mtls(Box<TlsStream<TcpStream>>),
     OpenLab(TcpStream),
     WebSocket(Box<WsStream<TokioAdapter<TcpStream>>>),
+    SecureWebSocket(Box<WsStream<TokioAdapter<TlsStream<TcpStream>>>>),
 }
 
 /// Data handed to the MQTT connection state machine after transport setup.
@@ -122,7 +123,10 @@ impl BrokerConnection {
 
     #[must_use]
     pub fn is_tls(&self) -> bool {
-        matches!(&self.stream, ConnectionStream::Mtls(_))
+        matches!(
+            &self.stream,
+            ConnectionStream::Mtls(_) | ConnectionStream::SecureWebSocket(_)
+        )
     }
 
     /// Bytes already removed from the TLS stream by the Slowloris guard.
@@ -151,6 +155,9 @@ impl BrokerConnection {
                 ConnectionStream::WebSocket(stream) => {
                     tokio::io::AsyncReadExt::read(stream.as_mut(), buffer).await
                 }
+                ConnectionStream::SecureWebSocket(stream) => {
+                    tokio::io::AsyncReadExt::read(stream.as_mut(), buffer).await
+                }
             }
         };
         timeout(deadline, read)
@@ -177,6 +184,9 @@ impl BrokerConnection {
                 ConnectionStream::WebSocket(stream) => {
                     tokio::io::AsyncWriteExt::write_all(stream.as_mut(), bytes).await
                 }
+                ConnectionStream::SecureWebSocket(stream) => {
+                    tokio::io::AsyncWriteExt::write_all(stream.as_mut(), bytes).await
+                }
             }
         };
         timeout(deadline, write)
@@ -199,6 +209,9 @@ impl BrokerConnection {
                 shutdown_with_deadline(stream, SHUTDOWN_TIMEOUT).await
             }
             ConnectionStream::WebSocket(stream) => {
+                shutdown_with_deadline(stream.as_mut(), SHUTDOWN_TIMEOUT).await
+            }
+            ConnectionStream::SecureWebSocket(stream) => {
                 shutdown_with_deadline(stream.as_mut(), SHUTDOWN_TIMEOUT).await
             }
         }
@@ -318,6 +331,15 @@ pub struct WebSocketLabTransport {
     metrics: Option<Arc<Metrics>>,
 }
 
+/// Optional WSS listener sharing the secure TCP TLS generation and admission pool.
+pub struct WebSocketSecureTransport {
+    listener: TcpListener,
+    tls_config: watch::Receiver<Arc<ServerConfig>>,
+    connection_slots: Arc<Semaphore>,
+    next_connection_id: Arc<AtomicU64>,
+    metrics: Option<Arc<Metrics>>,
+}
+
 /// Completion barrier for all admitted connection work, including handshakes.
 /// Obtain this before moving the transport into `serve`, then stop/drop the
 /// accept loop before waiting. This does not cancel existing client tasks.
@@ -361,6 +383,27 @@ fn admission_capacity(limit: usize) -> io::Result<u32> {
 }
 
 impl SecureTransport {
+    /// Bind a loopback WSS endpoint with the same mTLS generation and admission pool.
+    /// # Errors
+    /// Rejects a password-only transport, non-loopback/zero port, or socket failure.
+    pub async fn bind_websocket_secure(
+        &self,
+        address: SocketAddr,
+    ) -> io::Result<WebSocketSecureTransport> {
+        if !self.require_client_certificate || !address.ip().is_loopback() || address.port() == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "WSS requires secure-mtls and a loopback IP with nonzero port",
+            ));
+        }
+        Ok(WebSocketSecureTransport {
+            listener: TcpListener::bind(address).await?,
+            tls_config: self.tls_config.clone(),
+            connection_slots: Arc::clone(&self.connection_slots),
+            next_connection_id: Arc::clone(&self.next_connection_id),
+            metrics: self.metrics.clone(),
+        })
+    }
     /// Bind the protected listener and initialize connection admission control.
     ///
     /// # Errors
@@ -725,12 +768,129 @@ impl WebSocketLabTransport {
     }
 }
 
+impl WebSocketSecureTransport {
+    /// Accept mTLS WebSocket MQTT connections until the owner cancels the listener.
+    /// # Errors
+    /// Transient accept errors are retried with backoff.
+    pub async fn serve<H, F>(self, handler: H) -> io::Result<()>
+    where
+        H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
+        F: Future<Output = Result<(), HandlerError>> + Send + 'static,
+    {
+        loop {
+            let (socket, peer_addr) = match self.listener.accept().await {
+                Ok(connection) => connection,
+                Err(source) => {
+                    warn!(error = %source, "WSS accept failed; applying backoff");
+                    sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            };
+            if let Some(metrics) = &self.metrics {
+                metrics.tcp_accepted.fetch_add(1, Ordering::Relaxed);
+            }
+            let Ok(permit) = Arc::clone(&self.connection_slots).try_acquire_owned() else {
+                if let Some(metrics) = &self.metrics {
+                    metrics.reject(Rejection::Admission);
+                }
+                warn!(%peer_addr, "WSS connection rejected because admission limit is full");
+                continue;
+            };
+            if let Err(source) = socket.set_nodelay(true) {
+                warn!(%peer_addr, error = %source, "cannot configure accepted WSS socket");
+                continue;
+            }
+            let tls_acceptor = TlsAcceptor::from(self.tls_config.borrow().clone());
+            let client_handler = handler.clone();
+            let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
+            let metrics = self.metrics.clone();
+            drop(tokio::spawn(async move {
+                let _permit = permit;
+                let client = async {
+                    let connection = establish_secure_websocket_connection(
+                        connection_id,
+                        peer_addr,
+                        socket,
+                        tls_acceptor,
+                    )
+                    .await?;
+                    client_handler(connection)
+                        .await
+                        .map_err(ClientTaskError::Handler)
+                };
+                match AssertUnwindSafe(client).catch_unwind().await {
+                    Ok(Ok(())) => debug!(connection_id, %peer_addr, "WSS client task finished"),
+                    Ok(Err(ClientTaskError::Transport(_))) => {
+                        if let Some(metrics) = &metrics {
+                            metrics.reject(Rejection::Transport);
+                        }
+                        warn!(connection_id, %peer_addr, "WSS transport closed client; details suppressed");
+                    }
+                    Ok(Err(ClientTaskError::Handler(_))) => {
+                        warn!(connection_id, %peer_addr, "MQTT handler closed WSS client; details suppressed");
+                    }
+                    Err(_) => {
+                        error!(connection_id, %peer_addr, "WSS client task panicked and was isolated");
+                    }
+                }
+            }));
+        }
+    }
+}
+
 #[allow(clippy::result_large_err)] // tungstenite fixes the handshake callback's HTTP error type.
 async fn establish_websocket_connection(
     id: u64,
     peer_addr: SocketAddr,
     socket: TcpStream,
 ) -> Result<BrokerConnection, ClientError> {
+    let mut stream = accept_mqtt_websocket(socket).await?;
+    let initial_mqtt_bytes = read_initial_websocket_mqtt(&mut stream).await?;
+    info!(id, %peer_addr, "OPEN LAB WebSocket MQTT transport established without TLS");
+    Ok(BrokerConnection {
+        id,
+        peer_addr,
+        peer_certificates: Vec::new(),
+        initial_mqtt_bytes,
+        stream: ConnectionStream::WebSocket(Box::new(stream)),
+    })
+}
+
+async fn establish_secure_websocket_connection(
+    id: u64,
+    peer_addr: SocketAddr,
+    socket: TcpStream,
+    tls_acceptor: TlsAcceptor,
+) -> Result<BrokerConnection, ClientError> {
+    let tls_stream = timeout(INITIAL_IO_TIMEOUT, tls_acceptor.accept(socket))
+        .await
+        .map_err(|_| ClientError::HandshakeTimeout)?
+        .map_err(ClientError::Handshake)?;
+    let peer_certificates = tls_stream
+        .get_ref()
+        .1
+        .peer_certificates()
+        .map_or_else(Vec::new, ToOwned::to_owned);
+    if peer_certificates.is_empty() {
+        return Err(ClientError::MissingPeerCertificate);
+    }
+    let mut stream = accept_mqtt_websocket(tls_stream).await?;
+    let initial_mqtt_bytes = read_initial_websocket_mqtt(&mut stream).await?;
+    info!(id, %peer_addr, "mTLS WebSocket MQTT transport established");
+    Ok(BrokerConnection {
+        id,
+        peer_addr,
+        peer_certificates,
+        initial_mqtt_bytes,
+        stream: ConnectionStream::SecureWebSocket(Box::new(stream)),
+    })
+}
+
+#[allow(clippy::result_large_err)] // tungstenite fixes the handshake callback's HTTP error type.
+async fn accept_mqtt_websocket<S>(socket: S) -> Result<WsStream<TokioAdapter<S>>, ClientError>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+{
     let callback = |request: &Request, mut response: Response| {
         let protocol = request.headers().get("Sec-WebSocket-Protocol");
         if request.uri().path() != "/mqtt"
@@ -759,11 +919,19 @@ async fn establish_websocket_connection(
     .await
     .map_err(|_| ClientError::HandshakeTimeout)?
     .map_err(|_| ClientError::WebSocketHandshake)?;
-    let mut stream = WsStream::new(websocket);
+    Ok(WsStream::new(websocket))
+}
+
+async fn read_initial_websocket_mqtt<S>(
+    stream: &mut WsStream<TokioAdapter<S>>,
+) -> Result<Vec<u8>, ClientError>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+{
     let mut initial_buffer = [0_u8; MAX_INITIAL_MQTT_BYTES];
     let bytes_read = timeout(
         INITIAL_IO_TIMEOUT,
-        tokio::io::AsyncReadExt::read(&mut stream, &mut initial_buffer),
+        tokio::io::AsyncReadExt::read(stream, &mut initial_buffer),
     )
     .await
     .map_err(|_| ClientError::InitialReadTimeout)?
@@ -771,14 +939,7 @@ async fn establish_websocket_connection(
     if bytes_read == 0 {
         return Err(ClientError::ClosedBeforeMqtt);
     }
-    info!(id, %peer_addr, "OPEN LAB WebSocket MQTT transport established without TLS");
-    Ok(BrokerConnection {
-        id,
-        peer_addr,
-        peer_certificates: Vec::new(),
-        initial_mqtt_bytes: initial_buffer[..bytes_read].to_vec(),
-        stream: ConnectionStream::WebSocket(Box::new(stream)),
-    })
+    Ok(initial_buffer[..bytes_read].to_vec())
 }
 
 #[derive(Debug, Error)]
