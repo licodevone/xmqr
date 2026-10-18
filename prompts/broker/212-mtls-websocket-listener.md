@@ -19,3 +19,5 @@ Revisão 4: Clippy recusou os nomes vizinhos `ws_bind` e `wss_bind` no mesmo esc
 Revisão 5 após o primeiro fio WSS: CONNECT e SUBACK chegaram, mas a fixture concedeu ACL `p212/#` e assinou literalmente `p212/allowed`; o broker exige autorização do filtro exato. Corrigir somente a regra da fixture, afirmar também o código de sucesso do SUBACK e repetir o teste. O timeout anterior é FAIL da fixture, não prova entrega.
 
 Revisão 6: o negativo de ACL recebeu PUBACK MQTT 5, mas a fixture procurou o reason code no último byte; o pacote inclui comprimento zero de propriedades depois dele. Verificar tipo e razão no deslocamento de protocolo, repetir os negativos e a rotação. A asserção anterior é FAIL da fixture.
+
+Revisão 7: no ensaio de quota 1, a sondagem de prontidão abriu e fechou um socket, mas sua vaga ainda drenava quando o WSS de teste tentou conectar. Aguardar por prazo limitado a liberação dessa vaga transitória antes de manter o cliente WSS; a tentativa imediata não comprova falha de admissão. Repetir quota, recuperação e shutdown.
