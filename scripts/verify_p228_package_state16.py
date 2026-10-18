@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import socket
 import struct
@@ -17,7 +18,7 @@ import tomllib
 import unittest
 import zlib
 
-SOURCE = 'ba6ef50204dec2c6385b272e595260b9def1e794'
+RUNTIME_CHECKPOINT = 'ba6ef50204dec2c6385b272e595260b9def1e794'
 OLD_DEB_SHA = '914d38e4fcd16b2d52a6a3e3e56710cc1371248976b9436c8b7570c04dc0e354'
 STATE_FILES = ('state.snapshot', 'state.wal')
 TOPIC = b'p228/state'
@@ -28,6 +29,12 @@ SNAPSHOT_LIMIT = 2 * 1024 * 1024  # Bounded reader fixture, not a raised broker 
 def require(condition, label):
     if not condition:
         raise AssertionError(label)
+
+
+def git_revision(value):
+    if not re.fullmatch(r'[0-9a-f]{40}', value):
+        raise argparse.ArgumentTypeError('source must be an explicit lowercase Git SHA40')
+    return value
 
 
 def digest(path):
@@ -269,7 +276,7 @@ def lifecycle(args, report):
     require(release.get('ID', '').strip('"') == 'ubuntu'
             and release.get('VERSION_ID', '').strip('"') == '26.04', 'ubuntu26')
     require(run('dpkg', '--print-architecture') == 'amd64', 'native_amd64')
-    require(args.source == SOURCE and digest(args.old_deb) == OLD_DEB_SHA, 'pinned_source_baseline')
+    require(digest(args.old_deb) == OLD_DEB_SHA, 'pinned_baseline_package')
     for package, version in ((args.old_deb, '0.42.0-1'), (args.new_deb, '0.43.0-1')):
         require(package.is_file() and not package.is_symlink(), 'package_file')
         require(run('dpkg-deb', '-f', package, 'Package') == 'xmqr-broker', 'package_name')
@@ -443,6 +450,14 @@ class ReaderTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, 'snapshot_entry_size'):
             snapshot_document(value)
 
+    def test_explicit_git_revision_syntax(self):
+        self.assertEqual(git_revision(RUNTIME_CHECKPOINT), RUNTIME_CHECKPOINT)
+
+    def test_git_revision_rejects_noncanonical_source(self):
+        for value in ('', 'HEAD', 'a' * 39, 'a' * 41, 'A' * 40, 'g' * 40):
+            with self.subTest(value=value), self.assertRaises(argparse.ArgumentTypeError):
+                git_revision(value)
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -451,18 +466,21 @@ def main():
     parser.add_argument('--new-deb', type=Path)
     parser.add_argument('--new-broker-sha')
     parser.add_argument('--new-admin-sha')
-    parser.add_argument('--source', default=SOURCE)
+    parser.add_argument('--source', type=git_revision,
+                        help='explicit artifact Git SHA40; caller must verify CI head_sha/package provenance')
     parser.add_argument('--report', type=Path)
     args = parser.parse_args()
     if args.self_test:
         result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(ReaderTests))
         raise SystemExit(0 if result.wasSuccessful() else 1)
-    if not all((args.old_deb, args.new_deb, args.new_broker_sha, args.new_admin_sha, args.report)):
-        parser.error('explicit packages, expected native ELF hashes and new report are required')
+    if not all((args.old_deb, args.new_deb, args.new_broker_sha, args.new_admin_sha, args.source, args.report)):
+        parser.error('explicit packages, source, expected native ELF hashes and new report are required')
     if args.report.exists():
         parser.error('report exists; choose a new owned path')
     started = time.monotonic()
     report = dict(status='RUNNING', source_revision=args.source, platform='Ubuntu26.04/amd64',
+                  runtime_checkpoint=RUNTIME_CHECKPOINT,
+                  source_provenance='caller-declared SHA40; verify CI head_sha and package/ELF hashes externally',
                   scope='owned container; loopback MQTT311, process shutdown, no TLS/power-loss certification',
                   stages=[])
     try:

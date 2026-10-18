@@ -121,3 +121,15 @@ export/proveniência final. Publicação Hub/tag/prerelease só após aceite
 global6/CI/comboadmin pelo coordenador, sem modificar latest/tags antigas.
 Wire deste harness é MQTT3.1.1 loopback; não prova TLS, perda de energia ou
 certificação integral MQTT5. MIT e textos originais de terceiros preservados.
+
+## Adaptação de proveniência P228B1.4
+
+Preparada antes do patch e aprovada pelo coordenador: `--source` é agora
+SHA40 minúsculo explícito, validado sintaticamente; `runtime_checkpoint`
+registra ba6 separadamente. O argumento NÃO prova origem. Para o pacote final,
+o registro deve vincular head_sha do run GitHub PASS ao SHA256 do .deb e aos
+ELFs esperados do comando. Baseline042, versões/arquiteturas e hashesELF não
+mudam. Self-tests do harness agora5/5 (três leitores + dois grupos de sintaxe
+SHA). Nenhum novo ciclo de pacote é alegado por esta alteração documental de
+proveniência. Build Docker exclusivo autorizado está em execução com rótulo
+do checkpoint d6f1062; fonte final e publicação seguem com o coordenador.
