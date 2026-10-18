@@ -624,8 +624,19 @@ fn decode_for_inner(
 ) -> Result<Packet, Box<dyn std::error::Error + Send + Sync>> {
     let mut c = Cursor::new(body);
     // MQTT-3.1.0-2: a second CONNECT is a protocol error regardless of body.
-    if mqtt5 && header == 0x10 {
+    if mqtt5 && header >> 4 == 1 {
         return Err(SecondConnect.into());
+    }
+    if !mqtt5 && header >> 4 == 1 && header & 0x0f != 0 {
+        // The version is not yet negotiated. Only a complete MQTT 5 prefix
+        // with a bounded property block permits a CONNACK error response.
+        if let Ok(maximum_packet_size) = initial_connect5_maximum_packet_size(body) {
+            return Ok(Packet::UnsupportedConnect5 {
+                maximum_packet_size,
+                reason_code: 0x81,
+            });
+        }
+        return Err(FixedHeaderFlagsInvalid.into());
     }
     if mqtt5 && header >> 4 == 0 {
         return Err(MalformedPacketStructure.into());
@@ -2992,6 +3003,40 @@ mod tests {
                 );
                 assert!(decode_for(header, body, false).is_err(), "{header:#x}");
             }
+        }
+    }
+
+    #[test]
+    fn mqtt5_initial_connect_reserved_flags_require_verifiable_version() {
+        let body = [0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 30, 0, 0, 1, b'x'];
+        let limited = [
+            0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 30, 5, 0x27, 0, 0, 0, 4,
+        ];
+        let legacy = [0, 4, b'M', b'Q', b'T', b'T', 4, 2, 0, 30, 0, 1, b'x'];
+        for flags in 1..=15 {
+            let header = 0x10 | flags;
+            assert!(matches!(
+                decode_for(header, &body, false),
+                Ok(Packet::UnsupportedConnect5 {
+                    maximum_packet_size: None,
+                    reason_code: 0x81
+                })
+            ));
+            assert!(matches!(
+                decode_for(header, &limited, false),
+                Ok(Packet::UnsupportedConnect5 {
+                    maximum_packet_size: Some(4),
+                    reason_code: 0x81
+                })
+            ));
+            for unknown in [&legacy[..], &body[..7], &[][..]] {
+                assert!(decode_for(header, unknown, false).is_err());
+            }
+            assert!(
+                decode_for(header, &[], true)
+                    .unwrap_err()
+                    .is::<SecondConnect>()
+            );
         }
     }
 

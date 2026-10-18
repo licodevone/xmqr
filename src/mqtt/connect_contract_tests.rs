@@ -870,6 +870,22 @@ async fn supported_alphanumeric_ids_and_local_utf8_boundary_are_accepted() {
 }
 
 #[tokio::test]
+async fn mqtt5_initial_connect_reserved_flags_refused_before_state() {
+    for header in [0x11, 0x1f] {
+        let mut packet = connect(b"invalid-flags", true, 5);
+        packet[0] = header;
+        case(packet, Some(0x81)).await;
+        let mut legacy = connect(b"legacy", true, 4);
+        legacy[0] = header;
+        case(legacy, None).await;
+        let mut too_small = connect5_with_properties(&[0x27, 0, 0, 0, 4]);
+        too_small[0] = header;
+        case(too_small, None).await;
+    }
+    case(connect(b"healthy", true, 5), Some(0)).await;
+}
+
+#[tokio::test]
 async fn malformed_connect_closes_without_connack() {
     let valid = connect(b"valid", true, 4);
     let mut wrong_name = valid.clone();
