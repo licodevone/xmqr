@@ -1,4 +1,4 @@
-# P227I v1.0 — fronteiras exatas de metadados MQTT5
+# P227I v1.1 — fronteiras exatas de metadados MQTT5
 
 Preparado em2026-10-18 antes dos testes, por solicitação do coordenador da
 fase6. Entrada: broker0.42.0, HEAD1f25c4c, P227E88906d6 integrado; mod.rs e
@@ -71,3 +71,20 @@ Registro distinguirá NOT_RUN/PASS/FAIL reais, fonte/hash, comandos, ambiente
 e limites. Criar testes não equivale a aprovação, integração wire, TLS/mTLS,
 persistência, interoperabilidade externa ou homologação de plataforma.
 Sem push/tag/publicação ou alteração dos arquivos de outros owners.
+
+## Revisão v1.1 — corrigir somente o contexto do decoder de teste
+
+Coordenador executou p227i_ na fonte preparada:9testes,3PASS/6FAIL,
+compile2.07s/testes0.02s. Seis falhas ocorreram no unwrap do controle Will,
+Err SecondConnect: helper decoded usou decode_for(...,true), que representa
+uma conexão MQTT5 já estabelecida e deve recusar um segundo CONNECT. Isso
+é erro do launcher do teste, não falha do parser contra esses metadados.
+Preservar esse resultado e as expectativas originais, sem alterar máximos,
+bytes, classificação de excesso ou regras de CONNECT para tornar verde.
+
+Corrigir apenas helper cfg(test): Context::Will chama decode inicial, que
+descobre MQTT5 no próprio CONNECT; demais contextos usam decode_for com
+MQTT5true. Repetir nove grupos, suíte codec e Clippy no cache confirmado
+liberado por E, locked/offline/-j1 e TMPDIR=/var/tmp, sem concorrência. A
+raiz transferiu esta execução após encerrar o uso de Cargo por E. Rustfmt
+continua localizado. Se outro defeito aparecer, registrar antes de mudar.
