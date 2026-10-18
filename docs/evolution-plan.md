@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-18.
-Versões publicadas atuais: broker/admin legado 0.35.0, client independente 0.28.0
+Versões publicadas atuais: broker/admin legado 0.36.0, client independente 0.30.0
 e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
 propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
@@ -238,6 +238,9 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P200 parcial: flags reservadas inválidas de SUBSCRIBE, UNSUBSCRIBE e PUBREL MQTT 5 recebem DISCONNECT `0x81` antes de alterar o estado.~~ [Registro](../prompts/registros/P200-subscribe-unsubscribe-pubrel-flags-mqtt5.md). Gates locais, TCP e CI PASS; fase 6A global aberta.
 - [x] ~~Fase 6B/C107 parcial: outbox opt-in do client Linux/WSL retoma uma publicação MQTT 5 QoS 2 pela fase PUBLISH/DUP ou PUBREL, após commit durável e somente com Session Present=1.~~ [Registro do client](../../xmqr-client/prompts/registros/C107-durable-qos2-outbox-mqtt5.md). Fixture, broker reiniciado, entrega única ao assinante, suíte e CI PASS; declaração da assinatura foi tratada em C108, mensagens recebidas/múltiplos inflight pendentes.
 - [x] ~~Fase 6B/C108 parcial: manifesto opt-in da assinatura MQTT 5 no client Linux/WSL distingue `Prepared`/`Active` e retoma a sessão sem novo SUBSCRIBE somente com Session Present=1.~~ [Registro do client](../../xmqr-client/prompts/registros/C108-durable-subscription-resume-mqtt5.md). Fixture, broker reiniciado com mensagem offline, suíte e CI PASS; estado das mensagens recebidas ainda não durável.
+- [x] ~~Distribuição C109: client independente 0.30.0 com C107/C108; pacote Ubuntu 26.04, ciclo descartável de upgrade/rollback, imagem por digest, tag e prerelease com seis hashes remotos conferidos.~~ [Registro](../../xmqr-client/prompts/registros/C109-release-0.30.0.md). Fase 6B global aberta.
+- [x] ~~Fase 6A/P201 parcial: pacotes exclusivos do servidor (CONNACK/SUBACK/UNSUBACK/PINGRESP) enviados pelo client MQTT 5 após CONNACK recebem DISCONNECT `0x82` antes de interpretar o corpo.~~ [Registro](../prompts/registros/P201-server-only-control-packets-mqtt5.md). Gates locais, TCP e CI PASS; fase 6A global aberta.
+- [x] ~~Distribuição P202: broker/admin legado 0.36.0 com P199–P201; CI da fonte exata, pacote Ubuntu 26.04, upgrade/rollback descartável, imagens numeradas, tag, prerelease e oito hashes remotos verificados.~~ [Registro](../prompts/registros/P202-release-0.36.0.md). Fases globais abertas.
 - [x] ~~Distribuição C109: client independente 0.30.0 com C107/C108, pacote Ubuntu 26.04, ciclo descartável de upgrade/rollback, imagem por digest, tag e prerelease com seis hashes remotos conferidos.~~ [Registro](../../xmqr-client/prompts/registros/C109-release-0.30.0.md). M03/6B global ainda aberto.
 - [x] ~~Fase 6A/P201 parcial: CONNACK, SUBACK, UNSUBACK e PINGRESP exclusivos do servidor enviados pelo client após CONNACK recebem DISCONNECT `0x82` antes de interpretar corpo.~~ [Registro](../prompts/registros/P201-server-only-control-packets-mqtt5.md). Gates locais, TCP e CI PASS; 6A global aberta.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
