@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 0.43.0 — fechamento experimental da fase6 e estado16
+
+- VBI mínimo em MQTT5 e diagnóstico0x82 para alias válido ainda não mapeado;
+  zero/excesso preservam0x94 e o comportamento3.1.1 permanece separado.
+- Fairness por grupo compartilhado e expiração do Will em takeover.
+- Clock lógico com piso durável, intervalo original quando há Message Expiry,
+  identidade de obrigaçõesQoS1/2 e descarte condicionado a identidade/estágio;
+  distingue Prepared de MayHaveSent. Lê documentos1–15 e grava16.
+- [Aceite M01–M10](docs/phase6-acceptance.md): CI69/69 com client0.40.0/admin0.11.0,
+  migrações reais, pacote Ubuntu26amd64, imagens numeradas e evidências.
+  Rollback exige backup15 anterior; não é certificação integral nem produção.
+
 ## 0.42.0 — allowlist de Origin para WSS mTLS (prerelease experimental)
 
 - WSS mTLS pode aceitar `Origin` de navegador somente se constar em lista HTTPS exata configurada; lista ausente/vazia mantém recusa. WS aberto, certificado cliente, credenciais MQTT e ACL não são relaxados. Estado v15 sem migração.

@@ -373,6 +373,38 @@ broker043 está em publicaçãoP228. Só após conferência remota atualizar o
 checklist global. Eall6 e CI39162215519 continuamFAIL; novosPASS não os
 reescrevem nem provam causa de cada erro histórico.
 
+## Auditoria independente da publicação e revisão de leitura
+
+Durante o preflightP228B surgiu a publicação já existentev0.43.0, fonte
+correta db472bc. Esta frente interrompeu seus writes, preservou tag/Hub/
+release e passou a auditar os remotos. Tag anotadaobjeto
+89df8f91755e3dbe231a281e1ece9d9881e96b0b, sem mover referência existente.
+As12assets foram baixadas em destino novo e conferidas; o archive publicado
+é phase6-evidence-39164217059.tar.gz, não o ZIP preparado localmente.
+
+Auditoria12/12PASS:
+`cd37de973ff49e63005e5eac40f4600000de0cf7a3e6b62b65e873dd0bcadc8e`.
+Seu primeiroFAIL comparava inventárioMarkdown autoralCRLF com blobGitLF;
+prompt revisado antes de limitar normalização àquele arquivo próprio,
+com prova de equivalência canônica. Terceiros continuam bytesestritos:
+166pacotes/323textos/1.728.802bytes, idênticos ao.deb. Nenhuma licença
+estrangeira foi normalizada ou reatribuída comoMIT.
+
+Imagens publicadas475b31c8/673a062c foram puxadas POR DIGEST e testadas com
+client040/1eca2f2b: mTLS/TCP/WSS, retained/restart, negativosCA/SAN/senha/ACL
+e adminlock/backup/restorePASS. Relatórios sanitizadosSHA256:
+
+- MQTT: e6e5ec6df5786fcbe18ec6e3ccd82192abdea78a372fafee127457d8ec3f8644;
+- admin: e9a468b69ea8237bc3c68613a2af174dc319cdf44116ba27469dc974ae4d9113.
+
+Revisão de leitura sem histórico respondeu cinco perguntas sobre escopo,
+fontes, rollback, limites e próxima fase sem contradição material. Ajuste
+editorial identificado: tornar explícito o checkpoint históricoP123/C64 e
+os títulos das fases; não é reabertura funcional. Dez links relativos novos
+conferidos e gitdiffcheckPASS. README/CHANGELOG/política de versões/matriz
+foram alinhados, preservando o commit0440362 e os registros de publicação.
+M01–M10 permanecem aceitos no recorte finito; fase8 continua aberta.
+
 A [prerelease broker0.43.0](https://github.com/licodevone/xmqr/releases/tag/v0.43.0)
 foi posteriormente publicada com 12 anexos e digests remotos conferidos,
 incluindo os 13 JSON desta campanha em archive sanitizado. O checklist

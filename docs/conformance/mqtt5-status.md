@@ -2,18 +2,21 @@
 
 ## Checkpoint de fechamento P227 — 2026-10-18
 
-Fase6 ainda em validação. A [matriz por propriedade/contexto](mqtt5-property-matrix.md)
-separa implementação disponível de execução integrada. O
+Fase6 aceita no contrato experimental M01–M10: broker0.43.0,
+client0.40.0 e admin0.11.0. A [matriz por propriedade/contexto](mqtt5-property-matrix.md)
+discrimina capacidades e limites; o [aceite](../phase6-acceptance.md) registra
+69/69fixtures na CI das fontes exatas, pacotes e distribuição. O
 [registro P227](../../prompts/registros/P227-fechamento-integrado-fase6.md)
-identifica os candidatos modificados, hashes, testes efetivos e pendências.
-Não confundir esses candidatos com os artefatos publicadosv0.42.0.
+identifica hashes, fontes, testes efetivos e falhas históricas preservadas.
+Não confundir os candidatos antigos com o marco publicado0.43.0.
 A [decisão AUTH M10](../architecture/adr-0007-mqtt5-auth-scope.md) explicita
 PLAIN inicial TLS/mTLS e reautenticação da mesma identidade; extensões
 ausentes e interop de reauth não são anunciadas como aprovadas.
 
 Os parágrafos incrementais abaixo preservam o histórico de cada fatia;
 afirmações antigas como AUTH ausente referem-se àquele checkpoint, não
-ao estado atual. O fechamento depende dos gates finais, não desse histórico.
+ao estado atual. O fechamento está vinculado ao aceite acima, não à contagem
+de prompts ou a cada afirmação histórica isolada.
 
 ## Histórico incremental
 

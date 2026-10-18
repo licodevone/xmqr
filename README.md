@@ -1,5 +1,29 @@
 # XMQR
 
+## Marco atual 0.43.0
+
+A [prerelease 0.43.0](https://github.com/licodevone/xmqr/releases/tag/v0.43.0)
+conclui a fase6 no contrato experimental M01–M10: MQTT3.1.1/5, sessões,
+expiração, Will Delay, controle de fluxo, aliases, metadados, assinaturas e
+o recorte AUTH documentado. A CI integrada passou em69/69fixtures com
+client0.40.0 e admin independente0.11.0. Veja o [aceite e seus limites](docs/phase6-acceptance.md)
+e o [checklist de evolução](docs/evolution-plan.md).
+
+O estado passa a formato16. Antes da primeira gravação nova, preserve backup
+offline do formato15; downgrade do executável não converte os dados. O
+admin independente0.11.0 é o par compatível. Pacote Ubuntu26amd64, imagens
+Docker numeradas, checksums e evidências estão na release. [Instalação](docs/current-releases-wsl.md)
+e [nota de migração](docs/releases/0.43.0.md).
+
+O transporte da fase7 já foi aceito; bridge/fase8 e Windows nativo/fase9
+continuam com critérios próprios. Não há certificação integral MQTT5 ou
+homologação de produção. Código próprio MIT; notices de terceiros preservados.
+
+## Histórico dos marcos anteriores
+
+Os parágrafos de versão abaixo descrevem cada checkpoint histórico, não
+substituem o estado atual e o aceite indicados acima.
+
 A prerelease experimental 0.42.0 reúne P216 e introduz
 `MQTT_WSS_ALLOWED_ORIGINS=https://painel.exemplo` (ou lista TOML
 `broker.wss_allowed_origins`) somente para WSS mTLS. Sem lista, `Origin`

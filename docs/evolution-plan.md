@@ -87,7 +87,7 @@ B06/B07/B08/C07 ACCEPTED no recorte finito, com falhas históricas e limites.
 Clones/licenças/ciclo de pacotes PASS; publicação coordenada em P92.
 Não significa conformidade MQTT integral ou produção.
 
-### Fases 4–5 — entregas restantes
+### Fases 4–5 — concluídas nos recortes documentados
 - [x] ~~Admin independente0.1.0: CLI, painel local autenticado de leitura, prompts e release/deb/Docker próprio (P88).~~
 - [x] ~~Fase 4/software broker: múltiplos listeners mTLS, políticas estáticas por endpoint, TLS sem certificado cliente quando configurado e rotação transacional de certificados.~~
 - [x] ~~Fase 4/software client: perfis reutilizáveis com precedência CLI/ambiente/TOML, mTLS/TLS-senha e negativos de credenciais/rotação.~~
@@ -134,7 +134,7 @@ interface somente de leitura; A01/A02/A03 em seu repositório são IDs locais,
 não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidência:
 [P88](../prompts/registros/P88-admin.md). mqtt-admin legado permanece intacto.
 
-### Fases 6–9 e distribuição — pendentes
+### Fases 6–9 e distribuição — estado atual
 
 - [x] ~~Fase 6A/P114 parcial: recusa de CONNECT nível 5 com CONNACK MQTT 5 `0x84`, fechamento e ausência de commit; MQTT 5 ainda não é aceito.~~ [Estado](conformance/mqtt5-status.md) e [evidência](../prompts/registros/P114-recusa-connect-mqtt5.md).
 - [x] ~~Fase 6A/P115/C57 parcial: CONNECT5 limpo e publicação QoS0/1 sem propriedades no broker/client, entrega cruzada a assinante 3.1.1.~~ [Estado](conformance/mqtt5-status.md), [broker](../prompts/registros/P115-publicacao-mqtt5-inicial.md) e [client](../../xmqr-client/prompts/registros/C57-publicacao-mqtt5-inicial.md).
@@ -311,7 +311,7 @@ e o link do registro. Manter itens em validação desmarcados e indicar seu bloq
 | Bridge | Sidecar `mqtt-bridge 0.2.0` no client 0.40.0: C125–C134 direção única TLS/mTLS QoS 0/1/2, journal privado QoS 2, retomada condicionada à sessão, reconexão limitada e guardião de topologia gerenciada; XMQR↔Mosquitto PASS; pacote/imagem publicados por C135 | Retained vivo não preservável integralmente em MQTT 3.1.1, transação entre brokers, loops com bridges externas, mapeamento múltiplo e aceite global T02; fase 8 aberta |
 | Distribuição | Deb26 amd64; sem APT próprio | Ubuntu24 validado, arm64, repositório APT assinado e política de upgrade |
 | Windows nativo | Não homologado | Persistência/locks/CRUD/sinais adaptados, serviço Windows, instalador e testes |
-| Clients | CLI própria com perfis, saída/filtros, repetição e MQTT5 parcial; sem paridade exaustiva | Completar MQTT5 e validar firmware ESP32 como consumidor nos novos contratos |
+| Clients | Perfis, saída/filtros, repetição, sessões/journals e MQTT5 no contrato da fase6; sem paridade exaustiva | Extensões e campanhas específicas de firmwareESP32 como consumidor, sem reabrir o aceite atual do CLI |
 | Extensibilidade | Sem API de plugins equivalente | Avaliar hooks de autenticação/ACL e integração externa depois de estabilizar o núcleo |
 
 TLS PSK, sockets Unix, opções avançadas de TLS/logs, API de controle e políticas
@@ -319,7 +319,12 @@ administrativas são backlog explícito de paridade; definir demanda e testes
 antes de adotar. Alta disponibilidade/cluster é estudo separado e não condição
 para igualar um broker Mosquitto isolado.
 
-## Cronograma recomendado
+## Cronograma original de referência
+
+As semanas e descrições desta tabela conservam a estimativa original, não
+datas prometidas ou uma lista atual de bloqueios. O checklist no início e
+os aceites vinculados registram o estado executado; fases6A–6D já foram
+aceitas no contrato finito. As pendências atuais começam na fase8.
 
 | Fase | Janela estimada | Broker | Client/consumidores | Critério de saída |
 | --- | --- | --- | --- | --- |
@@ -360,10 +365,10 @@ Pode ser antecipado sem bloquear MQTT5 quando houver disponibilidade.
 6. Commit/push após aceite. Tag imutável e prerelease apenas com binários/pacotes
    testados, notas, hashes e procedimento de upgrade/rollback. Versões independentes.
 
-Fase2 encerrada por P85/C44, conforme [checklist de placa](esp32-phase2-checklist.md).
-O parágrafo anterior sobre a fase2 é histórico. Após P123/C64, a próxima
-entrega continua na fase6A: ampliar propriedades e demais reason codes MQTT5
-no broker e no client.
+Checkpoint histórico P123/C64: a fase2 havia sido encerrada porP85/C44,
+conforme [checklist de placa](esp32-phase2-checklist.md). Naquele momento,
+a próxima entrega continuava na fase6A: ampliar propriedades e motivosMQTT5.
+Esse checkpoint não substitui o aceite atual6A–6D nem a próxima fase8.
 Não iniciar MQTT5, WebSocket e bridge juntos. Reavaliar este cronograma
 ao encerrar cada fase e registrar desvios nos prompts correspondentes.
 

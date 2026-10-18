@@ -74,6 +74,30 @@ versões anteriores, backup/rollback e negativos. Crash de processo não prova
 queda de energia. ACK de protocolo não prova processamento de negócio.
 Não usar locks bloqueantes, hash caro ou disco no hot path sem fronteira.
 
+## Aceite atual M01–M10
+
+O [aceite da fase6](phase6-acceptance.md) é a referência atual. A CI39164217059
+compilou broker043, client040 e admin011 porSHA e aprovou69fixtures. As
+marcações parciais da matriz detalhada a seguir preservam o histórico dos
+incrementos; não são pendências reabertas do contrato finito aceito.
+
+| ID | Resultado atual e prova principal |
+| --- | --- |
+| M01 | Aceito6A:32fixtures de negociação/motivos, coexistência3.1.1 e peers Mosquitto/Paho |
+| M02 | Aceito6A:matriz contextual,21VBI,9aliasReason e9grupos de fronteira P227I |
+| M03 | Aceito6B:sessões/expiry, journal inbound21, compatibilidade6 e migração realv1→v2 |
+| M04 | Aceito6B:clock/identidadeQoS, expiry/Will,12crash e A21 com migração real15→16 |
+| M05 | Aceito6C:ReceiveMaximum/MaximumPacketSize, backlog e progresso dos controles com quota esgotada |
+| M06 | Aceito6C:aliases/reset, diagnóstico0x82/0x94 e Paho com adapter explícito; receptor Mosquitto2.0.22 compacto não homologado |
+| M07 | Aceito6C:metadados PUBLISH/Will, persistência, JSONL e fronteiras/budgets |
+| M08 | Aceito6D:NoLocal, RetainHandling, RetainAsPublished, SubscriptionIdentifier e UserProperties contextuais |
+| M09 | Aceito6D:shared ativo/durável, redistribuiçãoQoS1 e fairness por grupo durante a vida do processo |
+| M10 | Decisão e recorte aceitos6D:PLAIN inicialTLS/mTLS e reauth explícita da mesma identidade; sem desafios arbitrários/reauth periódica |
+
+Os casos internos e testes dirigidos podem se sobrepor; não somar esses
+números às69fixtures. A fase8/bridge e extensões opcionais seguem com gates
+próprios. Não se anuncia certificação integral ou paridade exaustiva.
+
 ## Matriz de entregas
 
 Cada ID é uma fatia futura de trabalho, não uma tag, versão prometida ou
@@ -247,7 +271,7 @@ para o subconjunto anunciado, segurança e operação validadas, campanha longa,
 suporte/plataformas definidos e plano de resposta a falhas. Não há prazo fixo
 ou desempenho prometido; estimar cada marco após medir a fatia anterior.
 
-## Próxima execução e decisões abertas
+## Histórico da sequência original e decisões
 
 P80/C43 completaram software; P83/P84/P85 fecharam E01 físico. Fase2 ACCEPTED,
 com limites em phase2-acceptance.md. Próxima etapa é uma fatia de robustez da
@@ -262,3 +286,11 @@ provider; ABI/plugins; APT/domínio/custódia de chave; garantia de fsync Window
 São decisões identificadas e com gate, não campos escondidos nem compromisso
 de implementação. Planejamento concluído significa que esses pontos têm
 responsável, dependência e aceite definidos; execução permanece no checklist.
+
+## Próxima etapa após a fase6
+
+Prosseguir com os requisitos ainda abertos de T02/fase8. Client040/C135 já
+distribui a bridgeQoS0/1/2 e seu journal; isso não resolve integralmente
+retained vivo, transações entre brokers ou loops de bridges externas. Depois
+vêm fase9/Windows nativo e as prioridades adicionais do plano de evolução.
+Preparar prompts, validar e distribuir cada fatia sem mover tags anteriores.

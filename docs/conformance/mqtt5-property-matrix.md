@@ -1,8 +1,9 @@
 # MQTT 5 — matriz de propriedades do broker XMQR
 
 Inventário técnico preparado pelo P227A em2026-10-18 e atualizado para o
-candidato6b8cf4b (0.43.0), incluindo P227D/E/I. Não é certificação MQTT nem
-aceite global das fases 6A–6D.
+marco0.43.0/fontedb472bc, incluindo P227D/E/I. O
+[aceite M01–M10](../phase6-acceptance.md) passou nos gates finitos de6A–6D;
+isso não equivale a certificação integral MQTT.
 Esta matriz complementa, mas não substitui, o plano e os registros de execução.
 
 ## Como interpretar
@@ -15,8 +16,9 @@ Esta matriz complementa, mas não substitui, o plano e os registros de execuçã
   Integer, `UTF8` = string prefixada por U16, `BIN` = bytes prefixados por U16,
   `PAIR` = duas strings UTF8. Comprimentos locais contam **bytes**, não caracteres.
 - Todas as linhas de entrada e de emissão implementada têm estado de evidência
-  **`IMPLEMENTED_TEST_AVAILABLE`**: código localizado e testes indicados. Isso
-  **não** afirma que cada teste já foi executado no ELF integrado desta revisão.
+  **`IMPLEMENTED_WITH_FINITE_ACCEPTANCE`**: código e testes identificados,
+  com suíteRust e fixtures pertinentes no aceite da fase6. Isso não enumera
+  todas as combinações de valores, QoS e estados de cada propriedade.
   `OPTIONAL_NOT_EMITTED` identifica uma escolha de emissão, não entrada aceita.
 - Um teste de aceitação/duplicidade não prova automaticamente todos os valores
   extremos. As lacunas explícitas da seção final impedem essa leitura.
@@ -292,9 +294,10 @@ Ressalvas e trabalho restante, sem modificar checklists globais:
 4. W17 é open-labTCP sintético. Não comprova TLS/mTLS, durabilidade, fairness,
    todas as combinações QoS, todos os estados de AUTH ou cada plataforma.
 5. CoreE teve38 testes dirigidosPASS e codecP227I78PASS/6campanhasfuzz opt-in
-   ignoradas; não somar filtros sobrepostos como testes únicos. Fullsuite043
-   e admin16 ainda em validação. Full fmt/test/Clippy, regressão3.1.1, dois clientes externos, campanhas de
-   crash e demais gates finais são consolidados pelo coordenador com hashes
-   e resultados próprios. O status geral6A–6D não muda por criar esta tabela.
+   ignoradas; não somar filtros sobrepostos como testes únicos. O gate final
+   executou311testesRust do broker e69fixtures integradas com client040 e
+   admin011: [CI exata SUCCESS](https://github.com/licodevone/xmqr/actions/runs/39164217059).
+   Regressão3.1.1, peers externos, crash/migrações, hashes e limites estão no
+   aceite da fase6; os seis fuzz opt-in não foram executados por esse gate.
 
 Material autoral MIT; referências OASIS permanecem links à fonte oficial.
