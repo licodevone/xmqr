@@ -1,4 +1,4 @@
-# P227E v1.8 — relógio lógico e expiração durável sem renovar TTL
+# P227E v1.9 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -237,3 +237,13 @@ original DUP0 retorna erro limitado sem novos bytes, preservando replay
 incerto. Recovery DUP1 prossegue handshake conservador com TTL0. Não apagar
 por expiry/refresh/timeout após intenção durável, nem prometer primeiro byte
 observado. Fuzz acrescenta teste direto; owner executa RED antes do fix.
+
+## Revisão v1.9 após RED TCP positivo→vencido, antes do fix
+
+Filtro p227e_ executou29casos:28PASS/1FAIL esperado,29,76scompile/5,74stest.
+Poda/quota1, rollback Live/durável, pending_replay antesoffline, identidade
+com packetID+metadata iguais e WAL Prepared passaram. Cinco TCP passaram:
+mesmafaixa, cruzamento, quatro refresh, deadline3s e WAL antesappend.
+Negativo positivo→R0 falhou pois send_delivery retornou Ok pelo descarte
+!dup. Corrigir agora disposition explícita e manter o oráculo6º inalterado;
+não usar o GREEN parcial para declarar contrato fechado.
