@@ -1,4 +1,4 @@
-# P227 v1.5 — concluir a fase 6 de MQTT 5
+# P227 v1.6 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -169,3 +169,11 @@ matriz só promove esse requisito após repetir o wire na fonte corrigida.
 Pedido do mantenedor autoriza seguir às fases seguintes somente depois do
 aceite efetivo da fase6. Respeitar dependências e preparar prompts de cada
 fatia; fase7 já aceita em seu contrato, bridge/fase8 segue pendências reais.
+
+## Revisão 1.6 — contrato CLI dos harnesses
+
+Revisão de integração encontrou `--label` obrigatório no harness VBI,
+omitido pelo registro do executor. Corrigir o argumento antes da primeira
+campanha agregada e adicionar teste de contrato; ausência daria argparse
+exit2, não uma falha MQTT. Adicionar P227D com labelcandidate explícito,
+novo relatório exclusivo e marker próprio depois da entrega do agente.
