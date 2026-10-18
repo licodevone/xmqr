@@ -1,4 +1,4 @@
-# P228B v1.4 — QA isolado dos artefatos broker0.43.0
+# P228B v1.5 — QA isolado dos artefatos broker0.43.0
 
 Preparado em2026-10-18 antes da autoria do harness. Complementa P228v1.1;
 owner não altera runtime/manifests/CI nem o registro global P228 do coordenador.
@@ -134,3 +134,32 @@ Preservar pin do .deb042, nomes/versões/arquitetura dos pacotes e hashesELF
 explícitos do043. Acrescentar self-tests leves de sintaxe SHA, sem build ou
 instalação adicional. Commit separado desta mudança para cherry-pick antes
 do congelamento final; build Docker atual d6 pode continuar e não é publicado.
+
+## Revisão1.5 — integrar fonte final e repetir artefatos exatos
+
+Nova autorização do coordenador: integrar main
+`db472bc64558bf0e376a902b7780a259247c5149` somente nesta branch/clone.
+Preservar commits623aeca/23c216 (proveniência explícita e evidências Docker),
+que não estão na árvore db472bc. Comparação lida antes do merge confirma que
+as três diferenças P228B são essas adições próprias; entradas runtime/Cargo/
+Docker/notices/LICENCE equivalem a ba6. Preferir conteúdo próprio SOMENTE
+nas colisões dessas três adições, não descartar trabalho geral do main.
+
+CI padrão39164202189 consultada por API: completed/success/head_sha db472bc;
+artefato12150137120 não expirado. Baixar pacote oficial em destino NOVO,
+conferir sidecar, conteúdo, ELFsha/versões e vincular o run ao hash observado.
+Rerodar lifecycle real completo com fonte db472bc, não meramente mudar flag.
+Preservar os reports antigos e classificar qualquer novo FAIL antes de fix.
+
+Rebuild Docker serialj1 com VCS_REF db472bc e inputs runtime comprovadamente
+iguais, reaproveitando cache Cargo; referências locais novas sem substituir
+candidatos anteriores. Repetir QA mTLS/WSS/admin/notices contra imagens finais.
+Preparar exports e manifesto com revisão real db472bc apenas após os gates
+locais: se `release_assets.py` exigir HEAD exato, alternar este clone LIMPO
+temporariamente para db472bc, mantendo branch própria/commits preservados,
+e retornar à branch depois. Conferir selected-inputs diff vazio antes disso.
+Nenhuma alteração do original/main ou de serviços/estado do operador.
+
+CI integrada39164217059 ainda em andamento nesta preparação. Publicação de
+tags/Hub/release continua PROIBIDA até confirmação global do coordenador;
+preparar/exportar localmente não equivale a publicar nem a fechar a fase6.
