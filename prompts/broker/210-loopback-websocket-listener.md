@@ -13,3 +13,5 @@ Revisão 2 após o primeiro teste de fio: o handshake e o CONNECT MQTT 5 fragmen
 Revisão 3: os cenários de fio fragmentado e negativos passaram até o cruzamento com o client real, mas a fixture gerou um `--client-id` maior que os 23 caracteres permitidos pela CLI. Corrigir somente o ID da fixture, repetir a integração completa e manter este resultado como falha de teste, não falha do protocolo.
 
 Revisão 4: a integração WS/TCP e a suíte Rust passaram, mas Clippy `-D warnings` encontrou o parser de configuração com 101 linhas após `ws_bind` (limite 100) e dois braços de logging sem ponto e vírgula. Extrair a inserção dos binds em uma função pequena ou reduzir o corpo sem relaxar o lint, corrigir a pontuação e repetir o gate.
+
+Revisão 5: após as correções locais, Clippy avançou e identificou oito argumentos em `serve`, acima do limite sete. Incluir o bind WS na tupla existente de endereços, preservando a interface como um único argumento, e repetir Clippy; não relaxar o lint.
