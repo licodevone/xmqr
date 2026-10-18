@@ -1,4 +1,4 @@
-# P227D — Topic Alias não mapeado, em validação wire
+# P227D — Topic Alias não mapeado, GREEN direcionado
 
 Data2026-10-18. Prompt inicial commitado localmente8a8bf07 antes de testes e
 runtime; revisão v1.1 antes da correção. OASIS MQTT5 §3.3.4, caso3a, confirmado
@@ -36,14 +36,54 @@ Unitário novo tipado e teste de reset existente atualizados.
 AST dos2scripts PASS, git diff --check PASS. Coordenador liberou cache antes
 de cada cargo; nenhum full test/Clippy/release foi iniciado por esta frente.
 
-## Wire candidato e limites
+## Diagnóstico de fixture, preservando o FAIL
 
-Novo build/cópia congelada separados do ELF anterior ainda pendentes.
-Script8casos exige bytes/reasons exatos; inválidos QoS1/retain não recebem
+Builddebugbroker exclusivo-j1 terminou38.88s, exit0; cópia congelada separada
+`../.artifacts/p227-binaries/mqtt-broker-p227d-0.42.0`, runtimecommitd28f832,
+versão real `mqtt-broker0.42.0`, SHA256
+`dca22b2624b7f36175d4e939c640b6f5730220bcc9510580eef9054a6af8ef57`.
+ELF integrado anterior permaneceu intacto. Nenhum Cargo da frente ativo depois.
+
+Candidato1:7PASS/1FAIL,2.351s, exit1, cleanupPASS, report exclusivo
+`../.artifacts/p227d-alias-candidate-1.json`, harnessSHA256
+`e02b3dfae07e9b5e503a2733e29acad3d972790e48a6e9d2f339aef43da8b9df`.
+Falha somente no vetor MPS7. Diagnóstico privado no mesmoELF confirmou
+CONNACK `(0x20,0000022a01)` sem TopicAliasMaximum; portanto máximo anunciado0,
+alias1 excede esse valor e0x94 está correto. A fixture presumia anúncio16.
+Esse vetor era falso pressuposto também no baseline1; os demais três vetores
+de unknown-alias do baseline1 continuam RED real. Não foi alterado runtime.
+
+Promptv1.2 antes do marcador final de sucesso para o runner; v1.3 antes de
+corrigir fixture: manter MPS7→0x94 e acrescentar MPS15 com anúncio16→0x82,
+total9casos. Agora verifica CONNACK bruto/exato antes dos reason codes. Não
+aceita reasons alternativos nem remove testes/asserts. Reports anteriores
+preservados. Baseline2 no ELF antigo46d79faf:5PASS/4FAIL,2.561s, exit1,
+cleanupPASS; `../.artifacts/p227d-alias-baseline-2.json`.
+
+## Wire GREEN e limites
+
+Mesmo harness corrigido9casos no ELF novo dca22b26:9/9PASS, exit0,
+cleanupPASS,2.756s, `../.artifacts/p227d-alias-candidate-2.json`.
+HarnessSHA256:`a9ee09a42bf481a65c1a36177a85a4ac434a0097b25ddad21999647be3de73ed`;
+helperSHA permanececcc8ecae completo acima. Marcador final
+`P227_ALIAS_REASON_PASS` emitido somente após PASS global/cleanup.
+Comandos usam Python3 padrão no WSL e `--broker` explícito a cada cópia:
+
+```sh
+python3 scripts/verify_phase6_alias_reason.py \
+  --broker ../.artifacts/p227-binaries/mqtt-broker-p227d-0.42.0 \
+  --label candidate --state-root /var/tmp \
+  --report ../.artifacts/p227d-alias-candidate-2.json
+```
+
+Inválidos QoS1/retain não recebem
 PUBACK nem mutam retained/entrega, Will original preservado, barreiraPING e
 assinante tardio. Fixture privada do P227A reaproveitada somente para processo,
 conexões e codificação de bytes Python, nunca encoder Rust como oráculo.
 JSON exclusivo com hashes de ambos scripts/ELF, versão, tempos e cleanup.
+P227A VBI também repetido no novoELF:21/21PASS,3.963s, cleanupPASS,
+`../.artifacts/p227a-vbi-p227d-candidate-1.json`. Matriz documental atualizada
+para contexto/diag/tipo/teste, estado IMPLEMENTED_TEST_AVAILABLE preservado.
 
 Escopo open-labTCP sintético, não provaTLS/mTLS/certificação/SLA/fase6global.
 Sem commit de caminhos alheios, push/tag/release/instalação/serviço do operador.

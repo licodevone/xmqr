@@ -1,7 +1,8 @@
 # MQTT 5 — matriz de propriedades do broker XMQR
 
 Inventário técnico preparado pelo P227A em 2026-10-18, fonte integrada
-`10d5081` (0.42.0). Não é certificação MQTT nem aceite global das fases 6A–6D.
+`d28f832` (0.42.0), incluindo diagnóstico P227D. Não é certificação MQTT nem
+aceite global das fases 6A–6D.
 Esta matriz complementa, mas não substitui, o plano e os registros de execução.
 
 ## Como interpretar
@@ -102,7 +103,7 @@ payload de destinatário MQTT3.1.1. A normalização não modifica valores de te
 | Response Topic | 0x08/UTF8 | 1; TopicName concreto até 1.024 bytes; preservado; não cria uma resposta de aplicação automaticamente | §3.3.2.3.5 | T08, T17, W12 |
 | Correlation Data | 0x09/BIN | 1; até 256 bytes; preservado byte a byte | §3.3.2.3.6 | T08, W12 |
 | User Property | 0x26/PAIR | N; UP16; preserva ordem, valores e nomes repetidos no encaminhamento | §3.3.2.3.7; MQTT-3.3.2-17/-18 | T08, W12 |
-| Topic Alias | 0x23/U16 | 1; C→S:1..máximo anunciado (0 ou 16); tabela local à conexão. Zero/excesso →0x94. S→C:Establish/Use respeitam máximo do cliente, sem persistir alias | §3.3.2.3.4, §3.3.4 | T03, W04, W13; ressalva R01 |
+| Topic Alias | 0x23/U16 | 1; C→S:1..máximo anunciado (0 ou 16); tabela local à conexão. Zero/excesso →0x94; válido ainda não mapeado + TopicName vazio →0x82. S→C:Establish/Use respeitam máximo do cliente, sem persistir alias | §3.3.2.3.4, §3.3.4 | T03, W04, W13; histórico R01 |
 | Subscription Identifier | 0x0B/VBI | **Não aceito C→S**; permitido S→C, N, 1..268.435.455; até 256 IDs por entrega, repetições do mesmo valor não são eliminadas pelo encoder | §3.3.2.3.8; MQTT-3.3.4-6 | T09, W14 |
 
 Duplicidade de singleton/PFI>1 usa classe `PublishPropertyProtocol` (0x82);
@@ -192,7 +193,7 @@ contextos de entrada aceitos são somente os discriminados nas tabelas.
 |---|---|
 | T01 | `mqtt5_rejects_unsupported_properties_without_decoding_as_v311`; `mqtt5_connect_semantic_property_errors_have_protocol_reason` |
 | T02 | `mqtt5_maximum_packet_size_connect_property_is_unique_and_nonzero`; `mqtt5_connect_uses_versioned_connack` |
-| T03 | `mqtt5_inbound_topic_alias_is_connection_local_and_bounded`; `mqtt5_outbound_topic_alias_vectors` |
+| T03 | `mqtt5_inbound_topic_alias_is_connection_local_and_bounded`; `mqtt5_outbound_topic_alias_vectors`; novo P227D:`mqtt5_unmapped_alias_is_not_an_invalid_numeric_value` |
 | T04 | `mqtt5_auth_method_is_refused_distinctly_after_validating_properties`; `mqtt5_plain_connect_requires_initial_data_and_echoes_method_on_success` |
 | T05 | `mqtt5_will_delay_connect_vectors`; `mqtt5_will_metadata_preserves_order_and_rejects_invalid_properties` |
 | T06 | `mqtt5_publish_format_and_content_type_vectors_and_rejections` |
@@ -225,7 +226,7 @@ contextos de entrada aceitos são somente os discriminados nas tabelas.
 | W10 | `verify_mqtt5_publish_metadata.py` |
 | W11 | `verify_mqtt5_message_expiry.py` |
 | W12 | `verify_mqtt5_request_properties.py` |
-| W13 | `verify_mqtt5_alias_error_disconnect.py` (ver ressalva R01) |
+| W13 | `verify_mqtt5_alias_error_disconnect.py`; novo P227D:`verify_phase6_alias_reason.py` (9casos com CONNACK/diagnóstico exatos; histórico R01) |
 | W14 | `verify_mqtt5_subscription_identifier.py` |
 | W15 | `verify_mqtt5_subscription_user_properties.py`, `verify_mqtt5_subscription_property_disconnect.py` |
 | W16 | `verify_mqtt5_negative_puback.py`, `verify_mqtt5_negative_pubrec.py`, `verify_mqtt5_qos2_completion_reasons.py`, `verify_mqtt5_ack_property_reasons.py` |
@@ -238,12 +239,20 @@ contextos de entrada aceitos são somente os discriminados nas tabelas.
 ## Evidência observada, execução segura e ressalvas
 
 P227A T19: RED no fonte antes da correção2PASS/6FAIL; após correção8/8PASS.
-Wire W17 no ELF integrado `mqtt-broker0.42.0`, SHA256
-`46d79faf91220cdd59e43602c8f3528a2654463a6f71408c542a9c8638b4f809`:
-**21/21PASS**, cleanupPASS, 3,509s observados. Harness SHA256
+Wire W17 repetido no ELF P227D `mqtt-broker0.42.0`, SHA256
+`dca22b2624b7f36175d4e939c640b6f5730220bcc9510580eef9054a6af8ef57`:
+**21/21PASS**, cleanupPASS, 3,963s observados. Harness SHA256
 `ccc8ecae90ccd18ecc98d27dc8876ad42453a2f2663576f853b6ff38f07fb064`.
-Report externo ao repositório: `../.artifacts/p227a-vbi-candidate-1.json`.
-O baseline0.41.0 de20casos2PASS/18FAIL permanece registrado, não substituído.
+Report externo ao repositório: `../.artifacts/p227a-vbi-p227d-candidate-1.json`.
+O baseline0.41.0 de20casos2PASS/18FAIL e o GREEN intermediário0.42.0 anterior
+permanecem registrados, não substituídos.
+
+P227D T03: RED1FAIL antes do fix; após fix3testesaliasPASS. W13 novo:RED
+corrigido5PASS/4FAIL no ELF anterior; **9/9PASS** no ELF P227D acima,2,756s,
+cleanupPASS, `../.artifacts/p227d-alias-candidate-2.json`, harnessSHA256
+`a9ee09a42bf481a65c1a36177a85a4ac434a0097b25ddad21999647be3de73ed`.
+O primeiro candidatoFAIL7/8 foi preservado e explicado no registro P227D,
+sem usar erro de fixture como evidência de regressão do runtime.
 
 Exemplo direcionado, após confirmar fonte/ambiente/caches com o coordenador:
 
@@ -264,11 +273,11 @@ ferramenta ausente é BLOCKED, não PASS/skip nem autorização para instalar.
 
 Ressalvas e trabalho restante, sem modificar checklists globais:
 
-1. **R01 — divergência concreta a decidir/corrigir:** alias válido ainda não
-   mapeado + TopicName vazio cai em `TopicAliasInvalid` e emite0x94. OASIS
-   §3.3.4 caso3a descreve0x82. W13 hoje fixa0x94 para esse caso, portanto um
-   PASS desse teste não resolve a divergência normativa. Zero/excesso de alias
-   continuam0x94. Coordenador informado; esta matriz não modifica runtime.
+1. **R01 — corrigida no recorte P227D:** `TopicAliasUnmapped` distingue lookup
+   ausente do valor zero/excessivo; serve_mqtt emite0x82 conforme §3.3.4 caso3a.
+   Zero/excesso continuam0x94, inclusive se CONNACK omite TopicAliasMaximum e
+   seu default é0. W13 histórico foi corrigido; novos9vetores estão verdes.
+   Não generalizar esse resultado a outros motivos de erro ou certificação.
 2. T05 verifica metadados/duplicidades Will, mas não enumera cada fronteira
    exata de UP16/ContentType/CorrelationData nesse ramo. T08/T10 testam vários
    excessos, não todas as combinações exatas2048/2049 e256/257 em ambos sentidos.

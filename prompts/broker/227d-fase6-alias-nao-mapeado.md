@@ -63,3 +63,25 @@ launcherexit1. Não houve falha de startup/compilação. Agora aplicar somente
 novo erro tipado no lookupvazio e mapeamento0x82; reforçar assert unitário
 com o tipo específico e ajustar expectativa do terceiro vetor P176. Sem
 diminuir asserções wire ou aceitar ambos os reasons.
+
+## Revisão v1.2 — marcador final para o runner integrado
+
+Antes da execução candidata, coordenador solicitou marcador final explícito
+`P227_ALIAS_REASON_PASS` somente após verificação global (8/8cenários + cleanup
+PASS, sem erro de fixture). Adicionar esse print não altera nenhum vetor ou
+critério; baseline/harnessSHAe88a707a...937 preservados no report/registro.
+Não modificar o harness P227A congelado. Registrar hash candidato diferente.
+
+## Revisão v1.3 — CONNACK demonstra erro no vetor MPS7
+
+Preservado candidato1 FAIL7/8,2.351s, cleanupPASS. Diagnóstico privado no
+mesmo ELF mostrou CONNACK MPS7 body0000022a01, sem TopicAliasMaximum;
+assim máximo anunciado é0, e alias1→0x94 está correto. Fonte serve_mqtt
+seleciona essa variante de7bytes; não é regressão runtime. O vetor inicial
+presumia anúncio16 e foi um erro de fixture, inclusive no baseline1.
+
+Antes de ajustar: conservar MPS7 como caso separado esperado0x94 e adicionar
+MPS15 (CONNACK com alias máximo16) esperado0x82, total9casos, sem aceitar
+ambos reasons. Ler/verificar CONNACK bruto para os orçamentos7/15 antes de
+enviar o PUBLISH. Reexecutar RED na cópia antiga e GREEN na nova; preservar
+todos os reports/hashes anteriores, sem mudar runtime nem VBIharness.

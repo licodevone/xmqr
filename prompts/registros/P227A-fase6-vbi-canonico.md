@@ -96,6 +96,15 @@ como exaustivamente testados. Nenhuma checklist geral foi fechada pela matriz.
 
 ## Limites e revisão
 
+Após correção separada P227D, repetido o mesmo harness P227A congelado no
+novo ELF `mqtt-broker0.42.0` SHA256
+`dca22b2624b7f36175d4e939c640b6f5730220bcc9510580eef9054a6af8ef57`:
+21/21PASS, exit0, cleanupPASS,3.963s. Report exclusivo
+`../.artifacts/p227a-vbi-p227d-candidate-1.json`; harnessSHA permanececcc8ecae
+completo já registrado. Fontes runtime novas emd28f832; nenhum report anterior
+reescrito. Matriz passou a indicar R01 corrigida e testes P227D disponíveis,
+sem alterar o aceite global nem os limites de evidência.
+
 Testeswire desta fatia são open-labTCP sintético, não provaTLS/mTLS nem aceite
 global6A–6D. Sem migração v15, produção/SLA/powerloss/Windowsbroker/ESP32 novo.
 Skills xmqr-rust-mqtt, xmqr-tests e xmqr-security-review orientaram tipos,

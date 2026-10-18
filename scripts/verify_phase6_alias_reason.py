@@ -27,7 +27,18 @@ def invalid_case(lab, name, topic_present, alias, reason, maximum=None):
     watcher = lab.connect(b'watch-' + name.encode())
     subscribe(watcher, prefix + b'/#')
     options = {'properties': b'\x27' + maximum.to_bytes(4, 'big')} if maximum else {}
-    source = lab.connect(b'source-' + name.encode(), will=(prefix + b'/will', b'expected-will'), **options)
+    source = lab.peer()
+    source.sendall(frame(0x10, connect_body(b'source-' + name.encode(),
+                                         will=(prefix + b'/will', b'expected-will'), **options)))
+    connack = packet(source)
+    if maximum == 7:
+        expected = (0x20, b'\0\0\x02\x2a\x01')
+    elif maximum == 15:
+        expected = (0x20, b'\0\0\x0a\x27\0\x01\0\0\x22\0\x10\x2a\x01')
+    else:
+        expected = (0x20, b'\0\0\x0d\x27\0\x01\0\0\x22\0\x10\x2a\x01\x21\0\x20')
+    if connack != expected:
+        raise AssertionError('CONNACK alias capability differs from this reason-code fixture')
     publish(source, prefix + b'/data' if topic_present else b'', alias, b'forbidden', invalid=True)
     reply = packet(source)
     if reply != (0xe0, bytes([reason, 0])):
@@ -113,7 +124,8 @@ def main():
             ('above_maximum', lambda: invalid_case(lab, 'above_maximum', True, 17, 0x94)),
             ('unmapped_1', lambda: invalid_case(lab, 'unmapped_1', False, 1, 0x82)),
             ('unmapped_16', lambda: invalid_case(lab, 'unmapped_16', False, 16, 0x82)),
-            ('unmapped_max_packet_7', lambda: invalid_case(lab, 'unmapped_max_packet_7', False, 1, 0x82, 7)),
+            ('alias_when_advertised_maximum_zero', lambda: invalid_case(lab, 'alias_maximum_zero', False, 1, 0x94, 7)),
+            ('unmapped_max_packet_15', lambda: invalid_case(lab, 'unmapped_max_packet_15', False, 1, 0x82, 15)),
             ('valid_establish_use_replace', lambda: valid_mapping(lab)),
             ('new_connection_no_mapping', lambda: invalid_case(lab, 'new_connection_no_mapping', False, 1, 0x82)),
             ('mqtt311_control', lambda: legacy_control(lab)),
@@ -156,6 +168,7 @@ def main():
         stream.write('\n')
     if report['status'] != 'PASS':
         raise SystemExit(1)
+    print('P227_ALIAS_REASON_PASS invalid94 unmapped82 no_side_effects valid_mapping mqtt311', flush=True)
 
 
 if __name__ == '__main__':
