@@ -31,6 +31,10 @@ pub(super) struct PacketTooLarge;
 pub(super) struct TopicAliasInvalid;
 
 #[derive(Debug, thiserror::Error)]
+#[error("MQTT 5 Topic Alias has no mapping on this connection")]
+pub(super) struct TopicAliasUnmapped;
+
+#[derive(Debug, thiserror::Error)]
 #[error("malformed MQTT Remaining Length")]
 pub(super) struct MalformedRemainingLength;
 
@@ -308,7 +312,7 @@ impl FrameReader {
                         *topic = Some(
                             self.topic_aliases
                                 .get(&alias)
-                                .ok_or(TopicAliasInvalid)?
+                                .ok_or(TopicAliasUnmapped)?
                                 .clone(),
                         );
                     }
@@ -2073,6 +2077,19 @@ mod tests {
     }
 
     #[test]
+    fn mqtt5_unmapped_alias_is_not_an_invalid_numeric_value() {
+        for alias in [1, MAX_TOPIC_ALIAS] {
+            let mut reader = FrameReader::new(vec![0x30, 7, 0, 0, 3, 0x23, 0, alias, b'x']);
+            reader.set_mqtt5(u16::from(MAX_TOPIC_ALIAS));
+            let error = reader.try_take_packet().unwrap_err();
+            assert!(
+                error.is::<TopicAliasUnmapped>(),
+                "valid alias without mapping is Protocol Error, not Topic Alias invalid"
+            );
+        }
+    }
+
+    #[test]
     fn mqtt5_inbound_topic_alias_is_connection_local_and_bounded() {
         let mut reader = FrameReader::new(Vec::new());
         reader.set_mqtt5(u16::from(MAX_TOPIC_ALIAS));
@@ -2110,7 +2127,7 @@ mod tests {
             reader
                 .try_take_packet()
                 .unwrap_err()
-                .is::<TopicAliasInvalid>()
+                .is::<TopicAliasUnmapped>()
         );
         assert_eq!(
             encode_mqtt5_alias_connack(false),

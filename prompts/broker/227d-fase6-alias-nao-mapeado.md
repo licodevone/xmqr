@@ -52,3 +52,14 @@ Novo build congelado separado não sobrescreve ELF anterior nem sua evidência;
 parent coordenará full gates e runner final. Se falhar sem causa comprovada,
 preservar FAIL e revisar prompt antes de mudar teste ou implementação.
 Sem alegaçãoTLS/mTLS/SLA/certificação/aceite global6A–6D. MIT preservada.
+
+## Revisão v1.1 — RED confirmado antes do fix
+
+No ELF integrado0.42.0 SHA46d79faf...809:8vetores wire,4controlesPASS e
+4FAIL com resposta0x94onde esperado0x82,2.232s, exit1, cleanupPASS.
+Report exclusivo p227d-alias-baseline-1.json preservado. Unitário direcionado
+no fonte antes da correção:1FAIL planejado, compile25.02s, teste0.04s,
+launcherexit1. Não houve falha de startup/compilação. Agora aplicar somente
+novo erro tipado no lookupvazio e mapeamento0x82; reforçar assert unitário
+com o tipo específico e ajustar expectativa do terceiro vetor P176. Sem
+diminuir asserções wire ou aceitar ambos os reasons.

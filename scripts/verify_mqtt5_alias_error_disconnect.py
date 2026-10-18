@@ -27,10 +27,10 @@ def main():
             body = b"\x00\x01\x00" + len(TOPIC).to_bytes(2, "big") + TOPIC + b"\x00"
             watcher.sendall(bytes([0x82, len(body)]) + body)
             assert packet(watcher) == (0x90, b"\x00\x01\x00\x00")
-            for index, (name, alias) in enumerate(((TOPIC, 0), (TOPIC, 17), (b"", 1))):
+            for index, (name, alias, reason) in enumerate(((TOPIC, 0, 0x94), (TOPIC, 17, 0x94), (b"", 1, 0x82))):
                 source, _ = connect(port, True, 0, f"alias-error-{index}".encode())
                 publish(source, name, alias, b"invalid")
-                assert packet(source) == (0xe0, b"\x94\x00")
+                assert packet(source) == (0xe0, bytes([reason, 0]))
                 assert source.recv(1) == b""
                 source.close()
             watcher.settimeout(0.5)
