@@ -1,6 +1,6 @@
 # Histórico de versões
 
-## 0.42.0 — allowlist de Origin para WSS mTLS (candidato experimental)
+## 0.42.0 — allowlist de Origin para WSS mTLS (prerelease experimental)
 
 - WSS mTLS pode aceitar `Origin` de navegador somente se constar em lista HTTPS exata configurada; lista ausente/vazia mantém recusa. WS aberto, certificado cliente, credenciais MQTT e ACL não são relaxados. Estado v15 sem migração.
 

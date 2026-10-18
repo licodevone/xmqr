@@ -1,12 +1,14 @@
 # Versionamento
 
-## P217 — broker/admin legado 0.42.0 candidato, estado v15
+## P217 — broker/admin legado 0.42.0 publicado, estado v15
 
 P216 habilita `Origin` HTTPS exato por allowlist no WSS mTLS sem migração do
 estado. Broker 0.41.0 lê v15, mas não aceita `Origin` de navegador. Client
-0.35.0/C119-C120 é o par candidato; admin independente 0.10.0 permanece.
-Publicação depende dos gates do [prompt P217](prompts/broker/217-release-0.42.0.md).
-[Nota candidata](docs/releases/0.42.0.md). Fase 7 global aberta.
+0.35.0/C119-C120 é o par distribuído; admin independente 0.10.0 permanece.
+CI da fonte exata, pacote Ubuntu, rollback descartável, imagens por digest e
+oito hashes remotos PASS. [Release](https://github.com/licodevone/xmqr/releases/tag/v0.42.0),
+[nota](docs/releases/0.42.0.md) e [registro](prompts/registros/P217-release-0.42.0.md).
+Fase 7 global aberta.
 
 ## P215 — broker/admin legado 0.41.0 publicado, estado v15
 
