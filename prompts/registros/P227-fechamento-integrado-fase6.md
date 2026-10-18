@@ -289,3 +289,27 @@ retornou `overlayfs`, logo a incompatibilidade é uma hipótese forte para os
 três exit2 imediatos; a causa só será confirmada por novo run com raiz
 montada do host e verificações explícitas. Prompt P227 v1.15 precede a
 correção. Não alteramos os oráculos para aceitar overlayfs.
+
+## Campanha local Eall7 e revisão de encerramento
+
+O relatório `../.artifacts/p227-acceptance-e-all-7.json` contém 69/69
+fixtures PASS, 195,813s, `source_unchanged`, `binaries_unchanged` e
+`legacy_binaries_unchanged` verdadeiros. Não reclassifica Eall6 nem o
+run remoto 39162215519. Fontes: broker44b4b28, clientfca6fc8 e adminfe8cff5.
+Broker e admin legado foram os ELFs release extraídos do pacote oficial
+CI39140250983/ba6ef50 (hashes1ee611b0/3081297f), não os ELFs debug da
+campanha anterior. Client038 usoua5ccc205 e admin011 usou73222f35; os
+legadosDdca22b2 e client109ec973 foram entradas separadas explícitas.
+
+Mosquitto_pub/sub2.0.22 e OpenSSL3.5.5 foram identificados por versão/hash.
+Os casos incluem A21v16, migração real do journalv1, compatibilidade inbound,
+crash, controle comquotaesgotada, aliases e autenticação inicial Paho.
+É evidência local finita, não aceite da CI exata ou certificação MQTT5.
+
+Retomada solicitada pelo mantenedor: fonte broker congelada emdb472bc64558bf0e376a902b7780a259247c5149,
+CI padrão39164202189SUCCESS. Diff de src/Cargo.toml/Cargo.lock/Dockerfile
+entreba6ef50 e esse candidato é vazio. Run integrado39164217059 está em
+execução; não é anunciado comoPASS. P227v1.16 precedeu a consolidação.
+O admin011 foi publicado separadamente; seu helper de readiness/cleanup
+precisa constar no peer efetivamente validado, conferido pelo manifesto.
+Distribuição broker043 e aceite global6 permanecem pendentes neste ponto.

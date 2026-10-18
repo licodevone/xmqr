@@ -54,3 +54,21 @@ legadoDdca15 e admin010 repinado aoba6ef50/ELF6151a680d52356020e496f7f1103298909
 Esse ELF é candidato distinto do admin010 publicado/pinantigo; não inferir
 compatibilidade de leitores só pelo número0.10.0. Admin011 e campanha global
 continuam em preparação; relatórios completos ficam no registroA21/A22.
+
+## Retry nativo serial e fonte final da distribuição
+
+O retry release, sem build Docker simultâneo nem alteração de perfil Cargo,
+passou em107s (`cargo build --locked --offline --release --bins -j1`).
+As cópias congeladas novas, sem substituir os artefatos anteriores, são:
+
+| ELF release local | SHA256 |
+| --- | --- |
+| mqtt-broker-native-p228-0.43.0 | 5ba7c5bb09dc2a59caf7bbc3f7ba780c08f5e19d6581ddbb1f6c3f8d92cf5519 |
+| mqtt-admin-native-p228-0.43.0 | d0cfcf978f5ef1242d51025befaa022c085ec51eed787d4e37ab5041a0b058e4 |
+
+Ambos --version0.43.0PASS. O FAILENOMEM anterior permanece preservado.
+Esses ELFs locais não são declarados idênticos bit a bit aos de outra build.
+O pacote selecionado para publicação deverá ser o da CI39164202189,
+fonte exata `db472bc64558bf0e376a902b7780a259247c5149`, com hashes e
+lifecycle repetidos pelo ownerP228B. A campanha global remota ainda está
+em execução; este registro não autoriza antecipar tag, Hub ou release.
