@@ -1,4 +1,4 @@
-# P227 v1.6 — concluir a fase 6 de MQTT 5
+# P227 v1.7 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -177,3 +177,22 @@ omitido pelo registro do executor. Corrigir o argumento antes da primeira
 campanha agregada e adicionar teste de contrato; ausência daria argparse
 exit2, não uma falha MQTT. Adicionar P227D com labelcandidate explícito,
 novo relatório exclusivo e marker próprio depois da entrega do agente.
+
+## Revisão 1.7 — revisão independente do executor
+
+Leitor independente reproduziu falsos positivos puros para NOT_*_PASS e
+SKIPPED seguido de PASS; mock demonstrou stderrBLOCKED ignorado. Corrigir
+antes do aceite: negativos dos dois canais, markers específicos vigentes,
+descendentes remanescentes no grupo privado mesmo em exit0, e testes desses
+contratos. Capturar stdout/stderr em pipes com orçamento observado em leitura,
+sem permitir arquivos temporários crescerem até timeout. Registrar estágio
+e errno sanitizados nas exceções, nunca mensagens privadas completas.
+
+Identificar também versões/hashes de Mosquitto/OpenSSL e módulos Paho
+client/properties/packettypes efetivos; não chamar hashde__init__ hashdalib.
+Primeira campanha D/client036 ficouBLOCKED/OSError antes dos cenários;
+não reinterpretar esse resultado. Diagnóstico separado viu preflightPASS e
+gitWSLdirty vs gitWindowsclean nos clones Windows. A opção por chamada
+core.autocrlf=true resolveu o status sem diff real de fonte; alinhar só
+configuração Git local dos clones de teste ao checkoutWindows, preservando
+detecção de mudanças reais e sem configurar global/alterar árvore do operador.
