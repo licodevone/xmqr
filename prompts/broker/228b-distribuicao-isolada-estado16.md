@@ -1,4 +1,4 @@
-# P228B v1.3 — QA isolado dos artefatos broker0.43.0
+# P228B v1.4 — QA isolado dos artefatos broker0.43.0
 
 Preparado em2026-10-18 antes da autoria do harness. Complementa P228v1.1;
 owner não altera runtime/manifests/CI nem o registro global P228 do coordenador.
@@ -119,3 +119,18 @@ com seus três arquivos; não incluir metadado extra silenciosamente. Registrar
 esta etapa de responsabilidade do operador, distinta do `state restore`;
 o harness não afirma que o comando legado restaura marcador/credenciais.
 Manter FAIL2 separado, report novo e zero alteração de runtime/pacote.
+
+## Revisão1.4 — proveniência explícita sem constante autorreferente
+
+Coordenador aprovou adaptação leve antes do patch: a fonte final da release
+também conterá testes/prompts/CI, sem diferença nos inputs runtime ba6. Para
+testar seu pacote CI exato, `--source` passa a ser SHA40 minúsculo EXPLÍCITO,
+validado sintaticamente; relatório separa `runtime_checkpoint=ba6`. A flag
+não é prova de proveniência: registro do coordenador deve vincular head_sha
+do run GitHub PASS ao SHA do .deb e aos ELFs esperados fornecidos no comando.
+Não resolver proveniência por igualdade de versão ou pelo texto do argumento.
+
+Preservar pin do .deb042, nomes/versões/arquitetura dos pacotes e hashesELF
+explícitos do043. Acrescentar self-tests leves de sintaxe SHA, sem build ou
+instalação adicional. Commit separado desta mudança para cherry-pick antes
+do congelamento final; build Docker atual d6 pode continuar e não é publicado.
