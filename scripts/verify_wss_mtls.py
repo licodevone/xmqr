@@ -530,13 +530,14 @@ def persistent_connect(client_id, password):
     return bytes([0x10, len(body)]) + body
 
 
-def check_wss_restart(root, environment, broker_bin, port, password, log_path):
-    """Keep a QoS 1 offline message and session across a clean broker restart."""
-    state = root / "p218-restart-state"
+def check_wss_restart(root, environment, broker_bin, port, password, log_path,
+                      *, crash=False):
+    """Keep a QoS 1 offline message and session across a broker restart."""
+    state = root / ("p221-crash-state" if crash else "p218-restart-state")
     config = dict(environment, MQTT_STATE_DIR=str(state))
     topic = b"p212/allowed"
-    client_id = b"p218-wss-session"
-    payload = b"p218-offline-after-restart"
+    client_id = b"p221-wss-session" if crash else b"p218-wss-session"
+    payload = b"p221-offline-after-crash" if crash else b"p218-offline-after-restart"
 
     def connect():
         stream = secure_socket(root, port)
@@ -564,8 +565,12 @@ def check_wss_restart(root, environment, broker_bin, port, password, log_path):
                 send_frame(pub, 2, bytes([0x32, len(body)]) + body)
                 puback = mqtt_packet(pub, bytearray())
                 assert puback[0] == 0x40 and puback[2:4] == b"\x00\x09", puback
-            broker.send_signal(signal.SIGTERM)
-            assert broker.wait(timeout=8) == 0
+            if crash:
+                broker.kill()
+                assert broker.wait(timeout=8) != 0
+            else:
+                broker.send_signal(signal.SIGTERM)
+                assert broker.wait(timeout=8) == 0
         finally:
             if broker.poll() is None:
                 broker.kill()
@@ -841,6 +846,8 @@ def main():
                     broker.kill()
                     broker.wait(timeout=8)
         check_wss_restart(root, environment, broker_bin, port, password, log_path)
+        check_wss_restart(root, environment, broker_bin, port, password, log_path,
+                          crash=True)
         if args.durable_sub_client:
             check_client_wss_restart(root, environment, broker_bin, args.client, port,
                                      password, log_path)
@@ -927,6 +934,7 @@ def main():
           (" C123_WSS_DURABLE_SUB_BROKER_PASS" if args.durable_sub_client else "") +
           " P214_REMOTE_OPT_IN_PASS P216_BROWSER_ORIGIN_PASS"
           " P218_WSS_RESTART_PASS" +
+          " P221_WSS_CRASH_PASS" +
           " P219_WSS_FRAMES_PASS" +
           (" P218_CLIENT_WSS_RESTART_PASS" if args.durable_sub_client else "") +
           (" P220_REAL_BROWSER_WSS_PASS" if args.browser_node else ""))
