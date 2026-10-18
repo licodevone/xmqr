@@ -64,13 +64,23 @@ max_connections = 64
 ```
 
 MQTT_MAX_CONNECTIONS prevalece sobre o TOML. Valores aceitos:1..64; padrão64.
-Esse limite conta conexões TCP admitidas, incluindo a negociação TLS/MQTT,
+
+Esse limite conta conexões TCP/WS admitidas, incluindo a negociação TLS/MQTT,
 não sessões persistentes nem mensagens por segundo. Ao atingir o limite, o
 broker fecha a nova conexão antes da negociação MQTT; no MQTT3.1.1 o client
 pode observar erro de transporte, sem motivo de quota transmitido no protocolo.
 A vaga é liberada quando a tarefa da conexão termina. Alteração exige restart.
 Reduzir esse valor não remove sessões persistentes. Quotas de sessões, filas,
 inflight, pacote e payload continuam fixas; sua configuração será outra fatia.
+
+No perfil `open-lab`, `MQTT_WS_BIND=127.0.0.1:8083` (ou `ws_bind` na seção
+`[broker]` do TOML) ativa um listener WebSocket MQTT em `/mqtt` com
+subprotocolo `mqtt`. O endereço deve ser IP loopback com porta positiva,
+distinto de `MQTT_BIND`. Nenhum listener WS é ativado por padrão; os demais
+perfis rejeitam essa opção. TCP e WS compartilham a quota
+`MQTT_MAX_CONNECTIONS` e o estado do router. WSS permanece pendente.
+Handshakes com `Origin` são recusados neste recorte sem autenticação; uso por
+navegador exigirá uma política de origem própria.
 
 Configuração TOML imutável por processo; mudanças de bind exigem restart. SIGHUP
 continua reservado ao bundle de segurança. SIGUSR1 relê apenas os arquivos TLS

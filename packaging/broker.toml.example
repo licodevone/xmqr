@@ -9,6 +9,7 @@ max_inflight = 32
 [broker]
 mode = "secure-mtls"
 bind = "0.0.0.0:8883"
+# Somente mode = "open-lab": ws_bind = "127.0.0.1:8083" (caminho /mqtt)
 state_dir = "/var/lib/xmqr"
 # server_keep_alive_seconds = 60 # MQTT 5: teto opcional, 1..65535
 [tls]

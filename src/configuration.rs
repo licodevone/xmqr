@@ -13,6 +13,7 @@ const MAX_CONFIG_BYTES: u64 = 64 * 1024;
 const KEYS: &[&str] = &[
     "MQTT_MODE",
     "MQTT_BIND",
+    "MQTT_WS_BIND",
     "MQTT_STATE_DIR",
     "MQTT_SERVER_CERT",
     "MQTT_SERVER_KEY",
@@ -114,6 +115,7 @@ impl Configuration {
         for (name, value) in [
             ("MQTT_MODE", document.broker.mode),
             ("MQTT_BIND", document.broker.bind),
+            ("MQTT_WS_BIND", document.broker.ws_bind),
             ("MQTT_MONITOR_BIND", document.monitor.bind),
         ] {
             if let Some(value) = value {
@@ -127,10 +129,9 @@ impl Configuration {
             );
         }
         if let Some(enabled) = document.monitor.enabled {
-            result.values.insert(
-                "MQTT_MONITOR_ENABLED".to_owned(),
-                enabled.to_string().into(),
-            );
+            result
+                .values
+                .insert("MQTT_MONITOR_ENABLED".into(), enabled.to_string().into());
         }
         for (name, value) in [
             ("MQTT_STATE_DIR", document.broker.state_dir),
@@ -344,6 +345,7 @@ struct Limits {
 struct Broker {
     mode: Option<String>,
     bind: Option<String>,
+    ws_bind: Option<String>,
     state_dir: Option<PathBuf>,
     server_keep_alive_seconds: Option<u16>,
     #[serde(default)]

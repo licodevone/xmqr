@@ -4,6 +4,14 @@
 //! named open-lab path exists only for loopback teaching labs.
 
 use crate::monitoring::{Metrics, Rejection};
+use async_tungstenite::{
+    tokio::{TokioAdapter, accept_hdr_async_with_config},
+    tungstenite::{
+        handshake::server::{Request, Response},
+        http,
+        protocol::WebSocketConfig,
+    },
+};
 use std::{
     future::Future,
     io::{self, BufReader},
@@ -33,6 +41,7 @@ use tokio::{
 };
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
 use tracing::{debug, error, info, warn};
+use ws_stream_tungstenite::WsStream;
 use x509_parser::{parse_x509_certificate, parse_x509_crl, time::ASN1Time};
 
 mod rotation;
@@ -75,6 +84,7 @@ impl Default for TransportLimits {
 enum ConnectionStream {
     Mtls(Box<TlsStream<TcpStream>>),
     OpenLab(TcpStream),
+    WebSocket(Box<WsStream<TokioAdapter<TcpStream>>>),
 }
 
 /// Data handed to the MQTT connection state machine after transport setup.
@@ -138,6 +148,9 @@ impl BrokerConnection {
             match &mut self.stream {
                 ConnectionStream::Mtls(stream) => stream.read(buffer).await,
                 ConnectionStream::OpenLab(stream) => stream.read(buffer).await,
+                ConnectionStream::WebSocket(stream) => {
+                    tokio::io::AsyncReadExt::read(stream.as_mut(), buffer).await
+                }
             }
         };
         timeout(deadline, read)
@@ -161,6 +174,9 @@ impl BrokerConnection {
             match &mut self.stream {
                 ConnectionStream::Mtls(stream) => stream.write_all(bytes).await,
                 ConnectionStream::OpenLab(stream) => stream.write_all(bytes).await,
+                ConnectionStream::WebSocket(stream) => {
+                    tokio::io::AsyncWriteExt::write_all(stream.as_mut(), bytes).await
+                }
             }
         };
         timeout(deadline, write)
@@ -181,6 +197,9 @@ impl BrokerConnection {
             }
             ConnectionStream::OpenLab(stream) => {
                 shutdown_with_deadline(stream, SHUTDOWN_TIMEOUT).await
+            }
+            ConnectionStream::WebSocket(stream) => {
+                shutdown_with_deadline(stream.as_mut(), SHUTDOWN_TIMEOUT).await
             }
         }
     }
@@ -253,6 +272,8 @@ enum ClientError {
     ClosedBeforeMqtt,
     #[error("initial MQTT read failed")]
     InitialRead(#[source] io::Error),
+    #[error("WebSocket handshake rejected or failed")]
+    WebSocketHandshake,
 }
 
 pub type HandlerError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -285,6 +306,14 @@ pub struct OpenLabTransport {
     listener: TcpListener,
     connection_slots: Arc<Semaphore>,
     connection_capacity: u32,
+    next_connection_id: Arc<AtomicU64>,
+    metrics: Option<Arc<Metrics>>,
+}
+
+/// Optional loopback-only WebSocket listener sharing TCP admission and drain.
+pub struct WebSocketLabTransport {
+    listener: TcpListener,
+    connection_slots: Arc<Semaphore>,
     next_connection_id: Arc<AtomicU64>,
     metrics: Option<Arc<Metrics>>,
 }
@@ -504,6 +533,23 @@ impl SecureTransport {
 }
 
 impl OpenLabTransport {
+    /// Bind a WebSocket lab listener with the same admission capacity and drain.
+    /// # Errors
+    /// Rejects non-loopback/zero port and propagates bind failures.
+    pub async fn bind_websocket(&self, address: SocketAddr) -> io::Result<WebSocketLabTransport> {
+        if !address.ip().is_loopback() || address.port() == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "WebSocket lab requires a loopback IP and nonzero port",
+            ));
+        }
+        Ok(WebSocketLabTransport {
+            listener: TcpListener::bind(address).await?,
+            connection_slots: Arc::clone(&self.connection_slots),
+            next_connection_id: Arc::clone(&self.next_connection_id),
+            metrics: self.metrics.clone(),
+        })
+    }
     /// Bind an unencrypted teaching listener to a loopback address only.
     ///
     /// # Errors
@@ -611,6 +657,128 @@ impl OpenLabTransport {
             }));
         }
     }
+}
+
+impl WebSocketLabTransport {
+    /// Accept WebSocket MQTT connections until the owner cancels the listener.
+    /// # Errors
+    /// Transient accept errors are retried; the return type preserves the listener contract.
+    pub async fn serve<H, F>(self, handler: H) -> io::Result<()>
+    where
+        H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
+        F: Future<Output = Result<(), HandlerError>> + Send + 'static,
+    {
+        loop {
+            let (socket, peer_addr) = match self.listener.accept().await {
+                Ok(connection) => connection,
+                Err(source) => {
+                    warn!(error = %source, "WebSocket accept failed; applying backoff");
+                    sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+            };
+            if let Some(metrics) = &self.metrics {
+                metrics.tcp_accepted.fetch_add(1, Ordering::Relaxed);
+            }
+            let Ok(permit) = Arc::clone(&self.connection_slots).try_acquire_owned() else {
+                if let Some(metrics) = &self.metrics {
+                    metrics.reject(Rejection::Admission);
+                }
+                warn!(%peer_addr, "WebSocket connection rejected because admission limit is full");
+                continue;
+            };
+            if let Err(source) = socket.set_nodelay(true) {
+                warn!(%peer_addr, error = %source, "cannot configure accepted WebSocket socket");
+                continue;
+            }
+            let client_handler = handler.clone();
+            let connection_id = self.next_connection_id.fetch_add(1, Ordering::Relaxed);
+            let metrics = self.metrics.clone();
+            drop(tokio::spawn(async move {
+                let _permit = permit;
+                let client = async {
+                    let connection =
+                        establish_websocket_connection(connection_id, peer_addr, socket).await?;
+                    client_handler(connection)
+                        .await
+                        .map_err(ClientTaskError::Handler)
+                };
+                match AssertUnwindSafe(client).catch_unwind().await {
+                    Ok(Ok(())) => {
+                        debug!(connection_id, %peer_addr, "WebSocket client task finished");
+                    }
+                    Ok(Err(ClientTaskError::Transport(_))) => {
+                        if let Some(metrics) = &metrics {
+                            metrics.reject(Rejection::Transport);
+                        }
+                        warn!(connection_id, %peer_addr, "WebSocket transport closed client; details suppressed");
+                    }
+                    Ok(Err(ClientTaskError::Handler(_))) => {
+                        warn!(connection_id, %peer_addr, "MQTT handler closed WebSocket client; details suppressed");
+                    }
+                    Err(_) => {
+                        error!(connection_id, %peer_addr, "WebSocket client task panicked and was isolated");
+                    }
+                }
+            }));
+        }
+    }
+}
+
+#[allow(clippy::result_large_err)] // tungstenite fixes the handshake callback's HTTP error type.
+async fn establish_websocket_connection(
+    id: u64,
+    peer_addr: SocketAddr,
+    socket: TcpStream,
+) -> Result<BrokerConnection, ClientError> {
+    let callback = |request: &Request, mut response: Response| {
+        let protocol = request.headers().get("Sec-WebSocket-Protocol");
+        if request.uri().path() != "/mqtt"
+            || request.uri().query().is_some()
+            || request.headers().contains_key("Origin")
+            || protocol.is_none_or(|value| value != "mqtt")
+        {
+            return Err(http::Response::builder()
+                .status(400)
+                .body(Some(String::new()))
+                .expect("static HTTP response"));
+        }
+        response.headers_mut().insert(
+            "Sec-WebSocket-Protocol",
+            http::HeaderValue::from_static("mqtt"),
+        );
+        Ok(response)
+    };
+    let config = WebSocketConfig::default()
+        .max_message_size(Some(64 * 1024))
+        .max_frame_size(Some(64 * 1024));
+    let websocket = timeout(
+        INITIAL_IO_TIMEOUT,
+        accept_hdr_async_with_config(socket, callback, Some(config)),
+    )
+    .await
+    .map_err(|_| ClientError::HandshakeTimeout)?
+    .map_err(|_| ClientError::WebSocketHandshake)?;
+    let mut stream = WsStream::new(websocket);
+    let mut initial_buffer = [0_u8; MAX_INITIAL_MQTT_BYTES];
+    let bytes_read = timeout(
+        INITIAL_IO_TIMEOUT,
+        tokio::io::AsyncReadExt::read(&mut stream, &mut initial_buffer),
+    )
+    .await
+    .map_err(|_| ClientError::InitialReadTimeout)?
+    .map_err(ClientError::InitialRead)?;
+    if bytes_read == 0 {
+        return Err(ClientError::ClosedBeforeMqtt);
+    }
+    info!(id, %peer_addr, "OPEN LAB WebSocket MQTT transport established without TLS");
+    Ok(BrokerConnection {
+        id,
+        peer_addr,
+        peer_certificates: Vec::new(),
+        initial_mqtt_bytes: initial_buffer[..bytes_read].to_vec(),
+        stream: ConnectionStream::WebSocket(Box::new(stream)),
+    })
 }
 
 #[derive(Debug, Error)]

@@ -63,6 +63,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     }
     .parse()?;
+    let ws_bind = parse_ws_bind(&config, mode, bind_address)?;
     let additional_binds = config.additional_binds(bind_address)?;
     let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
     if mode != BrokerMode::SecureMtls && !additional_binds.is_empty() {
@@ -115,7 +116,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     serve(
         &config,
         mode,
-        (bind_address, additional_binds),
+        (bind_address, additional_binds, ws_bind),
         state_directory,
         (limits, state_limits),
         (monitor_config, admin_config),
@@ -128,13 +129,13 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 async fn serve(
     config: &Configuration,
     mode: BrokerMode,
-    bind_addresses: (SocketAddr, Vec<SocketAddr>),
+    bind_addresses: (SocketAddr, Vec<SocketAddr>, Option<SocketAddr>),
     state_directory: PathBuf,
     limits: (TransportLimits, mqtt::StateLimits),
     operational_configs: (MonitorConfig, Option<AdminChannelConfig>),
     metrics: Arc<Metrics>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let (bind_address, additional_binds) = bind_addresses;
+    let (bind_address, additional_binds, ws_bind) = bind_addresses;
     let (monitor_config, admin_config) = operational_configs;
     let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
     let (limits, state_limits) = limits;
@@ -266,22 +267,36 @@ async fn serve(
             let transport =
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
                     .await?;
+            let ws_transport = if let Some(address) = ws_bind {
+                Some(transport.bind_websocket(address).await?)
+            } else {
+                None
+            };
             metrics.set_listener_ready(true);
             let _monitor = Monitor::start(&monitor_config, metrics.clone(), router.clone()).await?;
             warn!(%bind_address, "OPEN LAB listener started without TLS, authentication or ACL; loopback only");
             let shutdown_router = router.clone();
             let connections = transport.drain_handle();
-            run_until_shutdown(
-                transport.serve(move |connection| {
-                    let auth = Arc::clone(&auth);
-                    let router = Arc::clone(&router);
+            let serving = async move {
+                let tcp_auth = Arc::clone(&auth);
+                let tcp_router = Arc::clone(&router);
+                let tcp = transport.serve(move |connection| {
+                    let auth = Arc::clone(&tcp_auth);
+                    let router = Arc::clone(&tcp_router);
                     async move { mqtt::serve_connection(connection, auth, router).await }
-                }),
-                shutdown_router,
-                metrics.clone(),
-                connections,
-            )
-            .await?;
+                });
+                if let Some(ws_transport) = ws_transport {
+                    let ws = ws_transport.serve(move |connection| {
+                        let auth = Arc::clone(&auth);
+                        let router = Arc::clone(&router);
+                        async move { mqtt::serve_connection(connection, auth, router).await }
+                    });
+                    tokio::select! { result = tcp => result, result = ws => result }
+                } else {
+                    tcp.await
+                }
+            };
+            run_until_shutdown(serving, shutdown_router, metrics.clone(), connections).await?;
         }
         BrokerMode::PasswordLab => {
             let auth = Arc::new(AccessPolicy::password_lab(AuthPolicy::load_passwords(
@@ -356,6 +371,37 @@ async fn serve(
     }
 
     Ok(())
+}
+
+fn parse_ws_bind(
+    config: &Configuration,
+    mode: BrokerMode,
+    tcp_bind: SocketAddr,
+) -> io::Result<Option<SocketAddr>> {
+    let value = match config.var("MQTT_WS_BIND") {
+        Ok(value) => value,
+        Err(env::VarError::NotPresent) => return Ok(None),
+        Err(env::VarError::NotUnicode(_)) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid MQTT_WS_BIND",
+            ));
+        }
+    };
+    let address: SocketAddr = value
+        .parse()
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid MQTT_WS_BIND"))?;
+    if mode != BrokerMode::OpenLab
+        || !address.ip().is_loopback()
+        || address.port() == 0
+        || address == tcp_bind
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "MQTT_WS_BIND requires open-lab, a distinct loopback IP and nonzero port",
+        ));
+    }
+    Ok(Some(address))
 }
 
 async fn shutdown_signal() -> io::Result<()> {

@@ -1,5 +1,16 @@
 # XMQR
 
+P210 acrescenta em `main` o listener WebSocket MQTT opt-in `MQTT_WS_BIND`
+somente no perfil `open-lab`. Exemplo local: `MQTT_MODE=open-lab
+MQTT_BIND=127.0.0.1:1883 MQTT_WS_BIND=127.0.0.1:8083
+MQTT_STATE_DIR=/caminho/privado mqtt-broker`; o caminho é `/mqtt` e o
+subprotocolo exigido é `mqtt`. As portas TCP e WS compartilham
+`MQTT_MAX_CONNECTIONS`. Handshakes de navegador com `Origin` são recusados.
+[Prompt](prompts/broker/210-loopback-websocket-listener.md)
+e [registro](prompts/registros/P210-loopback-websocket-listener.md). WSS,
+listener remoto e fase 7 completa ainda não foram aceitos. A versão publicada
+0.38.0 não contém P210.
+
 Versões e pacotes atuais para Ubuntu 26.04/WSL: [guia de releases e instalação](docs/current-releases-wsl.md).
 
 A prerelease experimental 0.38.0 reúne P207/P208: CONNECT inicial MQTT 5 com flags
