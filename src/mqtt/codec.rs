@@ -623,6 +623,9 @@ fn decode_for_inner(
     if mqtt5 && header == 0x10 {
         return Err(SecondConnect.into());
     }
+    if mqtt5 && header >> 4 == 0 {
+        return Err(MalformedPacketStructure.into());
+    }
     if mqtt5 && matches!(header, 0x20 | 0x90 | 0xb0 | 0xd0) {
         return Err(ServerOnlyPacketFromClient.into());
     }
@@ -2948,6 +2951,22 @@ mod tests {
                     "{header:#x}"
                 );
                 assert!(decode_for(header, body, false).is_err());
+            }
+        }
+        assert!(matches!(decode_for(0xc0, &[], true), Ok(Packet::PingReq)));
+    }
+
+    #[test]
+    fn mqtt5_reserved_control_type_zero_is_malformed_before_body() {
+        for header in [0x00, 0x0f] {
+            for body in [&[][..], &[0xff, 0x00][..]] {
+                assert!(
+                    decode_for(header, body, true)
+                        .unwrap_err()
+                        .is::<MalformedPacketStructure>(),
+                    "{header:#x}"
+                );
+                assert!(decode_for(header, body, false).is_err(), "{header:#x}");
             }
         }
         assert!(matches!(decode_for(0xc0, &[], true), Ok(Packet::PingReq)));
