@@ -410,6 +410,7 @@ enum Command {
         client_id: String,
         generation: u64,
         packet_id: u16,
+        expected: StoredMessage,
         reply: oneshot::Sender<Result<(), RouterError>>,
     },
     PrepareExpiry {
@@ -1176,12 +1177,14 @@ impl Router {
         &self,
         session: &Session,
         packet_id: u16,
+        expected: StoredMessage,
     ) -> Result<(), RouterError> {
         let (reply, result) = oneshot::channel();
         self.send(Command::DiscardOutbound {
             client_id: session.client_id.clone(),
             generation: session.generation,
             packet_id,
+            expected,
             reply,
         })
         .await?;
@@ -1790,10 +1793,11 @@ impl Actor {
                 client_id,
                 generation,
                 packet_id,
+                expected,
                 reply,
             } => {
                 let result = self
-                    .discard_outbound(&client_id, generation, packet_id)
+                    .discard_outbound(&client_id, generation, packet_id, expected)
                     .await;
                 self.record_result(&result);
                 let _ = reply.send(result);
@@ -2295,6 +2299,19 @@ impl Actor {
             {
                 return Err(RouterError::ObsoleteDelivery);
             }
+            if remaining == 0 && entry.transmission == OutboundTransmission::Prepared {
+                let expected = entry.message.clone();
+                // One actor command owns validation, removal, WAL and quota drain.
+                // Never return an unbound instruction to remove this wire ID later.
+                self.discard_outbound(client_id, generation, packet_id, expected)
+                    .await?;
+                return Ok(ExpiryPermit {
+                    disposition: super::clock::ExpiryDisposition::DiscardUnattempted,
+                    remaining,
+                    deadline,
+                    original,
+                });
+            }
             if remaining > 0 {
                 entry.transmission = OutboundTransmission::MayHaveSent;
             }
@@ -2500,7 +2517,15 @@ impl Actor {
                 record.transmission != OutboundTransmission::Prepared
                     || !message_expired(&record.message, now)
             });
-            for record in &session.outbound {
+            for record in &mut session.outbound {
+                if record.message.expiry_delivery_id.is_none() {
+                    session.next_expiry_delivery_id = session
+                        .next_expiry_delivery_id
+                        .checked_add(1)
+                        .filter(|id| i64::try_from(*id).is_ok())
+                        .ok_or(StateError::Limit("outbound delivery identities"))?;
+                    record.message.expiry_delivery_id = Some(session.next_expiry_delivery_id);
+                }
                 let delivery = match record.stage {
                     OutboundStage::AwaitPubComp => Delivery::PubRel(record.packet_id),
                     OutboundStage::AwaitPubAck | OutboundStage::AwaitPubRec => Delivery::Publish {
@@ -2928,17 +2953,27 @@ impl Actor {
         client_id: &str,
         generation: u64,
         packet_id: u16,
+        expected: StoredMessage,
     ) -> Result<(), RouterError> {
         self.current(client_id, generation)?;
-        let live = self.live.get(client_id).ok_or(RouterError::Stale)?;
-        if live.pending_replay.iter().any(|delivery| {
-            matches!(delivery, Delivery::Publish { packet_id: Some(id), .. } if *id == packet_id)
-        }) {
-            return Err(RouterError::Stale);
+        let Some(entry) = self.state.sessions.get(client_id).and_then(|session| {
+            session
+                .outbound
+                .iter()
+                .find(|entry| entry.packet_id == packet_id)
+        }) else {
+            return Ok(());
+        };
+        if expected.expiry_delivery_id.is_none()
+            || entry.message != expected
+            || !matches!(
+                (entry.stage, expected.qos),
+                (OutboundStage::AwaitPubAck, 1) | (OutboundStage::AwaitPubRec, 2)
+            )
+        {
+            // A delayed handler must neither remove nor replenish a newer copy.
+            return Ok(());
         }
-        let receive_maximum = live.receive_maximum;
-        let has_pending_replay = !live.pending_replay.is_empty();
-        let replenishes_quota = live.sent_unacked.contains(&packet_id);
         let mut candidate = self.state.clone();
         let session = candidate
             .sessions
@@ -2950,24 +2985,35 @@ impl Actor {
             .position(|item| item.packet_id == packet_id)
             .ok_or(RouterError::Stale)?;
         session.outbound.remove(index);
+        let mut candidate_live = self.live.clone();
+        let live = candidate_live
+            .get_mut(client_id)
+            .ok_or(RouterError::Stale)?;
+        live.sent_unacked.remove(&packet_id);
+        live.pending_replay.retain(|delivery| {
+            !matches!(delivery,
+            Delivery::Publish { packet_id: Some(id), message, .. }
+                if *id == packet_id && message == &expected)
+        });
         let mut actions = Vec::new();
-        if !has_pending_replay && (replenishes_quota || live.sent_unacked.len() < receive_maximum) {
+        while live.sent_unacked.len() + actions.len() < live.receive_maximum {
+            let Some(pending) = live.pending_replay.pop_front() else {
+                break;
+            };
+            actions.push(pending);
+        }
+        if live.pending_replay.is_empty() {
             drain_offline(
                 self.limits,
                 session,
                 &mut actions,
-                receive_maximum,
-                live.sent_unacked.len() - usize::from(replenishes_quota),
+                live.receive_maximum,
+                live.sent_unacked.len(),
                 self.store.now()?,
             )?;
         }
         self.commit(candidate).await?;
-        if let Some(live) = self.live.get_mut(client_id)
-            && live.sent_unacked.remove(&packet_id)
-            && let Some(pending) = live.pending_replay.pop_front()
-        {
-            self.deliver(vec![(client_id.to_owned(), pending)]);
-        }
+        self.live = candidate_live;
         self.deliver(
             actions
                 .into_iter()
@@ -3507,16 +3553,12 @@ fn prepare_delivery(
         return Err(StateError::Limit("outbound inflight").into());
     }
     let packet_id = allocate_packet_id(session)?;
-    if message.expiry_at_unix_ms.is_some() {
-        session.next_expiry_delivery_id = session
-            .next_expiry_delivery_id
-            .checked_add(1)
-            .filter(|id| i64::try_from(*id).is_ok())
-            .ok_or(StateError::Limit("expiry delivery identities"))?;
-        message.expiry_delivery_id = Some(session.next_expiry_delivery_id);
-    } else {
-        message.expiry_delivery_id = None;
-    }
+    session.next_expiry_delivery_id = session
+        .next_expiry_delivery_id
+        .checked_add(1)
+        .filter(|id| i64::try_from(*id).is_ok())
+        .ok_or(StateError::Limit("outbound delivery identities"))?;
+    message.expiry_delivery_id = Some(session.next_expiry_delivery_id);
     let stage = if message.qos == 1 {
         OutboundStage::AwaitPubAck
     } else {
@@ -4239,7 +4281,10 @@ mod tests {
         .unwrap();
         assert_eq!(actions.len(), 1);
         assert!(session.offline.is_empty());
-        assert_eq!(session.outbound[0].message, second);
+        assert_eq!(session.next_expiry_delivery_id, 2);
+        let mut expected = second;
+        expected.expiry_delivery_id = Some(2);
+        assert_eq!(session.outbound[0].message, expected);
     }
 
     #[tokio::test]
@@ -4656,6 +4701,7 @@ mod tests {
         }
         let Delivery::Publish {
             packet_id: Some(first_id),
+            message: first_message,
             ..
         } = subscriber.outbound.try_recv().unwrap()
         else {
@@ -4663,7 +4709,7 @@ mod tests {
         };
         assert!(subscriber.outbound.try_recv().is_err());
         actor
-            .discard_outbound("rx-size", subscriber.generation, first_id)
+            .discard_outbound("rx-size", subscriber.generation, first_id, first_message)
             .await
             .unwrap();
         assert!(matches!(
@@ -5048,10 +5094,8 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(permit.remaining, 0);
-        assert_eq!(
-            actor.state.sessions["intent-member"].outbound[0].transmission,
-            OutboundTransmission::Prepared
-        );
+        assert_eq!(actor.state.sessions["intent-member"].outbound, Vec::new());
+        assert!(!actor.live["intent-member"].sent_unacked.contains(&id));
         actor.store.shutdown().await.unwrap();
     }
 
@@ -5237,6 +5281,267 @@ mod tests {
             matches!(member.outbound.try_recv(), Ok(Delivery::Publish { message, .. })
             if message.payload == b"pending")
         );
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227e_discard_zero_permission_is_already_atomic_before_handler_returns() {
+        let (_directory, mut actor, member, id) = p227e_intent_fixture().await;
+        let (clock, _) = ExpiryClock::manual(30_000, 10_000);
+        actor.store.set_clock(clock);
+        let permit = actor
+            .prepare_expiry(
+                "intent-member",
+                member.generation,
+                20_000,
+                Some(10),
+                Some((id, Some(1))),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            permit.disposition,
+            super::super::clock::ExpiryDisposition::DiscardUnattempted
+        );
+        let removed = actor.state.sessions["intent-member"].outbound.is_empty()
+            && !actor.live["intent-member"].sent_unacked.contains(&id);
+        actor.store.shutdown().await.unwrap();
+        assert!(
+            removed,
+            "R0 removal must not wait for a second handler command"
+        );
+    }
+
+    async fn p227e_discard_stale_equal_message_fixture(expiring: bool) {
+        let (_directory, mut actor, member, initial_id) = p227e_intent_fixture().await;
+        actor
+            .ack("intent-member", member.generation, AckKind::Ack, initial_id)
+            .await
+            .unwrap();
+        let source_generation = actor.live["intent-source"].generation;
+        let mut original = message("test/state", 1, false, b"identical");
+        if expiring {
+            original.expiry_at_unix_ms = Some(20_000);
+            original.expiry_interval_seconds = Some(10);
+        }
+        actor
+            .publish(
+                "intent-source",
+                source_generation,
+                original.clone(),
+                Some(2),
+            )
+            .await
+            .unwrap();
+        let old = actor.state.sessions["intent-member"].outbound[0].clone();
+        actor
+            .ack(
+                "intent-member",
+                member.generation,
+                AckKind::Ack,
+                old.packet_id,
+            )
+            .await
+            .unwrap();
+        actor
+            .state
+            .sessions
+            .get_mut("intent-member")
+            .unwrap()
+            .next_packet_id = old.packet_id;
+        actor
+            .publish("intent-source", source_generation, original, Some(3))
+            .await
+            .unwrap();
+        let before = actor.state.clone();
+        let live_before = actor.live["intent-member"].sent_unacked.clone();
+        let commits_before = actor.metrics.commits.load(Ordering::Relaxed);
+        actor
+            .discard_outbound(
+                "intent-member",
+                member.generation,
+                old.packet_id,
+                old.message,
+            )
+            .await
+            .unwrap();
+        let untouched = actor.state == before
+            && actor.live["intent-member"].sent_unacked == live_before
+            && actor.metrics.commits.load(Ordering::Relaxed) == commits_before;
+        actor.store.shutdown().await.unwrap();
+        assert!(
+            untouched,
+            "stale MPS discard cannot remove an equal new obligation"
+        );
+    }
+
+    #[tokio::test]
+    async fn p227e_discard_stale_mps_equal_nonexpiring_message_is_noop() {
+        p227e_discard_stale_equal_message_fixture(false).await;
+    }
+
+    #[tokio::test]
+    async fn p227e_discard_stale_mps_equal_expiring_message_is_noop() {
+        p227e_discard_stale_equal_message_fixture(true).await;
+    }
+
+    #[tokio::test]
+    async fn p227e_discard_zero_permission_tick_reuse_cannot_erase_backlog_copy() {
+        let (_directory, mut actor, member, id) = p227e_intent_fixture().await;
+        let old = actor.state.sessions["intent-member"].outbound[0]
+            .message
+            .clone();
+        actor.limits.max_inflight = 1;
+        actor.live.get_mut("intent-member").unwrap().receive_maximum = 1;
+        let source_generation = actor.live["intent-source"].generation;
+        actor
+            .publish(
+                "intent-source",
+                source_generation,
+                message("test/state", 1, false, b"fresh-backlog"),
+                Some(2),
+            )
+            .await
+            .unwrap();
+        actor
+            .state
+            .sessions
+            .get_mut("intent-member")
+            .unwrap()
+            .next_packet_id = id;
+        let (clock, _) = ExpiryClock::manual(30_000, 10_000);
+        actor.store.set_clock(clock);
+        actor
+            .prepare_expiry(
+                "intent-member",
+                member.generation,
+                20_000,
+                Some(10),
+                Some((id, old.expiry_delivery_id)),
+            )
+            .await
+            .unwrap();
+        actor.expire_sessions().await.unwrap();
+        assert_eq!(
+            actor.state.sessions["intent-member"].outbound[0].packet_id,
+            id
+        );
+        let before = actor.state.clone();
+        let live_before = actor.live["intent-member"].sent_unacked.clone();
+        let commits_before = actor.metrics.commits.load(Ordering::Relaxed);
+        actor
+            .discard_outbound("intent-member", member.generation, id, old)
+            .await
+            .unwrap();
+        let untouched = actor.state == before
+            && actor.live["intent-member"].sent_unacked == live_before
+            && actor.metrics.commits.load(Ordering::Relaxed) == commits_before;
+        actor.store.shutdown().await.unwrap();
+        assert!(
+            untouched,
+            "late discard must not erase the reused packet ID's new copy"
+        );
+    }
+
+    #[tokio::test]
+    async fn p227e_discard_legacy_copy_gets_identity_in_replay_commit() {
+        let (directory, mut actor, member, _) = p227e_intent_fixture().await;
+        actor
+            .unregister_with_reason("intent-member", member.generation, true)
+            .await
+            .unwrap();
+        let mut candidate = actor.state.clone();
+        let session = candidate.sessions.get_mut("intent-member").unwrap();
+        session.next_expiry_delivery_id = 0;
+        let entry = &mut session.outbound[0];
+        entry.message.expiry_delivery_id = None;
+        entry.message.expiry_at_unix_ms = None;
+        entry.message.expiry_interval_seconds = None;
+        entry.transmission = OutboundTransmission::MayHaveSent;
+        actor.commit(candidate).await.unwrap();
+        actor.store.shutdown().await.unwrap();
+        let (store, state) = MqttStore::open(directory.path()).await.unwrap();
+        actor.store = store;
+        actor.state = state;
+        actor.live.clear();
+        let resumed = actor
+            .register("intent-member".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let expected = actor.state.sessions["intent-member"].outbound[0]
+            .message
+            .expiry_delivery_id;
+        let identified = matches!(resumed.replay.as_slice(),
+            [Delivery::Publish { message, dup: true, .. }] if expected.is_some()
+                && message.expiry_delivery_id == expected
+                && message.expiry_interval_seconds.is_none());
+        actor.store.shutdown().await.unwrap();
+        assert!(
+            identified,
+            "legacy replay must have an immutable identity before exposure"
+        );
+    }
+
+    #[tokio::test]
+    async fn p227e_discard_zero_wal_failure_preserves_exact_obligation_and_quota() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (_directory, mut actor, member, id) = p227e_intent_fixture().await;
+        let before = actor.state.clone();
+        let live_before = actor.live["intent-member"].sent_unacked.clone();
+        let (clock, _) = ExpiryClock::manual(30_000, 10_000);
+        actor.store.set_clock(clock);
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::Error(28),
+            })
+            .await
+            .unwrap();
+        assert!(
+            actor
+                .prepare_expiry(
+                    "intent-member",
+                    member.generation,
+                    20_000,
+                    Some(10),
+                    Some((id, Some(1)))
+                )
+                .await
+                .is_err()
+        );
+        assert_eq!(actor.state, before);
+        assert_eq!(actor.live["intent-member"].sent_unacked, live_before);
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227e_discard_old_publish_never_removes_advanced_pubrel_obligation() {
+        let (_directory, mut actor, member) =
+            p227e_intent_recover(OutboundTransmission::MayHaveSent, 11_000, 2).await;
+        let old = actor.state.sessions["intent-member"].outbound[0].clone();
+        actor
+            .ack(
+                "intent-member",
+                member.generation,
+                AckKind::Rec,
+                old.packet_id,
+            )
+            .await
+            .unwrap();
+        let before = actor.state.clone();
+        let commits = actor.metrics.commits.load(Ordering::Relaxed);
+        actor
+            .discard_outbound(
+                "intent-member",
+                member.generation,
+                old.packet_id,
+                old.message,
+            )
+            .await
+            .unwrap();
+        assert_eq!(actor.state, before);
+        assert_eq!(actor.metrics.commits.load(Ordering::Relaxed), commits);
         actor.store.shutdown().await.unwrap();
     }
 

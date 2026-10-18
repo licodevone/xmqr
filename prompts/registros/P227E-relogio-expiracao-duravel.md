@@ -187,6 +187,77 @@ após este checkpoint. Todo ELF anterior continua anterior, mesmo se tiver
 o mesmo número de versão Cargo. Coordenador deve congelar novo ELF/hash e
 executar gates integrados/fixture real15→16/admin antes do aceite global.
 
+## Revisão após checkpoint88906d6 — descarte atômico e identidade geral
+
+Review independente posterior encontrou TOCTOU real: prepare_expiry retornava
+DiscardUnattempted e o handler enviava outro DiscardOutbound só com packetID.
+Tick entre comandos podia podar a cópia, drenar backlog/reusarID e o comando
+velho apagar a obrigação nova. Esse achado NÃO é coberto pelo teste anterior
+de identidade na autorização; aceite irrestrito de88906d6 foi retido.
+
+Coordenador também executou fulltest de88906d6: exit1,263PASS/8FAIL/6ignored,
+75scompile/66,69stest. Os oito FAIL foram connect_contract_tests:306,
+contador absoluto left1/right0 após checkpoint obrigatório de startup. Sem
+outros FAIL de lib; fases seguintes não executaram porque lib falhou.
+Não alterar bytes/oráculos de recusa: baseline agora é capturado após startup
+e antes de conectar, exigindo exatamente zero novos commits e igualdade de
+status, sessões e retained após a recusa. Sem hardcode1 ou tolerância extra.
+
+Prompt v2.3 commit1f25c4c precedeu scaffold/testes. Primeiro compileRED falhou
+E0425 por binding first_message em teste homônimo errado; v2.4/f990f9d antes
+correção de escopo. RED real seguinte5/5FAIL (22,49scompile/1,84stest): R0
+não atômico, tick/reuso remove backlog novo, MPS stale remove cópia idêntica
+com/sem expiry e legacy replay sem identidade. V2.5/c592c00 antesfix.
+
+Correção: descarteR0 de Prepared ocorre dentro de prepare_expiry no ator,
+com commit+dreno concluídos antes do retorno. Handler não envia mais segundo
+comando. MPS manda a mensagem/identidade esperada; ator confere geração,
+packetID, identidade, conteúdo/metadata e stage antes de qualquer candidato.
+Ausência/substituição/stagePUBREL é NOOP sem WAL/dreno. Remoção válida usa
+candidato durável+Live e libera pending_replay antesoffline após a barreira.
+
+Campos existentes expiry_delivery_id/next_expiry_delivery_id agora cobrem
+todas novas obrigações QoS1/2, mesmo sem expiry; QoS0 permaneceNone. O nome
+histórico é interno ao documento16 ainda não publicado. Legacy outbound sem
+ID ganha identidade no commit de register antes de replay; não se inventam
+intervalo original, bytes observados ou mudança de fase/packetID. Validação
+mantém unicidade/counter/TOML/limite1MB; ID não vaza para ingress/Will/offline/
+retained. Não houve campo, dependência, quota ou versão adicional.
+
+Dois compileFAIL seguintes E0308 no novo baseline admin_list, por assinatura
+de cursor/limit, registrados nas revisões v2.6/v2.7 antes de corrigir para
+kind,None,64. Nenhum era RED de broker. GREEN36/36 (26,03scompile/7,45stest).
+Acrescidos controles WALR0 sem token/quota liberada e PUBLISH velho incapaz
+de apagar PUBREL. Regressão router:92PASS/1FAIL (17,36scompile/36,91stest)
+por comparação antiga da mensagem inteira com entrada sem ID. V2.8/2ebeeec
+precedeu ajuste: esperado ganha ID2/counter2, mantendo igualdade integral do
+payload/metadados e todas as asserções de ordem/quota; não ignorar o campo.
+
+Clippy --locked --lib --tests -j1 -- -Dwarnings PASS após essa integração,
+17,27s. Codec P227I de outro agente apareceu no build, sem edições/commit
+por este owner. Gates finais desta revisão são registrados abaixo.
+
+### Fecho local da revisão de descarte
+
+Últimos gates locked/-j1 em WSL Ubuntu26, mesmos fontes congelados:
+
+| Filtro/gate | Resultado | Compile/check | Execução |
+| --- | --- | --- | --- |
+| `p227e_` |38/38 PASS|2,39s|9,41s|
+| `mqtt::router::tests` |93/93 PASS|2,14s|36,24s|
+| `mqtt::store::tests` |19/19 PASS|2,02s|0,44s|
+| `mqtt::connect_contract_tests` |14/14 PASS|17,12s|2,63s|
+| `mqtt::codec::tests` |67/67 PASS|2,41s|0,02s|
+| `clippy --lib --tests -- -D warnings` |PASS|17,27s|—|
+
+Rustfmt --check Linux limitado aos arquivos próprios com skip_children e
+git diff --check PASS. Filtros se sobrepõem; não somar como testes únicos.
+P227I de limites foi compilado no Clippy, mas seu módulo separado não foi
+executado pelo filtro codec::tests; coordenador executará seus nove grupos.
+Nenhum build de bins/release/fullsuite novo por este owner. Após checkpoint
+local, cache foi liberado ao coordenador para fullsuite/ELF/adminpin16.
+Mantidas todas as pendências de aceite global, wire e distribuição anteriores.
+
 Suíte completa, wire/artifacts, fixture real15→16, recusa de leitores antigos,
 admin pin/backup e distribuição continuam pendentes. Não declarar fase6,
 produção, interoperabilidade nova ou tempo físico perfeito. MIT própria e

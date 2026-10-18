@@ -177,7 +177,8 @@ pub(super) struct StoredMessage {
     /// Original interval for new messages; legacy documents cannot reconstruct it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expiry_interval_seconds: Option<u32>,
-    /// Per-session identity of one expiring outbound obligation, not a wire ID.
+    /// Per-session identity of every outbound obligation, not a wire ID.
+    /// Historical field name retained within the unpublished v16 document.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expiry_delivery_id: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -489,6 +490,7 @@ pub(super) fn validate_with_limits(
     for (client_id, will) in &state.pending_wills {
         validate_message(&will.message)?;
         if will.message.shared_origin.is_some()
+            || will.message.expiry_delivery_id.is_some()
             || will.message.expiry_at_unix_ms.is_some()
             || state
                 .sessions
@@ -613,9 +615,7 @@ fn validate_message(message: &StoredMessage) -> Result<(), StateError> {
     if message.expiry_interval_seconds.is_some() && message.expiry_at_unix_ms.is_none() {
         return Err(StateError::Malformed);
     }
-    if message.expiry_delivery_id.is_some()
-        && (message.expiry_at_unix_ms.is_none() || message.qos == 0)
-    {
+    if message.expiry_delivery_id.is_some() && message.qos == 0 {
         return Err(StateError::Malformed);
     }
     if message.payload.len() > MAX_PAYLOAD_BYTES {

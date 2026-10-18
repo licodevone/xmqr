@@ -1,4 +1,4 @@
-# P227E v2.8 — relógio lógico e expiração durável sem renovar TTL
+# P227E v2.9 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -304,7 +304,8 @@ MPS também deve descartar condicionalmente a Delivery original: conferir
 geração, packetID, identidade imutável e metadata/conteúdo/stage antes de
 mutar. Ausência/substituição é NOOP sem WAL nem dreno da nova obrigação;
 geração antiga continua recusada. Acrescentar argumento de mensagem ao
-comando existente, sem canal/fila nova; clone segue limite4KiB atual.
+comando existente, sem canal/fila nova; payload do clone segue limite4KiB,
+e metadados permanecem sujeitos às quotas atuais.
 
 Para distinguir inclusive QoS1/2 sem expiry com payload/metadata idênticos,
 usar contador e campo JÁ presentes no v16 não publicado para TODAS as novas
@@ -369,3 +370,12 @@ Some(2). Não remover a comparação ou ignorar payload/metadados. Atualizar
 expected com identidade2 e verificar counter2, preservando igualdade integral
 do restante e todas as asserções de ordem/quota/packetID. É ajuste explícito
 do novo contrato interno autorizado, não mudança da sequência observada.
+
+## Fecho v2.9 da correção local de descarte
+
+Gates pós-fix: E38/38, router93/93, store19/19, connect14/14 e codec::tests
+67/67 PASS; Clippy --lib --tests -Dwarnings PASS, fmt/diffcheck PASS. Todos
+os FAIL anteriores permanecem no registro. Codec P227I cfgtest foi compilado,
+mas seu módulo de nove grupos não pertence ao filtro codec::tests: execução
+específica e fullsuite são do coordenador após novo checkpoint. Cache livre,
+sem novos builds pelo owner E após congelar fontes; sem push/tag/versão.

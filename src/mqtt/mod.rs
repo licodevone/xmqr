@@ -733,9 +733,8 @@ async fn send_delivery(
                 Err(error) => return Err(error.into()),
             };
             if permit.disposition == clock::ExpiryDisposition::DiscardUnattempted {
-                if let Some(packet_id) = packet_id_to_discard {
-                    router.discard_outbound(session, packet_id).await?;
-                }
+                // The actor has already removed this exact unattempted copy.
+                // A second command could run after tick/drain reused its wire ID.
                 return Ok(());
             }
             if permit.remaining == 0 && !dup {
@@ -841,8 +840,15 @@ async fn send_delivery(
             if bytes[0] >> 4 != 3 {
                 return Err("essential MQTT packet exceeds client Maximum Packet Size".into());
             }
-            if let Some(packet_id) = packet_id_to_discard {
-                router.discard_outbound(session, packet_id).await?;
+            if let Delivery::Publish {
+                packet_id: Some(packet_id),
+                message,
+                ..
+            } = &delivery
+            {
+                router
+                    .discard_outbound(session, *packet_id, message.clone())
+                    .await?;
             }
             return Ok(());
         }

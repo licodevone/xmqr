@@ -260,6 +260,16 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
     let directory = tempfile::tempdir().unwrap();
     let auth = Arc::new(AccessPolicy::open_lab());
     let router = Arc::new(Router::start(directory.path(), auth.clone()).await.unwrap());
+    let baseline_status = router.admin_status().await.unwrap();
+    let baseline_sessions = router
+        .admin_list(router::AdminListKind::Sessions, None, 64)
+        .await
+        .unwrap();
+    let baseline_retained = router
+        .admin_list(router::AdminListKind::Retained, None, 64)
+        .await
+        .unwrap();
+    let baseline_commits = router.metrics().commits.load(Ordering::Relaxed);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let handler_router = router.clone();
@@ -303,7 +313,28 @@ async fn case(packet: Vec<u8>, code: Option<u8>) {
         0
     );
     if code != Some(0) {
-        assert_eq!(router.metrics().commits.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            router.metrics().commits.load(Ordering::Relaxed),
+            baseline_commits,
+            "refused CONNECT must add exactly zero commits after startup"
+        );
+        assert_eq!(router.admin_status().await.unwrap(), baseline_status);
+        let sessions = router
+            .admin_list(router::AdminListKind::Sessions, None, 64)
+            .await
+            .unwrap();
+        assert_eq!(
+            (sessions.items, sessions.next_cursor),
+            (baseline_sessions.items, baseline_sessions.next_cursor)
+        );
+        let retained = router
+            .admin_list(router::AdminListKind::Retained, None, 64)
+            .await
+            .unwrap();
+        assert_eq!(
+            (retained.items, retained.next_cursor),
+            (baseline_retained.items, baseline_retained.next_cursor)
+        );
     }
     router.shutdown().await.unwrap();
 }
