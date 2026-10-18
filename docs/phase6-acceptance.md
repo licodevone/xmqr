@@ -63,12 +63,14 @@ executadas em recursos privados; não são comandos para uma instância instalad
 ## Recuperação e distribuição
 
 O broker 0.43.0 lê documentos1–15 e grava16, sem inventar intervalo original
-legado. Mensagens novas conservam intervalo original e identidade durável;
-Prepared e MayHaveSent têm decisões de expiração distintas. Os testes de
+legado. Mensagens com Message Expiry conservam seu intervalo original, e
+obrigações QoS1/2 recebem identidade durável. Prepared e MayHaveSent têm
+decisões de expiração distintas. Os testes de
 descarte atrasado verificam identidade/estágio, não apenas Packet Identifier.
 
-Antes da migração, preserve backup privado15 com o broker parado. Voltar ao
-binário15 não converte estado16: restaure o backup anterior em destino novo.
+Antes da migração, preserve backup privado do formato15 com o broker parado.
+Voltar ao broker antigo que lê formato15 (por exemplo, 0.42.0) não converte
+estado16: restaure o backup anterior em destino novo.
 O marcador de perfil é metadado operacional separado e não é incluído pelo
 backup do snapshot/WAL. O lifecycle P228B testa também a recusa do restore
 não marcado, antes de restaurar separadamente o marcador original.
