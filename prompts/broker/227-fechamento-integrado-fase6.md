@@ -312,3 +312,34 @@ relaxar a exigência de disco durável nos oráculos ou alegar PASS por skip.
 Testar contratos e YAML; executar novamente os 69 cenários com os mesmos
 peers e legacies por SHA, baixar/validar os 13 JSON, registrar run/revisão,
 resultados e limitações. Só marcar 6A–6D após todos os gates exigidos PASS.
+
+## Revisão 1.16 — fechamento com fontes e artefatos imutáveis
+
+Pedido do mantenedor: resolver as pendências apontadas. Congelar o candidato
+broker em `db472bc64558bf0e376a902b7780a259247c5149`, cuja CI padrão
+39164202189 passou; a campanha integrada 39164217059 continua pendente.
+Não transformar o envio deste prompt ou uma repetição local em aprovação da
+campanha remota. Verificar os peers efetivos no manifesto baixado: client
+0.38.0 e admin 0.11.0, incluindo o harness administrativo corrigido.
+
+Antes de fechar documentos, baixar e validar os 13 JSON sanitizados, os
+69 resultados, fontes limpas e hashes estáveis. Confrontar M01–M10 com
+fixtures executadas e manter explícitos os limites de AUTH, aliases externos,
+fairness, stdout/journal e crash de processo. Preservar cada FAIL anterior.
+Uma alteração exclusivamente documental posterior não muda a fonte dos
+ELFs, não exige bump artificial e não permite mover a tag aceita.
+
+Revalidar o pacote Ubuntu 26 amd64 produzido pela CI dessa fonte e executar
+upgrade/recusa de estado16/rollback por backup15 em container descartável.
+Imagens Bookworm devem declarar VCS_REF da fonte congelada, ter notices e
+passar testes próprios antes de publicar. Não instalar .deb Ubuntu no host
+nem em Bookworm. Após os gates, tag anotada imutável v0.43.0, prerelease,
+Hub numerado e download/conferência dos anexos e digests remotos.
+
+Arquivos de coordenação: registro P227/P228, docs/phase6-acceptance.md,
+docs/evolution-plan.md, docs/plano-paridade-mosquitto.md,
+docs/conformance/mqtt5-status.md e mqtt5-property-matrix.md, README,
+CHANGELOG, VERSIONING, SECURITY e nota 0.43.0. Distribuição P228B tem owner
+separado. Não editar Rust, dependências, bridge, serviços ou segredos nesta
+fatia. Se surgir falha nova, preservar evidência e revisar prompt antes de
+qualquer correção. Marcar a fase 6 somente depois da aceitação efetiva.
