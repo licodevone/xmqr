@@ -395,6 +395,30 @@ def check_client_qos1_outbox(root, port, client, password):
     assert b"c119-durable-wss" in result.stdout, result.stdout
 
 
+def check_client_qos2_outbox(root, port, client, password):
+    secret_file = root / "client-password"
+    outbox = root / "c122-wss-outbox"
+    outbox.mkdir(mode=0o700)
+    common = ["--ws-url", f"wss://127.0.0.1:{port}/mqtt",
+              "--username", "device", "--ca", str(root / "ca.crt"),
+              "--cert", str(root / "client.crt"), "--key", str(root / "client.key"),
+              "--password-file", str(secret_file), "--protocol-version", "5",
+              "--client-id", "c122-wss-pub", "--topic", "p212/allowed"]
+    result = subprocess.run(
+        [str(client), "pub", *common, "--message", "c122-durable-qos2-wss",
+         "--qos", "2", "--retain", "true", "--clean-start", "false",
+         "--session-expiry-seconds", "60", "--outbox-dir", str(outbox)],
+        capture_output=True, timeout=12)
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    assert not (outbox / "pending-qos2.json").exists()
+    result = subprocess.run(
+        [str(client), "sub", *common[:-4], "--client-id", "c122-wss-sub",
+         "--topic", "p212/allowed", "--count", "1"],
+        capture_output=True, timeout=12)
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    assert b"c122-durable-qos2-wss" in result.stdout, result.stdout
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--client", type=Path)
@@ -472,6 +496,7 @@ def main():
                                  profile_client=args.profile_client)
                     if args.outbox_client:
                         check_client_qos1_outbox(root, port, args.client, password)
+                        check_client_qos2_outbox(root, port, args.client, password)
                 broker.send_signal(signal.SIGTERM)
                 assert broker.wait(timeout=8) == 0
             finally:
@@ -553,7 +578,8 @@ def main():
     print("P212_WSS_MTLS_WIRE_PASS" +
           (" C114_CLIENT_CROSS_PASS" if args.client else "") +
           (" C116_PROFILE_BROKER_PASS" if args.profile_client else "") +
-          (" C119_WSS_QOS1_BROKER_PASS" if args.outbox_client else "") +
+          (" C119_WSS_QOS1_BROKER_PASS C122_WSS_QOS2_BROKER_PASS"
+           if args.outbox_client else "") +
           " P214_REMOTE_OPT_IN_PASS P216_BROWSER_ORIGIN_PASS")
 
 
