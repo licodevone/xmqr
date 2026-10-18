@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 0.37.0 — cabeçalhos MQTT 5 reservados (experimental)
+
+- P203: tipo de controle zero reservado após CONNACK recebe DISCONNECT `0x81`.
+- P204: AUTH com flags reservadas não zero recebe DISCONNECT `0x81`, antes do corpo.
+- P205: corrige P178; PINGREQ/DISCONNECT com flags reservadas não zero passam de `0x82` para o motivo malformado `0x81`. A release 0.36.0 conserva o comportamento antigo.
+
+Documento durável v15 sem migração. Client independente 0.30.0 e admin independente 0.10.0 permanecem. Fases globais 6A–6D/7–9 e matriz MQTT 5 continuam abertas.
+
 ## 0.36.0 — diagnóstico de pacotes MQTT 5 adicionais (experimental)
 
 - P199: CONNECT inicial com bloco de propriedades íntegro, mas campos seguintes truncados ou extras, recebe CONNACK `0x81` quando o limite permite, antes de criar sessão ou Will.
