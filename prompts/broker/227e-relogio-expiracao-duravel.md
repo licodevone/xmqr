@@ -1,4 +1,4 @@
-# P227E v1.1 — relógio lógico e expiração durável sem renovar TTL
+# P227E v1.3 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -112,3 +112,46 @@ inicializadores mecânicos de StoredMessage em codec.rs e fuzz_tests.rs,
 com expiry_interval_seconds:None, necessários ao novo campo. Parser,
 framing e testes P227D não mudam. Will pendente continua sem intervalo no
 StoredMessage até will_publication criar prazo+intervalo no instante certo.
+
+## Revisão v1.2 antes da correção de lint
+
+GREEN10/10 novos; regressões expiry13/13, Will14/14, receive_maximum4/4 e
+reads_v3/3 PASS. Clippy --lib -Dwarnings FAIL por quatro diagnósticos:
+reload de segurança102linhas, assinatura serde is_zero(&u64), QoS sem crases
+em comentário próprio anterior e single_match_else na abertura do clock.
+Corrigir apenas essas formas, com exceções estritamente locais justificadas
+onde serde/transação exigem o formato. Não suprimir avisos globalmente.
+Esclarecer mensagens/registro: checkpoint falho não libera permissão ou ACK;
+ownership durável permanece enquanto a sessão existe. Encerrar uma sessão
+CleanStart/Expiry0 pode descartá-la legitimamente; não prometer retenção além
+da vida normativa da sessão. Limite de bytes do documento1MB permanece;
+migração que o exceder falha fechado, sem aumentar quota ou truncar legado.
+
+## Revisão v1.3 antes do marcador de tentativa e testes novos
+
+Revisão independente confirmou clock/permit/barreira e encontrou fronteira
+anterior: prepare_delivery persistia AwaitPubAck/Rec antes da fila/write;
+todo replay era DUP1 e isento de expiry. Isso não distingue fila nunca
+tentada de tentativa incerta após crash. P130 proíbe encaminhar cópia já
+expirada cujo envio não começou, mas não permite apagar QoS2 já enviado.
+
+O coordenador aprovou marcador durável Prepared/MayHaveSent em
+OutboundInflight, ainda no v16 não publicado. Default legado MayHaveSent,
+sem afirmar reconstrução do primeiro write. Cópia nova com expiry começa
+Prepared; demais cópias conservam default e comportamento. prepare_expiry
+deve validar packet_id/geração/metadata, mudar Prepared para MayHaveSent no
+mesmo checkpoint e só então autorizar write. Falha WAL não muda a fase.
+Janela checkpoint→primeiro byte permanece intenção incerta, explicitamente
+MayHaveSent, não confirmação de byte físico. Timeouts/refresh não apagam
+obrigação já possivelmente enviada. Recuperar Prepared fresco como primeira
+tentativa DUP0 e descartar Prepared vencido antes de reservar tentativa;
+MayHaveSent expirado conserva handshake/DUP1 e não é reclassificado.
+
+Preparar RED antes do fix: crash lógico após commit antes de permit;
+restore Prepared expirado/fresco; MayHaveSent expirado como controle;
+permit exige transição antes do retorno e WAL negativo conserva Prepared.
+Introduzir primeiro somente campo/enum/defaults que preservam a política
+anterior, sem anunciar fix. Não alterar quotas ou caminho sem expiry.
+Revisor continua read-only sem Cargo paralelo; este owner implementa fontes
+e testes. Rever prompt antes de corrigir FAIL inesperado. Encerramento de
+P227E depende destes testes e do review; GREEN anterior não fecha essa janela.
