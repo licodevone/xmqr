@@ -43,6 +43,10 @@ pub(super) struct FixedHeaderFlagsInvalid;
 pub(super) struct SecondConnect;
 
 #[derive(Debug, thiserror::Error)]
+#[error("server-only MQTT control packet sent by client")]
+pub(super) struct ServerOnlyPacketFromClient;
+
+#[derive(Debug, thiserror::Error)]
 #[error("malformed MQTT UTF-8 text")]
 pub(super) struct MalformedUtf8;
 
@@ -618,6 +622,9 @@ fn decode_for_inner(
     // MQTT-3.1.0-2: a second CONNECT is a protocol error regardless of body.
     if mqtt5 && header == 0x10 {
         return Err(SecondConnect.into());
+    }
+    if mqtt5 && matches!(header, 0x20 | 0x90 | 0xb0 | 0xd0) {
+        return Err(ServerOnlyPacketFromClient.into());
     }
     if mqtt5 && matches!(header >> 4, 12 | 14) && header & 0x0f != 0 {
         return Err(FixedHeaderFlagsInvalid.into());
@@ -2928,6 +2935,22 @@ mod tests {
                 assert!(decode_for(header, &[], false).is_err(), "{header:#x}");
             }
         }
+    }
+
+    #[test]
+    fn mqtt5_server_only_packets_from_client_are_protocol_errors_before_body() {
+        for header in [0x20, 0x90, 0xb0, 0xd0] {
+            for body in [&[][..], &[0xff, 0x00][..]] {
+                assert!(
+                    decode_for(header, body, true)
+                        .unwrap_err()
+                        .is::<ServerOnlyPacketFromClient>(),
+                    "{header:#x}"
+                );
+                assert!(decode_for(header, body, false).is_err());
+            }
+        }
+        assert!(matches!(decode_for(0xc0, &[], true), Ok(Packet::PingReq)));
     }
 
     #[test]
