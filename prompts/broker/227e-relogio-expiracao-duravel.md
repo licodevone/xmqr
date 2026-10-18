@@ -1,4 +1,4 @@
-# P227E v2.4 — relógio lógico e expiração durável sem renovar TTL
+# P227E v2.5 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -333,3 +333,20 @@ não no teste MPS que o usa. Isso é erro de scaffolding, não RED de asserção
 Corrigir somente binding no escopo correto, repetir mesmos cinco casos.
 Codec agora é ownership Fuzz/P227I somente testes de limites; esta correção
 não precisa editar codec.rs, Cargo continua reservado ao owner E.
+
+## Revisão v2.5 após RED real de descarte, antes do fix
+
+Após corrigir o binding, os mesmos cinco casos executaram5FAIL/exit1,
+22,49scompile/1,84stest. Confirmaram: R0 não atômico; descarte após tick/reuso
+apaga backlog novo; MPS stale apaga cópia idêntica com/sem expiry; legacy
+replay exposto sem identidade. Nenhuma alteração de oráculo no RED.
+
+Aplicar agora contrato v2.3. Refatorar helper de descarte para candidato
+durável+Live, validando mensagem inteira/identidade/stage antes de mutar,
+liberando pending_replay antesoffline depois de uma barreira. prepare_expiry
+R0 Prepared chama esse helper dentro do ator; handler só recebe resultado,
+sem segundo comando. Controle anterior R0-não-reserva passa a exigir remoção
+já concluída em vez de Prepared ainda existente, mantendo proibição de
+MayHaveSent por R0. Acrescentar controles WAL e stage PUBREL preservado.
+CONNECT terá baseline e snapshots de status/listas antes da conexão, exata
+igualdade após recusa, mantendo todos os bytes/respostas e verificações.
