@@ -1,0 +1,11 @@
+# P198 v1 — marco experimental broker/admin legado 0.35.0
+
+Estado de entrada: `main` limpo em `a5a7db2a387da248f6c0cdd9e93bc566b3210d3e`; broker e `mqtt-admin` incluído no pacote publicados em 0.34.0, documento durável v15. P194–P197 foram aceitos após a tag anterior. Client independente 0.28.0 e admin independente 0.10.0 continuam publicados. A tag/release v0.35.0 não existe no remoto na inspeção inicial.
+
+Objetivo observável: publicar 0.35.0 experimental do broker e admin legado reunindo P194 (segundo CONNECT), P195/P196 (UTF-8 malformado após/antes de CONNACK) e P197 (estrutura interna de quadro completo após CONNACK). Atualizar Cargo/lock, Dockerfile, README, CHANGELOG, VERSIONING, nota de release, guias de instalação/versões e checklist. Não alterar o client ou admin independente, nem marcar as fases 6A–6D/7–9 completas.
+
+Compatibilidade: estado v15 sem migração, ainda legível pelo broker 0.34.0 e admin independente 0.10.0. Preservar backup privado antes de downgrade; broker 0.28.0 ou anterior requer backup v14 anterior à migração. Versão nova não implica conformidade MQTT 5 integral, suporte Windows ou produção.
+
+Aceite: fonte candidata limpa e exata; fmt/testes/Clippy/build release, licenças, seis testes de distribuição e regressões P194–P197; CI do commit exato; `.deb` Ubuntu 26.04 amd64 com metadados/versões/hash e ciclo descartável 0.34.0 → 0.35.0 → rollback com client 0.28.0; imagens broker/admin legado 0.35.0 com usuário não privilegiado, labels do commit e verificadores Docker/admin; publicação das imagens numeradas, execução por digest remoto; tag anotada imutável e prerelease GitHub com manifesto, oito anexos e SHA-256/tamanhos remotos conferidos. Não mover Docker `latest`, instalar no WSL do operador ou publicar APT. Revisar o prompt e registrar falhas antes de correção; sem tag/release enquanto gate essencial falhar.
+
+Evidência: registro P198 com comandos e resultados, hash da fonte/tag, checksums, digests, URL da CI e da release, limitações remanescentes. Atualizar checklist somente depois da publicação verificada. Sem alteração de formato durável ou recursos MQTT além dos P194–P197 já aceitos.
