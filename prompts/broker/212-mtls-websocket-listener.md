@@ -15,3 +15,5 @@ Revisão 2 após o primeiro `cargo check`: o adaptador `WsStream` exige `Send` p
 Revisão 3 após Clippy: a inclusão de `wss_bind` levou `Configuration::parse` a 101 linhas e o novo braço de erro WSS ficou sem ponto e vírgula. Extrair a inserção dos binds WS/WSS em helper curto e acertar a pontuação; não relaxar o lint. Repetir o gate.
 
 Revisão 4: Clippy recusou os nomes vizinhos `ws_bind` e `wss_bind` no mesmo escopo. Renomear as variáveis locais para deixar explícitos laboratório WS e WSS seguro, mantendo as chaves públicas existentes, e repetir o gate.
+
+Revisão 5 após o primeiro fio WSS: CONNECT e SUBACK chegaram, mas a fixture concedeu ACL `p212/#` e assinou literalmente `p212/allowed`; o broker exige autorização do filtro exato. Corrigir somente a regra da fixture, afirmar também o código de sucesso do SUBACK e repetir o teste. O timeout anterior é FAIL da fixture, não prova entrega.
