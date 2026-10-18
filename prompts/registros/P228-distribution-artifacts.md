@@ -4,6 +4,11 @@ Execução em2026-10-18 sob P228v1.1 e
 [P228B](../broker/228b-distribuicao-isolada-estado16.md). Este registro é separado
 do aceite global P228 do coordenador. Não declara encerramento da fase6.
 
+Estado factual final desta frente: publicação existente auditada em leitura,
+sem reivindicar autoria da tag/Hub/release. A seção final registra12/12assets,
+13JSON e smokes por digest com client040 PASS. Pendências abaixo são o
+histórico preservado das etapas anteriores, não o estado final da auditoria.
+
 ## Fonte e ambiente
 
 Clone isolado `.artifacts/p228-broker-release043/xmqr`, HEAD de build
@@ -306,3 +311,92 @@ Preparação local de distribuição pronta. Nenhum build/processo de teste dest
 agente permanece ativo. MIT, terceiros, estado do operador, serviços e latest
 preservados. O aceite/publicação globais e documentação principal são do
 coordenador; não há declaração de produção ou conformidade integral por isso.
+
+## Publicação já existente — auditoria remota final PASS
+
+Após liberação da CI, a PRIMEIRA guarda de preflight desta frente encontrou
+tag043 nova e abortou antes de executar tag/pushHub/release. Coordenador
+também não reivindicou autoria; reconciliação confirmou recurso externo já
+publicado. Esta frente foi reclassificada para auditoria, sem qualquer
+create/edit/upload/push dessas referências. Commit40c0fb1 era só prompt local.
+
+[Prerelease v0.43.0 existente](https://github.com/licodevone/xmqr/releases/tag/v0.43.0),
+ID416718751, publicada2026-10-18T21:17:23Z, draftfalse/prereleasetrue. Tag
+ANOTADA remota`89df8f91755e3dbe231a281e1ece9d9881e96b0b` aponta para commit
+`db472bc64558bf0e376a902b7780a259247c5149`; confirmado por ref/tag API e Git.
+O target_commitish de metadata da release é main, mas a referência da tag
+exata acima, não o avanço posterior de main, fixa a origem do artefato.
+
+Doze anexos REAIS baixados para destino NOVO
+`dist/publication-audit-v043-20261018-1`. Não são os onze planejados:
+ZIP local NÃO foi publicado. Publicação contém TAR de evidência, inventário
+Markdown e TAR de originais. Nenhum asset foi substituído por esta auditoria.
+
+| Asset remoto | Bytes | SHA256 recalculado e igual à API |
+| --- | ---: | --- |
+| SHA256SUMS | 1150 | 38c6b5fec6dc81e1ed080dc4db27020b7675344cf0a60d35634c19742808a72a |
+| phase6-evidence-39164217059.tar.gz | 32908 | e60dee31fc12ac20053e9e24acc5e1365d2ba98723d8060e7ee9cad2d95e46e2 |
+| third-party-licenses.md | 8454 | 09cd0ecd0d6ea696e9908a683ec822fb56c4e80387fdb6ed3ce8b4ab1ce7d6fc |
+| xmqr-admin-0.43.0-linux-amd64.tar.gz | 31897574 | 67d33c3f23d4a9d7b2a9a95e58e5ceddb863ad9a6ed5f45d304f207aee29aaf1 |
+| xmqr-admin-0.43.0-linux-amd64.tar.gz.sha256 | 104 | 0dd25e7397e0f85fc1f10caf6aecd16f5db5540ad7aed053356712f88734c3e3 |
+| xmqr-broker-0.43.0-linux-amd64.tar.gz | 35672117 | 76c2bbbb407cd49725f69ca5a8eb2c05ec8b21f14bd8662ee5abea6d5253c55c |
+| xmqr-broker-0.43.0-linux-amd64.tar.gz.sha256 | 105 | 89d97adb52640e5bfef88d1ed585165fc7c1089283781a1d3a04b35df524c1b4 |
+| xmqr-broker-0.43.0-original-notices.tar.gz | 99925 | e37872d67e765feb685f87462c15054820a4e22dd5b2bac184c7e091d9dad725 |
+| xmqr-broker-0.43.0-release-manifest.json | 1561 | 499c409f3d3a0b8bcbdfd2de9bb6d6b97dd7869d17fe7d1aef780b3146cb1859 |
+| xmqr-broker-0.43.0-release-manifest.json.sha256 | 108 | a6c475604a5de1faf45171138a604d57059e96d6d2a859d116df674459724397 |
+| xmqr-broker_0.43.0-1_amd64.deb | 2953782 | c2341ab3a341b1854e85ebb2f0bec9535968374b226a12a60cee58aa7cef3d4e |
+| xmqr-broker_0.43.0-1_amd64.deb.sha256 | 98 | 2588e7099e44cda15e7c92bd2621d5326c62ab6fa84fb0cf9a043bd7786b00dd |
+
+Auditor versionado [verify_p228_publication.py](../../scripts/verify_p228_publication.py):
+API/nomes/tamanhos/SHA12/12 PASS; oito exports originais byte idênticos aos
+locais; quatro sidecars, manifesto e SUMS de onze entradas PASS. TARs lidos
+com limites e rejeição de symlink/hardlink/caminho absoluto/traversal/duplicata,
+sem extrair no host. Evidência contém exatamente13JSON, todos byte idênticos
+ao ZIP original da CI39164217059: phase6SHAfe2757b8.../69PASS169,757s e
+source/binary/legacy unchangedtrue; fontes limpas brokerdb/client501/admin4483.
+
+TAR de notices:166pacotes/323textos/1.728.802bytes estrangeiros comparados
+estritamente byte a byte à coleta locked independente e ao conteúdo do .deb.
+MIT própria LICENSE/copyright preservada com comparação canônica LF já
+registrada, sem mudar termos. Inventário Markdown autoral teve FAIL1 real
+preservado `inventory_source_bytes`: arquivo Windows CRLF8454bytes é
+idêntico ao publicado; blob Git tem LF8278bytes. P228B1.9 precedeu correção
+SOMENTE desse metadado próprio: CRLF→LF comprovadamente equivalente, SHAblob
+`73e0df9d41837e1630329079945e7fd1dead353fe80038a1dbf5ab4f668444b8`.
+Nenhuma normalização de texto estrangeiro foi aceita. Reports2 e3 PASS,
+SHA256`cd37de973ff49e63005e5eac40f4600000de0cf7a3e6b62b65e873dd0bcadc8e`;
+report3 executa o novo caminho versionado sob P228B1.10.
+
+Pull e inspeção dos DIGESTS remotos, não apenas aliases locais, PASS:
+
+- broker:`lepinheiro100/xmqr-broker@sha256:475b31c8258d853ae011cd46431b180556d19ce319db45b73923252c1f9c061b`;
+- admin legado:`lepinheiro100/xmqr-admin@sha256:673a062c7fd6ccaeedc34afb9ad1748f90fc7fba9367458ca49a642da649fafc`.
+
+Labels db/043/MIT, linux/amd64, user10001:10001, SIGTERM/entrypoints e
+`--version` PASS. ELFs medidos nas imagens puxadas: brokera122cc27... e
+admin36068a35... (hashes completos acima), mesmos candidatos validados.
+Notices de ambas imagens também PASS166/323 contra origem locked.
+
+MQTT/admin smoke repetido POR DIGEST com peer REAL client0.40.0
+`lepinheiro100/xmqr-client@sha256:1eca2f2bbebceeef84be3453943198e0f52d1017deddc24f7065c3302ac93d78`,
+fonte501cde2ffbae6985f033ed8be60d9ad6dd8c18c4 (clone/helper isolado limpo):
+TCPmTLS/WSSmTLS MQTT3.1.1/5 pubsub/perfil, retained/restart, negativos
+CA/SAN/senha/ACL/opt-in, imagem administrativa dedicada, trava ativa e
+backup/verify/restore/destino existente PASS. Reports:
+
+- `dist/qa-reports/p228-docker-mtls-wss-published-audit-1.json`, SHA
+  `e6e5ec6df5786fcbe18ec6e3ccd82192abdea78a372fafee127457d8ec3f8644`;
+- `dist/qa-reports/p228-admin-image-published-audit-1.json`, SHA
+  `e9a468b69ea8237bc3c68613a2af174dc319cdf44116ba27469dc974ae4d9113`;
+- `dist/qa-reports/p228-published-assets-audit-3.json`, SHAcd37de97... acima.
+
+Ressalva documental enviada ao coordenador: notas da publicação existente
+não explicitaram restauração SEPARADA do marcador de perfil original; esta
+etapa está comprovada no lifecycle e deve permanecer clara nos docs, sem
+inventar perfil aberto. Não editaram-se notas/assets remotos nesta frente.
+Limitações AUTH/Paho/alias/produção continuam conforme evidência/ADR.
+
+Nenhum pushHub/tagGit/create/edit/uploadrelease por este agente, nenhuma
+reivindicação de autoria da publicação externa. Commits externos main0440362
+e P228principal preservados sem merge/edição. Só branch própria recebe
+prompt, auditor e registro; nenhum processo de teste permanece ativo.
