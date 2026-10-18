@@ -1,5 +1,14 @@
 # Versionamento
 
+## P211 — candidato broker/admin legado 0.39.0, estado v15
+
+P210 adiciona listener WS MQTT somente em loopback `open-lab`, com router e
+quota compartilhados com TCP, subprotocolo `mqtt` e `Origin` recusado. WSS e
+browser permanecem pendentes; sem migração do estado. Broker 0.38.0 e admin
+independente 0.10.0 leem v15. Client 0.32.0 é candidato com C112; o publicado
+0.31.0 continua. [Gate P211](prompts/broker/211-release-0.39.0.md). Fases
+globais abertas.
+
 ## P209 — broker/admin legado 0.38.0 publicado, estado v15
 
 P207/P208 classificam CONNECT inicial e ACKs QoS com bits reservados MQTT 5.

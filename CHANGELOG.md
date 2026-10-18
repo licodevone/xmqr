@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## 0.39.0 — WebSocket MQTT de laboratório (candidato experimental)
+
+- P210: `MQTT_WS_BIND` ou `broker.ws_bind` habilita um listener WS em IP loopback no perfil `open-lab`, caminho `/mqtt`, subprotocolo `mqtt`, quota de conexões e router compartilhados com TCP.
+- Handshakes com `Origin` são recusados. WSS, acesso remoto, política de origem de navegador e fase 7 completa permanecem pendentes. Estado durável v15 sem migração.
+
 ## 0.38.0 — flags fixas MQTT 5 adicionais (experimental)
 
 - P207: CONNECT inicial com flags reservadas não zero recebe CONNACK `0x81` se o corpo comprova MQTT 5 e o limite permite a resposta; sem sessão/Will.
