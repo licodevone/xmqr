@@ -1,13 +1,15 @@
 # Versionamento
 
-## P192 — candidato broker/admin legado 0.34.0, estado v15
+## P192 — broker/admin legado 0.34.0 publicado, estado v15
 
 P183–P190 ampliam o diagnóstico MQTT 5 para propriedades, Packet Identifier
 zero e flags de PUBLISH em casos selecionados. Sem migração: broker 0.33.0 e
 admin independente 0.10.0 leem v15. Client independente 0.28.0 permanece.
 Rollback exige backup privado; 0.28.0 ou anterior requer backup v14 anterior
 à migração. Matriz MQTT 5 e fases 6A–6D/7–9 continuam abertas.
-[Nota](docs/releases/0.34.0.md). Tag e prerelease dependem dos gates P192.
+[Nota](docs/releases/0.34.0.md). Tag anotada e prerelease publicadas após CI da
+fonte exata, pacote Ubuntu 26.04, upgrade/rollback descartável, imagens
+numeradas e hashes remotos verificados.
 
 ## P182 — broker/admin legado 0.33.0 publicado, estado v15
 

@@ -2,13 +2,14 @@
 
 Versões e pacotes atuais para Ubuntu 26.04/WSL: [guia de releases e instalação](docs/current-releases-wsl.md).
 
-O candidato experimental 0.34.0 reúne P183–P190: diagnósticos MQTT 5
+A prerelease experimental 0.34.0 reúne P183–P190: diagnósticos MQTT 5
 selecionados para propriedades inválidas, Packet Identifier zero e flags de
 PUBLISH impróprias, sem alterar o estado durável v15. Client independente
 0.28.0 e admin independente 0.10.0 permanecem. O aceite da distribuição
-depende dos gates P192; as fases 6A–6D e 7–9 seguem abertas.
-[Nota candidata](docs/releases/0.34.0.md) e
-[prompt P192](prompts/broker/192-release-0.34.0.md).
+P192 passou nos gates de distribuição; as fases 6A–6D e 7–9 seguem abertas.
+[Release 0.34.0](https://github.com/licodevone/xmqr/releases/tag/v0.34.0),
+[nota](docs/releases/0.34.0.md) e
+[aceite P192](prompts/registros/P192-release-0.34.0.md).
 
 A release experimental 0.33.0 reúne P180/P181: propriedades User Property repetíveis em
 SUBSCRIBE e UNSUBSCRIBE MQTT 5, com limite de 16 pares/2048 bytes e rejeição

@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
-Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-17.
-Versões publicadas atuais: broker/admin legado 0.33.0, client independente 0.28.0
+Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-18.
+Versões publicadas atuais: broker/admin legado 0.34.0, client independente 0.28.0
 e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
 propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
@@ -225,7 +225,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P188 parcial: Packet Identifier zero em PUBACK/PUBREC/PUBREL/PUBCOMP MQTT 5 recebe DISCONNECT `0x82`, sem concluir obrigação QoS.~~ [Registro](../prompts/registros/P188-zero-qos-ack-id-mqtt5.md). Gates locais e CI PASS; aceite global 6A aberto.
 - [x] ~~Fase 6A/P189 parcial: Packet Identifier zero em SUBSCRIBE, UNSUBSCRIBE e PUBLISH QoS1/2 MQTT 5 recebe DISCONNECT `0x82`, sem alterar assinatura/publicação.~~ [Registro](../prompts/registros/P189-zero-command-packet-id-mqtt5.md). Gates locais e CI PASS; aceite global 6A aberto.
 - [x] ~~Fase 6A/P190 parcial: PUBLISH MQTT 5 com QoS reservado 3 recebe `0x81` e QoS 0 com DUP recebe `0x82`, sem entrega/retained.~~ [Registro](../prompts/registros/P190-publish-fixed-header-reasons-mqtt5.md). Gates locais e CI PASS; aceite global 6A aberto.
-- [ ] Distribuição P192: broker/admin legado 0.34.0 com P183–P190; CI da fonte exata, pacote Ubuntu 26.04, upgrade/rollback descartável, imagens numeradas, tag, prerelease e SHA-256 remotos. [Registro](../prompts/registros/P192-release-0.34.0.md). Em validação; fases globais abertas.
+- [x] ~~Distribuição P192: broker/admin legado 0.34.0 com P183–P190; CI da fonte exata, pacote Ubuntu 26.04, upgrade/rollback descartável, imagens numeradas, tag, prerelease e SHA-256 remotos verificados.~~ [Registro](../prompts/registros/P192-release-0.34.0.md). Fases globais abertas.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
