@@ -1,11 +1,12 @@
 # XMQR
 
-P212 está em validação em `main`: `MQTT_WSS_BIND` adiciona WSS mTLS
+P212 está aceito em `main`: `MQTT_WSS_BIND` adiciona WSS mTLS
 opcional somente em loopback, com certificado cliente, usuário/senha e ACL.
 O listener compartilha quota, router e rotação TLS com o TCP seguro e recusa
 `Origin`. A prerelease 0.39.0 abaixo ainda não inclui P212; WSS no client,
 acesso remoto, navegador e aceite global da fase 7 permanecem pendentes.
-[Prompt P212](prompts/broker/212-mtls-websocket-listener.md).
+[Prompt P212](prompts/broker/212-mtls-websocket-listener.md) e
+[registro](prompts/registros/P212-mtls-websocket-listener.md).
 
 A prerelease experimental 0.39.0 distribui P210: listener WebSocket MQTT opt-in `MQTT_WS_BIND`
 somente no perfil `open-lab`. Exemplo local: `MQTT_MODE=open-lab
@@ -586,8 +587,10 @@ QoS0/1/2, retained, sessões persistentes, SUBSCRIBE/UNSUBSCRIBE, filtros +/#,
 Last Will durável, TLS/mTLS, senha Argon2id e ACL deny-by-default.
 Persistência por WAL/snapshot e ator dedicado, commit durável antes de ACKs
 pertinentes. SIGTERM/SIGINT coordenam listener, Wills e shutdown do writer.
-Sessões persistentes MQTT 5, WebSockets e bridge não implementados; o
-subconjunto MQTT 5 de sessão limpa está descrito no estado de conformidade.
+MQTT 5 oferece sessões, propriedades e opções de assinatura em recortes
+experimentais; o aceite global das fases 6A–6D segue aberto. WS local está
+na 0.39.0 e WSS mTLS local aceito em `main`; bridge ainda não existe.
+Consulte o [plano de evolução](docs/evolution-plan.md) para limites e evidências.
 
 Limites:64 conexões/sessões,256 assinaturas por sessão,64 mensagens offline,
 32 inflight,1024 bytes UTF-8 por tópico/filtro,4096 bytes por payload e64KiB
