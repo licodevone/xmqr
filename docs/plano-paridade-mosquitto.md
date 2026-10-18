@@ -121,7 +121,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | M08 | Broker/client: opções de assinatura e identificadores | Parcial P147/P148/P150/P180/C84/C85/C87/C102 | No Local, Retain Handling, Retain As Published e Subscription Identifier aceitos com restore; P180/C102 acrescentam User Property contextual sem persistência; matriz MQTT 5 completa pendente |
 | M09 | Broker: assinaturas compartilhadas | Parcial P153/P154/P156, estado v14 | Grupo ativo/durável, QoS0/1/2 e redistribuição QoS1 após término aceitos; fairness e interop ampliada pendentes |
 | M10 | Broker/client: autenticação estendida AUTH | Parcial P158–P160/C91/C92, broker 0.28.0/client 0.25.0 | PLAIN inicial sobre TLS e reautenticação explícita da mesma identidade aceitos; desafio, rotação em serviço, reautenticação periódica e interop externa pendentes |
-| T01 | Broker/client: WebSocket/WSS | Parcial P210–P220/C112–C124; Chromium, mTLS, origem, sessão e fragmentação validados | B09/B10/M01; crash, carga prolongada, matriz final de regressão TCP e aceite global ainda abertos |
+| T01 | Broker/client: WebSocket/WSS | ACCEPTED no transporte por P222: P210–P221/C112–C124 | [Matriz T01](phase7-acceptance.md) e ADR 0003; MQTT 5 global 6A–6D, carga prolongada e produção não inferidos |
 | T02 | Broker: bridge entre brokers | Planejado | B08/B11/C07; reconexão, prefixos/direção, ACL, prevenção de loops e retained/QoS definidos |
 | T03 | Broker: Unix domain sockets | Decisão | B09/A04; permissões, credencial do processo, ACL e portability sem substituir TLS remoto |
 | T04 | Broker: TLS PSK e opções TLS avançadas | Decisão | B11; verificar suporte do provider e modelo de identidade antes de prometer implementação |

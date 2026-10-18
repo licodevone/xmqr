@@ -1,0 +1,5 @@
+# P221 — sessão WSS após queda abrupta
+
+- [Prompt P221](../broker/221-wss-durable-crash.md) foi publicado antes do teste (`ea9da9f`). Fixture wire em `b11105a`; ajustes de fechamento antecipado/permissões em `7324e37` e cruzamento com client real em `3eb9772`. [CI final da fonte exata](https://github.com/licodevone/xmqr/actions/runs/39127199508) passou nos jobs Rust e pacote Ubuntu 26.04, incluindo vetor `P221_WSS_CRASH_PASS`, navegador e regressões WSS.
+- Sessão MQTT 5 persistente via WSS mTLS recebeu SUBACK, o assinante saiu e o publisher recebeu PUBACK QoS 1 para mensagem offline. O broker foi morto por `SIGKILL`, voltou com o mesmo estado e indicou Session Present=1; entregou a publicação e recebeu PUBACK. Estado e certificados eram efêmeros, separados do teste de parada limpa P218.
+- A sequência também passou localmente com `mqtt-client` 0.36.0 real, mantendo manifesto e URL, recusando URL diferente e emitindo a mensagem offline em JSONL (`P221_CLIENT_WSS_CRASH_PASS`). Esse cruzamento opcional não roda na CI do broker; a CI executa o vetor wire. Um único assinante/publicação não equivale a power loss, ENOSPC, múltiplos inflight ou carga prolongada.

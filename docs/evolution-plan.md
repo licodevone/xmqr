@@ -5,7 +5,8 @@ Versões publicadas atuais: broker/admin legado 0.42.0, client independente 0.36
 e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
 propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
-segue aberta.
+segue aberta. A fase 7 foi aceita no contrato de transporte T01 após P222,
+sem encerrar 6A–6D nem declarar prontidão de produção.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42/P86/P88, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
@@ -269,6 +270,8 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 7/P218 parcial: assinatura MQTT 5 via WSS mTLS mantém sessão e publicação QoS 1 offline após parada limpa e reinício do broker; client 0.36.0 recupera mensagem com manifesto preservado e URL diferente recusada.~~ [Registro P218](../prompts/registros/P218-wss-durable-restart.md). Fixture wire/CI PASS e cruzamento real local PASS; crash e matriz longa pendentes.
 - [x] ~~Fase 7/P219 parcial: WSS mTLS aceita CONNECT/PUBLISH MQTT 3.1.1/5 fragmentados, recusa texto e quadro acima de 64 KiB e continua aceitando novas conexões.~~ [Registro P219](../prompts/registros/P219-wss-fragmentation-limits.md). Fixture local/CI PASS; navegador e carga prolongada pendentes.
 - [x] ~~Fase 7/P220 parcial: navegador Chromium real usa WSS mTLS e `Origin` HTTPS permitido para pub/sub MQTT 3.1.1/5; origem não listada, ausência de certificado, senha errada e ACL negada são recusadas.~~ [Registro P220](../prompts/registros/P220-real-browser-wss-mtls.md). Fixture local e CI da fonte exata PASS. CA/SAN cobertos por fixture de fio; fase 7 global aberta.
+- [x] ~~Fase 7/P221 parcial: sessão MQTT 5 WSS mTLS com mensagem QoS 1 offline confirmada sobrevive a `SIGKILL` do broker; Session Present=1 e entrega/PUBACK após retorno.~~ [Registro P221](../prompts/registros/P221-wss-durable-crash.md). Fixture wire/CI PASS e client 0.36.0 real local PASS.
+- [x] ~~Fase 7/P222: contrato de transporte T01 encerrado com WS/WSS, client independente, Chromium real, fragmentação/limites, mTLS/Origin/ACL, estado durável, reinício/crash e regressões TCP/TLS.~~ [Matriz](phase7-acceptance.md), [registro](../prompts/registros/P222-phase7-acceptance.md) e [ADR 0003](adr/0003-websocket-before-mqtt5-global-acceptance.md). Fonte exata/CI PASS; MQTT 5 global 6A–6D permanece aberto.
 - [x] ~~Distribuição P211/C113: broker/admin legado 0.39.0 e client independente 0.32.0 com WS MQTT local, CI das fontes exatas, pacotes Ubuntu 26.04, upgrade/rollback descartável, imagens por digest, tags, prereleases e 14 anexos remotos conferidos.~~ [Registro P211](../prompts/registros/P211-release-0.39.0.md) e [C113](../../xmqr-client/prompts/registros/C113-release-0.32.0.md). Fase 7 global aberta.
 - [x] ~~Distribuição C109: client independente 0.30.0 com C107/C108, pacote Ubuntu 26.04, ciclo descartável de upgrade/rollback, imagem por digest, tag e prerelease com seis hashes remotos conferidos.~~ [Registro](../../xmqr-client/prompts/registros/C109-release-0.30.0.md). M03/6B global ainda aberto.
 - [x] ~~Fase 6A/P201 parcial: CONNACK, SUBACK, UNSUBACK e PINGRESP exclusivos do servidor enviados pelo client após CONNACK recebem DISCONNECT `0x82` antes de interpretar corpo.~~ [Registro](../prompts/registros/P201-server-only-control-packets-mqtt5.md). Gates locais, TCP e CI PASS; 6A global aberta.
@@ -279,7 +282,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
 - [ ] Fase 6D: opções de assinatura, Subscription Identifier, shared subscriptions e AUTH.
-- [ ] Fase 7: WebSocket/WSS no broker e client, com regressão TCP/TLS.
+- [x] ~~Fase 7: WebSocket/WSS no broker e client, com regressão TCP/TLS, client independente e navegador real.~~ [Aceite T01](phase7-acceptance.md). Limites de produção e MQTT 5 global explícitos.
 - [ ] Fase 8: bridge, reconexão, mapeamento de tópicos e prevenção de loops.
 - [ ] Fase 9: Windows nativo, serviço, instalador, persistência e permissões homologados. [Relatório de planejamento](windows-native-evolution-plan.md); implementação futura, sem aceite nesta entrega.
 - [ ] Distribuição: homologar instalação/units Ubuntu24, arm64 e repositório APT assinado.
@@ -299,7 +302,7 @@ e o link do registro. Manter itens em validação desmarcados e indicar seu bloq
 | Administração | Canal local autenticado, bundle, ações, auditoria e diagnóstico aceitos na fase5; painel somente leitura | Administração remota e plugins permanecem fora do escopo atual |
 | Métricas/logs | Monitor loopback e contadores administrativos de cardinalidade fixa; `$SYS` não gerado por decisão B14 | Exportação adicional conforme demanda |
 | MQTT5 | P115–P123/C57–C64: pub/sub QoS0/1/2 e unsub com sessão limpa, diagnóstico parcial e propriedades informativas de CONNECT | Codec/propriedades completos, negociação de sessões, expiração, fluxo, opções de assinatura e autenticação estendida |
-| WebSocket | WS opt-in em loopback no broker 0.39.0/client 0.32.0; WSS mTLS local no broker 0.40.0/client 0.33.0 e remoto com opt-in no broker 0.41.0/client 0.34.0; broker 0.42.0 aceita lista HTTPS exata de `Origin` com mTLS; client 0.36.0 aceita outbox QoS 1/2 e assinatura persistente por URL WSS; P218/P219 cobrem reinício limpo e quadros fragmentados/limites; P220 valida Chromium real | Crash, carga prolongada e regressões completas |
+| WebSocket | Fase 7/T01 aceita por P222: WS/WSS, MQTT 3.1.1/5 no subconjunto disponível, mTLS/Origin/ACL, client independente 0.36.0, Chromium, estado durável por URL, reinício/crash, quadros/limites e regressões TCP/TLS | Carga prolongada, power loss, múltiplos inflight e conformidade MQTT 5 global não inferidos |
 | Bridge | Ausente | Ligação entre brokers com TLS, reconexão, mapeamento de tópicos e proteção de loops |
 | Distribuição | Deb26 amd64; sem APT próprio | Ubuntu24 validado, arm64, repositório APT assinado e política de upgrade |
 | Windows nativo | Não homologado | Persistência/locks/CRUD/sinais adaptados, serviço Windows, instalador e testes |
@@ -324,7 +327,7 @@ para igualar um broker Mosquitto isolado.
 | 6B | Semanas16–18 | P127/P128: Clean Start e Session Expiry; P130: Message Expiry; P131: DISCONNECT expiry; P132: Will Delay e documento v8 | C66/C67: opções de sessão; C69: Message Expiry; C70: Will Delay; C105/C107: outbox opt-in QoS 1/2; C108: manifesto de assinatura; mensagens recebidas/múltiplos inflight pendentes | Crash/restart, migração e relógio/expiração tratados sem perda silenciosa |
 | 6C | Semanas19–21 | P134/P136 aceitos para Receive Maximum e Maximum Packet Size; P138/P139 aceitam alias de entrada/saída; P141/P142 aceitam metadados PUBLISH e documento v10; P144 anuncia quota inbound onde cabe; P146 trata quota QoS2 retomada | C72/C73 expõem limites de recebimento; C75 aceita alias recebido; C77/C78 publicam metadados; C80 os exibe em JSONL; C81 repete publicações em série; C83 usa alias compacto | Fluxo e tamanho validados em QoS0/1/2, retained e restart; Mosquitto 2.0.22 falha no alias abreviado de saída; aceite global da fase pendente |
 | 6D | Semanas22–24 | P147/P148/P150/P153/P154/P156 e P158–P160 aceitos; shared durável no estado v14, admin A18 distribuído e PLAIN sobre TLS/reautenticação explícita; desafio AUTH pendente | C84/C85/C87/C89/C91/C92 aceitos; PLAIN inicial e reautenticação única antes de I/O, sem reautenticação periódica | Matriz5 por cláusula, interop externa e recursos ausentes declarados; sem alegação integral prematura |
-| 7 | Semanas25–27 | P210 aceita WS em `open-lab` e P212 WSS mTLS em loopback com quota compartilhada | C112 aceita WS e C114 WSS mTLS local em pub/sub MQTT 3.1.1/5; navegador/remoto pendentes | WS/WSS/TCP locais e negativos de segurança testados; acesso remoto, navegador e aceite global abertos |
+| 7 | Semanas25–27 | P210–P222: WS/WSS local/remoto explícito, mTLS, Origin, navegador, fragmentação/limites, sessão após reinício/crash | C112–C124: client WS/WSS e estado durável por URL, com MQTT 3.1.1/5 no subconjunto disponível | [T01 aceito no contrato de transporte](phase7-acceptance.md); MQTT 5 global e produção não inferidos |
 | 8 | Semanas28–31 | Bridge incremental | CLI de diagnóstico; testes com Mosquitto nas duas pontas | Reconexão limitada, loops, QoS, retenção e ACL explícitos |
 | 9 | Semanas32–35 | Windows nativo e extensões de paridade escolhidas | Serviço/instalador Windows e CLI homologada | Instalar/upgrade/remover, recuperação e permissões testados em Windows |
 
