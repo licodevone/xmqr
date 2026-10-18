@@ -1,4 +1,4 @@
-# P227E v1.6 — relógio lógico e expiração durável sem renovar TTL
+# P227E v1.7 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -213,3 +213,15 @@ helpers. Testes usam TCP loopback e deliveries reais: mesma faixa1barreira;
 cruzamento2;4cruzamentos/3s dão erro limitado/zero bytes; WAL negativo não
 escreve nem perde Prepared. Contar commits bem-sucedidos e hooks por caso;
 tempo lógico sintético, não ajustar host. Compilar/testar só owner E.
+
+## Revisão v1.7 após RED live, antes de poda/identidade
+
+RED real p227e_prune_2/2FAIL: tick não libera quota1 nem tenta barreira WAL
+para remover Prepared vencido;27,72scompile/0,93stest. Dois warnings de
+helpers cfgtest ainda sem fixture consumidora, não são ClippyPASS. Corrigir
+agora conforme v1.6, preservando os mesmos oráculos. Identidade crescente
+será next_expiry_delivery_id na sessão e expiry_delivery_id na cópia;
+None permanece para cópias legado/QoS0. Prepared exige Some válido e único
+entre outbound, com teto i64::MAX para formato TOML. Reassignment cria nova
+identidade no destino. Delivery obsoleto retorna erro interno específico que
+handler trata como supressão bem-sucedida, sem discard por packetID reusado.
