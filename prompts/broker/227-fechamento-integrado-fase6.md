@@ -1,4 +1,4 @@
-# P227 v1.9 — concluir a fase 6 de MQTT 5
+# P227 v1.10 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -216,3 +216,19 @@ nonzero antes de cenários, mas repetidos isolados passaram. Não converter
 repetição emPASSretroativo. Adicionar somente tipo de exceção permitido e
 última linha de stack (número) ao metadata de falha, nunca texto de exceção,
 paths arbitrários, payloads/logs. Contrato unitário deve impedir divulgação.
+
+## Revisão1.10 — migrações reais no aceite integrado v16
+
+Antes de alterar o executor: substituir seu gate de formato corrente A19
+pelo novo A21, preservando o script/histórico v15. O formato16 exige provar
+seed real15, migração sem inventar intervalo original, backup/restore16 e
+recusa pelo executável15. Integrar também a migração real do journal inbound
+v1→v2 do client, usando o harness C131 com teardown corrigido após seu aceite.
+
+Adicionar --legacy-broker e --legacy-client explícitos. São insumos separados,
+identificados por versão/SHA antes e depois, sem comparar sua versão com o
+manifest corrente. Ausência bloqueia os gates6B correspondentes, não os omite
+nem afeta seleção6A/6C/6D. Não obter binários implicitamente, construir estado
+antigo alterando versão sintética ou aceitar artefato mutável. Relatórios
+exclusivos por harness, sem logs/segredos; testar contratos de argumentos e
+prerequisitos. A21 e journal migration só recebem PASS após execução real.
