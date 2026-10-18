@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 
-from verify_phase6_acceptance import classify, execute, fixtures
+from verify_phase6_acceptance import classify, execute, fixtures, verify_versions
 
 
 class AcceptanceContracts(unittest.TestCase):
@@ -27,6 +27,25 @@ class AcceptanceContracts(unittest.TestCase):
 
     def test_timeout_is_not_success(self):
         self.assertEqual(classify(0, "PASS", "PASS", timed_out=True), ("FAIL", "timeout"))
+
+    def test_negative_markers_cannot_be_success(self):
+        for marker in ("NOT_PASS", "FAIL", "P227_CASE_FAIL", "BLOCKED"):
+            self.assertEqual(classify(0, marker + "\nP227_CASE_PASS", "PASS"),
+                             ("FAIL", "negative_marker_present"))
+
+    def test_manifest_binary_versions_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            for repo, version in (("xmqr", "0.42.0"), ("xmqr-client", "0.36.0"), ("xmqr-admin", "0.10.0")):
+                (base / repo).mkdir()
+                (base / repo / "Cargo.toml").write_text('[package]\nversion="' + version + '"\n')
+            info = {role: {"version": "binary " + version} for role, version in
+                    (("broker", "0.42.0"), ("admin", "0.42.0"), ("client", "0.36.0"),
+                     ("client_release", "0.36.0"), ("independent_admin", "0.10.0"))}
+            verify_versions(base / "xmqr", info)
+            info["broker"]["version"] = "mqtt-broker 0.41.0"
+            with self.assertRaisesRegex(RuntimeError, "manifest_binary_version_mismatch:broker"):
+                verify_versions(base / "xmqr", info)
 
     def test_registry_is_unique_and_excludes_obsolete_shared_refusal(self):
         rows = fixtures(Path(__file__).resolve().parents[1])

@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 
 
 SESSIONS = {
@@ -58,6 +59,8 @@ def fixtures(root):
          "expected_marker": "PASS", "timeout_seconds": 180},
         {"file": "verify_phase6_crash_matrix.py", "phase": "6B", "arguments": ["--broker", "{broker}", "--report", "{crash_report}"],
          "expected_marker": "P227_CRASH_MATRIX_PASS", "timeout_seconds": 240},
+        {"file": "verify_phase6_shared_will.py", "phase": "6D", "arguments": ["--broker", "{broker}", "--report", "{shared_will_report}"],
+         "expected_marker": "P227_SHARED_WILL_PASS", "timeout_seconds": 120},
         {"file": "verify_phase6_paho_auth.py", "phase": "6D", "arguments": ["--broker", "{broker}", "--admin", "{admin}"],
          "expected_marker": "P227_PAHO_AUTH_PASS", "timeout_seconds": 180, "requires_paho": True},
         {"file": "../../xmqr-admin/scripts/verify_channel_cli.py", "phase": "6D",
@@ -77,6 +80,8 @@ def classify(returncode, output, expected_marker, timed_out=False):
         return "FAIL", "timeout"
     if returncode != 0:
         return "FAIL", "nonzero_exit"
+    if re.search(r"\b(?:NOT_PASS|[A-Z0-9_]*_FAIL|FAIL|BLOCKED)\b", output):
+        return "FAIL", "negative_marker_present"
     if not re.search(r"(?<![A-Za-z0-9_])" + re.escape(expected_marker) + r"(?![A-Za-z0-9_])", output):
         # PASS can also be the final segment of a specifically named marker.
         if expected_marker != "PASS" or not re.search(r"\b[A-Z0-9_]*_PASS\b|\bPASS:", output):
@@ -131,6 +136,22 @@ def provenance(root):
     return result
 
 
+def verify_versions(root, info):
+    """A same-version stale binary still needs the separate source/hash gates."""
+    manifests = {
+        "broker": root / "Cargo.toml",
+        "admin": root / "Cargo.toml",
+        "client": root.parent / "xmqr-client/Cargo.toml",
+        "client_release": root.parent / "xmqr-client/Cargo.toml",
+        "independent_admin": root.parent / "xmqr-admin/Cargo.toml",
+    }
+    for role, manifest in manifests.items():
+        with manifest.open("rb") as stream:
+            version = tomllib.load(stream)["package"]["version"]
+        if info[role]["version"].split()[-1] != version:
+            raise RuntimeError("manifest_binary_version_mismatch:" + role)
+
+
 def preflight(root):
     binaries = {
         "broker": root / "target/debug/mqtt-broker",
@@ -147,6 +168,7 @@ def preflight(root):
         info[role] = {"version": version, "sha256": digest(path)}
     if info["client"]["version"] != info["client_release"]["version"]:
         raise RuntimeError("client_debug_release_version_mismatch")
+    verify_versions(root, info)
     for program in ("mosquitto_pub", "mosquitto_sub", "openssl"):
         if not shutil.which(program):
             raise RuntimeError("missing_prerequisite:" + program)
@@ -177,7 +199,8 @@ def main():
         report.update(sources=before, binaries=info)
         replacements = {name: str(path.resolve()) for name, path in binaries.items()}
         replacements.update(vbi_report=str(args.report.with_name(args.report.stem + "-vbi.json").resolve()),
-                            crash_report=str(args.report.with_name(args.report.stem + "-crash.json").resolve()))
+                            crash_report=str(args.report.with_name(args.report.stem + "-crash.json").resolve()),
+                            shared_will_report=str(args.report.with_name(args.report.stem + "-shared-will.json").resolve()))
         environment = {key: value for key, value in os.environ.items()
                        if not key.startswith("MQTT_") and key not in ("PYTHONOPTIMIZE",)}
         environment.update(TMPDIR="/var/tmp", PYTHONDONTWRITEBYTECODE="1")
@@ -199,6 +222,10 @@ def main():
                 if not available:
                     row.update(status="BLOCKED", reason="paho_not_available_no_install_attempted")
                     continue
+                import paho.mqtt
+                module_path = Path(paho.mqtt.__file__).resolve()
+                row["paho"] = {"version": paho.mqtt.__version__,
+                               "module_sha256": digest(module_path)}
             command = [sys.executable, str(source)]
             command += [value.format(**replacements) for value in fixture["arguments"]]
             row.update(execute(command, fixture["expected_marker"], fixture["timeout_seconds"], root, environment))
