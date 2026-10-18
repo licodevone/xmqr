@@ -1,4 +1,4 @@
-# P227E v2.7 — relógio lógico e expiração durável sem renovar TTL
+# P227E v2.8 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -359,3 +359,13 @@ falhou novamente E0308; não é FAIL funcional nem troca de oráculo.
 Assinatura lida integralmente: kind:AdminListKind, cursor:Option<String>,
 limit:usize. Corrigir para kind,None,64, mantendo snapshots exatos antes/
 depois da recusa CONNECT. Os dois compileFAIL permanecem registrados.
+
+## Revisão v2.8 antes do oráculo de identidade na regressão de ordem
+
+GREEN E36/36 após fix (26,03scompile/7,45stest). Regressão router apontou
+um FAIL configured_inflight_defers_and_drains_without_losing_order: compara
+StoredMessage inteira com a entrada sem ID, mas a cópia nova agora recebe
+Some(2). Não remover a comparação ou ignorar payload/metadados. Atualizar
+expected com identidade2 e verificar counter2, preservando igualdade integral
+do restante e todas as asserções de ordem/quota/packetID. É ajuste explícito
+do novo contrato interno autorizado, não mudança da sequência observada.
