@@ -1,4 +1,4 @@
-# P227C v1.0 — fairness por grupo compartilhado e expiração de Will no takeover
+# P227C v1.1 — fairness por grupo compartilhado e expiração de Will no takeover
 
 Preparado em 18 de outubro de 2026, antes de testes novos e correções.
 Complementa [P227](227-fechamento-integrado-fase6.md). Pedido autorizado:
@@ -55,7 +55,7 @@ efetivamente executado nos gates novos; principal executa a compilação final.
 ## Norma e limites do fechamento 6D
 
 [OASIS MQTT5](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html),
-§3.1.3.2.3 (Message Expiry Interval do Will), §3.1.2.5 e §3.3.2.3.3
+§3.1.3.2.4 (Message Expiry Interval do Will), §3.1.2.5 e §3.3.2.3.3
 (prazo/publicação/descartar expiradas), §4.8.2 (um destinatário por filtro,
 QoS concedido, retenção do ownership QoS2 e redistribuição QoS1 recomendada).
 A norma deixa a escolha de membro a cargo do servidor; fairness é critério
@@ -86,3 +86,23 @@ QoS2/Will/retained. Coordenador executa fmt, testes locked completos, Clippy
 Wire/interop final e distribuição ficam com a coordenação. Nenhum push/tag
 ou release por este agente até integração autorizada; registrar PASS/FAIL e
 limitações reais, sem alegar perda física de energia ou produção.
+
+## Revisão v1.1 — RED executado antes das correções
+
+O coordenador aprovou o campo transitório adicional em store.rs antes da
+mutação, preservando o campo shared_cursor legado (também serde(skip)).
+Os três testes p227c_* foram compilados de fonte mqtt-broker0.42.0 no WSL,
+TMPDIR=/var/tmp/-j1, sem executar o ELF debug0.41.0. Cargo compilou em32,52s;
+testes2,54s, exit1: três FAIL de asserção esperados. Grupos intercalados
+produziram [4,0,0,4], esperado[2,2,2,2]; Will expiry0 foi encaminhado e
+Will expiry1 foi entregue sem deadline. Não há PASS inferido dessa reprodução.
+
+Agora corrigir somente o estado candidato: cursor por chave completa e
+poda no commit (inclui unsubscribe/expiração/revogação sem esperar tráfego
+novo); usar will_publication(&prior,now) no caminho Clean Start. Campo novo
+não serializado, reiniciado no recovery, sem v16 ou repin. Acrescentar
+unitários de poda, rollback em erro WAL e recovery sem cursor mas com
+associações/obrigações preservadas. Rustfmt apenas dos arquivos próprios;
+GREEN targeted só após coordenação da janela Cargo. A norma foi reconferida:
+Message Expiry do Will está em3.1.3.2.4, corrigindo a referência numérica
+inicial; não houve mudança do requisito ou do oráculo.
