@@ -27,7 +27,8 @@ def start(port, state, maximum):
     raise AssertionError("broker did not listen")
 
 
-def connect(port, identity, maximum=None, clean=True, persistent=False):
+def connect(port, identity, maximum=None, clean=True, persistent=False, expected_reason=0,
+            expected_frame_size=None):
     stream = socket.create_connection(("127.0.0.1", port), timeout=4)
     stream.settimeout(4)
     props = b""
@@ -39,14 +40,21 @@ def connect(port, identity, maximum=None, clean=True, persistent=False):
             + bytes([len(props)]) + props + len(identity).to_bytes(2, "big") + identity)
     stream.sendall(bytes([0x10, len(body)]) + body)
     header, ack = packet(stream)
-    assert header == 0x20 and ack[1] == 0 and ack[2] == len(ack) - 3, ack
+    assert header == 0x20 and ack[1] == expected_reason and ack[2] == len(ack) - 3, ack
     assert maximum is None or len(ack) + 2 <= maximum, ack
+    if expected_frame_size is not None:
+        assert len(ack) + 2 == expected_frame_size, "CONNACK frame size mismatch"
+    if expected_reason:
+        assert ack == b"\x00" + bytes([expected_reason]) + b"\x00", ack
+        assert stream.recv(1) == b"", "refused CONNECT remained active"
+        return stream, {}, False
     found = {}
     position = 3
     while position < len(ack):
         kind = ack[position]
-        size = {0x21: 2, 0x22: 2, 0x27: 4}[kind]
+        size = {0x21: 2, 0x22: 2, 0x27: 4, 0x2a: 1}[kind]
         assert kind not in found, ack
+        assert position + 1 + size <= len(ack), "truncated CONNACK property"
         found[kind] = int.from_bytes(ack[position + 1:position + 1 + size], "big")
         position += 1 + size
     assert position == len(ack)
@@ -76,15 +84,27 @@ def main():
             port = probe.getsockname()[1]
         broker = start(port, state, 1)
         try:
-            expected = {5: (5, {}), 7: (5, {}), 8: (8, {0x21: 1}),
-                        9: (8, {0x21: 1}), 10: (10, {0x27: 65536}),
-                        12: (10, {0x27: 65536}),
-                        13: (13, {0x27: 65536, 0x22: 16}),
-                        15: (13, {0x27: 65536, 0x22: 16}),
-                        16: (16, {0x27: 65536, 0x22: 16, 0x21: 1})}
+            for maximum in (5, 6):
+                identity = f"p144-denied-{maximum}".encode()
+                stream, _, _ = connect(port, identity, maximum, persistent=True, expected_reason=0x95)
+                stream.close()
+                stream, _, present = connect(port, identity, clean=False, persistent=True)
+                assert not present, "refused CONNECT created durable session"
+                stream.close()
+            shared = {0x2a: 1}
+            expected = {7: (7, shared), 8: (7, shared), 9: (7, shared),
+                        10: (10, {**shared, 0x21: 1}), 11: (10, {**shared, 0x21: 1}),
+                        12: (12, {**shared, 0x27: 65536}),
+                        13: (12, {**shared, 0x27: 65536}),
+                        14: (12, {**shared, 0x27: 65536}),
+                        15: (15, {**shared, 0x27: 65536, 0x22: 16}),
+                        16: (15, {**shared, 0x27: 65536, 0x22: 16}),
+                        17: (15, {**shared, 0x27: 65536, 0x22: 16}),
+                        18: (18, {**shared, 0x27: 65536, 0x22: 16, 0x21: 1})}
             for maximum, (length, properties) in expected.items():
-                stream, found, present = connect(port, f"p144-{maximum}".encode(), maximum)
-                assert not present and found == properties and len(found) * 3 <= length, found
+                stream, found, present = connect(port, f"p144-{maximum}".encode(), maximum,
+                                                  expected_frame_size=length)
+                assert not present and found == properties, found
                 stream.close()
             subscriber, props, _ = connect(port, b"p144-sub")
             assert props[0x21] == 1

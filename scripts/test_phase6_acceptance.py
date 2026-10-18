@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 
-from verify_phase6_acceptance import classify, execute, fixtures, verify_versions
+from verify_phase6_acceptance import classify, execute, failure_diagnostic, fixtures, verify_versions
 
 
 class AcceptanceContracts(unittest.TestCase):
@@ -36,6 +36,11 @@ class AcceptanceContracts(unittest.TestCase):
                        "FAIL", "FAILED", "P227_CASE_FAIL", "BLOCKED", "SKIPPED"):
             self.assertEqual(classify(0, marker + "\nP227_CASE_PASS", "PASS"),
                              ("FAIL", "negative_marker_present"))
+
+    def test_failure_diagnostic_has_no_private_message_or_path(self):
+        result = failure_diagnostic(b'  File "/private-fixture-token.py", line 42, in main\nValueError: private-fixture-token\n')
+        self.assertEqual(result, {"diagnostic_exception_type": "ValueError", "diagnostic_line": 42})
+        self.assertNotIn("private-fixture-token", json.dumps(result))
 
     def test_manifest_binary_versions_match(self):
         with tempfile.TemporaryDirectory() as directory:

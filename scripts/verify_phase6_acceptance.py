@@ -226,10 +226,23 @@ def execute(command, expected_marker, timeout, cwd, environment):
         status, reason = "FAIL", "private_descendants_remaining"
     return {"status": status, "reason": reason, "exit_code": process.returncode,
             "cleanup": "REMAINING_GROUP_KILLED" if descendants_remaining else "PASS",
+            **(failure_diagnostic(err) if status == "FAIL" else {}),
             "elapsed_seconds": round(time.monotonic() - began, 3),
             "stdout_sha256": hashlib.sha256(out).hexdigest(),
             "stderr_sha256": hashlib.sha256(err).hexdigest(),
             "stdout_bytes": len(out), "stderr_bytes": len(err)}
+
+
+def failure_diagnostic(stderr):
+    allowed = {"AssertionError", "KeyError", "TimeoutExpired", "FileNotFoundError",
+               "PermissionError", "OSError", "ValueError", "TypeError", "ImportError",
+               "ModuleNotFoundError", "RuntimeError", "CalledProcessError"}
+    text = stderr.decode("utf-8", errors="replace")
+    names = re.findall(r"(?m)^(?:[A-Za-z_][A-Za-z0-9_]*\.)*([A-Za-z_][A-Za-z0-9_]*)(?::|$)", text)
+    names = [name for name in names if name in allowed]
+    lines = re.findall(r'File "[^"\n]+", line ([0-9]+),', text)
+    return {"diagnostic_exception_type": names[-1] if names else None,
+            "diagnostic_line": int(lines[-1]) if lines else None}
 
 
 def provenance(root):

@@ -107,7 +107,7 @@ segunda cópia aguarda ACKterminal e depois conclui.2/2PASS noELFD,2,89s,
 `../.artifacts/p227f-control-d-baseline-2.json`. Não foi preciso mudar runtime.
 
 C129 foi integrado por commits próprios sem incorporarC128dirty.175Rust,
-18TCP e6compatPASS constam no [registro do client](../../xmqr-client/prompts/registros/C129-subscription-inbound-state.md).
+18TCP e6compatPASS constam no [registro do client](../../../xmqr-client/prompts/registros/C129-subscription-inbound-state.md).
 Revisão independente encontrou metadadosSubscriptionID mutáveis e journal
 órfão semmanifesto: correçõesC129v1.12 ainda em andamento antes de push final.
 P227E também está corrigindo intervalo original/clockregressivo e distinguindo
@@ -123,3 +123,25 @@ limitada. Isso não é substituição nativa de tópico peloPaho nem homologaç�
 da recepçãoMosquitto2.0.22. Nenhuma biblioteca/runtime/serviço foi instalado.
 O gate6C passa a exigir essa prova independente, além de conservar o caso
 Mosquitto explicitamente rotulado como reprodução de limitação.
+
+## Campanha ampla Dall4 — resultado não aprovado
+
+`../.artifacts/p227-acceptance-d-all-4.json`:68fixtures,62PASS/6FAIL,
+224,067s; fontes/ELFs inalterados. Quatro FAILs foram reproduzidos e
+diagnosticados como expectativas históricas emP227H: fronteirasCONNACK
+pré-anúncioSharedAvailable, parser0x2a usado porP146, associação persistente
+shared anterior aP154 e alias desconhecido anterior à correçãoP227D.
+Após revisão do prompt, os quatro harnesses passaram isoladamente no mesmo
+ELFD e client109ec973, sem alterar runtime para satisfazer expectativas.
+
+VBI ealiasReason falharam antes de imprimircenários/criarJSON na campanha;
+repetições isoladas completas passaram. Causa original não confirmada,
+portanto não se transforma Dall4 emPASS. O executor agora registra tipo
+permitido de exceção e número da última linha de stack, sem mensagens/paths
+privados. Seus16contratos determinísticos passaram em0,246s.
+
+C129 final foi integrado após181Rust/21TCP/6compat e migração realv1→v2PASS.
+As correções foram enviadas aGitHubmain, preservandoC128dirty no original.
+C131 prepara client038 em clone/branchseparados: nenhuma release038 é
+anunciada como existente só por essa preparação. E/admin16 permanecem
+abertos, de modo que esta campanha ainda não encerra a fase6.

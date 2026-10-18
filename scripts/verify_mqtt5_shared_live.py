@@ -114,7 +114,7 @@ def main():
                 with connect(port, b"durable", persistent=True)[0] as persistent:
                     body = b"\x00\x01\x00" + len(SHARED).to_bytes(2, "big") + SHARED + b"\x01"
                     persistent.sendall(bytes([0x82, len(body)]) + body)
-                    assert packet(persistent) == (0x90, b"\x00\x01\x00\x9e")
+                    assert packet(persistent) == (0x90, b"\x00\x01\x00\x01")
         finally:
             stop(broker)
         broker = start(port, state)

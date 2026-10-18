@@ -68,7 +68,7 @@ def main():
 
             fresh = connect(port, b"alias-fresh")
             publish(fresh, b"", 1, b"invalid")
-            assert packet(fresh) == (0xe0, b"\x94\x00"), "alias crossed connection boundary"
+            assert packet(fresh) == (0xe0, b"\x82\x00"), "alias crossed connection boundary"
             assert fresh.recv(1) == b""
             fresh.close()
 
