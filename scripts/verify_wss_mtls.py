@@ -246,6 +246,15 @@ def check_browser_origin(root, port, password):
         assert mqtt_packet(denied, bytearray())[-1] == 0x87
     finally:
         denied.close()
+    with secure_socket(root, port) as stream:
+        assert handshake(stream, port, origin=allowed).startswith(b"HTTP/1.1 101")
+        send_frame(stream, 2, connect_packet(5, b"p216-wrong-password",
+                                              b"device", b"wrong-password"))
+        try:
+            reply = mqtt_packet(stream, bytearray())
+            assert not (reply[0] == 0x20 and reply[2:4] == b"\x00\x00"), reply
+        except (ssl.SSLError, OSError, EOFError):
+            pass
     try:
         with secure_socket(root, port, certificate=False) as stream:
             handshake(stream, port, origin=allowed)
