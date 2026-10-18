@@ -1,5 +1,13 @@
 # Versionamento
 
+## P217 — broker/admin legado 0.42.0 candidato, estado v15
+
+P216 habilita `Origin` HTTPS exato por allowlist no WSS mTLS sem migração do
+estado. Broker 0.41.0 lê v15, mas não aceita `Origin` de navegador. Client
+0.35.0/C119-C120 é o par candidato; admin independente 0.10.0 permanece.
+Publicação depende dos gates do [prompt P217](prompts/broker/217-release-0.42.0.md).
+[Nota candidata](docs/releases/0.42.0.md). Fase 7 global aberta.
+
 ## P215 — broker/admin legado 0.41.0 publicado, estado v15
 
 P214 habilita WSS mTLS remoto com opt-in separado e ACL/CA/certificado cliente
