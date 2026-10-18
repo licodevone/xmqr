@@ -3,6 +3,7 @@
 import argparse
 import base64
 import hashlib
+import json
 import os
 from pathlib import Path
 import secrets
@@ -243,7 +244,7 @@ def check_admission(root, port, tcp_port, password):
     raise AssertionError("shared admission slot did not recover")
 
 
-def check_client(root, port, tcp_port, client, password):
+def check_client(root, port, tcp_port, client, password, profile_client=False):
     secret_file = root / "client-password"
     secret_file.write_bytes(password + b"\n")
     secret_file.chmod(0o600)
@@ -266,6 +267,31 @@ def check_client(root, port, tcp_port, client, password):
             received = subprocess.run(
                 [str(client), "sub", *common, *destination, "--protocol-version", version,
                  "--client-id", "c114-sub", "--count", "1"],
+                capture_output=True, timeout=12)
+            assert received.returncode == 0, received.stderr.decode(errors="replace")
+            assert payload.encode() in received.stdout, received.stdout
+        if profile_client:
+            profile = root / "c116-connection.toml"
+            profile.write_text(
+                "version=1\n[connection]\n"
+                f"ws_url={json.dumps(f'wss://127.0.0.1:{port}/mqtt')}\n"
+                "username=\"device\"\n"
+                f"ca={json.dumps(str(root / 'ca.crt'))}\n"
+                f"cert={json.dumps(str(root / 'client.crt'))}\n"
+                f"key={json.dumps(str(root / 'client.key'))}\n"
+                f"password_file={json.dumps(str(secret_file))}\n")
+            payload = f"c116-profile-{version}"
+            publish = subprocess.run(
+                [str(client), "pub", "--profile", str(profile),
+                 "--protocol-version", version, "--client-id", "c116-profile-pub",
+                 "--topic", "p212/allowed", "--message", payload,
+                 "--qos", "1", "--retain", "true"],
+                capture_output=True, timeout=12)
+            assert publish.returncode == 0, publish.stderr.decode(errors="replace")
+            received = subprocess.run(
+                [str(client), "sub", "--profile", str(profile),
+                 "--protocol-version", version, "--client-id", "c116-profile-sub",
+                 "--topic", "p212/allowed", "--count", "1"],
                 capture_output=True, timeout=12)
             assert received.returncode == 0, received.stderr.decode(errors="replace")
             assert payload.encode() in received.stdout, received.stdout
@@ -294,7 +320,10 @@ def check_client(root, port, tcp_port, client, password):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--client", type=Path)
+    parser.add_argument("--profile-client", action="store_true")
     args = parser.parse_args()
+    if args.profile_client and not args.client:
+        parser.error("--profile-client exige --client")
     broker_bin = ROOT / "target/debug/mqtt-broker"
     admin_bin = ROOT / "target/debug/mqtt-admin"
     assert broker_bin.is_file() and admin_bin.is_file()
@@ -343,7 +372,8 @@ def main():
                 rotate_certificate(root, broker, log_path, port, password)
                 check_mqtt(root, port, tcp_port, password)
                 if args.client:
-                    check_client(root, port, tcp_port, args.client, password)
+                    check_client(root, port, tcp_port, args.client, password,
+                                 profile_client=args.profile_client)
                 broker.send_signal(signal.SIGTERM)
                 assert broker.wait(timeout=8) == 0
             finally:
@@ -369,7 +399,8 @@ def main():
                     broker.kill()
                     broker.wait(timeout=8)
     print("P212_WSS_MTLS_WIRE_PASS" +
-          (" C114_CLIENT_CROSS_PASS" if args.client else ""))
+          (" C114_CLIENT_CROSS_PASS" if args.client else "") +
+          (" C116_PROFILE_BROKER_PASS" if args.profile_client else ""))
 
 
 if __name__ == "__main__":
