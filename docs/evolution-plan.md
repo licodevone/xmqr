@@ -227,6 +227,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P190 parcial: PUBLISH MQTT 5 com QoS reservado 3 recebe `0x81` e QoS 0 com DUP recebe `0x82`, sem entrega/retained.~~ [Registro](../prompts/registros/P190-publish-fixed-header-reasons-mqtt5.md). Gates locais e CI PASS; aceite global 6A aberto.
 - [x] ~~Distribuição P192: broker/admin legado 0.34.0 com P183–P190; CI da fonte exata, pacote Ubuntu 26.04, upgrade/rollback descartável, imagens numeradas, tag, prerelease e SHA-256 remotos verificados.~~ [Registro](../prompts/registros/P192-release-0.34.0.md). Fases globais abertas.
 - [x] ~~Fase 6A/P194 parcial: segundo CONNECT após CONNACK MQTT 5 recebe DISCONNECT `0x82` antes de interpretar o corpo, sem criar outra sessão ou Will.~~ [Registro](../prompts/registros/P194-second-connect-mqtt5.md). Testes locais, TCP e CI PASS; fase 6A global aberta.
+- [x] ~~Fase 6A/P195 parcial: texto UTF-8 malformado ou U+0000 após CONNACK MQTT 5 recebe DISCONNECT `0x81` nos contextos decodificados pelo leitor comum, sem aplicar publicação/assinatura.~~ [Registro](../prompts/registros/P195-malformed-utf8-mqtt5.md). Testes locais, TCP e CI PASS; CONNECT inicial e matriz global pendentes.
 - [ ] Fase 6A: negociação MQTT5, codec, propriedades e reason codes no broker e client.
 - [ ] Fase 6B: Clean Start, expiração de sessão/mensagem, Will Delay e migração do estado.
 - [ ] Fase 6C: flow control, Receive Maximum, Maximum Packet Size, Topic Alias e propriedades de publicação.
