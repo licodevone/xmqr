@@ -116,7 +116,7 @@ MIT própria fonte CRLF SHAacfd4bb82..., pacote LICENSE/copyright LF SHA
 comparação permite somente CRLF→LF própria. Terceiros estritamente byte a
 byte, sem normalização, arquivos ausentes/extras rejeitados. Sem relicenciamento.
 
-Ainda pendentes: builds e QA de ambas imagens,
+Ainda pendentes: vínculo das imagens à fonte final aprovada,
 export/proveniência final. Publicação Hub/tag/prerelease só após aceite
 global6/CI/comboadmin pelo coordenador, sem modificar latest/tags antigas.
 Wire deste harness é MQTT3.1.1 loopback; não prova TLS, perda de energia ou
@@ -133,3 +133,49 @@ mudam. Self-tests do harness agora5/5 (três leitores + dois grupos de sintaxe
 SHA). Nenhum novo ciclo de pacote é alegado por esta alteração documental de
 proveniência. Build Docker exclusivo autorizado está em execução com rótulo
 do checkpoint d6f1062; fonte final e publicação seguem com o coordenador.
+
+## Docker candidato validado, não publicado
+
+Slot exclusivo liberado pelo coordenador após a release nativa terminar.
+Build runtime `cargo build --locked --release --bins -j1`: PASS284s, perfil
+release4m42; imagem legacyadmin reutilizou o build Cargo aceito (cache),
+PASS3,8s. Sem compilação concorrente deste agente. Inputs de build rastreados
+iguais a ba6; revisão de rótulo
+`d6f10623e2ff4f0afc525c71f1e4ff31167665ca`, cujo diff era só QA/prompts.
+
+- Candidato local `xmqr-p228-broker:0.43.0-d6f1062`, IID
+  `sha256:48b7855e62910419f9c6f9335ec4a4468f4b37227704c4c0cdc8068883290f4e`.
+- Candidato local `xmqr-p228-admin:0.43.0-d6f1062`, IID
+  `sha256:f2b6037fc2328a57cfc701029d707b07c66aa072f03cf467a485583982de83ec`.
+
+Não são digests remotos publicados. User10001:10001, platformlinux/amd64,
+SIGTERM, entrypoints, versões0.43.0 e revisão conferidos por `validate_image`
+original. Broker default secure-mtls sem credenciais recusa startup exit1
+exigindo MQTT_SERVER_CERT; não há fallback aberto. ELFs Bookworm:
+brokerSHA`a122cc2788993170eaf8ca65a11f142d08937fb8e2e821e7d2e9502cfd4375e3`,
+legacyadminSHA`36068a35bcfb9b79fd820391f06e2633eae62ecc7cc90d221c1cb1021a3df98f`
+igual nas duas imagens. Esses ELFs não são usados para fabricar pacoteUbuntu.
+
+`verify_docker.py --remote-wss`: PASS TCPmTLS QoS1/pubsub, SIGTERM durável/
+restart/retained, CA/senha inválidas; WSSmTLS MQTT3.1.1/5 pubsub/perfil e
+negativos opt-in/CA/SAN/senha/ACL. Read-only/caps-none/no-new-privileges,
+fixtures de certificados/credenciais públicas isoladas; nenhuma porta host
+publicada. Peer imutável client0.38.0,
+`lepinheiro100/xmqr-client@sha256:b025a82ab4172f82223e8b01b125570996f374a27ee524a04cc62eac81a148f9`,
+clone da tag com HEAD`fca6fc82117b7ee2b770dc2e4ce673b53764b211`.
+Report `dist/qa-reports/p228-docker-mtls-wss-candidate-1.json`, SHA256
+`e080e42dee560a39dacc869cb283b8fdc7e74edea05c1b7bb4b86a95cf1fc5b3`.
+
+`verify_admin_image.py`: PASS imagem dedicada non-root sem binário broker,
+backup recusa trava ativa, backup/verify/restore offline e destino existente
+recusado. Volumes/processos próprios removidos pelo harness. Report
+`dist/qa-reports/p228-admin-image-candidate-1.json`, SHA256
+`44b98ba92271cbdaab33316a6dc8652c526a5dd54e79bc1ea34ee4e18ec72890`.
+
+Notices das duas imagens por funções originais `image_payload/verify_payload`:
+PASS166pacotes/323textos/1.728.802bytes estrangeiros estritamente originais,
+manifesto igual à coleta locked independente. MIT própria preservada CRLF,
+SHArawacfd4bb82...; comparação canônica LF84381e55..., sem mudar termos.
+Nenhum Hub/tag/prerelease/export final produzido. Rerótulo final por build
+cacheado e pacoteCI da fonte final ainda dependem da coordenação e dos gates
+globais; estes resultados não são aceite irrestrito da fase6.
