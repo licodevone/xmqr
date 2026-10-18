@@ -1,0 +1,13 @@
+# P196 v1 — UTF-8 malformado no CONNECT/Will MQTT 5
+
+Estado de entrada: `main` limpo em `2c12968`, broker/admin legado 0.34.0 e estado durável v15. P195 aceito, mas o CONNECT inicial com texto UTF-8 malformado ainda fecha sem CONNACK de motivo. Fase 6A permanece aberta.
+
+Objetivo observável: depois de reconhecer nome `MQTT` e nível 5, texto UTF-8 malformado ou U+0000 nas propriedades de CONNECT, Client Identifier, propriedades e tópico do Will ou User Name recebe CONNACK `0x81` (Malformed Packet) e fechamento, antes de criar sessão/Will. Se Maximum Packet Size anunciado for menor que o CONNACK mínimo (5 bytes), fechar sem resposta; localizar esse limite mesmo quando vier após uma propriedade de texto malformada com comprimento decodificável. CONNECT inicial válido e nível 4 mantêm o comportamento anterior.
+
+Fonte normativa: [OASIS MQTT 5.0](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html), §1.5.4 MQTT-1.5.4-1/-2 (UTF-8 bem formado, U+0000), §1.5.7 MQTT-1.5.7-1 (pares), §3.2.2.2 (CONNACK `0x81`) e §4.13.1 (erro em CONNECT pode responder antes de fechar). O filtro pré-existente de outros controles/não caracteres permanece política local, sem afirmar obrigação normativa idêntica.
+
+Escopo: classificação de `MalformedUtf8` no caminho CONNECT nível 5, varredura limitada e estrutural das propriedades conhecidas para extrair Maximum Packet Size antes da recusa, unitários, teste TCP real, regressões P183/P184/P195, CI, conformidade/plano e registro. Não alterar parser de UTF-8, autenticação/ACL, quotas, client/admin, estado v15, versão ou tratamento de protocolos não identificados. Truncamento estrutural e nome de protocolo inválido seguem lacunas próprias; não enviar CONNACK 5 quando a versão não foi identificada.
+
+Invariantes: nenhuma sessão/Will criada em erro; não interpretar byte `0x27` dentro de texto/binário como propriedade Maximum Packet Size; não usar comparação de mensagens de erro; não expor credenciais em logs. Uma propriedade desconhecida ou comprimento inválido impede varredura confiável do sufixo; o diagnóstico existente nesses casos prevalece. Se o limite for conhecido, a resposta respeita o valor.
+
+Aceite: unitários para propriedades antes/depois do limite, Client ID, Will Content Type/Response Topic/User Property/tópico e usuário, NUL/UTF-8 inválido versus truncamento, nível 4 e CONNECT válido. TCP: `0x81`/fechamento, ausência de sessão e Will, max=5 e max=4, negativo de byte `0x27` dentro de texto; regressões P183/P184/P195. Gates WSL: fmt, suíte completa, Clippy, build release, licenças, distribuição e CI da fonte exata. Registrar falhas reais e marcar apenas P196 após aceite; fase 6A global continua aberta. Sem tag/release isolada.
