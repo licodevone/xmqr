@@ -1,0 +1,9 @@
+# P189 — Packet Identifier zero em comandos MQTT 5
+
+- Prompt: [P189 v1](../broker/189-zero-command-packet-id-mqtt5.md), commitado e enviado antes do código (`8c3c5f2`).
+- Entrada: `facb712` limpo, broker 0.33.0, documento durável v15. Pedido vigente: continuar o plano MQTT 5 com prompt, testes, registro, commit/push e aceite honesto.
+- Ambiente: Ubuntu 26.04 no WSL; testes TCP em broker open-lab loopback e estado temporário, sem tocar o serviço/estado instalado.
+- Implementação: `CommandPacketIdentifierZero` distingue erro semântico de truncamento no codec. SUBSCRIBE, UNSUBSCRIBE e PUBLISH QoS 1/2 com identificador zero recebem DISCONNECT `0x82` após CONNACK MQTT 5, antes de processamento pelo roteador. PUBLISH QoS 0 não muda; MQTT 3.1.1 fecha sem resposta MQTT 5. Sem migração v15, mudança de versão ou tag isolada.
+- Testes direcionados PASS: unitário de quatro variantes zero/não zero e QoS 0; build debug Linux; `verify_mqtt5_zero_command_id.py` três execuções consecutivas com Will, assinatura não criada, assinatura durável não removida, publicação QoS 1/2 sem fanout/retained e MQTT 3.1.1. Regressões P188, P181 e P185 PASS.
+- Gates locais: `cargo fmt --all -- --check`, `cargo test --locked` (biblioteca: 209 PASS, 6 ignored; demais targets PASS), `cargo clippy --locked --all-targets -- -D warnings`, inventário de licenças e 6 testes de distribuição PASS no Ubuntu 26.04/WSL. A primeira tentativa de `cargo build --locked --release --bins` falhou por `rustc-LLVM ERROR: IO failure on output stream: Cannot allocate memory` com 7,8 GiB de RAM e swap em uso; repetição sem mudança de código com `cargo build --locked --release --bins -j 1` PASS em 1m50s. A falha transitória permanece registrada, sem alegar que a primeira tentativa passou.
+- CI do commit exato e commit de implementação: pendentes; preencher com evidência real. Não marcar fase 6A como concluída.

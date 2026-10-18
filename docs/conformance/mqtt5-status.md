@@ -113,6 +113,12 @@ client MQTT 5 trouxer Packet Identifier zero. O ACK é recusado antes de alterar
 a obrigação QoS durável; Will, replay e o fechamento MQTT 3.1.1 foram testados.
 Outros identificadores inválidos, pacotes truncados e a matriz normativa global
 seguem pendentes.
+P189 estende DISCONNECT `0x82` ao Packet Identifier zero em SUBSCRIBE,
+UNSUBSCRIBE e PUBLISH QoS 1/2 MQTT 5. A recusa acontece antes da alteração de
+assinatura, entrega ou retained. A assinatura durável sobrevive a UNSUBSCRIBE
+inválido; MQTT 3.1.1 segue fechando sem DISCONNECT MQTT 5. PUBLISH QoS 0
+continua sem identificador. Demais erros de campo/ordem e a matriz global
+continuam pendentes.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa

@@ -74,6 +74,10 @@ pub(super) struct AckPropertyDuplicate;
 #[error("zero MQTT acknowledgment Packet Identifier")]
 pub(super) struct AckPacketIdentifierZero;
 
+#[derive(Debug, thiserror::Error)]
+#[error("zero MQTT command Packet Identifier")]
+pub(super) struct CommandPacketIdentifierZero;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -720,7 +724,7 @@ fn decode_for(
         0x82 => {
             let packet_id = c.word()?;
             if packet_id == 0 {
-                return Err("zero SUBSCRIBE packet id".into());
+                return Err(CommandPacketIdentifierZero.into());
             }
             let mut subscription_identifier = None;
             if mqtt5 {
@@ -796,7 +800,7 @@ fn decode_for(
         0xa2 => {
             let packet_id = c.word()?;
             if packet_id == 0 {
-                return Err("zero UNSUBSCRIBE packet id".into());
+                return Err(CommandPacketIdentifierZero.into());
             }
             if mqtt5 {
                 let property_length = c.variable_integer()?;
@@ -850,7 +854,7 @@ fn decode_for(
             } else {
                 let id = c.word()?;
                 if id == 0 {
-                    return Err("zero PUBLISH packet id".into());
+                    return Err(CommandPacketIdentifierZero.into());
                 }
                 Some(id)
             };
@@ -2715,6 +2719,29 @@ mod tests {
             assert!(decode_for(header, &[0, 7], true).is_ok(), "{header:#x}");
             assert!(decode_for(header, &[0, 0], false).is_err(), "{header:#x}");
         }
+    }
+
+    #[test]
+    fn mqtt5_command_zero_packet_id_has_protocol_reason() {
+        for (header, body, id_offset) in [
+            (0x82, vec![0, 7, 0, 0, 1, b'x', 0], 0),
+            (0xa2, vec![0, 7, 0, 0, 1, b'x'], 0),
+            (0x32, vec![0, 1, b'x', 0, 7, 0, b'y'], 3),
+            (0x34, vec![0, 1, b'x', 0, 7, 0, b'y'], 3),
+        ] {
+            assert!(decode_for(header, &body, true).is_ok(), "{header:#x}");
+            let mut zero = body;
+            zero[id_offset..id_offset + 2].copy_from_slice(&[0, 0]);
+            assert!(
+                decode_for(header, &zero, true)
+                    .unwrap_err()
+                    .is::<CommandPacketIdentifierZero>(),
+                "{header:#x}"
+            );
+            assert!(decode_for(header, &zero, false).is_err(), "{header:#x}");
+        }
+        // QoS 0 has no Packet Identifier and remains valid.
+        assert!(decode_for(0x30, &[0, 1, b'x', 0, b'y'], true).is_ok());
     }
 
     #[test]
