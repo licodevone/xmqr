@@ -1,4 +1,4 @@
-# P227E v2.3 — relógio lógico e expiração durável sem renovar TTL
+# P227E v2.4 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -324,3 +324,12 @@ legacy sem ID deve ganhar identidade antes de replay; WAL R0 falho não
 libera quota/token. Depois corrigir e repetir E/codec/store/router/connect
 e Clippy testes. Manter todos os RED/infraFAIL anteriores, registrar esta
 extensão e congelar novo checkpoint antes do fullgate do coordenador.
+
+## Revisão v2.4 após launcher de RED, antes de corrigir binding
+
+Primeiro compile do filtro p227e_discard_ falhou E0425: inicializador do
+argumento expected capturou first_message em padrão homônimo de outro teste,
+não no teste MPS que o usa. Isso é erro de scaffolding, não RED de asserção.
+Corrigir somente binding no escopo correto, repetir mesmos cinco casos.
+Codec agora é ownership Fuzz/P227I somente testes de limites; esta correção
+não precisa editar codec.rs, Cargo continua reservado ao owner E.
