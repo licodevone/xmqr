@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-18.
-Versões publicadas atuais: broker/admin legado 0.38.0, client independente 0.31.0
+Versões publicadas atuais: broker/admin legado 0.39.0, client independente 0.32.0
 e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
 propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
