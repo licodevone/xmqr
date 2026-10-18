@@ -1,4 +1,4 @@
-# P227E v1.3 — relógio lógico e expiração durável sem renovar TTL
+# P227E v1.5 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -155,3 +155,29 @@ anterior, sem anunciar fix. Não alterar quotas ou caminho sem expiry.
 Revisor continua read-only sem Cargo paralelo; este owner implementa fontes
 e testes. Rever prompt antes de corrigir FAIL inesperado. Encerramento de
 P227E depende destes testes e do review; GREEN anterior não fecha essa janela.
+
+## Revisão v1.4 antes de corrigir o launcher dos testes RED
+
+Primeira compilação do RED de intenção falhou E0433 no inicializador mecânico
+de fuzz_tests.rs: esse arquivo é incluído no contexto de testes do codec,
+logo super::store não existe ali. Isso não é RED de asserção nem bug do broker
+em execução. Corrigir somente qualificação crate::mqtt::store e repetir o
+mesmo filtro. Não alterar oráculos para mascarar o erro de compilação.
+Review também exige recusar elapsed regressivo no input fake por instância,
+sem last_elapsed global que rejeite amostras reais concorrentes legítimas;
+preparar RED desse caso e proteger o piso lógico por operação atômica.
+
+## Revisão v1.5 após RED de intenção, antes do fix
+
+Após corrigir somente o path do inicializador, RED p227e_intent_ executou7
+casos:5FAIL esperados/2controlesPASS, exit1,86scompile/9,58stest. Falharam:
+newcopyMayHaveSent em vez dePrepared; restorePreparedvencido ainda replay;
+fresh replayDUP1; permit positivo não reservava tentativa; input fake elapsed
+regressivo aceito. Controles: MayHaveSent expirado preservado e R0 não marcava
+tentativa. Isso é evidência de asserção, separada do compileFAIL anterior.
+
+Agora corrigir fases, ID/metadata/geração no permit, original/default legado,
+validação de Prepared e input fake. Marcar intenção só se R>0. Testar falha
+WAL sem token/mutação autoritativa; resultado físico incerto não deve exigir
+rollback falso no arquivo. Acrescentar teste de fonte inválida test-only e
+piso atômico de resultados, sem recusar amostras reais concorrentes antigas.
