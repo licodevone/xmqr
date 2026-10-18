@@ -184,9 +184,16 @@ jobs:
       - name: Run all finite MQTT5 acceptance fixtures
         working-directory: integrations/xmqr
         run: |
+          install -d -m 0700 "$GITHUB_WORKSPACE/.evidence/native-state"
+          filesystem="$(stat -f -c %T "$GITHUB_WORKSPACE/.evidence/native-state")"
+          case "$filesystem" in
+            ext2/ext3|ext4|xfs|btrfs|zfs) ;;
+            *) echo "native Linux disk-backed state root required; workspace is $filesystem" >&2; exit 1 ;;
+          esac
           PYTHONPATH="$GITHUB_WORKSPACE/integrations/paho/src" python3 scripts/verify_phase6_acceptance.py \
             --legacy-broker "$GITHUB_WORKSPACE/integrations/legacy-broker/target/debug/mqtt-broker" \
             --legacy-client "$GITHUB_WORKSPACE/integrations/legacy-client/target/debug/mqtt-client" \
+            --state-root "$GITHUB_WORKSPACE/.evidence/native-state" \
             --report "$GITHUB_WORKSPACE/.evidence/phase6.json"
       - name: Require the complete finite JSON evidence set
         run: |

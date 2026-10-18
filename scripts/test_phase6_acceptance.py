@@ -142,6 +142,16 @@ class AcceptanceContracts(unittest.TestCase):
             self.assertIn("--label", args)
             self.assertEqual(args[args.index("--label") + 1], "candidate")
 
+    def test_native_state_root_is_forwarded_only_to_disk_fixtures(self):
+        rows = {row["file"]: row for row in fixtures(Path(__file__).resolve().parents[1])}
+        native = {"verify_phase6_vbi.py", "verify_phase6_alias_reason.py",
+                  "verify_phase6_shared_will.py"}
+        for name, row in rows.items():
+            args = row["arguments"]
+            self.assertEqual("--state-root" in args, name in native)
+            if name in native:
+                self.assertEqual(args[args.index("--state-root") + 1], "{state_root}")
+
     @unittest.skipUnless(os.name == "posix", "private process groups require Linux/WSL")
     def test_failure_does_not_disclose_output(self):
         with tempfile.TemporaryDirectory() as directory:

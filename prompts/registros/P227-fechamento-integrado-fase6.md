@@ -272,3 +272,20 @@ PASS (`P227_WORKFLOW_STATIC_PASS`). `scripts/test_phase6_acceptance.py`:
 21/21 PASS. `actionlint` não está instalado nesta máquina: BLOCKED para esse
 gate local, sem instalação implícita. Dispatch remoto, download dos JSON e
 aceite integrado permanecem PENDING neste checkpoint.
+
+## Run integrado 39162215519 — FAIL preservado
+
+Na fonte broker `1574ab9fcaf5268a3c2eb54e49fcaca9cc598cc4`, o workflow
+manual terminou FAIL: 69 cenários, 66 PASS e 3 FAIL. O artefato oculto foi
+publicado e baixado; SHA-256 do `phase6.json`:
+`d78574d942daf7cc55b7ac202046a91cf7c0634b661774fcdd8d509eb4b8889a6`.
+VBI e aliasReason (6A), sharedWill (6D) encerraram com `nonzero_exit`
+antes dos respectivos JSON. Seus outros 66 cenários, incluindo as migrações
+reais e fixtures dos peers, passaram; isso não fecha a fase 6.
+
+As três fixtures verificam filesystem nativo no `--state-root` e usam
+`/var/tmp` por default. `stat -f -c %T /var/tmp` no container Ubuntu 26.04
+retornou `overlayfs`, logo a incompatibilidade é uma hipótese forte para os
+três exit2 imediatos; a causa só será confirmada por novo run com raiz
+montada do host e verificações explícitas. Prompt P227 v1.15 precede a
+correção. Não alteramos os oráculos para aceitar overlayfs.
