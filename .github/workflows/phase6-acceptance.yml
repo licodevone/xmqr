@@ -30,6 +30,19 @@ jobs:
       TMPDIR: /var/tmp
       CARGO_BUILD_JOBS: 1
       PYTHONDONTWRITEBYTECODE: 1
+      GIT_CONFIG_COUNT: "6"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: ${{ github.workspace }}/integrations/xmqr
+      GIT_CONFIG_KEY_1: safe.directory
+      GIT_CONFIG_VALUE_1: ${{ github.workspace }}/integrations/xmqr-client
+      GIT_CONFIG_KEY_2: safe.directory
+      GIT_CONFIG_VALUE_2: ${{ github.workspace }}/integrations/xmqr-admin
+      GIT_CONFIG_KEY_3: safe.directory
+      GIT_CONFIG_VALUE_3: ${{ github.workspace }}/integrations/legacy-client
+      GIT_CONFIG_KEY_4: safe.directory
+      GIT_CONFIG_VALUE_4: ${{ github.workspace }}/integrations/legacy-broker
+      GIT_CONFIG_KEY_5: safe.directory
+      GIT_CONFIG_VALUE_5: ${{ github.workspace }}/integrations/paho
     steps:
       - name: Install tools in disposable CI container
         run: apt-get update -qq && apt-get install -y --no-install-recommends git curl ca-certificates build-essential cmake perl pkg-config python3 mosquitto-clients openssl
@@ -83,6 +96,36 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.99.0
         with:
           components: rustfmt, clippy
+      - name: Verify exact clean checkouts before expensive builds
+        env:
+          BROKER_REF: ${{ github.sha }}
+          CLIENT_REF: ${{ inputs.client_ref }}
+          ADMIN_REF: ${{ inputs.admin_ref }}
+          LEGACY_CLIENT_REF: ${{ inputs.legacy_client_ref }}
+          LEGACY_BROKER_REF: ${{ inputs.legacy_broker_ref }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          base = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
+          expected = {
+              'xmqr': os.environ['BROKER_REF'], 'xmqr-client': os.environ['CLIENT_REF'],
+              'xmqr-admin': os.environ['ADMIN_REF'], 'legacy-client': os.environ['LEGACY_CLIENT_REF'],
+              'legacy-broker': os.environ['LEGACY_BROKER_REF'],
+              'paho': 'af64a4365c6ac5a7a4d339e7b00f44df91353b35',
+          }
+          rows = []
+          for name, revision in expected.items():
+              root = base / 'integrations' / name
+              actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+              changed = subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True)
+              if actual != revision or changed.strip():
+                  raise SystemExit('checkout provenance mismatch: ' + name)
+              rows.append(dict(repository=name, revision=actual, clean=True))
+          output = base / '.evidence'
+          output.mkdir(exist_ok=True)
+          with (output / 'source-checkouts.json').open('x') as stream:
+              json.dump(dict(git=subprocess.check_output(['git', '--version'], text=True).strip(), sources=rows), stream, indent=2)
+          PY
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
@@ -112,7 +155,7 @@ jobs:
           import hashlib, json, os, pathlib, subprocess
           base = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
           output = base / '.evidence'
-          output.mkdir()
+          output.mkdir(exist_ok=True)
           rows = []
           for repo, binaries in (
               ('xmqr', ('mqtt-broker', 'mqtt-admin')),
@@ -132,7 +175,8 @@ jobs:
                       rows.append(dict(repository=repo, revision=revision, profile=profile,
                                        binary=binary, version=version, sha256=digest))
           tools = subprocess.check_output(['rustc', '--version'], text=True).strip()
-          (output / 'build-provenance.json').write_text(json.dumps(dict(rustc=tools, binaries=rows), indent=2) + '\n')
+          with (output / 'build-provenance.json').open('x') as stream:
+              json.dump(dict(rustc=tools, binaries=rows), stream, indent=2)
           PY
       - name: Test coordinator contracts
         working-directory: integrations/xmqr
@@ -140,13 +184,55 @@ jobs:
       - name: Run all finite MQTT5 acceptance fixtures
         working-directory: integrations/xmqr
         run: |
+          install -d -m 0700 "$GITHUB_WORKSPACE/.evidence/native-state"
+          filesystem="$(stat -f -c %T "$GITHUB_WORKSPACE/.evidence/native-state")"
+          case "$filesystem" in
+            ext2/ext3|ext4|xfs|btrfs|zfs) ;;
+            *) echo "native Linux disk-backed state root required; workspace is $filesystem" >&2; exit 1 ;;
+          esac
           PYTHONPATH="$GITHUB_WORKSPACE/integrations/paho/src" python3 scripts/verify_phase6_acceptance.py \
             --legacy-broker "$GITHUB_WORKSPACE/integrations/legacy-broker/target/debug/mqtt-broker" \
             --legacy-client "$GITHUB_WORKSPACE/integrations/legacy-client/target/debug/mqtt-client" \
+            --state-root "$GITHUB_WORKSPACE/.evidence/native-state" \
             --report "$GITHUB_WORKSPACE/.evidence/phase6.json"
+      - name: Require the complete finite JSON evidence set
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          required = [
+              'source-checkouts.json', 'build-provenance.json', 'phase6.json',
+              'phase6-vbi.json', 'phase6-alias-reason.json', 'phase6-crash.json',
+              'phase6-shared-will.json', 'phase6-control-progress.json',
+              'phase6-paho-alias.json', 'phase6-admin-v16.json',
+              'phase6-inbound.json', 'phase6-inbound-compat.json', 'phase6-inbound-migration.json',
+          ]
+          root = pathlib.Path(os.environ['GITHUB_WORKSPACE']) / '.evidence'
+          for name in required:
+              path = root / name
+              if not path.is_file() or path.is_symlink() or path.stat().st_size > 4 * 1024 * 1024:
+                  raise SystemExit('mandatory bounded evidence missing: ' + name)
+              with path.open() as stream:
+                  report = json.load(stream)
+              if name.startswith('phase6') and report.get('status') != 'PASS':
+                  raise SystemExit('mandatory evidence is not PASS: ' + name)
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: phase6-exact-peer-evidence
-          path: .evidence/*.json
-          if-no-files-found: warn
+          path: |
+            .evidence/source-checkouts.json
+            .evidence/build-provenance.json
+            .evidence/phase6.json
+            .evidence/phase6-vbi.json
+            .evidence/phase6-alias-reason.json
+            .evidence/phase6-crash.json
+            .evidence/phase6-shared-will.json
+            .evidence/phase6-control-progress.json
+            .evidence/phase6-paho-alias.json
+            .evidence/phase6-admin-v16.json
+            .evidence/phase6-inbound.json
+            .evidence/phase6-inbound-compat.json
+            .evidence/phase6-inbound-migration.json
+          include-hidden-files: true
+          if-no-files-found: error

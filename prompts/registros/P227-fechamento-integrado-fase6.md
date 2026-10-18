@@ -225,3 +225,67 @@ a5ccc205... em ambos caminhos de fixture, não duas builds diferentes.
 Correção do harness de teardownC131 foi integrada isoladamente em main pelo
 C132/dd3d2f8 e enviada aoGitHub, sem CI/Cargo/bridgeC128dirty. Root repetiu
 migração com ELF109ec→a5ccc:PASS0,2733s, sem saída duplicada e cleanupPASS.
+
+## Campanha ampla Eall6 — FAIL preservado
+
+Relatório ../.artifacts/p227-acceptance-e-all-6.json:69fixtures,65PASS/4FAIL,
+208,554s. Brokerba6/ELFfce43, clientfca/ELFa5ccc038, adminba7/ELF732011;
+sources/binaries/legacyunchangedtrue. MigrationsA21/journal, crash, controles,
+PahoAUTH/aliases e todos os scripts MQTT5 históricos passaram. Falharam:
+
+- VBI ealiasReason:nonzero_exit/OSError, última linha203, stdout0;
+- sharedWill:setupOSError antes de cenários, cleanupPASS,0,881s;
+- channelCLI:AssertionError no stop/linha110; repetição isolada do owner
+ admin antes da campanha havia passado, sem comprovar a causa desta falha.
+
+O intervalo coincidiu com builds próprios/ENOMEM, mas OSError semerrno não
+prova essa causa específica. Não transformar Eall6 emPASS por repetição.
+P227J foi delegado para hashes de ELF emstream limitado em vez de read_bytes,
+sem alterar oráculos de protocolo. ChannelCLI exige diagnóstico separado.
+RegistroP228 preserva FAILrelease e retryserial posterior aprovado.
+
+## CI integrada — cancelamento preventivo e trust delimitado
+
+Run39141241671 na fonte pública ba6/clientfca/adminba7 foi cancelado por
+ação própria antes do gatefinal; GitHub confirmou completed/cancelled. Não é
+FAILMQTT nemPASS. JobadminA22 detectou emUbuntu26/Git2.53 erroreal de dubious
+ownership, portanto P227v1.13 precedeu proteção de processoGit somente para
+seis caminhos exatos de checkout, semwildcard/global/host. Novo preflight
+registra revisões/statuslimpos antes de builds e artefatosJSON exclusivos.
+YAML/ASTtrêsblocos e contratos seispathsPASS; dispatch corrigido pendente.
+
+## Continuação P227 v1.14 — envio explícito de evidências ocultas
+
+O workflow tinha `path: .evidence/*.json` sem `include-hidden-files`:
+`upload-artifact@v4` ignorava o diretório oculto e podia terminar com
+`No files found` mesmo após gates funcionais. O prompt P227 v1.14 foi
+versionado antes da correção. O workflow agora exige 13 JSON finitos,
+presentes, não simbólicos, limitados a 4 MiB e parseáveis depois do PASS do
+coordenador; os relatórios de fase devem declarar `status=PASS`. O upload em
+`if: always()` enumera exatamente esses 13 caminhos, habilita arquivos
+ocultos e trata ausência de arquivo como erro. Uma falha anterior continua
+produzindo apenas a evidência parcial existente, sem alegar aceite.
+
+Validação local em Ubuntu 26.04/WSL: PyYAML 6.0.3 leu o YAML; AST do bloco
+Python e seleção exata 13/13, `include-hidden-files`, `always` e `error`
+PASS (`P227_WORKFLOW_STATIC_PASS`). `scripts/test_phase6_acceptance.py`:
+21/21 PASS. `actionlint` não está instalado nesta máquina: BLOCKED para esse
+gate local, sem instalação implícita. Dispatch remoto, download dos JSON e
+aceite integrado permanecem PENDING neste checkpoint.
+
+## Run integrado 39162215519 — FAIL preservado
+
+Na fonte broker `1574ab9fcaf5268a3c2eb54e49fcaca9cc598cc4`, o workflow
+manual terminou FAIL: 69 cenários, 66 PASS e 3 FAIL. O artefato oculto foi
+publicado e baixado; SHA-256 do `phase6.json`:
+`d78574d942daf7cc55b7ac202046a91cf7c0634b661774fcdd8d509eb4b8889a6`.
+VBI e aliasReason (6A), sharedWill (6D) encerraram com `nonzero_exit`
+antes dos respectivos JSON. Seus outros 66 cenários, incluindo as migrações
+reais e fixtures dos peers, passaram; isso não fecha a fase 6.
+
+As três fixtures verificam filesystem nativo no `--state-root` e usam
+`/var/tmp` por default. `stat -f -c %T /var/tmp` no container Ubuntu 26.04
+retornou `overlayfs`, logo a incompatibilidade é uma hipótese forte para os
+três exit2 imediatos; a causa só será confirmada por novo run com raiz
+montada do host e verificações explícitas. Prompt P227 v1.15 precede a
+correção. Não alteramos os oráculos para aceitar overlayfs.

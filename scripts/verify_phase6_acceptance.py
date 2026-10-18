@@ -117,13 +117,13 @@ def fixtures(root):
     result.extend([
         {"file": "verify_paho_mqtt5.py", "phase": "6A", "arguments": ["--broker", "{broker}"],
          "expected_marker": "P168_PAHO_MQTT5_PASS", "timeout_seconds": 120, "requires_paho": True},
-        {"file": "verify_phase6_vbi.py", "phase": "6A", "arguments": ["--broker", "{broker}", "--label", "candidate", "--report", "{vbi_report}"],
+        {"file": "verify_phase6_vbi.py", "phase": "6A", "arguments": ["--broker", "{broker}", "--state-root", "{state_root}", "--label", "candidate", "--report", "{vbi_report}"],
          "expected_marker": "P227_VBI_PASS", "timeout_seconds": 180},
-        {"file": "verify_phase6_alias_reason.py", "phase": "6A", "arguments": ["--broker", "{broker}", "--label", "candidate", "--report", "{alias_reason_report}"],
+        {"file": "verify_phase6_alias_reason.py", "phase": "6A", "arguments": ["--broker", "{broker}", "--state-root", "{state_root}", "--label", "candidate", "--report", "{alias_reason_report}"],
          "expected_marker": "P227_ALIAS_REASON_PASS", "timeout_seconds": 120},
         {"file": "verify_phase6_crash_matrix.py", "phase": "6B", "arguments": ["--broker", "{broker}", "--report", "{crash_report}"],
          "expected_marker": "P227_CRASH_MATRIX_PASS", "timeout_seconds": 240},
-        {"file": "verify_phase6_shared_will.py", "phase": "6D", "arguments": ["--broker", "{broker}", "--report", "{shared_will_report}"],
+        {"file": "verify_phase6_shared_will.py", "phase": "6D", "arguments": ["--broker", "{broker}", "--state-root", "{state_root}", "--report", "{shared_will_report}"],
          "expected_marker": "P227_SHARED_WILL_PASS", "timeout_seconds": 120},
         {"file": "verify_phase6_control_progress.py", "phase": "6C",
          "arguments": ["--broker", "{broker}", "--report", "{control_progress_report}"],
@@ -380,6 +380,7 @@ def main():
     parser.add_argument("--phase", choices=("all", "6A", "6B", "6C", "6D"), default="all")
     parser.add_argument("--legacy-broker", type=Path)
     parser.add_argument("--legacy-client", type=Path)
+    parser.add_argument("--state-root", type=Path, default=Path("/var/tmp"))
     args = parser.parse_args()
     if os.name != "posix" or sys.flags.optimize:
         parser.error("Linux/WSL with Python assertions enabled is required")
@@ -411,6 +412,7 @@ def main():
                 legacy_paths[role], legacy_info[role] = inspect_legacy(legacy_paths[role])
         report["legacy_binaries"] = legacy_info
         replacements = {name: str(path.resolve()) for name, path in binaries.items()}
+        replacements["state_root"] = str(args.state_root.resolve())
         replacements.update({role: str(path) for role, path in legacy_paths.items() if path is not None})
         replacements.update(vbi_report=str(args.report.with_name(args.report.stem + "-vbi.json").resolve()),
                             admin_v16_report=str(args.report.with_name(args.report.stem + "-admin-v16.json").resolve()),

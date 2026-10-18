@@ -1,4 +1,4 @@
-# P227 v1.12 — concluir a fase 6 de MQTT 5
+# P227 v1.14 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -262,3 +262,53 @@ A21 e journal migration pelo agregador sem skip; salvar JSON sanitizado
 mesmo após FAIL. Inputs válidos não são aceite; workflow preparado é NOT_RUN
 até dispatch real e confirmação do run/artefatos. Nenhum placeholder ou
 commit clone/cherry-pick inexistente no GitHub pode substituir fonte pública.
+
+## Revisão1.13 — propriedade Git no containerCI Ubuntu26
+
+CIadminA22 observou FAILreal exit128 detected dubious ownership emUbuntu26/
+Git2.53 apóscheckoutv4. Workflowintegrado usa o mesmo container e consulta
+rev/status dos repositórios; cancelar somente seu run39141241671
+para evitar consumir todos os builds antes desse bloqueio conhecido. Não
+chamar o cancelamento de falha MQTT ou PASS. Preservar o FAIL do jobadmin.
+
+Configurar safe.directory via GIT_CONFIG_COUNT/KEY/VALUE só no ambiente do
+jobCI, com os seis caminhos EXATOS de checkout (cinco projetos maisPaho)
+derivados degithub.workspace. Provar rev/status limpos antes de compilar,
+guardar as revisões no relatório inicial e usar artefatos exclusivos.
+Sem wildcard, configuraçãoGit global, mudança no host ou desativação geral
+da proteção. Contratar YAML/AST/paths e repetir dispatch de commit público
+exato; mudança só de CI não altera ELFs/testes do runtime043. Admin segue
+seu promptA22 e gates próprios, fonte011 será identificada porSHA.
+
+## Revisão1.14 — artefatosJSON ocultos não podem desaparecer
+
+AdminA22 confirmou annotationNo files found no upload-artifactv4 para
+.evidence apesar do gatefuncionalPASS: arquivos ocultos são excluídos por
+padrão. Cancelar somente runintegrado39142094084 antes de perder relatórios;
+registrar cancelamento, não falhaMQTT. Preparar include-hidden-files:true
+somente com lista EXATA dos13JSON sanitizados previstos, nunca pasta inteira
+ou wildcard amplo. Exigir presença/JSONparse desses arquivos depois do PASS
+do coordenador; missingartefact é erro, não aviso. Falhas continuam com
+uploadalways dos relatórios parciais existentes. Testar seleção/AST e
+actionlint; repetir dispatch da fonte final com peeradmin corrigido2f3609f.
+Sem src/Cargo/ELF/serviços do operador alterados por esta correção de CI.
+
+## Revisão1.15 — raiz de estado nativa para as três fixtures de durabilidade
+
+O run integrado 39162215519 na fonte 1574ab9 concluiu 66/69 cenários
+PASS. VBI, aliasReason e sharedWill encerraram com exit2 antes de criar seus
+JSON. As três exigem `--state-root` em filesystem Linux nativo; no container
+Ubuntu26, `/var/tmp` é overlayfs (reprodução local), incompatível com o
+preflight dessas fixtures. Tratar essa causa como hipótese até o rerun.
+
+Antes de modificar o coordenador/workflow, registrar este FAIL e preservar
+seu artefato. Adicionar `--state-root` explícito ao coordenador, repassando-o
+somente às três fixtures e mantendo `/var/tmp` como default local. No CI,
+criar um diretório privativo dentro do workspace montado pelo host, verificar
+que `stat -f -c %T` retorna filesystem permitido e passar esse caminho ao
+coordenador. Falhar claramente se não houver filesystem nativo; nunca
+relaxar a exigência de disco durável nos oráculos ou alegar PASS por skip.
+
+Testar contratos e YAML; executar novamente os 69 cenários com os mesmos
+peers e legacies por SHA, baixar/validar os 13 JSON, registrar run/revisão,
+resultados e limitações. Só marcar 6A–6D após todos os gates exigidos PASS.

@@ -1,4 +1,4 @@
-# P228 v1.1 — distribuir broker0.43.0 e estado16
+# P228 v1.2 — distribuir broker0.43.0 e estado16
 
 Preparado em2026-10-18 antes de bump/build/publicação. Pedido vigente:
 concluir fase6 e distribuir broker, client e admin com prompts, testes,
@@ -65,3 +65,17 @@ FalhouFileNotFoundError:cargo antes de produzir inventário, não uma licença
 rejeitada. Preservar FAIL; repetir script original em subprocesso com PATH
 da toolchain conhecida, TMPDIR=/var/tmp e modoCargooffline. Não instalar
 ferramentas, alterar perfil/global ou modificar o script para esconder erro.
+
+## Revisão1.2 — ENOMEM nos builds locais
+
+Build nativo release043 -j1 falhou os12 Cannot allocate memory no arquivo
+rlib temporário. BuildDocker próprio concomitante e coletor de notices também
+observaram pressão/ENOMEM, sem licença rejeitada. FreeWSL posterior mostrou
+7,9GiBRAM,3,3GiBavailable e6,27/8GiBswap utilizada; não prova a origem exata
+de cada alocação, mas justifica serializar jobs antes de retry.
+
+Cancelar somente o buildDocker próprio identificado, preservando caches/logs;
+nunca daemon/serviço global, processos do operador, prune ou restartWSL.
+Dar prioridade ao adminA21, depois release nativa do broker, depoisDocker.
+Repetir comandos/perfil originais depois de cada slot liberado, sem reduzir
+gates nem alterarRAM/swap/perfilLTO global para fabricarPASS. Manter FAIL.
