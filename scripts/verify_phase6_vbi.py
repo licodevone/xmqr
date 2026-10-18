@@ -17,6 +17,11 @@ import time
 sys.dont_write_bytecode = True
 
 
+def binary_digest(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
 def integer(value):
     output = bytearray()
     while True:
@@ -267,7 +272,7 @@ def main():
         binary = root / 'mqtt-broker'
         shutil.copyfile(args.broker.resolve(strict=True), binary)
         binary.chmod(0o700)
-        report['broker_binary_sha256'] = hashlib.sha256(binary.read_bytes()).hexdigest()
+        report['broker_binary_sha256'] = binary_digest(binary)
         report['broker_version'] = subprocess.check_output([str(binary), '--version'], text=True, timeout=5).strip()
         state = root / 'state'
         state.mkdir(mode=0o700)

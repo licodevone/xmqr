@@ -13,7 +13,7 @@ import tempfile
 import time
 
 sys.dont_write_bytecode = True
-from verify_phase6_vbi import Laboratory, connect_body, frame, packet, subscribe, text
+from verify_phase6_vbi import Laboratory, binary_digest, connect_body, frame, packet, subscribe, text
 
 
 def publish(stream, topic, alias, payload, *, invalid=False):
@@ -114,7 +114,7 @@ def main():
         binary = root / 'mqtt-broker'
         shutil.copyfile(args.broker.resolve(strict=True), binary)
         binary.chmod(0o700)
-        report['broker_binary_sha256'] = digest(binary)
+        report['broker_binary_sha256'] = binary_digest(binary)
         report['broker_version'] = subprocess.check_output([str(binary), '--version'], text=True, timeout=5).strip()
         state = root / 'state'
         state.mkdir(mode=0o700)

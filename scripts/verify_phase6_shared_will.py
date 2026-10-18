@@ -16,7 +16,7 @@ import tempfile
 import time
 
 sys.dont_write_bytecode = True
-from verify_phase6_vbi import Laboratory, frame, integer, packet, text
+from verify_phase6_vbi import Laboratory, binary_digest, frame, integer, packet, text
 
 
 def require(condition, message):
@@ -180,7 +180,7 @@ def main():
             binary = root / 'mqtt-broker'
             shutil.copyfile(args.broker.resolve(strict=True), binary)
             binary.chmod(0o700)
-            report['broker_binary_sha256'] = hashlib.sha256(binary.read_bytes()).hexdigest()
+            report['broker_binary_sha256'] = binary_digest(binary)
             environment = {key: value for key, value in os.environ.items() if not key.startswith('MQTT_')}
             report['broker_version'] = subprocess.check_output([str(binary), '--version'], env=environment,
                                                                  text=True, timeout=5).strip()
