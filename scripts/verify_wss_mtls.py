@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """P212: isolated mTLS WebSocket MQTT wire and security checks."""
+import argparse
 import base64
 import hashlib
 import os
@@ -242,7 +243,58 @@ def check_admission(root, port, tcp_port, password):
     raise AssertionError("shared admission slot did not recover")
 
 
+def check_client(root, port, tcp_port, client, password):
+    secret_file = root / "client-password"
+    secret_file.write_bytes(password + b"\n")
+    secret_file.chmod(0o600)
+    common = ["--topic", "p212/allowed", "--username", "device",
+              "--ca", str(root / "ca.crt"), "--cert", str(root / "client.crt"),
+              "--key", str(root / "client.key"), "--password-file", str(secret_file)]
+    for version in ("3.1.1", "5"):
+        for pub_wss in (True, False):
+            source = (["--ws-url", f"wss://127.0.0.1:{port}/mqtt"] if pub_wss
+                      else ["--port", str(tcp_port)])
+            destination = (["--port", str(tcp_port)] if pub_wss
+                           else ["--ws-url", f"wss://127.0.0.1:{port}/mqtt"])
+            payload = f"c114-{version}-{'wss' if pub_wss else 'tcp'}"
+            publish = subprocess.run(
+                [str(client), "pub", *common, *source, "--protocol-version", version,
+                 "--client-id", "c114-pub", "--message", payload,
+                 "--qos", "1", "--retain", "true"],
+                capture_output=True, timeout=12)
+            assert publish.returncode == 0, publish.stderr.decode(errors="replace")
+            received = subprocess.run(
+                [str(client), "sub", *common, *destination, "--protocol-version", version,
+                 "--client-id", "c114-sub", "--count", "1"],
+                capture_output=True, timeout=12)
+            assert received.returncode == 0, received.stderr.decode(errors="replace")
+            assert payload.encode() in received.stdout, received.stdout
+    endpoint = ["--ws-url", f"wss://127.0.0.1:{port}/mqtt"]
+    wrong_password = root / "wrong-password"
+    wrong_password.write_text("wrong-secret\n")
+    wrong_password.chmod(0o600)
+    for changed in (
+        ["--topic", "p212/denied", "--username", "device",
+         "--ca", str(root / "ca.crt"), "--cert", str(root / "client.crt"),
+         "--key", str(root / "client.key"), "--password-file", str(secret_file)],
+        ["--topic", "p212/allowed", "--username", "device",
+         "--ca", str(root / "ca.crt"), "--cert", str(root / "client.crt"),
+         "--key", str(root / "client.key"), "--password-file", str(wrong_password)],
+        ["--topic", "p212/allowed", "--username", "device",
+         "--ca", str(root / "other.crt"), "--cert", str(root / "client.crt"),
+         "--key", str(root / "client.key"), "--password-file", str(secret_file)],
+    ):
+        rejected = subprocess.run(
+            [str(client), "pub", *changed, *endpoint, "--protocol-version", "5",
+             "--client-id", "c114-denied", "--message", "denied", "--qos", "1"],
+            capture_output=True, timeout=12)
+        assert rejected.returncode != 0, rejected.stdout
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--client", type=Path)
+    args = parser.parse_args()
     broker_bin = ROOT / "target/debug/mqtt-broker"
     admin_bin = ROOT / "target/debug/mqtt-admin"
     assert broker_bin.is_file() and admin_bin.is_file()
@@ -290,6 +342,8 @@ def main():
                 check_rejections(root, port, password)
                 rotate_certificate(root, broker, log_path, port, password)
                 check_mqtt(root, port, tcp_port, password)
+                if args.client:
+                    check_client(root, port, tcp_port, args.client, password)
                 broker.send_signal(signal.SIGTERM)
                 assert broker.wait(timeout=8) == 0
             finally:
@@ -314,7 +368,8 @@ def main():
                 if broker.poll() is None:
                     broker.kill()
                     broker.wait(timeout=8)
-    print("P212_WSS_MTLS_WIRE_PASS")
+    print("P212_WSS_MTLS_WIRE_PASS" +
+          (" C114_CLIENT_CROSS_PASS" if args.client else ""))
 
 
 if __name__ == "__main__":
