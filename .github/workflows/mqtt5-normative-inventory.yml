@@ -1,0 +1,28 @@
+name: MQTT5 inventory contracts (not protocol conformance)
+
+on:
+  push:
+    branches: [main, "release/**"]
+    paths:
+      - "scripts/mqtt5_normative_inventory.py"
+      - "scripts/test_mqtt5_normative_inventory.py"
+      - "docs/conformance/mqtt5-normative-audit.json"
+      - ".github/workflows/mqtt5-normative-inventory.yml"
+  pull_request:
+    paths:
+      - "scripts/mqtt5_normative_inventory.py"
+      - "scripts/test_mqtt5_normative_inventory.py"
+      - "docs/conformance/mqtt5-normative-audit.json"
+      - ".github/workflows/mqtt5-normative-inventory.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate extractor and internal catalog consistency (offline)
+        run: python3 scripts/test_mqtt5_normative_inventory.py
