@@ -1,4 +1,4 @@
-# P227 v1.8 — concluir a fase 6 de MQTT 5
+# P227 v1.9 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -207,3 +207,12 @@ rejeitado antes por negative_marker_present. Atualizar somente a expectativa
 do diagnóstico; manter obrigatório statusFAIL. Repetir todos os contratos.
 Mapear markers específicos reais, inclusive duas linhas cross/sessions e
 variante retain_handling sem homologar Mosquitto ausente por opt-in.
+
+## Revisão1.9 — diagnóstico sanitizado da campanha ampla
+
+Dall4 executou68fixtures e falhou em6, preservando fontes/ELFs. Quatro
+vetores antigos têm diagnóstico reproduzido emP227H; VBI/aliasReason deram
+nonzero antes de cenários, mas repetidos isolados passaram. Não converter
+repetição emPASSretroativo. Adicionar somente tipo de exceção permitido e
+última linha de stack (número) ao metadata de falha, nunca texto de exceção,
+paths arbitrários, payloads/logs. Contrato unitário deve impedir divulgação.
