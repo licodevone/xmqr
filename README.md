@@ -1,15 +1,15 @@
 # XMQR
 
-O candidato experimental 0.40.0 reúne P212: `MQTT_WSS_BIND` adiciona WSS mTLS
+A prerelease experimental 0.40.0 reúne P212: `MQTT_WSS_BIND` adiciona WSS mTLS
 opcional somente em loopback, com certificado cliente, usuário/senha e ACL.
 O listener compartilha quota, router e rotação TLS com o TCP seguro e recusa
-`Origin`. C114 aceitou o client WSS local, candidato ao marco independente
+`Origin`. C114 aceitou o client WSS local, distribuído no marco independente
 0.33.0. A prerelease 0.39.0 abaixo ainda não inclui P212; acesso remoto,
 navegador e aceite global da fase 7 permanecem pendentes.
 [Prompt P212](prompts/broker/212-mtls-websocket-listener.md) e
 [registro](prompts/registros/P212-mtls-websocket-listener.md).
-[Gate P213](prompts/broker/213-release-0.40.0.md) e
-[nota candidata](docs/releases/0.40.0.md).
+[Release](https://github.com/licodevone/xmqr/releases/tag/v0.40.0),
+[nota](docs/releases/0.40.0.md) e [registro P213](prompts/registros/P213-release-0.40.0.md).
 
 A prerelease experimental 0.39.0 distribui P210: listener WebSocket MQTT opt-in `MQTT_WS_BIND`
 somente no perfil `open-lab`. Exemplo local: `MQTT_MODE=open-lab
@@ -592,7 +592,7 @@ Persistência por WAL/snapshot e ator dedicado, commit durável antes de ACKs
 pertinentes. SIGTERM/SIGINT coordenam listener, Wills e shutdown do writer.
 MQTT 5 oferece sessões, propriedades e opções de assinatura em recortes
 experimentais; o aceite global das fases 6A–6D segue aberto. WS local está
-na 0.39.0 e WSS mTLS local aceito em `main`; bridge ainda não existe.
+na 0.39.0 e WSS mTLS local na 0.40.0; bridge ainda não existe.
 Consulte o [plano de evolução](docs/evolution-plan.md) para limites e evidências.
 
 Limites:64 conexões/sessões,256 assinaturas por sessão,64 mensagens offline,

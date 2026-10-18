@@ -1,12 +1,13 @@
 # Versionamento
 
-## P213 — candidato broker/admin legado 0.40.0, estado v15
+## P213 — broker/admin legado 0.40.0 publicado, estado v15
 
-P212 acrescenta WSS mTLS local, sem migrar o estado v15. A release publicada
+P212 acrescenta WSS mTLS local, sem migrar o estado v15. A release anterior
 0.39.0 não inclui P212. Testes, CI e [aceite parcial](prompts/registros/P212-mtls-websocket-listener.md)
-passaram; client C114 aceitou o par local e é candidato a 0.33.0. O
-[gate P213](prompts/broker/213-release-0.40.0.md) exige pacote, rollback,
-imagens, hashes, tag e prerelease antes de considerar 0.40.0 publicado.
+passaram; client C114 distribui o par local em 0.33.0. Pacote Ubuntu 26.04,
+upgrade/rollback descartável, imagens numeradas por digest, tag e prerelease
+com oito hashes remotos passaram. [Release](https://github.com/licodevone/xmqr/releases/tag/v0.40.0),
+[nota](docs/releases/0.40.0.md) e [registro](prompts/registros/P213-release-0.40.0.md).
 Fase 7 global aberta.
 
 ## P211 — broker/admin legado 0.39.0 publicado, estado v15
