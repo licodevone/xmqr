@@ -244,3 +244,22 @@ foi informado para confirmar ownership e preservação antes da troca local;
 alternativa seria exportar pelos refs próprios. Nenhum Hubpush/tagGit/release.
 CI integrada39164217059 ainda aguarda confirmação do coordenador. O preparo
 local não é aprovação da fase6 nem autorização para publicar.
+
+## Preservação dos aliases LOCAIS autorizada
+
+Coordenador conferiu ownership dos candidatos1574ab9 e autorizou a troca
+somente local após preservação. Antes de qualquer tag, launcher inlinePython
+falhou SyntaxError de quoting; nenhuma operação Docker foi executada por ele.
+P228B1.6 revisado antes do retry; driver PowerShell próprio em dist validou
+todos os IIDs, recusaria colisão em alias preservado e confirmou revisão db.
+
+- `xmqr-p228-preserved-broker:1574ab9` preserva
+  `sha256:6c4a865d03cbb603d8c1e5159d7f346c281ce144667352060bca31746e3f5bcc`;
+- `xmqr-p228-preserved-admin:1574ab9` preserva
+  `sha256:9c077343b37c929d8a40baec4fb2d2261532b0b11a361955e5ac02e9834514f1`.
+
+Aliases LOCAIS lepinheiro100/xmqr-broker:0.43.0 e xmqr-admin:0.43.0 agora
+apontam respectivamente os IIDs finais475b31c8.../673a062c... db472bc.
+Imagens antigas não foram apagadas e são recuperáveis pelos aliases acima.
+Sem push/retag remoto, latest ou tags antigas alteradas. Export a seguir será
+executado no checkout limpo EXATO db, não no merge da branch de evidências.

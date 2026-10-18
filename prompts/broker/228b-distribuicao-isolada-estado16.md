@@ -1,4 +1,4 @@
-# P228B v1.5 — QA isolado dos artefatos broker0.43.0
+# P228B v1.6 — QA isolado dos artefatos broker0.43.0
 
 Preparado em2026-10-18 antes da autoria do harness. Complementa P228v1.1;
 owner não altera runtime/manifests/CI nem o registro global P228 do coordenador.
@@ -163,3 +163,21 @@ Nenhuma alteração do original/main ou de serviços/estado do operador.
 CI integrada39164217059 ainda em andamento nesta preparação. Publicação de
 tags/Hub/release continua PROIBIDA até confirmação global do coordenador;
 preparar/exportar localmente não equivale a publicar nem a fechar a fase6.
+
+## Revisão1.6 — preservar aliases locais antes do export
+
+Coordenador confirmou ownership dos aliases locais043 antigos fonte1574ab9.
+Autorizou preservar seus IIDs exatos em aliases exclusivos
+`xmqr-p228-preserved-broker:1574ab9` e `xmqr-p228-preserved-admin:1574ab9`
+(se já existirem, exigir IID igual sem sobrescrever) e então atualizar SOMENTE
+aliases DockerLOCAIS `lepinheiro100/xmqr-{broker,admin}:0.43.0` para db472bc.
+Não fazer push ou alterar qualquer tag remota existente.
+
+Primeiro launcher inlinePython falhou SyntaxError de quoting antes de
+executar qualquer operação Docker. Preservar classificação como falha do
+launcher, não de artefato; retry por driver PowerShell próprio no dist,
+com strings literais, validação dos IIDs/revisão e checagem de cada exitcode.
+O driver pode reconhecer alias já final com backup esperado para retry
+idempotente, mas qualquer IID diferente causa recusa. Sem apagar imagens.
+Depois, checkout LIMPO exato db para executar release_assets original;
+branch própria mantém todos os prompts/evidências e será retomada após export.
