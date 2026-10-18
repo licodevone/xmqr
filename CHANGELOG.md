@@ -1,6 +1,6 @@
 # Histórico de versões
 
-## Não publicado — P212 aceito em main
+## 0.40.0 — WSS mTLS local (candidato experimental)
 
 - WSS mTLS opt-in em loopback via `MQTT_WSS_BIND`/`broker.wss_bind`; quota, router, ACL e rotação TLS compartilhados com TCP. `Origin` recusado; client WSS, navegador e remoto pendentes. Sem migração de estado.
 

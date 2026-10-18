@@ -1,13 +1,15 @@
 # XMQR
 
-P212 está aceito em `main`: `MQTT_WSS_BIND` adiciona WSS mTLS
+O candidato experimental 0.40.0 reúne P212: `MQTT_WSS_BIND` adiciona WSS mTLS
 opcional somente em loopback, com certificado cliente, usuário/senha e ACL.
 O listener compartilha quota, router e rotação TLS com o TCP seguro e recusa
-`Origin`. C114 aceitou depois o client WSS local. A prerelease 0.39.0
-abaixo ainda não inclui P212; acesso remoto, navegador e aceite global
-da fase 7 permanecem pendentes.
+`Origin`. C114 aceitou o client WSS local, candidato ao marco independente
+0.33.0. A prerelease 0.39.0 abaixo ainda não inclui P212; acesso remoto,
+navegador e aceite global da fase 7 permanecem pendentes.
 [Prompt P212](prompts/broker/212-mtls-websocket-listener.md) e
 [registro](prompts/registros/P212-mtls-websocket-listener.md).
+[Gate P213](prompts/broker/213-release-0.40.0.md) e
+[nota candidata](docs/releases/0.40.0.md).
 
 A prerelease experimental 0.39.0 distribui P210: listener WebSocket MQTT opt-in `MQTT_WS_BIND`
 somente no perfil `open-lab`. Exemplo local: `MQTT_MODE=open-lab

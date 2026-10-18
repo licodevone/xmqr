@@ -1,10 +1,13 @@
 # Versionamento
 
-P212 acrescenta WSS mTLS local em `main`, sem alterar a versão 0.39.0 nem o
-estado v15. A release publicada 0.39.0 não inclui P212. Testes, CI e registro
-passaram no [aceite parcial](prompts/registros/P212-mtls-websocket-listener.md).
-Client C114 aceitou o par local depois; distribuição WSS e fase 7 global
-continuam pendentes.
+## P213 — candidato broker/admin legado 0.40.0, estado v15
+
+P212 acrescenta WSS mTLS local, sem migrar o estado v15. A release publicada
+0.39.0 não inclui P212. Testes, CI e [aceite parcial](prompts/registros/P212-mtls-websocket-listener.md)
+passaram; client C114 aceitou o par local e é candidato a 0.33.0. O
+[gate P213](prompts/broker/213-release-0.40.0.md) exige pacote, rollback,
+imagens, hashes, tag e prerelease antes de considerar 0.40.0 publicado.
+Fase 7 global aberta.
 
 ## P211 — broker/admin legado 0.39.0 publicado, estado v15
 
