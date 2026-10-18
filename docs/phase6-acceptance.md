@@ -24,4 +24,10 @@ migração real de draftv1, sem garantia de transação entre stdout e aplicaç�
 
 O candidatoP227E introduz estado16 e requer pin/admin compatível. Não publicar
 esse conjunto como concluído usando o admin010/v15 ou apenas os testesD.
-Sem tag final, pacote novo ou imagem final comprovados por este documento.
+ClientC1310.38.0 foi [publicado](https://github.com/licodevone/xmqr-client/releases/tag/v0.38.0)
+da fontefca6fc82117b7ee2b770dc2e4ce673b53764b211 após CI39138244703PASS,
+ciclo de pacote e seis anexos remotos conferidos. DockerHub numerado:
+lepinheiro100/xmqr-client:0.38.0, digest
+`sha256:b025a82ab4172f82223e8b01b125570996f374a27ee524a04cc62eac81a148f9`.
+Broker16/admin compatível ainda não têm marco final aceito por este documento;
+a distribuição independente do client não encerra o conjunto6A–6D.

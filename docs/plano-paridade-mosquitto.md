@@ -1,10 +1,11 @@
 # Plano de paridade funcional do XMQR com Mosquitto
 
-Atualizado em 2026-10-13. Fase3 aceita no recorte finito: broker/legadoadmin
-0.11.6 eclient0.9.0, prereleases/.deb/Docker publicados e conferidos em P92.
-Releases anteriores
-0.11.5/0.8.1 preservadas; admin independente0.1.0 publicado e sem repin.
-Evidências/limites: [aceite da fase3](phase3-acceptance.md).
+Atualizado em2026-10-18. Fases1–5 aceitas em seus recortes; fase6 em
+validaçãoP227, sem fechamento antecipado; transporteT01/fase7 já aceito.
+Marcos publicados: broker/legadoadmin0.42.0, client0.38.0 e admin0.10.0.
+Client038 foi publicado em branch própria, preservando trabalhoC128dirty
+no clone original. Core/estado16 e admin compatível ainda não publicados.
+Evidências e pendências: [aceite fase6](phase6-acceptance.md).
 O planejamento está completo como backlog
 executável; as funcionalidades pendentes não estão implementadas por isso.
 O propósito é evoluir um broker MQTT e seus utilitários com contratos próprios,
@@ -14,7 +15,7 @@ não reproduzir cada detalhe interno, arquivo ou opção de todas as versões Mo
 
 Há três repositórios independentes: `xmqr` contém `mqtt-broker` e o legado
 `mqtt-admin`; `xmqr-client` contém `mqtt-client`; [xmqr-admin](https://github.com/licodevone/xmqr-admin)
-contém `xmqr-admin`0.1.0 (CLI e painel local autenticado de leitura). Somente
+contém `xmqr-admin` (CLI local autenticado e painel web somente leitura). Somente
 o admin legado acompanha a versão do broker. O novo tem versão/tag/release
 próprias, reutiliza o core por commit imutável e não substitui os existentes.
 ESP32 é consumidor externo, não o alvo do broker atual. Firmware, banco, web e
@@ -23,9 +24,10 @@ e arquivos de terceiros conservam suas respectivas licenças.
 
 O [planejamento integrado de broker, client e admin](../../xmqr-admin/docs/planejamento-tres-sistemas.md)
 detalha a trilha administrativa U01–U11 inspirada em Dynamic Security e
-`mosquitto_ctrl`. Separa o painel de leitura atual da gestão futura de bundle,
-revogação, canal autenticado e auditoria. A04 documental do repositório admin
-não encerra os IDs A02–A09 desta matriz nem os testes pendentes da fase 3.
+`mosquitto_ctrl`. Gestão de bundle, revogação, canal autenticado e auditoria
+estão no CLI, com aceite da fase5; o painel web continua somente leitura.
+IDs locais históricos A01–A04 do admin não se confundem com os IDs globais
+A02–A09 desta matriz; consultar evidências atuais, não o número do prompt.
 
 Referência de interoperabilidade reproduzível inicial: Mosquitto **2.0.22**,
 imagem disponível no ambiente. A documentação online de Mosquitto também

@@ -1,12 +1,15 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-18.
-Versões publicadas atuais: broker/admin legado 0.42.0, client independente 0.36.0
+Versões publicadas atuais: broker/admin legado 0.42.0, client independente 0.38.0
 e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
 propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
 segue aberta. A fase 7 foi aceita no contrato de transporte T01 após P222,
 sem encerrar 6A–6D nem declarar prontidão de produção.
+Client0.38.0/C131 tem prerelease, .deb e imagem numerada verificados; fonte
+em branchrelease própria, sem incorporar alteraçõesC128dirty do clone original.
+O [aceite fase6](phase6-acceptance.md) permanece aberto para core16/admin.
 O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
 2026-10-13 por P78/C42/P86/P88, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
