@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise MQTT 5 protocol error DISCONNECT for fixed-header flags."""
+"""P205: malformed fixed-header flags in PINGREQ/DISCONNECT."""
 import socket
 import tempfile
 
@@ -18,11 +18,11 @@ def main():
         try:
             watcher, _ = connect(port, True, 0, b"flags-watcher")
             subscribe(watcher)
-            for index, invalid in enumerate((b"\xc1\x00", b"\xe1\x00")):
+            for index, invalid in enumerate((b"\xc1\x00", b"\xcf\x02\xff\x00", b"\xe1\x00", b"\xef\x02\xff\x00")):
                 will = f"flags-will-{index}".encode()
                 source = connect_will(port, f"flags-source-{index}".encode(), 0, 0, will)
                 source.sendall(invalid)
-                assert packet(source) == (0xe0, b"\x82\x00")
+                assert packet(source) == (0xe0, b"\x81\x00")
                 assert source.recv(1) == b""
                 source.close()
                 expect_will(watcher, will)
@@ -31,12 +31,17 @@ def main():
                 legacy.sendall(invalid)
                 assert legacy.recv(1) == b"", "MQTT 3.1.1 must close without v5 DISCONNECT"
                 legacy.close()
+            healthy, _ = connect(port, True, 0, b"p205-healthy")
+            healthy.sendall(b"\xc0\x00")
+            assert packet(healthy) == (0xd0, b"")
+            healthy.sendall(b"\xe0\x00")
+            healthy.close()
             watcher.sendall(b"\xe0\x00")
             watcher.close()
         finally:
             if broker.poll() is None:
                 stop(broker)
-    print("P178_FIXED_HEADER_FLAGS_PASS PINGREQ, DISCONNECT, Will, MQTT311 close")
+    print("P205_FIXED_HEADER_FLAGS_PASS PINGREQ, DISCONNECT, Will, MQTT311, healthy")
 
 
 if __name__ == "__main__":

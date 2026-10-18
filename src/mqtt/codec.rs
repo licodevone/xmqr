@@ -3847,13 +3847,19 @@ mod tests {
             .is_err()
         );
         assert!(frame_header(&[0x30, 0x80, 0x80, 0x80, 0x80]).is_err());
-        for header in [0xc1, 0xe1] {
-            assert!(
-                decode_for(header, &[], true)
-                    .unwrap_err()
-                    .is::<FixedHeaderFlagsInvalid>()
-            );
-            assert!(decode_for(header, &[], false).is_err());
+        for control_type in [12, 14] {
+            for flags in 1..=15 {
+                let header = (control_type << 4) | flags;
+                for body in [&[][..], &[0xff, 0x00][..]] {
+                    assert!(
+                        decode_for(header, body, true)
+                            .unwrap_err()
+                            .is::<FixedHeaderFlagsInvalid>(),
+                        "{header:#x}"
+                    );
+                    assert!(decode_for(header, body, false).is_err());
+                }
+            }
         }
     }
 

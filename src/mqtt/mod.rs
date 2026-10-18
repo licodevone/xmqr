@@ -454,7 +454,7 @@ async fn serve_mqtt(
                             return Err(error);
                         }
                         Err(error) if mqtt5 && error.is::<codec::FixedHeaderFlagsInvalid>() => {
-                            let _ = write_limited(connection, &[0xe0, 2, 0x82, 0], outbound_maximum).await;
+                            let _ = write_limited(connection, &[0xe0, 2, 0x81, 0], outbound_maximum).await;
                             return Err(error);
                         }
                         Err(error) if mqtt5 && error.is::<codec::AuthFixedHeaderFlagsInvalid>() => {
