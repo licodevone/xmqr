@@ -1,4 +1,4 @@
-# P227 v1.12 — concluir a fase 6 de MQTT 5
+# P227 v1.13 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -262,3 +262,18 @@ A21 e journal migration pelo agregador sem skip; salvar JSON sanitizado
 mesmo após FAIL. Inputs válidos não são aceite; workflow preparado é NOT_RUN
 até dispatch real e confirmação do run/artefatos. Nenhum placeholder ou
 commit clone/cherry-pick inexistente no GitHub pode substituir fonte pública.
+
+## Revisão1.13 — propriedade Git no containerCI Ubuntu26
+
+CIadminA22 observou FAILreal exit128 detected dubious ownership emUbuntu26/
+Git2.53 apóscheckoutv4. Workflowintegrado usa o mesmo container e consulta
+rev/status dos cinco repositórios; cancelar somente seu run39141241671
+para evitar consumir todos os builds antes desse bloqueio conhecido. Não
+chamar o cancelamento de falha MQTT ou PASS. Preservar o FAIL do jobadmin.
+
+Configurar safe.directory via GIT_CONFIG_COUNT/KEY/VALUE só no ambiente do
+jobCI, com os cinco caminhos EXATOS de checkout derivados degithub.workspace.
+Sem wildcard, configuraçãoGit global, mudança no host ou desativação geral
+da proteção. Contratar YAML/AST/paths e repetir dispatch de commit público
+exato; mudança só de CI não altera ELFs/testes do runtime043. Admin segue
+seu promptA22 e gates próprios, fonte011 será identificada porSHA.
