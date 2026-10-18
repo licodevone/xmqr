@@ -1,5 +1,14 @@
 # Versionamento
 
+## P215 — broker/admin legado 0.41.0 candidato, estado v15
+
+P214 habilita WSS mTLS remoto com opt-in separado e ACL/CA/certificado cliente
+preservados. Sem migração do estado v15. O broker 0.40.0 lê o estado, mas não
+tem o listener remoto. Client 0.34.0/C117 é o par previsto. Publicar somente
+após CI da fonte exata, pacote Ubuntu, ciclo de rollback, imagens por digest e
+verificação dos anexos. [Nota candidata](docs/releases/0.41.0.md).
+Fase 7 global aberta.
+
 ## P213 — broker/admin legado 0.40.0 publicado, estado v15
 
 P212 acrescenta WSS mTLS local, sem migrar o estado v15. A release anterior

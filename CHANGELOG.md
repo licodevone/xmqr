@@ -1,6 +1,6 @@
 # Histórico de versões
 
-## Não publicado — P214 em validação e teste cruzado C116
+## 0.41.0 — WSS mTLS remoto explícito (experimental)
 
 - P214 introduz opt-in separado para bind WSS mTLS fora de loopback, mantendo política mTLS/ACL e recusa de `Origin`; acesso por navegador não está incluído.
 - Fixture do broker cobre o perfil WSS mTLS local do client após a release 0.33.0. P214 não muda o formato de estado v15.

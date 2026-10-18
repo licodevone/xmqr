@@ -15,7 +15,7 @@ O listener aceita somente TLS com certificado de cliente obrigatório. A cadeia 
 - `MQTT_SERVER_KEY` — chave privada PEM do servidor, com permissões restritas.
 - `MQTT_CLIENT_CA` — CA raiz/intermediária confiável para dispositivos.
 - `MQTT_CLIENT_CRL` — CRL PEM opcional; sem ela não há informação offline de revogação.
-- `MQTT_WSS_BIND` — listener MQTT sobre WSS opcional em IP loopback e porta própria, somente `secure-mtls`; `broker.wss_bind` no TOML é equivalente.
+- `MQTT_WSS_BIND` — listener MQTT sobre WSS opcional em IP loopback e porta própria, somente `secure-mtls`; `broker.wss_bind` no TOML é equivalente. Para bind fora de loopback, use `MQTT_WSS_REMOTE_ENABLED=true` ou `broker.wss_remote_enabled=true`, preservando mTLS, credenciais e ACL. Handshakes com `Origin` são recusados.
 - `RUST_LOG` — nível de logs, por exemplo `info`.
 
 ## Controles implementados

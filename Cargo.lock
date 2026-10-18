@@ -554,7 +554,7 @@ dependencies = [
 
 [[package]]
 name = "mqtt-broker"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "argon2",
  "async-tungstenite",

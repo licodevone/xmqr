@@ -1,11 +1,12 @@
 # XMQR
 
-P214 em `main`, ainda em validação após a prerelease 0.40.0, propõe WSS mTLS
+O candidato experimental 0.41.0 inclui P214: WSS mTLS
 fora de loopback somente com `MQTT_WSS_BIND` remoto e
 `MQTT_WSS_REMOTE_ENABLED=true` (ou campos TOML equivalentes). A mesma
 política de certificado cliente, credenciais e ACL continua exigida; o
 certificado servidor precisa cobrir o nome usado pelo client. Acesso pelo
-navegador continua pendente. [Prompt P214](prompts/broker/214-remote-wss-mtls-bind.md).
+navegador continua pendente. [Prompt P214](prompts/broker/214-remote-wss-mtls-bind.md)
+e [aceite parcial](prompts/registros/P214-remote-wss-mtls-bind.md).
 
 A prerelease experimental 0.40.0 reúne P212: `MQTT_WSS_BIND` adiciona WSS mTLS
 opcional somente em loopback, com certificado cliente, usuário/senha e ACL.
