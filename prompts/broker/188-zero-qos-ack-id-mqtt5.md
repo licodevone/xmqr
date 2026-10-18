@@ -13,3 +13,7 @@ Invariantes: classificar antes de mutar roteador/sessão; preservar QoS 1/2, ger
 Compatibilidade e migração: somente resposta wire de erro em MQTT 5; MQTT 3.1.1 permanece como antes. Sem migração v15; broker/client/admin publicados seguem com versões independentes. Release/tag somente em marco validado, não nesta fatia isolada.
 
 Aceite: unidade cobre os quatro ACKs e IDs zero/não zero; TCP real cobre os quatro DISCONNECTs, Will, obrigação QoS 1 durável preservada e regressão MQTT 3.1.1. Rodar `cargo fmt --all -- --check`, `cargo test --locked`, `cargo clippy --locked --all-targets -- -D warnings`, build release, inventário de licenças e integração P188/regressões pertinentes. Registrar PASS/FAIL/BLOCKED com comandos e limites reais; não marcar fase 6A concluída.
+
+## Revisão v2 — falha intermediária de regressão
+
+Na primeira execução conjunta, `verify_mqtt5_negative_puback.py` falhou após restart porque o segundo PUBACK foi enviado imediatamente antes de DISCONNECT/stop, sem barreira que comprovasse seu processamento. A repetição isolada passou. Incluir no escopo a correção do próprio ensaio P169: PINGREQ/PINGRESP após o segundo PUBACK, antes do encerramento, e repetir a regressão. Registrar a falha original e os resultados posteriores; não atribuir a falha automaticamente ao P188 nem promovê-la a PASS sem nova execução.
