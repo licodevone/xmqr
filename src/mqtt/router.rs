@@ -2039,7 +2039,8 @@ impl Actor {
         );
     }
 
-    async fn commit(&mut self, candidate: DurableState) -> Result<(), RouterError> {
+    async fn commit(&mut self, mut candidate: DurableState) -> Result<(), RouterError> {
+        prune_shared_group_cursors(&mut candidate);
         let started = std::time::Instant::now();
         let result = self.store.commit(&candidate).await;
         self.metrics.commit_attempts.fetch_add(1, Ordering::Relaxed);
@@ -2203,7 +2204,7 @@ impl Actor {
                     &mut candidate,
                     &self.live,
                     &self.auth,
-                    &prior.message,
+                    &will_publication(&prior, now)?,
                     None,
                 )?;
                 prior_will_published = true;
@@ -3006,6 +3007,29 @@ fn apply_message(
     Ok(deliveries)
 }
 
+fn prune_shared_group_cursors(state: &mut DurableState) {
+    // Keep only existing associations, including persistent offline members.
+    // This runs on candidates: failed commits cannot mutate the authoritative cache.
+    let sessions = &state.sessions;
+    state.shared_group_cursors.retain(|filter, _| {
+        sessions
+            .values()
+            .any(|session| session.shared_filters.contains(filter))
+    });
+}
+
+fn next_shared_group_turn(state: &mut DurableState, filter: &TopicFilter) -> u64 {
+    // Full $share/name/filter keys are independent, even when names are equal.
+    // This cache is deliberately not persisted; fairness restarts after recovery.
+    let cursor = state
+        .shared_group_cursors
+        .entry(filter.clone())
+        .or_default();
+    let turn = *cursor;
+    *cursor = cursor.wrapping_add(1);
+    turn
+}
+
 fn apply_shared_deliveries(
     limits: StateLimits,
     state: &mut DurableState,
@@ -3017,7 +3041,6 @@ fn apply_shared_deliveries(
     if groups.is_empty() {
         return Ok(());
     }
-    let turn = state.shared_cursor;
     state.shared_cursor = state.shared_cursor.wrapping_add(1);
     for (filter, members) in groups {
         let active: Vec<_> = members.iter().filter(|member| member.active).collect();
@@ -3026,6 +3049,7 @@ fn apply_shared_deliveries(
         } else {
             active
         };
+        let turn = next_shared_group_turn(state, filter);
         let modulus = u64::try_from(choices.len()).unwrap_or(u64::MAX);
         let index = usize::try_from(turn % modulus).unwrap_or_default();
         let choice = choices[index];
@@ -3168,7 +3192,8 @@ fn reassign_ended_shared_qos1(
                 continue;
             }
             let modulus = u64::try_from(choices.len()).unwrap_or(u64::MAX);
-            let index = usize::try_from(state.shared_cursor % modulus).unwrap_or_default();
+            let turn = next_shared_group_turn(state, &origin.filter);
+            let index = usize::try_from(turn % modulus).unwrap_or_default();
             state.shared_cursor = state.shared_cursor.wrapping_add(1);
             let choice = &choices[index];
             message.qos = message.qos.min(choice.qos);
@@ -4561,6 +4586,239 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn p227c_shared_round_robin_is_independent_for_interleaved_groups() {
+        let (_directory, mut actor) = actor().await;
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let mut members = Vec::new();
+        for (id, shared) in [
+            ("a0", "$share/a/test/a"),
+            ("a1", "$share/a/test/a"),
+            ("b0", "$share/b/test/b"),
+            ("b1", "$share/b/test/b"),
+        ] {
+            let member = actor
+                .register(id.into(), "user".into(), true)
+                .await
+                .unwrap();
+            let (codes, retained) = actor
+                .subscribe_with_shared(
+                    id,
+                    member.generation,
+                    vec![(filter(shared), Some(0), 0, 0)],
+                    None,
+                    true,
+                )
+                .await
+                .unwrap();
+            assert_eq!(codes, [0]);
+            assert!(retained.is_empty());
+            members.push(member);
+        }
+        for sequence in 0_u8..4 {
+            for topic in ["test/a", "test/b"] {
+                actor
+                    .publish(
+                        "source",
+                        publisher.generation,
+                        message(topic, 0, false, &[sequence]),
+                        None,
+                    )
+                    .await
+                    .unwrap();
+            }
+        }
+        let counts: Vec<_> = members
+            .iter_mut()
+            .map(|member| {
+                let mut count = 0;
+                while let Ok(delivery) = member.outbound.try_recv() {
+                    assert!(matches!(delivery, Delivery::Publish { .. }));
+                    count += 1;
+                }
+                count
+            })
+            .collect();
+        actor.store.shutdown().await.unwrap();
+        assert_eq!(
+            counts,
+            [2, 2, 2, 2],
+            "other groups must not starve a member"
+        );
+    }
+
+    #[tokio::test]
+    async fn p227c_shared_cache_is_pruned_and_keeps_complete_filter_keys() {
+        let (_directory, mut actor) = actor().await;
+        let member = actor
+            .register("member".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let first = filter("$share/same/test/a");
+        let second = filter("$share/same/test/b");
+        actor
+            .subscribe_with_shared(
+                "member",
+                member.generation,
+                vec![
+                    (first.clone(), Some(0), 0, 0),
+                    (second.clone(), Some(0), 0, 0),
+                ],
+                None,
+                true,
+            )
+            .await
+            .unwrap();
+        for topic in ["test/a", "test/b"] {
+            actor
+                .publish(
+                    "source",
+                    publisher.generation,
+                    message(topic, 0, false, b"selected"),
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+        assert_eq!(actor.state.shared_group_cursors.len(), 2);
+        assert_eq!(actor.state.shared_group_cursors[&first], 1);
+        assert_eq!(actor.state.shared_group_cursors[&second], 1);
+        let mut candidate = actor.state.clone();
+        candidate
+            .shared_group_cursors
+            .insert(filter("$share/removed/test/obsolete"), 42);
+        actor.commit(candidate).await.unwrap();
+        assert_eq!(actor.state.shared_group_cursors.len(), 2);
+        actor
+            .unsubscribe("member", member.generation, vec![first.clone()])
+            .await
+            .unwrap();
+        assert!(!actor.state.shared_group_cursors.contains_key(&first));
+        assert_eq!(actor.state.shared_group_cursors[&second], 1);
+        actor
+            .unsubscribe("member", member.generation, vec![second])
+            .await
+            .unwrap();
+        assert!(actor.state.shared_group_cursors.is_empty());
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227c_failed_shared_commit_does_not_advance_authoritative_cursor() {
+        use crate::persistence::faults::{Action, Fault, Point};
+        let (_directory, mut actor) = actor().await;
+        let mut member = actor
+            .register("member".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let shared = filter("$share/g/test/state");
+        actor
+            .subscribe_with_shared(
+                "member",
+                member.generation,
+                vec![(shared.clone(), Some(1), 0, 0)],
+                None,
+                true,
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 1, false, b"accepted"),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        assert!(member.outbound.try_recv().is_ok());
+        assert_eq!(actor.state.shared_group_cursors[&shared], 1);
+        let before = actor.state.clone();
+        actor
+            .store
+            .inject_for_test(Fault {
+                point: Point::WalAppend,
+                action: Action::ErrorAfter(6, 28),
+            })
+            .await
+            .unwrap();
+        assert!(
+            actor
+                .publish(
+                    "source",
+                    publisher.generation,
+                    message("test/state", 1, false, b"not-accepted"),
+                    Some(2),
+                )
+                .await
+                .is_err()
+        );
+        assert_eq!(actor.state, before);
+        assert!(member.outbound.try_recv().is_err());
+        actor.store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn p227c_recovery_resets_only_scheduler_not_shared_obligations() {
+        let (directory, mut actor) = actor().await;
+        let member = actor
+            .register("member".into(), "user".into(), false)
+            .await
+            .unwrap();
+        let publisher = actor
+            .register("source".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let shared = filter("$share/g/test/state");
+        actor
+            .subscribe_with_shared(
+                "member",
+                member.generation,
+                vec![(shared.clone(), Some(1), 0, 0)],
+                Some(7),
+                true,
+            )
+            .await
+            .unwrap();
+        actor
+            .publish(
+                "source",
+                publisher.generation,
+                message("test/state", 1, false, b"owned"),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        assert_eq!(actor.state.shared_group_cursors[&shared], 1);
+        assert_eq!(actor.state.sessions["member"].outbound.len(), 1);
+        let encoded = serde_json::to_string(&actor.state).unwrap();
+        assert!(!encoded.contains("shared_group_cursors"));
+        let mut expected = actor.state.clone();
+        expected.shared_cursor = 0;
+        expected.shared_group_cursors.clear();
+        actor.store.shutdown().await.unwrap();
+        let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
+        assert_eq!(recovered, expected);
+        assert!(
+            recovered.sessions["member"]
+                .shared_filters
+                .contains(&shared)
+        );
+        assert_eq!(recovered.sessions["member"].outbound.len(), 1);
+        store.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn mqtt5_shared_routes_one_member_per_group_without_initial_retained() {
         let (directory, mut actor) = actor().await;
         let publisher = actor
@@ -5045,6 +5303,7 @@ mod tests {
         let (store, recovered) = MqttStore::open(directory.path()).await.unwrap();
         let mut persisted = before;
         persisted.shared_cursor = 0;
+        persisted.shared_group_cursors.clear();
         assert_eq!(recovered, persisted);
         store.shutdown().await.unwrap();
     }
@@ -5540,6 +5799,99 @@ mod tests {
             subscription_identifiers: Vec::new(),
             shared_origin: None,
         }
+    }
+
+    async fn p227c_takeover_will_fixture(expiry_seconds: u32) -> (TempDir, Actor, super::Session) {
+        let (directory, mut actor) = actor().await;
+        let watcher = actor
+            .register("watcher".into(), "user".into(), false)
+            .await
+            .unwrap();
+        actor
+            .subscribe(
+                "watcher",
+                watcher.generation,
+                vec![(filter("test/state"), Some(0))],
+            )
+            .await
+            .unwrap();
+        let source = actor
+            .register_with_policy_and_delay(
+                "will-expiry-source".into(),
+                "user".into(),
+                SessionPolicy {
+                    clean: true,
+                    persistent: true,
+                    expiry_interval_seconds: None,
+                    will_delay_seconds: 60,
+                    will_message_expiry_seconds: Some(expiry_seconds),
+                    receive_maximum: u16::MAX,
+                },
+                Some(message("test/state", 0, true, b"takeover-will")),
+            )
+            .await
+            .unwrap();
+        let replacement = actor
+            .register_with_policy_and_delay(
+                "will-expiry-source".into(),
+                "user".into(),
+                SessionPolicy {
+                    clean: true,
+                    persistent: true,
+                    expiry_interval_seconds: None,
+                    will_delay_seconds: 0,
+                    will_message_expiry_seconds: None,
+                    receive_maximum: u16::MAX,
+                },
+                None,
+            )
+            .await
+            .unwrap();
+        assert!(!replacement.resumed);
+        assert_ne!(source.generation, replacement.generation);
+        assert!(*source.closed.borrow());
+        assert!(!actor.state.pending_wills.contains_key("will-expiry-source"));
+        (directory, actor, watcher)
+    }
+
+    #[tokio::test]
+    async fn p227c_clean_start_takeover_does_not_forward_zero_expiry_will() {
+        let (_directory, actor, mut watcher) = p227c_takeover_will_fixture(0).await;
+        let received = watcher.outbound.try_recv();
+        let retained = actor
+            .state
+            .retained
+            .contains_key(&TopicName::try_from("test/state".to_owned()).unwrap());
+        actor.store.shutdown().await.unwrap();
+        assert!(
+            received.is_err(),
+            "expiry0 Will must not be forwarded at takeover"
+        );
+        assert!(!retained, "expiry0 Will must not leave retained state");
+    }
+
+    #[tokio::test]
+    async fn p227c_clean_start_takeover_preserves_one_second_will_expiry() {
+        let (_directory, mut actor, mut watcher) = p227c_takeover_will_fixture(1).await;
+        let Delivery::Publish { message, .. } = watcher.outbound.try_recv().unwrap() else {
+            panic!("expected immediate takeover Will publication");
+        };
+        let expiry = message.expiry_at_unix_ms;
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        actor.expire_sessions().await.unwrap();
+        let retained = actor
+            .state
+            .retained
+            .contains_key(&TopicName::try_from("test/state".to_owned()).unwrap());
+        actor.store.shutdown().await.unwrap();
+        assert!(
+            expiry.is_some(),
+            "takeover must apply the Will message expiry"
+        );
+        assert!(
+            !retained,
+            "expiry1 retained Will must expire after publication"
+        );
     }
 
     #[test]

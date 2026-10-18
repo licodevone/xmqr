@@ -50,6 +50,9 @@ pub(super) struct DurableState {
     /// Process-local shared subscription scheduler; omitted from the document.
     #[serde(skip)]
     pub shared_cursor: u64,
+    /// Per-complete-filter scheduler cache. Recovery resets selection, not QoS ownership.
+    #[serde(skip)]
+    pub shared_group_cursors: BTreeMap<TopicFilter, u64>,
     pub sessions: BTreeMap<String, DurableSession>,
     pub retained: BTreeMap<TopicName, StoredMessage>,
     // Wills belong to accepted connections, including clean sessions.
