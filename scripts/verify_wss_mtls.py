@@ -21,7 +21,7 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from verify_multi_endpoint import free_port, hash_fixture, wait_port, wait_subscription
-from verify_websocket_lab import exact, mqtt_packet, send_frame, tcp_packet
+from verify_websocket_lab import exact, mqtt_packet, receive_frame, send_frame, tcp_packet
 
 
 def openssl(root, *args):
@@ -209,6 +209,47 @@ def check_rejections(root, port, password):
                 reply = mqtt_packet(stream, bytearray())
                 raise AssertionError(f"invalid TLS client accepted: {kwargs}, {reply!r}")
         except (ssl.SSLError, OSError, EOFError):
+            pass
+
+
+def check_wss_frames(root, port, password):
+    topic = b"p212/allowed"
+    for version in (4, 5):
+        with secure_socket(root, port) as subscriber:
+            assert handshake(subscriber, port).startswith(b"HTTP/1.1 101")
+            connect = connect_packet(version, b"p219-fragmented", b"device", password)
+            middle = len(connect) // 2
+            send_frame(subscriber, 2, connect[:middle], fin=False)
+            send_frame(subscriber, 0, connect[middle:])
+            connack = mqtt_packet(subscriber, bytearray())
+            assert connack[0] == 0x20 and connack[2:4] == b"\x00\x00", connack
+            body = b"\x00\x01" + (b"\x00" if version == 5 else b"")
+            body += len(topic).to_bytes(2, "big") + topic + b"\x00"
+            send_frame(subscriber, 2, bytes([0x82, len(body)]) + body)
+            assert mqtt_packet(subscriber, bytearray())[-1] == 0
+            with authenticated_ws(root, port, version, password, b"p219-publisher") as pub:
+                payload = b"p219-fragmented-publish-" + str(version).encode()
+                body = len(topic).to_bytes(2, "big") + topic
+                if version == 5:
+                    body += b"\x00"
+                publish = bytes([0x30, len(body) + len(payload)]) + body + payload
+                middle = len(publish) // 2
+                send_frame(pub, 2, publish[:middle], fin=False)
+                send_frame(pub, 0, publish[middle:])
+                assert mqtt_packet(subscriber, bytearray()).endswith(payload)
+
+    for opcode, body in ((1, b"text is not MQTT"), (2, b"x" * (64 * 1024 + 1))):
+        with secure_socket(root, port) as stream:
+            assert handshake(stream, port).startswith(b"HTTP/1.1 101")
+            send_frame(stream, opcode, body)
+            try:
+                reply_opcode, _ = receive_frame(stream)
+                assert reply_opcode == 8, reply_opcode
+            except (ConnectionResetError, EOFError, ssl.SSLError):
+                pass
+            except AssertionError as error:
+                assert str(error) == "WebSocket closed before expected bytes", error
+        with authenticated_ws(root, port, 5, password, b"p219-after-rejection"):
             pass
 
 
@@ -699,6 +740,7 @@ def main():
                 wait_port(broker, port)
                 check_mqtt(root, port, tcp_port, password)
                 check_rejections(root, port, password)
+                check_wss_frames(root, port, password)
                 rotate_certificate(root, broker, log_path, port, password)
                 check_mqtt(root, port, tcp_port, password)
                 if args.client:
@@ -799,6 +841,7 @@ def main():
           (" C123_WSS_DURABLE_SUB_BROKER_PASS" if args.durable_sub_client else "") +
           " P214_REMOTE_OPT_IN_PASS P216_BROWSER_ORIGIN_PASS"
           " P218_WSS_RESTART_PASS" +
+          " P219_WSS_FRAMES_PASS" +
           (" P218_CLIENT_WSS_RESTART_PASS" if args.durable_sub_client else ""))
 
 
