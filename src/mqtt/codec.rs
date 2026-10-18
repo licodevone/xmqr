@@ -4308,3 +4308,370 @@ mod tests {
         assert!(decode(0x10, &truncated).is_err());
     }
 }
+
+#[cfg(test)]
+mod p227i_metadata_boundaries {
+    use super::*;
+    use std::error::Error;
+
+    const PAYLOAD: &[u8] = &[0, 0xff, 0x7f];
+
+    #[derive(Clone, Copy, Debug)]
+    enum Context {
+        Will,
+        Publish,
+        Subscribe,
+        Unsubscribe,
+    }
+
+    const CONTEXTS: [Context; 4] = [
+        Context::Will,
+        Context::Publish,
+        Context::Subscribe,
+        Context::Unsubscribe,
+    ];
+
+    // Independent constructors for these small fixtures, not production
+    // encode_length, Cursor, property validators or encoder roundtrips.
+    fn wire_length(length: usize) -> Vec<u8> {
+        assert!(length < 16_384);
+        if length < 128 {
+            vec![u8::try_from(length).unwrap()]
+        } else {
+            vec![
+                u8::try_from(length % 128).unwrap() | 0x80,
+                u8::try_from(length / 128).unwrap(),
+            ]
+        }
+    }
+
+    fn field(bytes: &[u8]) -> Vec<u8> {
+        let mut out = u16::try_from(bytes.len()).unwrap().to_be_bytes().to_vec();
+        out.extend_from_slice(bytes);
+        out
+    }
+
+    fn property(identifier: u8, bytes: &[u8]) -> Vec<u8> {
+        let mut out = vec![identifier];
+        out.extend(field(bytes));
+        out
+    }
+
+    fn user_properties(pairs: &[(String, String)]) -> Vec<u8> {
+        let mut out = Vec::new();
+        for (key, value) in pairs {
+            out.push(0x26);
+            out.extend(field(key.as_bytes()));
+            out.extend(field(value.as_bytes()));
+        }
+        out
+    }
+
+    fn body(context: Context, properties: &[u8]) -> (u8, Vec<u8>) {
+        let (header, mut out) = match context {
+            Context::Will => (0x10, b"\0\x04MQTT\x05\x06\0\x1e\0\0\x01c".to_vec()),
+            Context::Publish => (0x30, b"\0\x01t".to_vec()),
+            Context::Subscribe => (0x82, vec![0, 7]),
+            Context::Unsubscribe => (0xa2, vec![0, 7]),
+        };
+        out.extend(wire_length(properties.len()));
+        out.extend_from_slice(properties);
+        match context {
+            Context::Will => {
+                out.extend_from_slice(b"\0\x01t");
+                out.extend(field(PAYLOAD));
+            }
+            Context::Publish => out.extend_from_slice(PAYLOAD),
+            Context::Subscribe => out.extend_from_slice(b"\0\x01t\x01"),
+            Context::Unsubscribe => out.extend_from_slice(b"\0\x01t"),
+        }
+        (header, out)
+    }
+
+    fn decoded(
+        context: Context,
+        properties: &[u8],
+    ) -> Result<Packet, Box<dyn Error + Send + Sync>> {
+        let (header, body) = body(context, properties);
+        decode_for(header, &body, true)
+    }
+
+    fn assert_metadata(
+        context: Context,
+        properties: &[u8],
+        content_type: Option<&str>,
+        correlation_data: Option<&[u8]>,
+        pairs: &[(String, String)],
+    ) {
+        let packet = decoded(context, properties).unwrap();
+        match (context, packet) {
+            (
+                Context::Will,
+                Packet::Connect {
+                    mqtt5: true,
+                    will: Some(will),
+                    ..
+                },
+            ) => {
+                assert_eq!(will.topic.as_str(), "t");
+                assert_eq!(will.payload, PAYLOAD);
+                assert_eq!(will.content_type.as_deref(), content_type);
+                assert_eq!(will.correlation_data.as_deref(), correlation_data);
+                assert_eq!(will.user_properties, pairs);
+            }
+            (
+                Context::Publish,
+                Packet::Publish {
+                    topic: Some(topic),
+                    payload,
+                    content_type: actual_content,
+                    correlation_data: actual_correlation,
+                    user_properties: actual_pairs,
+                    qos: Qos::AtMostOnce,
+                    packet_id: None,
+                    ..
+                },
+            ) => {
+                assert_eq!(topic.as_str(), "t");
+                assert_eq!(payload, PAYLOAD);
+                assert_eq!(actual_content.as_deref(), content_type);
+                assert_eq!(actual_correlation.as_deref(), correlation_data);
+                assert_eq!(actual_pairs, pairs);
+            }
+            (
+                Context::Subscribe,
+                Packet::Subscribe {
+                    packet_id: 7,
+                    filters,
+                    subscription_identifier: None,
+                },
+            ) => {
+                // These diagnostic properties are validated then discarded.
+                assert_eq!(filters.len(), 1);
+                assert_eq!(filters[0].0.as_str(), "t");
+                assert_eq!(filters[0].1, Qos::AtLeastOnce);
+                assert_eq!((filters[0].2, filters[0].3), (0, 0));
+            }
+            (
+                Context::Unsubscribe,
+                Packet::Unsubscribe {
+                    packet_id: 7,
+                    filters,
+                },
+            ) => {
+                assert_eq!(filters.len(), 1);
+                assert_eq!(filters[0].as_str(), "t");
+            }
+            (context, packet) => panic!("wrong accepted packet for {context:?}: {packet:?}"),
+        }
+    }
+
+    fn encoded(
+        content_type: Option<&str>,
+        correlation_data: Option<&[u8]>,
+        pairs: &[(String, String)],
+    ) -> Result<Vec<u8>, &'static str> {
+        encode_publish_with_properties(
+            "t",
+            PAYLOAD,
+            Qos::AtMostOnce,
+            false,
+            false,
+            None,
+            true,
+            None,
+            TopicAliasMode::None,
+            None,
+            content_type,
+            None,
+            correlation_data,
+            pairs,
+        )
+    }
+
+    fn assert_encoded(
+        properties: &[u8],
+        content_type: Option<&str>,
+        correlation_data: Option<&[u8]>,
+        pairs: &[(String, String)],
+    ) {
+        let (header, body) = body(Context::Publish, properties);
+        let mut expected = vec![header];
+        expected.extend(wire_length(body.len()));
+        expected.extend(body);
+        assert_eq!(
+            encoded(content_type, correlation_data, pairs).unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn will_content_type_256_accepts_bytes_and_257_rejects_without_truncation() {
+        for text in ["a".repeat(256), "é".repeat(128)] {
+            assert_eq!(text.len(), 256);
+            assert_metadata(
+                Context::Will,
+                &property(0x03, text.as_bytes()),
+                Some(&text),
+                None,
+                &[],
+            );
+            let excess = text + "x";
+            assert_eq!(excess.len(), 257);
+            assert!(decoded(Context::Will, &property(0x03, excess.as_bytes())).is_err());
+        }
+    }
+
+    #[test]
+    fn publish_content_type_256_exact_wire_and_257_rejected_both_directions() {
+        for text in ["a".repeat(256), "é".repeat(128)] {
+            let properties = property(0x03, text.as_bytes());
+            assert_metadata(Context::Publish, &properties, Some(&text), None, &[]);
+            assert_encoded(&properties, Some(&text), None, &[]);
+            let excess = text + "x";
+            assert!(decoded(Context::Publish, &property(0x03, excess.as_bytes())).is_err());
+            assert!(encoded(Some(&excess), None, &[]).is_err());
+        }
+    }
+
+    #[test]
+    fn will_correlation_256_preserves_every_byte_and_257_rejects() {
+        let mut bytes: Vec<u8> = (0..=u8::MAX).collect();
+        assert_eq!(bytes.len(), 256);
+        assert_metadata(
+            Context::Will,
+            &property(0x09, &bytes),
+            None,
+            Some(&bytes),
+            &[],
+        );
+        bytes.push(0);
+        assert_eq!(bytes.len(), 257);
+        assert!(decoded(Context::Will, &property(0x09, &bytes)).is_err());
+    }
+
+    #[test]
+    fn publish_correlation_256_exact_wire_and_257_rejected_both_directions() {
+        let mut bytes: Vec<u8> = (0..=u8::MAX).collect();
+        let properties = property(0x09, &bytes);
+        assert_metadata(Context::Publish, &properties, None, Some(&bytes), &[]);
+        assert_encoded(&properties, None, Some(&bytes), &[]);
+        bytes.push(0);
+        assert!(decoded(Context::Publish, &property(0x09, &bytes)).is_err());
+        assert!(encoded(None, Some(&bytes), &[]).is_err());
+    }
+
+    #[test]
+    fn user_key_and_value_256_257_are_independent_utf8_byte_boundaries() {
+        for long in ["a".repeat(256), "é".repeat(128)] {
+            assert_eq!(long.len(), 256);
+            for value_field in [false, true] {
+                let pairs = if value_field {
+                    vec![("key".into(), long.clone())]
+                } else {
+                    vec![(long.clone(), "value".into())]
+                };
+                let properties = user_properties(&pairs);
+                for context in CONTEXTS {
+                    assert_metadata(context, &properties, None, None, &pairs);
+                }
+                assert_encoded(&properties, None, None, &pairs);
+                let mut invalid = pairs;
+                if value_field {
+                    invalid[0].1.push('x');
+                } else {
+                    invalid[0].0.push('x');
+                }
+                let properties = user_properties(&invalid);
+                for context in CONTEXTS {
+                    assert!(decoded(context, &properties).is_err(), "{context:?}");
+                }
+                assert!(encoded(None, None, &invalid).is_err());
+            }
+        }
+    }
+
+    fn repeated_pairs(count: usize) -> Vec<(String, String)> {
+        (0..count)
+            .map(|index| {
+                (
+                    "duplicate".into(),
+                    if index % 2 == 0 { "0" } else { "1" }.into(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn user_pairs_16_keep_duplicates_in_order_and_17_reject_below_byte_limit() {
+        let pairs = repeated_pairs(16);
+        let properties = user_properties(&pairs);
+        assert_eq!(properties.len(), 240); //16*(1+2+9+2+1), far below2048.
+        for context in CONTEXTS {
+            assert_metadata(context, &properties, None, None, &pairs);
+        }
+        assert_encoded(&properties, None, None, &pairs);
+        let excess = repeated_pairs(17);
+        let properties = user_properties(&excess);
+        assert_eq!(properties.len(), 255);
+        for context in CONTEXTS {
+            assert!(decoded(context, &properties).is_err(), "{context:?}");
+        }
+        assert!(encoded(None, None, &excess).is_err());
+    }
+
+    #[test]
+    fn user_total_2048_accepts_and_2049_rejects_with_every_field_within_limit() {
+        let pairs = vec![
+            ("a".repeat(256), "1".repeat(256)),
+            ("a".repeat(256), "1".repeat(256)),
+            ("b".repeat(256), "2".repeat(256)),
+            ("a".repeat(256), "3".repeat(236)),
+        ];
+        let properties = user_properties(&pairs);
+        assert_eq!(properties.len(), 2048);
+        for context in CONTEXTS {
+            assert_metadata(context, &properties, None, None, &pairs);
+        }
+        assert_encoded(&properties, None, None, &pairs);
+        let mut excess = pairs;
+        excess[3].1.push('3');
+        let properties = user_properties(&excess);
+        assert_eq!(properties.len(), 2049);
+        assert_eq!(excess[3].1.len(), 237);
+        for context in CONTEXTS {
+            assert!(decoded(context, &properties).is_err(), "{context:?}");
+        }
+        assert!(encoded(None, None, &excess).is_err());
+    }
+
+    #[test]
+    fn combined_metadata_preserves_binary_and_user_duplicates_across_other_properties() {
+        // OASIS MQTT-3.1.3-10 and MQTT-3.3.2-16/-17/-18/-19, local quotas.
+        let content = "é".repeat(128);
+        let bytes: Vec<u8> = (0..=u8::MAX).collect();
+        let pairs = repeated_pairs(16);
+        let mut input = user_properties(&pairs[..1]);
+        input.extend(property(0x03, content.as_bytes()));
+        input.extend(user_properties(&pairs[1..8]));
+        input.extend(property(0x09, &bytes));
+        input.extend(user_properties(&pairs[8..]));
+        for context in [Context::Will, Context::Publish] {
+            assert_metadata(context, &input, Some(&content), Some(&bytes), &pairs);
+        }
+        // Unrelated property order can change; User Property order cannot.
+        let mut output = property(0x09, &bytes);
+        output.extend(user_properties(&pairs));
+        output.extend(property(0x03, content.as_bytes()));
+        assert_encoded(&output, Some(&content), Some(&bytes), &pairs);
+    }
+
+    #[test]
+    fn subscription_contexts_do_not_accept_content_or_correlation_as_user_properties() {
+        for context in [Context::Subscribe, Context::Unsubscribe] {
+            for properties in [property(0x03, b"text"), property(0x09, &[0, 0xff])] {
+                assert!(decoded(context, &properties).is_err(), "{context:?}");
+            }
+        }
+    }
+}
