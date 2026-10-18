@@ -1,6 +1,6 @@
 # Histórico de versões
 
-## Não publicado — P216 em validação
+## Não publicado — P216 aceito parcialmente em `main`
 
 - WSS mTLS pode aceitar `Origin` de navegador somente se constar em lista HTTPS exata configurada; lista ausente/vazia mantém recusa. WS aberto, certificado cliente, credenciais MQTT e ACL não são relaxados. Ainda não integra a release 0.41.0.
 

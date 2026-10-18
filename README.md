@@ -1,11 +1,13 @@
 # XMQR
 
-P216 em `main`, ainda em validação após a prerelease 0.41.0, introduz
+P216 aceito parcialmente em `main` após a prerelease 0.41.0 introduz
 `MQTT_WSS_ALLOWED_ORIGINS=https://painel.exemplo` (ou lista TOML
 `broker.wss_allowed_origins`) somente para WSS mTLS. Sem lista, `Origin`
 continua recusado; a origem autorizada não substitui certificado cliente,
 usuário/senha ou ACL. O WS `open-lab` continua recusando `Origin`.
-[Prompt P216](prompts/broker/216-wss-browser-origin-allowlist.md).
+[Prompt P216](prompts/broker/216-wss-browser-origin-allowlist.md) e
+[registro](prompts/registros/P216-wss-browser-origin-allowlist.md). Ainda não
+integra o pacote/imagem 0.41.0; navegador real e fase 7 global seguem abertos.
 
 A prerelease experimental 0.41.0 inclui P214: WSS mTLS
 fora de loopback somente com `MQTT_WSS_BIND` remoto e
