@@ -65,6 +65,10 @@ def main():
             publish(sending, b"accepted", 2)
             second_id = receive(subscriber, b"accepted")
             subscriber.sendall(b"\x40\x02" + second_id.to_bytes(2, "big"))
+            # Ensure the ACK has crossed the broker's processing/commit boundary
+            # before disconnecting and restarting the process.
+            subscriber.sendall(b"\xc0\x00")
+            assert packet(subscriber) == (0xd0, b"")
             subscriber.sendall(b"\xe0\x00")
             subscriber.close()
             sending.close()

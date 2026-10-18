@@ -70,6 +70,10 @@ pub(super) struct AckPropertyMalformed;
 #[error("duplicate MQTT 5 acknowledgment Reason String")]
 pub(super) struct AckPropertyDuplicate;
 
+#[derive(Debug, thiserror::Error)]
+#[error("zero MQTT acknowledgment Packet Identifier")]
+pub(super) struct AckPacketIdentifierZero;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[allow(clippy::enum_variant_names)] // MQTT's official QoS names share this suffix.
 pub(super) enum Qos {
@@ -1063,10 +1067,10 @@ fn parse_subscription_user_property(
     Ok(())
 }
 
-fn nonzero_ack_id(c: &mut Cursor<'_>) -> Result<u16, &'static str> {
+fn nonzero_ack_id(c: &mut Cursor<'_>) -> Result<u16, Box<dyn std::error::Error + Send + Sync>> {
     let id = c.word()?;
     if id == 0 {
-        return Err("zero acknowledgment packet id");
+        return Err(AckPacketIdentifierZero.into());
     }
     Ok(id)
 }
@@ -2696,6 +2700,20 @@ mod tests {
             let truncated = [0, 7, 0, 1, 0x1f];
             assert!(decode_for(header, &truncated, true).is_err(), "{header:#x}");
             assert!(decode_for(header, &invalid_context, false).is_err());
+        }
+    }
+
+    #[test]
+    fn mqtt5_qos_ack_zero_packet_id_has_protocol_reason() {
+        for header in [0x40, 0x50, 0x62, 0x70] {
+            assert!(
+                decode_for(header, &[0, 0], true)
+                    .unwrap_err()
+                    .is::<AckPacketIdentifierZero>(),
+                "{header:#x}"
+            );
+            assert!(decode_for(header, &[0, 7], true).is_ok(), "{header:#x}");
+            assert!(decode_for(header, &[0, 0], false).is_err(), "{header:#x}");
         }
     }
 

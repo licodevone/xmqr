@@ -108,6 +108,11 @@ PUBREL e PUBCOMP do client MQTT 5. User Property repetível, Will, replay
 durável e MQTT 3.1.1 foram verificados. Truncamento, UTF-8 inválido, motivos
 inválidos, quotas e limites locais não receberam nova classificação; a matriz
 normativa completa e os aceites 6A/6C seguem abertos.
+P188 acrescenta DISCONNECT `0x82` se PUBACK, PUBREC, PUBREL ou PUBCOMP do
+client MQTT 5 trouxer Packet Identifier zero. O ACK é recusado antes de alterar
+a obrigação QoS durável; Will, replay e o fechamento MQTT 3.1.1 foram testados.
+Outros identificadores inválidos, pacotes truncados e a matriz normativa global
+seguem pendentes.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
