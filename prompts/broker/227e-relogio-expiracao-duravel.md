@@ -1,4 +1,4 @@
-# P227E v1.5 — relógio lógico e expiração durável sem renovar TTL
+# P227E v1.6 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -181,3 +181,35 @@ validação de Prepared e input fake. Marcar intenção só se R>0. Testar falha
 WAL sem token/mutação autoritativa; resultado físico incerto não deve exigir
 rollback falso no arquivo. Acrescentar teste de fonte inválida test-only e
 piso atômico de resultados, sem recusar amostras reais concorrentes antigas.
+
+## Revisão v1.6 antes da poda live e fixtures de escrita
+
+GREEN dos17 testes de clock/intenção,33,74scompile/3,72stest. Ainda não é
+aceite final: cópias Prepared vencidas devem liberar quota também no tick,
+não só no reconnect. Coordenador autoriza candidato de estado durável E
+Live, removendo Prepared vencido, drenando pending_replay antes de offline,
+com uma barreira; publicar Live/deliver somente depois do commit. Falha WAL
+conserva ambos os estados autoritativos. MayHaveSent/PUBREL não expiram.
+
+Packet ID, geração e deadline não bastam se uma fila velha sobreviver à
+reutilização do mesmo ID com metadata igual. Cada nova cópia expiring QoS1/2
+recebe identidade crescente por sessão, persistida no v16 e no Delivery;
+Prepared exige essa identidade. Legado MayHaveSent mantém identidade ausente.
+Limite/overflow falham fechado, sem wrap/reuso. Permit exige correspondência
+exata de geração, ID, identidade e metadata; delivery obsoleto é suprimido,
+sem apagar ou autorizar obrigação nova. Sem nova fila/canal/quota pública.
+Preparar RED de poda/quota1 e rollback antes do fix, teste de reutilização
+forçada com metadata igual e falha WAL de Prepared sem token.
+
+Para provar send_delivery real, adicionar somente APIs cfg(test), por
+instância: Router::start_with_expiry_clock_for_test(path,auth,metrics,limits,
+Arc<ExpiryClock>) compartilha o mesmo clock com store/handler; builder
+with_expiry_hook_for_test(Arc<dyn Fn()->Duration+Send+Sync>) executa hook
+depois do encode, antes da validação final, e espera a Duration retornada
+somente no teste. Sem env/global/flags produção. Validar novamente deadline
+monotônico antes de escrever, inclusive após encode demorado. Fuzz é dono
+exclusivo do novo expiry_contract_tests.rs; este owner só liga o módulo e
+helpers. Testes usam TCP loopback e deliveries reais: mesma faixa1barreira;
+cruzamento2;4cruzamentos/3s dão erro limitado/zero bytes; WAL negativo não
+escreve nem perde Prepared. Contar commits bem-sucedidos e hooks por caso;
+tempo lógico sintético, não ajustar host. Compilar/testar só owner E.
