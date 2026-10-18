@@ -1,7 +1,7 @@
 # Evolução do broker e dos clients — referência Mosquitto
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-18.
-Versões publicadas atuais: broker/admin legado 0.37.0, client independente 0.30.0
+Versões publicadas atuais: broker/admin legado 0.37.0, client independente 0.31.0
 e xmqr-admin independente 0.10.0. Fases1–5 aceitas em seus recortes documentados;
 a fase6A avançou para publicação, assinatura, cancelamento, diagnósticos,
 propriedades informativas e Client Identifier atribuído no MQTT5 QoS0/1/2;
@@ -245,7 +245,8 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~Fase 6A/P204 parcial: AUTH com bits reservados não zero (`0xf1`–`0xff`) após CONNACK recebe DISCONNECT MQTT 5 `0x81` antes do corpo, preservando motivo P178.~~ [Registro](../prompts/registros/P204-auth-fixed-header-flags-mqtt5.md). Primeira tentativa falhou no TCP e foi corrigida; suíte, regressões e CI da revisão corrigida PASS. Fase 6A global aberta.
 - [x] ~~Fase 6A/P205 parcial: correção normativa de P178 muda flags reservadas de PINGREQ/DISCONNECT MQTT 5 para DISCONNECT `0x81`.~~ [Registro](../prompts/registros/P205-fixed-header-malformed-correction-mqtt5.md). Unitário, TCP/Will, 3.1.1, regressões P203/P204 e CI PASS; a 0.36.0 conserva o motivo antigo, a 0.37.0 inclui a correção.
 - [x] ~~Distribuição P206: broker/admin legado 0.37.0 com P203–P205, incluindo correção P178; CI da fonte exata, pacote Ubuntu 26.04, upgrade/rollback descartável, imagens numeradas, tag, prerelease e oito hashes remotos verificados.~~ [Registro](../prompts/registros/P206-release-0.37.0.md). Fases globais abertas.
-- [x] ~~Fase 6B/C110 parcial: assinatura persistente MQTT 5 no client Linux/WSL confirma QoS 1/2 após escrita/flush, sem ACK em erro de saída; broker real reentrega QoS 1 após reinício.~~ [Registro do client](../../xmqr-client/prompts/registros/C110-durable-subscription-ack-after-output-mqtt5.md). Suíte, TCP e CI PASS; journal local de mensagens recebidas e aceite 6B ainda abertos. Client publicado 0.30.0 não inclui C110.
+- [x] ~~Fase 6B/C110 parcial: assinatura persistente MQTT 5 no client Linux/WSL confirma QoS 1/2 após escrita/flush, sem ACK em erro de saída; broker real reentrega QoS 1 após reinício.~~ [Registro do client](../../xmqr-client/prompts/registros/C110-durable-subscription-ack-after-output-mqtt5.md). Suíte, TCP e CI PASS; journal local de mensagens recebidas e aceite 6B ainda abertos. Client 0.31.0 inclui C110.
+- [x] ~~Distribuição C111: client independente 0.31.0 com C110; CI da fonte exata, pacote Ubuntu 26.04, upgrade/rollback descartável, imagem numerada por digest, tag, prerelease e seis hashes remotos verificados.~~ [Registro](../../xmqr-client/prompts/registros/C111-release-0.31.0.md). Fase 6B global aberta.
 - [x] ~~Distribuição C109: client independente 0.30.0 com C107/C108, pacote Ubuntu 26.04, ciclo descartável de upgrade/rollback, imagem por digest, tag e prerelease com seis hashes remotos conferidos.~~ [Registro](../../xmqr-client/prompts/registros/C109-release-0.30.0.md). M03/6B global ainda aberto.
 - [x] ~~Fase 6A/P201 parcial: CONNACK, SUBACK, UNSUBACK e PINGRESP exclusivos do servidor enviados pelo client após CONNACK recebem DISCONNECT `0x82` antes de interpretar corpo.~~ [Registro](../prompts/registros/P201-server-only-control-packets-mqtt5.md). Gates locais, TCP e CI PASS; 6A global aberta.
 - [x] ~~Fase 6A/P203 parcial: tipo de controle zero reservado no MQTT 5 recebe DISCONNECT `0x81` após CONNACK.~~ [Registro](../prompts/registros/P203-reserved-control-type-zero-mqtt5.md). Gates locais, TCP e CI PASS; 6A global aberta.

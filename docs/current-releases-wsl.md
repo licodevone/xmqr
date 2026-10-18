@@ -5,14 +5,14 @@ Fotografia verificada em 2026-10-18. As três releases abaixo são experimentais
 | Sistema | Versão | Pacote `.deb` | Comando de versão | Release |
 | --- | --- | --- | --- | --- |
 | Broker | 0.37.0 | `xmqr-broker_0.37.0-1_amd64.deb` | `mqtt-broker --version` | [xmqr v0.37.0](https://github.com/licodevone/xmqr/releases/tag/v0.37.0) |
-| Client | 0.30.0 | `xmqr-client_0.30.0-1_amd64.deb` | `mqtt-client --version` | [xmqr-client v0.30.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.30.0) |
+| Client | 0.31.0 | `xmqr-client_0.31.0-1_amd64.deb` | `mqtt-client --version` | [xmqr-client v0.31.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.31.0) |
 | Admin independente | 0.10.0 | `xmqr-admin_0.10.0-1_amd64.deb` | `xmqr-admin --version` | [xmqr-admin v0.10.0](https://github.com/licodevone/xmqr-admin/releases/tag/v0.10.0) |
 
 O pacote do broker inclui também o comando legado `mqtt-admin`. Ele é diferente do programa `xmqr-admin` independente. Os hashes SHA-256 dos `.deb`, respectivamente, são:
 
 ```text
 52d08b344deeb4f9c86f8ef14f72476c13648cb89ffbe106dca90d83166fa239  xmqr-broker_0.37.0-1_amd64.deb
-f24634e88646e231d3599217657f1d81ff1f2adec6022c94d2926b42ad4eaed2  xmqr-client_0.30.0-1_amd64.deb
+f46fd904aba84f7c2bae4b498475d47b37bd81ff2d887c052375a5e4f91c89a4  xmqr-client_0.31.0-1_amd64.deb
 1d5d50adbac415a84aead1bcb8c0d4630f587970c4d77cbf930dbd4a714e9f7c  xmqr-admin_0.10.0-1_amd64.deb
 ```
 
@@ -20,9 +20,9 @@ Baixe os três `.deb` e seus `.sha256` pelas páginas de release. Na distribuiç
 
 ```sh
 sha256sum -c xmqr-broker_0.37.0-1_amd64.deb.sha256
-sha256sum -c xmqr-client_0.30.0-1_amd64.deb.sha256
+sha256sum -c xmqr-client_0.31.0-1_amd64.deb.sha256
 sha256sum -c xmqr-admin_0.10.0-1_amd64.deb.sha256
-sudo apt install ./xmqr-broker_0.37.0-1_amd64.deb ./xmqr-client_0.30.0-1_amd64.deb ./xmqr-admin_0.10.0-1_amd64.deb
+sudo apt install ./xmqr-broker_0.37.0-1_amd64.deb ./xmqr-client_0.31.0-1_amd64.deb ./xmqr-admin_0.10.0-1_amd64.deb
 mqtt-broker --version
 mqtt-client --version
 xmqr-admin --version
