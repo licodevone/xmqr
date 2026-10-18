@@ -127,6 +127,12 @@ P194 trata um segundo CONNECT após CONNACK MQTT 5 como Protocol Error: tenta
 DISCONNECT `0x82` e fecha antes de ler o corpo, sem trocar sessão, identidade ou
 Will. O primeiro CONNECT continua normal; MQTT 3.1.1 fecha sem resposta MQTT 5.
 Outros erros de sequência e a matriz normativa global permanecem pendentes.
+P195 tipa textos rejeitados pelo leitor comum (UTF-8 malformado, U+0000 e
+caracteres de controle/não caracteres já proibidos pela política local). Após
+CONNACK MQTT 5, tenta DISCONNECT `0x81` antes de processar PUBLISH, SUBSCRIBE,
+UNSUBSCRIBE, AUTH, DISCONNECT ou diagnósticos de ACKs afetados; MQTT 3.1.1
+continua fechando sem pacote MQTT 5. A classificação de CONNECT/Will inicial,
+truncamento e outros erros semânticos ainda está pendente.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa

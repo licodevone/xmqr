@@ -43,6 +43,10 @@ pub(super) struct FixedHeaderFlagsInvalid;
 pub(super) struct SecondConnect;
 
 #[derive(Debug, thiserror::Error)]
+#[error("malformed MQTT UTF-8 text")]
+pub(super) struct MalformedUtf8;
+
+#[derive(Debug, thiserror::Error)]
 #[error("MQTT 5 subscription property is invalid for this packet")]
 pub(super) struct SubscriptionPropertyMalformed;
 
@@ -357,14 +361,14 @@ impl<'a> Cursor<'a> {
         let len = usize::from(self.word()?);
         self.bytes(len)
     }
-    fn text(&mut self) -> Result<String, &'static str> {
+    fn text(&mut self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let raw = self.binary()?;
-        let value = std::str::from_utf8(raw).map_err(|_| "invalid MQTT UTF-8")?;
+        let value = std::str::from_utf8(raw).map_err(|_| MalformedUtf8)?;
         if value
             .chars()
             .any(|ch| ch == '\0' || ch.is_control() || is_noncharacter(ch))
         {
-            return Err("invalid MQTT UTF-8 scalar");
+            return Err(MalformedUtf8.into());
         }
         Ok(value.to_owned())
     }
@@ -406,7 +410,9 @@ fn rejected_connect_property(
     clippy::too_many_lines,
     reason = "CONNECT property validation must classify unsupported AUTH before session creation"
 )]
-fn mqtt5_connect_properties_supported(raw: &[u8]) -> Result<Mqtt5ConnectProperties, &'static str> {
+fn mqtt5_connect_properties_supported(
+    raw: &[u8],
+) -> Result<Mqtt5ConnectProperties, Box<dyn std::error::Error + Send + Sync>> {
     let mut properties = Cursor::new(raw);
     let mut expiry_seen = false;
     let mut expiry = 0;
@@ -1077,16 +1083,16 @@ fn parse_subscription_user_property(
     properties: &mut Cursor<'_>,
     count: &mut usize,
     bytes: &mut usize,
-) -> Result<(), &'static str> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let key = properties.text()?;
     let value = properties.text()?;
     if key.len() > 256 || value.len() > 256 {
-        return Err("MQTT 5 subscription User Property field too long");
+        return Err("MQTT 5 subscription User Property field too long".into());
     }
     *count += 1;
     *bytes = bytes.saturating_add(5 + key.len() + value.len());
     if *count > 16 || *bytes > 2048 {
-        return Err("MQTT 5 subscription User Properties exceed limits");
+        return Err("MQTT 5 subscription User Properties exceed limits".into());
     }
     Ok(())
 }
@@ -2813,6 +2819,59 @@ mod tests {
             decode_for(0x10, &legacy, false),
             Ok(Packet::Connect { mqtt5: false, .. })
         ));
+    }
+
+    #[test]
+    fn mqtt5_invalid_utf8_text_is_typed_across_packet_contexts() {
+        let invalid = [0, 1, 0xff];
+        let nul = [0, 1, 0];
+        for text in [&invalid[..], &nul[..]] {
+            let mut publish = text.to_vec();
+            publish.push(0); // Empty MQTT 5 property section.
+            let mut subscribe = vec![0, 1, 0]; // Packet ID and empty properties.
+            subscribe.extend_from_slice(text);
+            subscribe.push(0); // Subscription options.
+            let mut unsubscribe = vec![0, 1, 0];
+            unsubscribe.extend_from_slice(text);
+            let mut auth = vec![0x19, 4, 0x15]; // Authentication Method.
+            auth.extend_from_slice(text);
+            let mut disconnect = vec![0, 4, 0x1f]; // Reason String.
+            disconnect.extend_from_slice(text);
+            let mut ack = vec![0, 1, 0, 4, 0x1f]; // ID, reason, Reason String.
+            ack.extend_from_slice(text);
+            for (header, body) in [
+                (0x30, &publish),
+                (0x82, &subscribe),
+                (0xa2, &unsubscribe),
+                (0xf0, &auth),
+                (0xe0, &disconnect),
+                (0x40, &ack),
+                (0x50, &ack),
+                (0x62, &ack),
+                (0x70, &ack),
+            ] {
+                assert!(
+                    decode_for(header, body, true)
+                        .unwrap_err()
+                        .is::<MalformedUtf8>(),
+                    "{header:#x} {text:?}"
+                );
+            }
+        }
+        let mut subscription_property = vec![0, 1, 7, 0x26, 0, 1, 0xff, 0, 1, b'v'];
+        subscription_property.extend_from_slice(&[0, 1, b't', 0]);
+        assert!(
+            decode_for(0x82, &subscription_property, true)
+                .unwrap_err()
+                .is::<MalformedUtf8>()
+        );
+        assert!(
+            !decode_for(0x30, &[0, 2, 0xff], true)
+                .unwrap_err()
+                .is::<MalformedUtf8>(),
+            "truncated text has a distinct parse error"
+        );
+        assert!(decode_for(0x30, &[0, 1, b't'], false).is_ok());
     }
 
     #[test]
