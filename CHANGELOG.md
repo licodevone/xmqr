@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 0.34.0 — diagnósticos MQTT 5 adicionais (experimental)
+
+- P183/P184: CONNECT/Will com propriedades inválidas recebe CONNACK `0x81`/`0x82` antes de criar sessão.
+- P185–P187: PUBLISH, AUTH, DISCONNECT e ACKs QoS classificam propriedades impróprias/duplicadas com DISCONNECT `0x81`/`0x82` nos casos documentados.
+- P188/P189: Packet Identifier zero nos ACKs QoS e comandos SUBSCRIBE/UNSUBSCRIBE/PUBLISH QoS 1/2 recebe DISCONNECT `0x82` antes de alterar estado.
+- P190: PUBLISH com QoS reservado 3 recebe `0x81`; QoS 0 com DUP ligado recebe `0x82`.
+
+O documento durável permanece v15, sem migração. Client independente 0.28.0 e admin independente 0.10.0 permanecem. A matriz MQTT 5 e as fases 6A–6D/7–9 continuam abertas.
+
 ## 0.33.0 — propriedades de assinatura MQTT 5 (experimental)
 
 - P180: SUBSCRIBE/UNSUBSCRIBE aceitam User Property repetível com limites locais e rejeição atômica; o estado durável segue v15.
