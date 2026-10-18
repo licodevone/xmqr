@@ -1,4 +1,4 @@
-# P227E v2.1 — relógio lógico e expiração durável sem renovar TTL
+# P227E v2.2 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -271,3 +271,13 @@ CONNECT com Will e unbox único antes do router. Não alocar por PUBLISH,
 alterar wire/framing, API pública, estado durável ou conteúdo do Will.
 Reexecutar parser/Will/expiry e Clippy. Os31 testes E, incluindo dois novos
 QoS2, passaram em19,89scompile/6,55stest antes deste ajuste de representação.
+
+## Revisão v2.2 após Clippy de todos os testes
+
+Box resolveu large_enum_variant sem supressão; TryFrom resolveu cast.
+Clippy agora chegou aos testes e FAIL5: dois assert_is_empty dos novos
+controles QoS2 e três unreadable_literal em fixtures VBI P227D existentes.
+Corrigir meus asserts para igualdade com Vec vazio. Autor original foi
+consultado para somente separadores 2_097_151/2_097_152/268_435_455,
+sem mudar valores, bytes de oráculo ou parser. Não mascarar diagnóstico
+nem aplicar lint allow global. Reexecutar Clippy e testes pós-Box.
