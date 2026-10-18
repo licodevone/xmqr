@@ -443,6 +443,21 @@ fn mqtt5_connect_maximum_packet_size(raw: &[u8]) -> Result<Option<u32>, Malforme
     Ok(maximum)
 }
 
+// Only a complete CONNECT property block can establish the outbound limit for
+// a malformed initial CONNECT. Never search the remaining body for property IDs.
+fn initial_connect5_maximum_packet_size(
+    body: &[u8],
+) -> Result<Option<u32>, MalformedPacketStructure> {
+    let mut c = Cursor::new(body);
+    if c.binary()? != b"MQTT" || c.byte()? != 5 {
+        return Err(MalformedPacketStructure);
+    }
+    c.bytes(3)?; // Connect Flags and Keep Alive.
+    let property_length = c.variable_integer()?;
+    let properties = c.bytes(property_length)?;
+    mqtt5_connect_maximum_packet_size(properties)
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "CONNECT property validation must classify unsupported AUTH before session creation"
@@ -574,6 +589,27 @@ fn decode(header: u8, body: &[u8]) -> Result<Packet, Box<dyn std::error::Error +
 
 #[allow(clippy::too_many_lines)]
 fn decode_for(
+    header: u8,
+    body: &[u8],
+    mqtt5: bool,
+) -> Result<Packet, Box<dyn std::error::Error + Send + Sync>> {
+    match decode_for_inner(header, body, mqtt5) {
+        Err(error) if header == 0x10 && !mqtt5 && error.is::<MalformedPacketStructure>() => {
+            if let Ok(maximum_packet_size) = initial_connect5_maximum_packet_size(body) {
+                Ok(Packet::UnsupportedConnect5 {
+                    maximum_packet_size,
+                    reason_code: 0x81,
+                })
+            } else {
+                Err(error)
+            }
+        }
+        result => result,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn decode_for_inner(
     header: u8,
     body: &[u8],
     mqtt5: bool,
@@ -1890,7 +1926,13 @@ mod tests {
         ));
         let mut truncated = body;
         truncated[14] = 4;
-        assert!(decode(0x10, &truncated).is_err());
+        assert!(matches!(
+            decode(0x10, &truncated),
+            Ok(Packet::UnsupportedConnect5 {
+                reason_code: 0x81,
+                maximum_packet_size: None,
+            })
+        ));
     }
 
     #[test]
@@ -1956,16 +1998,16 @@ mod tests {
                 }
             ));
         }
-        for malformed in [
-            vec![0x02, 0, 0, 0],
-            vec![0x08, 0, 1, b'#'],
-            vec![0x09, 0, 2, 0],
-        ] {
-            assert!(
-                decode(0x10, &make_connect(&malformed)).is_err(),
-                "{malformed:?}"
-            );
+        for malformed in [vec![0x02, 0, 0, 0], vec![0x09, 0, 2, 0]] {
+            assert!(matches!(
+                decode(0x10, &make_connect(&malformed)),
+                Ok(Packet::UnsupportedConnect5 {
+                    reason_code: 0x81,
+                    maximum_packet_size: None,
+                })
+            ));
         }
+        assert!(decode(0x10, &make_connect(&[0x08, 0, 1, b'#'])).is_err());
         assert!(matches!(
             decode(0x10, &make_connect(&[0x02, 0, 0, 0, 1])).unwrap(),
             Packet::Connect {
@@ -3018,13 +3060,66 @@ mod tests {
         let mut truncated = connect(&[], b"id", None, b"", None);
         truncated[11] = 0;
         truncated[12] = 3; // Advertise three Client ID bytes, supply two.
-        assert!(decode_for(0x10, &truncated, false).is_err());
+        assert!(matches!(
+            decode_for(0x10, &truncated, false),
+            Ok(Packet::UnsupportedConnect5 {
+                maximum_packet_size: None,
+                reason_code: 0x81
+            })
+        ));
         let legacy = [0, 4, b'M', b'Q', b'T', b'T', 4, 2, 0, 30, 0, 1, 0xff];
         assert!(
             decode_for(0x10, &legacy, false)
                 .unwrap_err()
                 .is::<MalformedUtf8>()
         );
+    }
+
+    #[test]
+    fn mqtt5_initial_connect_structure_uses_only_complete_property_boundaries() {
+        let prefix = [0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 30];
+        let max5 = [0x27, 0, 0, 0, 5];
+        let max4 = [0x27, 0, 0, 0, 4];
+        for (properties, limit) in [(&max5[..], Some(5)), (&max4[..], Some(4)), (&[][..], None)] {
+            let mut body = prefix.to_vec();
+            body.push(u8::try_from(properties.len()).unwrap());
+            body.extend_from_slice(properties);
+            body.extend_from_slice(&[0, 3, b'i', b'd']); // Truncated Client ID.
+            assert!(matches!(
+                decode_for(0x10, &body, false),
+                Ok(Packet::UnsupportedConnect5 {
+                    maximum_packet_size,
+                    reason_code: 0x81
+                }) if maximum_packet_size == limit
+            ));
+        }
+        let mut truncated_properties = prefix.to_vec();
+        truncated_properties.extend_from_slice(&[6, 0x27, 0, 0, 0, 5]);
+        assert!(
+            decode_for(0x10, &truncated_properties, false)
+                .unwrap_err()
+                .is::<MalformedPacketStructure>()
+        );
+        let mut embedded = prefix.to_vec();
+        embedded.extend_from_slice(&[0, 0, 6, b'i', b'd', 0x27, 0, 0, 0, 4]);
+        assert!(matches!(
+            decode_for(0x10, &embedded, false),
+            Ok(Packet::UnsupportedConnect5 {
+                maximum_packet_size: None,
+                reason_code: 0x81
+            })
+        ));
+        let mut legacy = [0, 4, b'M', b'Q', b'T', b'T', 4, 2, 0, 30, 0, 3, b'i', b'd'].to_vec();
+        assert!(
+            decode_for(0x10, &legacy, false)
+                .unwrap_err()
+                .is::<MalformedPacketStructure>()
+        );
+        legacy.push(b'!');
+        assert!(matches!(
+            decode_for(0x10, &legacy, false),
+            Ok(Packet::Connect { mqtt5: false, .. })
+        ));
     }
 
     #[test]

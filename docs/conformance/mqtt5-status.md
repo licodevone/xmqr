@@ -146,8 +146,14 @@ após CONNACK MQTT 5 (comprimento além do corpo, inteiro variável interno
 inválido e bytes extras em formato fechado). O broker tenta DISCONNECT `0x81`
 e fecha antes de aplicar publicação, assinatura ou remoção; Will da conexão
 ativa continua devido. O Remaining Length externo continua no P177, e CONNECT
-inicial estruturalmente truncado permanece sem CONNACK classificado. MQTT 3.1.1
+inicial estruturalmente truncado permanecia sem CONNACK classificado. MQTT 3.1.1
 fecha sem DISCONNECT MQTT 5; demais erros semânticos e a matriz global pendem.
+P199 classifica com CONNACK `0x81` o CONNECT inicial MQTT 5 cujo bloco de
+propriedades CONNECT está íntegro, mas campos posteriores estão truncados ou
+sobram bytes. O limite de tamanho da resposta é lido apenas das fronteiras
+reconhecidas desse bloco; abaixo de cinco bytes não há CONNACK. Recusa não cria
+sessão nem Will. Truncamento dentro do próprio bloco de propriedades ou antes
+de identificar MQTT 5 ainda fecha sem resposta classificada; 6A segue aberta.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
