@@ -4,6 +4,7 @@
 
 - P214 introduz opt-in separado para bind WSS mTLS fora de loopback, mantendo política mTLS/ACL e recusa de `Origin`; acesso por navegador não está incluído.
 - Fixture do broker cobre o perfil WSS mTLS local do client após a release 0.33.0. P214 não muda o formato de estado v15.
+- P215 distribui P214 com pacote Ubuntu 26.04 amd64, imagens numeradas e oito anexos verificados por SHA-256 remoto.
 
 ## 0.40.0 — WSS mTLS local (experimental)
 

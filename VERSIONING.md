@@ -1,12 +1,13 @@
 # Versionamento
 
-## P215 — broker/admin legado 0.41.0 candidato, estado v15
+## P215 — broker/admin legado 0.41.0 publicado, estado v15
 
 P214 habilita WSS mTLS remoto com opt-in separado e ACL/CA/certificado cliente
 preservados. Sem migração do estado v15. O broker 0.40.0 lê o estado, mas não
-tem o listener remoto. Client 0.34.0/C117 é o par previsto. Publicar somente
-após CI da fonte exata, pacote Ubuntu, ciclo de rollback, imagens por digest e
-verificação dos anexos. [Nota candidata](docs/releases/0.41.0.md).
+tem o listener remoto. Client 0.34.0/C117 é o par distribuído. CI da fonte
+exata, pacote Ubuntu, ciclo de rollback, imagens por digest e oito hashes remotos
+PASS. [Release](https://github.com/licodevone/xmqr/releases/tag/v0.41.0),
+[nota](docs/releases/0.41.0.md) e [registro](prompts/registros/P215-release-0.41.0.md).
 Fase 7 global aberta.
 
 ## P213 — broker/admin legado 0.40.0 publicado, estado v15
