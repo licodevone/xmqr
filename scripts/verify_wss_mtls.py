@@ -596,10 +596,11 @@ def check_wss_restart(root, environment, broker_bin, port, password, log_path,
 
 
 def check_client_wss_restart(root, environment, broker_bin, client, port, password,
-                             log_path):
+                             log_path, *, crash=False):
     """Exercise C123's manifest against a broker restarted with the same state."""
-    state = root / "p218-client-broker-state"
-    manifest_dir = root / "p218-client-manifest"
+    name = "p221-client-crash" if crash else "p218-client-restart"
+    state = root / f"{name}-broker-state"
+    manifest_dir = root / f"{name}-manifest"
     manifest_dir.mkdir(mode=0o700)
     config = dict(environment, MQTT_STATE_DIR=str(state))
     secret_file = root / "p218-client-password"
@@ -613,7 +614,7 @@ def check_client_wss_restart(root, environment, broker_bin, client, port, passwo
                     "--qos", "1", "--client-id", "p218-client-wss-sub",
                     "--clean-start", "false", "--session-expiry-seconds", "120",
                     "--subscription-state-dir", str(manifest_dir), "--output", "jsonl"]
-    payload = b"p218-client-offline"
+    payload = b"p221-client-offline" if crash else b"p218-client-offline"
 
     with log_path.open("ab") as log:
         broker = subprocess.Popen([str(broker_bin)], env=config, stdout=log, stderr=log)
@@ -641,8 +642,12 @@ def check_client_wss_restart(root, environment, broker_bin, client, port, passwo
                  "--message", payload.decode(), "--qos", "1",
                  "--client-id", "p218-client-wss-pub"], capture_output=True, timeout=12)
             assert published.returncode == 0, published.stderr.decode(errors="replace")
-            broker.send_signal(signal.SIGTERM)
-            assert broker.wait(timeout=8) == 0
+            if crash:
+                broker.kill()
+                assert broker.wait(timeout=8) != 0
+            else:
+                broker.send_signal(signal.SIGTERM)
+                assert broker.wait(timeout=8) == 0
         finally:
             if broker.poll() is None:
                 broker.kill()
@@ -850,6 +855,8 @@ def main():
         if args.durable_sub_client:
             check_client_wss_restart(root, environment, broker_bin, args.client, port,
                                      password, log_path)
+            check_client_wss_restart(root, environment, broker_bin, args.client, port,
+                                     password, log_path, crash=True)
         if args.browser_node:
             check_real_browser(root, environment, broker_bin, port, password, log_path,
                                args.browser_node)
@@ -936,6 +943,7 @@ def main():
           " P221_WSS_CRASH_PASS" +
           " P219_WSS_FRAMES_PASS" +
           (" P218_CLIENT_WSS_RESTART_PASS" if args.durable_sub_client else "") +
+          (" P221_CLIENT_WSS_CRASH_PASS" if args.durable_sub_client else "") +
           (" P220_REAL_BROWSER_WSS_PASS" if args.browser_node else ""))
 
 
