@@ -55,3 +55,52 @@ Não alterar documento v15, versões, dependências ou configuração do operado
 Não confundir correção normativa com garantia de produção, SLA ou nova
 homologação de plataforma. Ferramenta ausente é BLOCKED, nunca instalar só
 para satisfazer o gate. MIT/notices e ownership dos arquivos preservados.
+
+## Revisão v1.1 — RED confirmado antes da correção
+
+Oito unitários novos no fonte0.42.0:2controlesPASS/6FAIL (launcher WSL exit1), reproduzindo
+aceitação de RL não mínimo, Property Length e Subscription Identifier.
+Wire em cópia privada do ELF0.41.0 explicitamente baseline:20casos,
+2PASS/18FAIL, cleanupPASS, report exclusivo p227a-vbi-baseline-1.json.
+Falhas planejadas RED não serão apagadas nem confundidas com teste do candidato.
+Agora corrigir apenas codec: VBI internos sempre canônicos (são campos5),
+framing estrito após negociação5 e CONNECT5 inicial identificável, preservando
+frame_header/RemainingLength3.1.1. Cabeçalho inválido já completo pode recusar
+antes de aguardar corpo; prefixo parcial permanece aguardando conclusão.
+
+## Revisão v1.2 — reforço dos controles wire antes do candidato
+
+Targeted GREEN no fonte corrigido:8/8PASS, sem mod.rs. Antes do ensaio final,
+reforçar o controle3.1.1 para CONNECT inicial com RL histórico não mínimo,
+além do PINGREQ. Após CONNECT5 inválido, observador independente não pode
+receber o Will do pedido recusado (barreira PING e janela negativa limitada).
+Não diminuir nenhuma asserção RED, trocar reason code ou contar baseline0.41
+como candidato0.42. O harness final registra seu próprio SHA, versão e ELF
+privado exato; build final coordenado pelo agente principal.
+
+## Revisão v1.3 — falha de startup também deixa JSON e cleanup
+
+Antes do candidato, separar criação/início do processo privado no harness para
+que falha de readiness/Popen também atravesse cleanup e gere report FAIL, sem
+falso PASS por lista vazia. Nenhum processo do operador ou timeout de protocolo
+muda. BaselineRED original permanece com hash e contagem originais.
+
+## Revisão v1.4 — matriz de propriedades antes da consolidação 6A
+
+Coordenador autorizou também ownership exclusivo de
+`docs/conformance/mqtt5-property-matrix.md`. Antes de criá-la, levantar no
+codec/handlers e nos testes reais: contexto/direção, ID/tipo, multiplicidade,
+valores e tetos locais, requisito OASIS, símbolo e testes específicos.
+Cobrir CONNECT/Will/PUBLISH/SUBSCRIBE/UNSUBSCRIBE/ACK/AUTH/DISCONNECT e
+emissão CONNACK, incluindo VBI, UTF-8, propriedade desconhecida e fronteiras.
+
+Usar IMPLEMENTED_TEST_AVAILABLE como estado de evidência até gates integrados;
+não confundir teste disponível com executado no ELF final. Separar entrada
+aceita de emissão opcional ausente (Response Information/Reason String não
+viram obrigação artificial). Registrar limites locais e rejeições reais sem
+afirmar certificação ou cobertura exaustiva de todos os motivos de erro.
+Não editar mqtt5-status/plano/evolution/README ou código adicional nesta etapa.
+Adaptar a organização da skill doc-coauthoring ao contexto já fornecido pelo
+coordenador, sem perguntas redundantes; revisão independente de leitura fica
+pendente se não houver slot livre. Commit local somente dos caminhos próprios
+foi autorizado, sem push/tag/versão. Fonte do codec permanece congelada.

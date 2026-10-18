@@ -272,13 +272,29 @@ impl FrameReader {
     fn try_take_packet(
         &mut self,
     ) -> Result<Option<Packet>, Box<dyn std::error::Error + Send + Sync>> {
-        if let Some((header_len, remaining)) = frame_header(&self.buffer)?
-            && self.buffer.len() >= header_len + remaining
-        {
+        if let Some((header_len, remaining)) = frame_header(&self.buffer)? {
+            // MQTT-1.5.5-1. Keep the historic MQTT 3.1.1 framing contract;
+            // version 5 is known here only after negotiation or a safe CONNECT.
+            let minimal = header_len == 2 || remaining >= (1 << (7 * (header_len - 2)));
+            if self.mqtt5 && !minimal {
+                return Err(MalformedRemainingLength.into());
+            }
+            if self.buffer.len() < header_len + remaining {
+                return Ok(None);
+            }
             let body = self.buffer[header_len..header_len + remaining].to_vec();
             let header = self.buffer[0];
             self.buffer.drain(..header_len + remaining);
             self.partial_since = None;
+            if !minimal
+                && header >> 4 == 1
+                && let Ok(maximum_packet_size) = initial_connect5_maximum_packet_size(&body)
+            {
+                return Ok(Some(Packet::UnsupportedConnect5 {
+                    maximum_packet_size,
+                    reason_code: 0x81,
+                }));
+            }
             let mut packet = decode_for(header, &body, self.mqtt5)?;
             if let Packet::Publish {
                 topic, topic_alias, ..
@@ -354,6 +370,11 @@ impl<'a> Cursor<'a> {
             let digit = self.byte()?;
             value += usize::from(digit & 0x7f) * multiplier;
             if digit & 0x80 == 0 {
+                // Every caller is an MQTT5 property/identifier context.
+                // A zero most-significant digit after the first is redundant.
+                if multiplier > 1 && value < multiplier {
+                    return Err(MalformedPacketStructure);
+                }
                 return Ok(value);
             }
             multiplier *= 128;
@@ -1825,6 +1846,167 @@ pub(super) fn encode_publish_with_subscription_ids(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mqtt5_vbi_canonical_integer_boundaries() {
+        for (encoded, value) in [
+            (&b"\x00"[..], 0),
+            (&b"\x01"[..], 1),
+            (&b"\x7f"[..], 127),
+            (&b"\x80\x01"[..], 128),
+            (&b"\xff\x7f"[..], 16383),
+            (&b"\x80\x80\x01"[..], 16384),
+            (&b"\xff\xff\x7f"[..], 2097151),
+            (&b"\x80\x80\x80\x01"[..], 2097152),
+            (&b"\xff\xff\xff\x7f"[..], 268435455),
+        ] {
+            let mut cursor = Cursor::new(encoded);
+            assert_eq!(cursor.variable_integer().unwrap(), value);
+            cursor.end().unwrap();
+        }
+    }
+
+    #[test]
+    fn mqtt5_vbi_rejects_redundant_internal_integer_digits() {
+        // MQTT-1.5.5-1: even within four bytes, the representation must be minimal.
+        for encoded in [
+            &b"\x80\x00"[..],
+            &b"\x81\x00"[..],
+            &b"\xff\x00"[..],
+            &b"\x80\x80\x00"[..],
+            &b"\x80\x81\x00"[..],
+            &b"\xff\xff\x00"[..],
+            &b"\x80\x80\x80\x00"[..],
+            &b"\xff\xff\xff\x00"[..],
+        ] {
+            assert!(Cursor::new(encoded).variable_integer().is_err());
+        }
+    }
+
+    #[test]
+    fn mqtt5_vbi_rejects_noncanonical_established_remaining_length() {
+        for encoded in [
+            &b"\xc0\x80\x00"[..],
+            &b"\xc0\x80\x80\x00"[..],
+            &b"\xc0\x80\x80\x80\x00"[..],
+        ] {
+            let mut reader = FrameReader::new(encoded.to_vec());
+            reader.set_mqtt5(0);
+            assert!(
+                reader
+                    .try_take_packet()
+                    .unwrap_err()
+                    .is::<MalformedRemainingLength>()
+            );
+        }
+        let mut partial = FrameReader::new(b"\xc0\x80".to_vec());
+        partial.set_mqtt5(0);
+        assert!(partial.try_take_packet().unwrap().is_none());
+        let mut before_body = FrameReader::new(b"\x30\x81\x00".to_vec());
+        before_body.set_mqtt5(0);
+        assert!(
+            before_body
+                .try_take_packet()
+                .unwrap_err()
+                .is::<MalformedRemainingLength>()
+        );
+        for canonical in [
+            &b"\x30\x7f"[..],
+            &b"\x30\x80\x01"[..],
+            &b"\x30\xfc\xff\x03"[..],
+        ] {
+            let mut reader = FrameReader::new(canonical.to_vec());
+            reader.set_mqtt5(0);
+            assert!(reader.try_take_packet().unwrap().is_none());
+        }
+    }
+
+    #[test]
+    fn mqtt5_vbi_keeps_legacy_remaining_length_and_canonical_fragments() {
+        let mut legacy = FrameReader::new(b"\xc0\x80\x00".to_vec());
+        assert!(matches!(
+            legacy.try_take_packet().unwrap(),
+            Some(Packet::PingReq)
+        ));
+        let mut reader = FrameReader::new(b"\xc0".to_vec());
+        reader.set_mqtt5(0);
+        assert!(reader.try_take_packet().unwrap().is_none());
+        reader.buffer.extend_from_slice(b"\x00\xc0\x00");
+        assert!(matches!(
+            reader.try_take_packet().unwrap(),
+            Some(Packet::PingReq)
+        ));
+        assert!(matches!(
+            reader.try_take_packet().unwrap(),
+            Some(Packet::PingReq)
+        ));
+    }
+
+    #[test]
+    fn mqtt5_vbi_initial_connect_remaining_length_is_rejected_before_acceptance() {
+        let body = b"\x00\x04MQTT\x05\x02\x00\x1e\x00\x00\x01c";
+        let mut frame = vec![0x10, 0x8e, 0];
+        frame.extend_from_slice(body);
+        let mut reader = FrameReader::new(frame);
+        assert!(matches!(
+            reader.try_take_packet().unwrap(),
+            Some(Packet::UnsupportedConnect5 {
+                reason_code: 0x81,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn mqtt5_vbi_property_length_is_strict_in_each_established_context() {
+        for (header, body) in [
+            (0x30, &b"\x00\x01a\x80\x00x"[..]),
+            (0x82, &b"\x00\x01\x80\x00\x00\x01a\x00"[..]),
+            (0xa2, &b"\x00\x01\x80\x00\x00\x01a"[..]),
+            (0x40, &b"\x00\x01\x00\x80\x00"[..]),
+            (0x50, &b"\x00\x01\x00\x80\x00"[..]),
+            (0x62, &b"\x00\x01\x00\x80\x00"[..]),
+            (0x70, &b"\x00\x01\x00\x80\x00"[..]),
+            (0xf0, &b"\x19\x80\x00"[..]),
+            (0xe0, &b"\x00\x80\x00"[..]),
+        ] {
+            assert!(
+                decode_for(header, body, true)
+                    .unwrap_err()
+                    .is::<MalformedPacketStructure>()
+            );
+        }
+    }
+
+    #[test]
+    fn mqtt5_vbi_initial_connect_and_will_property_lengths_never_accept() {
+        let body = b"\x00\x04MQTT\x05\x02\x00\x1e\x80\x00\x00\x01c";
+        assert!(decode(0x10, body).is_err());
+        let will = b"\x00\x04MQTT\x05\x06\x00\x1e\x00\x00\x01c\x80\x00\x00\x01w\x00\x00";
+        assert!(matches!(
+            decode(0x10, will),
+            Ok(Packet::UnsupportedConnect5 {
+                reason_code: 0x81,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn mqtt5_vbi_subscription_identifier_is_canonical() {
+        assert!(
+            decode_for(0x82, b"\x00\x01\x03\x0b\x81\x00\x00\x01a\x00", true)
+                .unwrap_err()
+                .is::<MalformedPacketStructure>()
+        );
+        assert!(matches!(
+            decode_for(0x82, b"\x00\x01\x02\x0b\x01\x00\x01a\x00", true),
+            Ok(Packet::Subscribe {
+                subscription_identifier: Some(1),
+                ..
+            })
+        ));
+    }
 
     #[test]
     fn mqtt5_outbound_topic_alias_vectors() {
