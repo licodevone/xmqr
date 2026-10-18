@@ -188,9 +188,44 @@ jobs:
             --legacy-broker "$GITHUB_WORKSPACE/integrations/legacy-broker/target/debug/mqtt-broker" \
             --legacy-client "$GITHUB_WORKSPACE/integrations/legacy-client/target/debug/mqtt-client" \
             --report "$GITHUB_WORKSPACE/.evidence/phase6.json"
+      - name: Require the complete finite JSON evidence set
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          required = [
+              'source-checkouts.json', 'build-provenance.json', 'phase6.json',
+              'phase6-vbi.json', 'phase6-alias-reason.json', 'phase6-crash.json',
+              'phase6-shared-will.json', 'phase6-control-progress.json',
+              'phase6-paho-alias.json', 'phase6-admin-v16.json',
+              'phase6-inbound.json', 'phase6-inbound-compat.json', 'phase6-inbound-migration.json',
+          ]
+          root = pathlib.Path(os.environ['GITHUB_WORKSPACE']) / '.evidence'
+          for name in required:
+              path = root / name
+              if not path.is_file() or path.is_symlink() or path.stat().st_size > 4 * 1024 * 1024:
+                  raise SystemExit('mandatory bounded evidence missing: ' + name)
+              with path.open() as stream:
+                  report = json.load(stream)
+              if name.startswith('phase6') and report.get('status') != 'PASS':
+                  raise SystemExit('mandatory evidence is not PASS: ' + name)
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: phase6-exact-peer-evidence
-          path: .evidence/*.json
-          if-no-files-found: warn
+          path: |
+            .evidence/source-checkouts.json
+            .evidence/build-provenance.json
+            .evidence/phase6.json
+            .evidence/phase6-vbi.json
+            .evidence/phase6-alias-reason.json
+            .evidence/phase6-crash.json
+            .evidence/phase6-shared-will.json
+            .evidence/phase6-control-progress.json
+            .evidence/phase6-paho-alias.json
+            .evidence/phase6-admin-v16.json
+            .evidence/phase6-inbound.json
+            .evidence/phase6-inbound-compat.json
+            .evidence/phase6-inbound-migration.json
+          include-hidden-files: true
+          if-no-files-found: error

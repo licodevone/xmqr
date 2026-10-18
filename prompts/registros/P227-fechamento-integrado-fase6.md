@@ -253,3 +253,22 @@ ownership, portanto P227v1.13 precedeu proteção de processoGit somente para
 seis caminhos exatos de checkout, semwildcard/global/host. Novo preflight
 registra revisões/statuslimpos antes de builds e artefatosJSON exclusivos.
 YAML/ASTtrêsblocos e contratos seispathsPASS; dispatch corrigido pendente.
+
+## Continuação P227 v1.14 — envio explícito de evidências ocultas
+
+O workflow tinha `path: .evidence/*.json` sem `include-hidden-files`:
+`upload-artifact@v4` ignorava o diretório oculto e podia terminar com
+`No files found` mesmo após gates funcionais. O prompt P227 v1.14 foi
+versionado antes da correção. O workflow agora exige 13 JSON finitos,
+presentes, não simbólicos, limitados a 4 MiB e parseáveis depois do PASS do
+coordenador; os relatórios de fase devem declarar `status=PASS`. O upload em
+`if: always()` enumera exatamente esses 13 caminhos, habilita arquivos
+ocultos e trata ausência de arquivo como erro. Uma falha anterior continua
+produzindo apenas a evidência parcial existente, sem alegar aceite.
+
+Validação local em Ubuntu 26.04/WSL: PyYAML 6.0.3 leu o YAML; AST do bloco
+Python e seleção exata 13/13, `include-hidden-files`, `always` e `error`
+PASS (`P227_WORKFLOW_STATIC_PASS`). `scripts/test_phase6_acceptance.py`:
+21/21 PASS. `actionlint` não está instalado nesta máquina: BLOCKED para esse
+gate local, sem instalação implícita. Dispatch remoto, download dos JSON e
+aceite integrado permanecem PENDING neste checkpoint.
