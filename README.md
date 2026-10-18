@@ -2,11 +2,11 @@
 
 Versões e pacotes atuais para Ubuntu 26.04/WSL: [guia de releases e instalação](docs/current-releases-wsl.md).
 
-O candidato experimental 0.37.0 reúne P203–P205: rejeição do tipo de controle
+A prerelease experimental 0.37.0 reúne P203–P205: rejeição do tipo de controle
 zero e de AUTH com flags inválidas; corrige a resposta MQTT 5 de PINGREQ e
-DISCONNECT inválidos para `0x81`. Estado durável v15 sem migração. A distribuição
-aguarda os gates do [prompt P206](prompts/broker/206-release-0.37.0.md) e terá
-limites na [nota candidata](docs/releases/0.37.0.md). Fases 6A–6D/7–9 abertas.
+DISCONNECT inválidos para `0x81`. Estado durável v15 sem migração. [Release](https://github.com/licodevone/xmqr/releases/tag/v0.37.0),
+[nota](docs/releases/0.37.0.md) e [registro P206](prompts/registros/P206-release-0.37.0.md).
+Fases 6A–6D/7–9 abertas.
 
 A prerelease experimental 0.36.0 reúne P199–P201: CONNECT estruturalmente
 inválido, flags reservadas de SUBSCRIBE/UNSUBSCRIBE/PUBREL e pacotes MQTT 5

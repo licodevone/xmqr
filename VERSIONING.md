@@ -1,14 +1,15 @@
 # Versionamento
 
-## P206 — broker/admin legado 0.37.0 candidato, estado v15
+## P206 — broker/admin legado 0.37.0 publicado, estado v15
 
 P203–P205 classificam tipo zero, AUTH com flags reservadas e corrigem P178
 para `0x81` em PINGREQ/DISCONNECT malformados. Sem migração; broker 0.36.0 e
 admin independente 0.10.0 leem v15. Client independente 0.30.0 permanece.
 Rollback exige backup privado; broker 0.28.0 ou anterior requer backup v14.
-Tag e prerelease aguardam CI da fonte exata, pacote Ubuntu 26.04, upgrade/
-rollback descartável, imagens numeradas e oito hashes remotos.
-[Nota candidata](docs/releases/0.37.0.md). Fases globais abertas.
+CI da fonte exata, pacote Ubuntu 26.04, upgrade/rollback descartável,
+imagens numeradas, tag e prerelease com oito hashes remotos passaram.
+[Nota](docs/releases/0.37.0.md) e [registro](prompts/registros/P206-release-0.37.0.md).
+Fases globais abertas.
 
 ## P202 — broker/admin legado 0.36.0 publicado, estado v15
 
