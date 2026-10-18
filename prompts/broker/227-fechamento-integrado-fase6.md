@@ -1,4 +1,4 @@
-# P227 v1.10 — concluir a fase 6 de MQTT 5
+# P227 v1.11 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -232,3 +232,16 @@ nem afeta seleção6A/6C/6D. Não obter binários implicitamente, construir esta
 antigo alterando versão sintética ou aceitar artefato mutável. Relatórios
 exclusivos por harness, sem logs/segredos; testar contratos de argumentos e
 prerequisitos. A21 e journal migration só recebem PASS após execução real.
+
+## Revisão1.11 — isolamento do executor após revisão independente
+
+Revisão identificou herança de P147_MOSQUITTO_PORT, opt-in antigo que faria
+uma fixture publicar/assinar em serviço externo. Remover esse seletor do
+ambiente dos filhos, preservando PATH/PYTHONPATH isolado e nunca consultar
+serviço do operador. Adicionar contrato sem rede para a sanitização.
+
+execute cria sessão privada, portanto KeyboardInterrupt após Popen não é
+propagado automaticamente aos descendentes. Proteger captura com limpeza
+em exceções BaseException, incluindo encerramento do grupo privado e pipes,
+antes de propagar interrupção. Testar com interrupção determinística e filho
+real próprio. Nenhum kill de serviço global ou processo não criado pelo gate.
