@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 0.35.0 — erros de sequência e formato MQTT 5 (experimental)
+
+- P194: um segundo CONNECT após CONNACK MQTT 5 recebe DISCONNECT `0x82` antes de trocar a sessão.
+- P195: texto UTF-8 malformado ou U+0000 após CONNACK recebe DISCONNECT `0x81` nos contextos decodificados.
+- P196: texto inválido no CONNECT/Will inicial MQTT 5 recebe CONNACK `0x81` antes de criar sessão ou Will, respeitando Maximum Packet Size.
+- P197: campos internos truncados, inteiro variável interno inválido e bytes extras em pacote fechado após CONNACK recebem DISCONNECT `0x81` sem aplicação parcial.
+
+O documento durável permanece v15, sem migração. Client independente 0.28.0 e admin independente 0.10.0 permanecem. As fases 6A–6D/7–9 e a matriz MQTT 5 global continuam abertas.
+
 ## 0.34.0 — diagnósticos MQTT 5 adicionais (experimental)
 
 - P183/P184: CONNECT/Will com propriedades inválidas recebe CONNACK `0x81`/`0x82` antes de criar sessão.

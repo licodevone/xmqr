@@ -2,6 +2,11 @@
 
 Versões e pacotes atuais para Ubuntu 26.04/WSL: [guia de releases e instalação](docs/current-releases-wsl.md).
 
+O candidato experimental 0.35.0 reúne P194–P197: segundo CONNECT,
+texto UTF-8 malformado antes e depois do CONNACK e comprimentos internos
+inválidos recebem os motivos MQTT 5 documentados. O estado durável permanece
+v15; a distribuição e a publicação estão em validação no [P198](prompts/broker/198-release-0.35.0.md).
+
 A prerelease experimental 0.34.0 reúne P183–P190: diagnósticos MQTT 5
 selecionados para propriedades inválidas, Packet Identifier zero e flags de
 PUBLISH impróprias, sem alterar o estado durável v15. Client independente

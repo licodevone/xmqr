@@ -1,5 +1,15 @@
 # Versionamento
 
+## P198 — candidato broker/admin legado 0.35.0, estado v15
+
+P194–P197 classificam segundo CONNECT, texto UTF-8 malformado antes/depois
+do CONNACK e estrutura interna inválida em quadros completos após CONNACK
+MQTT 5. Sem migração: broker 0.34.0 e admin independente 0.10.0 leem v15;
+client independente 0.28.0 permanece. Rollback exige backup privado; broker
+0.28.0 ou anterior requer backup v14 anterior à migração. Tag/prerelease
+somente após gates da fonte exata, pacote, imagens e hashes remotos verificados.
+[Nota candidata](docs/releases/0.35.0.md). Fases globais abertas.
+
 ## P192 — broker/admin legado 0.34.0 publicado, estado v15
 
 P183–P190 ampliam o diagnóstico MQTT 5 para propriedades, Packet Identifier
