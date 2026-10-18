@@ -112,3 +112,34 @@ negativos, bytes independentes e isolamento; não declararam segurança integral
 Sem push/tag/serviço do operador. Suíte/Clippy/release e aceite integrado ficam
 com o coordenador. Commit local de código/harness/registro:10d5081, autorizado;
 matriz/atualização deste registro serão commitadas separadamente.
+
+## P227 v1.8 — marcador final exclusivo do VBI
+
+Após revisão independente do executor, coordenador autorizou esta fatia sob
+P227v1.8 já preparado: adicionar somente `print('P227_VBI_PASS')` depois da
+guarda global que exige statusPASS. Nenhum vetor/oráculo, timeout, tipo de erro,
+cleanup ou fonte runtime mudou. Não rodado Cargo nem editados módulos Rust.
+O diff funcional do harness é uma linha, fora do caminho FAIL.
+
+Reexecutado no ELF D congelado `../.artifacts/p227-binaries/mqtt-broker-p227d-0.42.0`
+com versão real0.42.0 e SHA256dca22b2624b7f36175d4e939c640b6f5730220bcc9510580eef9054a6af8ef57:
+
+```sh
+python3 scripts/verify_phase6_vbi.py \
+  --broker ../.artifacts/p227-binaries/mqtt-broker-p227d-0.42.0 \
+  --label candidate --state-root /var/tmp \
+  --report ../.artifacts/p227a-vbi-marker-candidate-1.json
+```
+
+21/21PASS, exit0, cleanupPASS,9.227s observados; `P227_VBI_PASS` emitido
+somente no final. Harness novo SHA256:
+`c913d3b26638fb2ead23d56189f3ebc1551af5364c776be48118df5a2a1f6b91`.
+ASTPython/diff--check PASS. Report exclusivo acima, anteriores intactos.
+
+Os reports anteriores a este ajuste usavam helper/harnessSHA256
+`ccc8ecae90ccd18ecc98d27dc8876ad42453a2f2663576f853b6ff38f07fb064`
+(o baselineRED inicial de20vetores usava51a9355a, já discriminado). Importadores
+P227C/P227D terão helperSHA diferente ao repetir, sem mudança semântica;
+o coordenador repetirá os gates integrados. Este teste no ELF D/v15 não é
+aceite do futuro broker E/v16 ou client C129. Commit local somente deste
+registro e do script, sem push/tag/versão/serviço do operador.

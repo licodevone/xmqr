@@ -345,6 +345,7 @@ def main():
         stream.write('\n')
     if report['status'] != 'PASS':
         raise SystemExit(1)
+    print('P227_VBI_PASS', flush=True)
 
 
 if __name__ == '__main__':
