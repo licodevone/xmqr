@@ -1,4 +1,4 @@
-# P227E v2.2 — relógio lógico e expiração durável sem renovar TTL
+# P227E v2.3 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -281,3 +281,46 @@ Corrigir meus asserts para igualdade com Vec vazio. Autor original foi
 consultado para somente separadores 2_097_151/2_097_152/268_435_455,
 sem mudar valores, bytes de oráculo ou parser. Não mascarar diagnóstico
 nem aplicar lint allow global. Reexecutar Clippy e testes pós-Box.
+
+## Revisão v2.3 antes do RED de descarte e fix do baseline CONNECT
+
+Base funcional88906d63c4384961f7a9215945840905f3568b4d. Fulltest do coordenador
+encerrou exit1:263PASS/8FAIL/6ignored, compile75s/test66,69s; oito FAIL
+connect_contract_tests:306 eram commits1 em vez de0 após novo checkpoint
+obrigatório de startup. Não houve outros FAIL. Antes da conexão, capturar
+baseline real após startup e comparar exatamente commits depois da recusa,
+também status/sessões/retained. Não trocar0 por1, alterar vetores CONNACK ou
+aceitar qualquer commit adicional POR CONNECT recusado. Fonte/Cargo agora
+liberados pelo coordenador; runner/scripts dirty alheios ficam intocados.
+
+Review independente identificou TOCTOU: prepare_expiry retorna descarteR0,
+handler envia DiscardOutbound só com packetID; tick entre comandos pode podar
+Prepared, drenar backlog e reutilizarID; descarte velho apaga nova obrigação.
+Coordenador aprovou remoção de PreparedR0 DENTRO do mesmo comando do ator,
+com commit e dreno atômicos, e eliminação do segundo comando no handler.
+MayHaveSent continua não descartável por expiry. Uma barreira, sem quota nova.
+
+MPS também deve descartar condicionalmente a Delivery original: conferir
+geração, packetID, identidade imutável e metadata/conteúdo/stage antes de
+mutar. Ausência/substituição é NOOP sem WAL nem dreno da nova obrigação;
+geração antiga continua recusada. Acrescentar argumento de mensagem ao
+comando existente, sem canal/fila nova; clone segue limite4KiB atual.
+
+Para distinguir inclusive QoS1/2 sem expiry com payload/metadata idênticos,
+usar contador e campo JÁ presentes no v16 não publicado para TODAS as novas
+cópias QoS1/2; QoS0 continuaNone. Nome interno expiry_delivery_id passa a
+identificar obrigação geral de saída, não só expiring. Não adicionar campo,
+formato17, dependência ou quota. No register/replay, atribuir IDs ausentes
+legados no mesmo commit ANTES de expor Delivery; manter stage, packetID,
+MayHaveSent e ausência do intervalo original legado. Validação permite ID
+sem expiry, exige ID para Prepared e unicidade/counter coerentes. Expansão
+de documento continua sujeita a1MB, sem truncamento/elevação de limites.
+
+Preparar RED com assinatura/argumento somente transportados, ainda ignorados
+na remoção: R0 precisa remover/drenar imediatamente sem segundo comando;
+forçar reuso ID entre retorno/tick/descarte; MPS stale com/sem expiry e
+mensagem idêntica não pode remover novo record nem mudar commits/Live;
+legacy sem ID deve ganhar identidade antes de replay; WAL R0 falho não
+libera quota/token. Depois corrigir e repetir E/codec/store/router/connect
+e Clippy testes. Manter todos os RED/infraFAIL anteriores, registrar esta
+extensão e congelar novo checkpoint antes do fullgate do coordenador.
