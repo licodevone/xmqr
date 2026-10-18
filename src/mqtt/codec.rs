@@ -39,6 +39,10 @@ pub(super) struct MalformedRemainingLength;
 pub(super) struct FixedHeaderFlagsInvalid;
 
 #[derive(Debug, thiserror::Error)]
+#[error("second CONNECT on an established MQTT connection")]
+pub(super) struct SecondConnect;
+
+#[derive(Debug, thiserror::Error)]
 #[error("MQTT 5 subscription property is invalid for this packet")]
 pub(super) struct SubscriptionPropertyMalformed;
 
@@ -532,6 +536,10 @@ fn decode_for(
     mqtt5: bool,
 ) -> Result<Packet, Box<dyn std::error::Error + Send + Sync>> {
     let mut c = Cursor::new(body);
+    // MQTT-3.1.0-2: a second CONNECT is a protocol error regardless of body.
+    if mqtt5 && header == 0x10 {
+        return Err(SecondConnect.into());
+    }
     if mqtt5 && matches!(header >> 4, 12 | 14) && header & 0x0f != 0 {
         return Err(FixedHeaderFlagsInvalid.into());
     }
@@ -2784,6 +2792,27 @@ mod tests {
         for header in [0x32, 0x3a, 0x34, 0x3c] {
             assert!(decode_for(header, &qos_body, true).is_ok(), "{header:#x}");
         }
+    }
+
+    #[test]
+    fn mqtt5_second_connect_is_protocol_error_before_body_parsing() {
+        let initial = [0, 4, b'M', b'Q', b'T', b'T', 5, 2, 0, 30, 0, 0, 1, b'x'];
+        assert!(matches!(
+            decode_for(0x10, &initial, false),
+            Ok(Packet::Connect { mqtt5: true, .. })
+        ));
+        for body in [&initial[..], &[][..]] {
+            assert!(
+                decode_for(0x10, body, true)
+                    .unwrap_err()
+                    .is::<SecondConnect>()
+            );
+        }
+        let legacy = [0, 4, b'M', b'Q', b'T', b'T', 4, 2, 0, 30, 0, 1, b'x'];
+        assert!(matches!(
+            decode_for(0x10, &legacy, false),
+            Ok(Packet::Connect { mqtt5: false, .. })
+        ));
     }
 
     #[test]

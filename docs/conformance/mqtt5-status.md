@@ -123,6 +123,10 @@ P190 classifica as flags fixas inválidas de PUBLISH MQTT 5: QoS reservado 3
 recebe DISCONNECT `0x81`, e DUP ligado em QoS 0 recebe `0x82`. Os quadros são
 recusados antes de entrega/retained; Will e fechamento MQTT 3.1.1 são preservados.
 Demais combinações e a matriz global continuam pendentes.
+P194 trata um segundo CONNECT após CONNACK MQTT 5 como Protocol Error: tenta
+DISCONNECT `0x82` e fecha antes de ler o corpo, sem trocar sessão, identidade ou
+Will. O primeiro CONNECT continua normal; MQTT 3.1.1 fecha sem resposta MQTT 5.
+Outros erros de sequência e a matriz normativa global permanecem pendentes.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
