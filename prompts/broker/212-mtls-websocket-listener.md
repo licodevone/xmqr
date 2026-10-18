@@ -17,3 +17,5 @@ Revisão 3 após Clippy: a inclusão de `wss_bind` levou `Configuration::parse` 
 Revisão 4: Clippy recusou os nomes vizinhos `ws_bind` e `wss_bind` no mesmo escopo. Renomear as variáveis locais para deixar explícitos laboratório WS e WSS seguro, mantendo as chaves públicas existentes, e repetir o gate.
 
 Revisão 5 após o primeiro fio WSS: CONNECT e SUBACK chegaram, mas a fixture concedeu ACL `p212/#` e assinou literalmente `p212/allowed`; o broker exige autorização do filtro exato. Corrigir somente a regra da fixture, afirmar também o código de sucesso do SUBACK e repetir o teste. O timeout anterior é FAIL da fixture, não prova entrega.
+
+Revisão 6: o negativo de ACL recebeu PUBACK MQTT 5, mas a fixture procurou o reason code no último byte; o pacote inclui comprimento zero de propriedades depois dele. Verificar tipo e razão no deslocamento de protocolo, repetir os negativos e a rotação. A asserção anterior é FAIL da fixture.
