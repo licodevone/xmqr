@@ -1,4 +1,4 @@
-# P227E v2.0 — relógio lógico e expiração durável sem renovar TTL
+# P227E v2.1 — relógio lógico e expiração durável sem renovar TTL
 
 Preparado em18 de outubro de2026 antes de testes/fontes desta correção.
 Complementa P227, sem reabrir as correções aceitas P227C/P227D. Base de leitura:
@@ -260,3 +260,14 @@ nova alocação, sem alterar parser/framing/Box ou esconder outros avisos.
 Somente aplicar essa exceção após autorização. Adicionar controles unitários
 QoS2 Prepared vencido sem replay e MayHaveSent expirado que retoma PUBLISH,
 PUBREC/PUBREL, reinicia e completa PUBCOMP com o mesmo ID; escopo original.
+
+## Revisão v2.1 após decisão do coordenador sobre enum privado
+
+Não suprimir lint: coordenador autorizou avaliar Box apenas no Will opcional
+de Packet::Connect, enum privado. Inventário mostra uma construção no decode
+e um consumidor no handler; demais usos são padrões/testes com auto-deref.
+Mudar Option<StoredMessage> para Option<Box<StoredMessage>>, Box::new só em
+CONNECT com Will e unbox único antes do router. Não alocar por PUBLISH,
+alterar wire/framing, API pública, estado durável ou conteúdo do Will.
+Reexecutar parser/Will/expiry e Clippy. Os31 testes E, incluindo dois novos
+QoS2, passaram em19,89scompile/6,55stest antes deste ajuste de representação.
