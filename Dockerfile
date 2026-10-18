@@ -14,10 +14,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 \
     && rm -rf /var/lib/apt/lists/* \
     && python3 scripts/collect_notices.py --output /third-party-notices
-RUN cargo build --locked --release --bins
+RUN cargo build --locked --release --bins -j 1
 
 FROM debian:bookworm-slim AS runtime-base
-ARG VERSION=0.42.0
+ARG VERSION=0.43.0
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \

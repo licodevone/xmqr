@@ -1,5 +1,14 @@
 # Versionamento
 
+## P228 — candidato0.43.0, estado16, não publicado
+
+P227E migra documentos1–15 para16 na gravação, sem fabricar intervalo
+original legado. Novo contador de identidade cobre QoS1/2 e descarte seguro.
+Voltar ao broker15 exige backup15 anterior à migração. AdminA21/0.11.0 ainda
+em validação; client0.38.0 publicado separadamente. Fullsuite final, CI e
+distribuição broker/admin compatível permanecem pendentes; não confundir
+manifest candidato com tag/release. [Nota](docs/releases/0.43.0.md).
+
 ## P217 — broker/admin legado 0.42.0 publicado, estado v15
 
 P216 habilita `Origin` HTTPS exato por allowlist no WSS mTLS sem migração do
