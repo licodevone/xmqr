@@ -19,17 +19,21 @@ class AcceptanceContracts(unittest.TestCase):
         self.assertEqual(classify(1, "P227_TEST_PASS", "PASS"), ("FAIL", "nonzero_exit"))
 
     def test_specific_marker_is_not_a_substring(self):
-        self.assertEqual(classify(0, "NOT_P227_PASS", "P227_PASS"), ("FAIL", "success_marker_missing"))
+        self.assertEqual(classify(0, "NOT_P227_PASS", "P227_PASS"), ("FAIL", "negative_marker_present"))
+        self.assertEqual(classify(0, "OTHER_P227_PASS", "P227_PASS"), ("FAIL", "success_marker_missing"))
 
     def test_current_named_markers_pass(self):
-        self.assertEqual(classify(0, "P190_PUBLISH_FLAGS_PASS\n", "PASS"), ("PASS", None))
-        self.assertEqual(classify(0, "PASS: valid\n", "PASS"), ("PASS", None))
+        self.assertEqual(classify(0, "P190_PUBLISH_FLAGS_PASS\n", "P190_PUBLISH_FLAGS_PASS"), ("PASS", None))
+        self.assertEqual(classify(0, "PASS: valid\n", "PASS: valid"), ("PASS", None))
+        self.assertEqual(classify(0, "UNRELATED_PASS\n", "P190_PUBLISH_FLAGS_PASS"),
+                         ("FAIL", "success_marker_missing"))
 
     def test_timeout_is_not_success(self):
         self.assertEqual(classify(0, "PASS", "PASS", timed_out=True), ("FAIL", "timeout"))
 
     def test_negative_markers_cannot_be_success(self):
-        for marker in ("NOT_PASS", "FAIL", "P227_CASE_FAIL", "BLOCKED"):
+        for marker in ("NOT_PASS", "NOT_P227_PASS", "NOT_P190_PUBLISH_FLAGS_PASS",
+                       "FAIL", "FAILED", "P227_CASE_FAIL", "BLOCKED", "SKIPPED"):
             self.assertEqual(classify(0, marker + "\nP227_CASE_PASS", "PASS"),
                              ("FAIL", "negative_marker_present"))
 
@@ -53,6 +57,15 @@ class AcceptanceContracts(unittest.TestCase):
         self.assertNotIn("verify_mqtt5_shared_unavailable.py", {row["file"] for row in rows})
         self.assertEqual({row["phase"] for row in rows}, {"6A", "6B", "6C", "6D"})
         self.assertTrue(all(row["timeout_seconds"] <= 240 for row in rows))
+        self.assertTrue(all(row["expected_marker"] and row["expected_marker"] != "PASS" for row in rows))
+
+    def test_multiline_markers_require_every_line_in_order(self):
+        self.assertEqual(classify(0, "FIRST_PASS\n", ["FIRST_PASS", "LAST_PASS"]),
+                         ("FAIL", "success_marker_missing"))
+        self.assertEqual(classify(0, "LAST_PASS\nFIRST_PASS\n", ["FIRST_PASS", "LAST_PASS"]),
+                         ("FAIL", "success_marker_missing"))
+        self.assertEqual(classify(0, "FIRST_PASS\nLAST_PASS\n", ["FIRST_PASS", "LAST_PASS"]),
+                         ("PASS", None))
 
     def test_explicit_candidate_label_is_present_for_required_harnesses(self):
         rows = {row["file"]: row for row in fixtures(Path(__file__).resolve().parents[1])}
@@ -77,6 +90,31 @@ class AcceptanceContracts(unittest.TestCase):
                           "PASS", .05, Path(directory), dict(os.environ))
         self.assertEqual(row["status"], "FAIL")
         self.assertEqual(row["reason"], "timeout")
+
+    @unittest.skipUnless(os.name == "posix", "private process groups require Linux/WSL")
+    def test_negative_stderr_is_not_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            row = execute([sys.executable, "-c", "import sys; print('PASS'); print('BLOCKED',file=sys.stderr)"],
+                          "PASS", 3, Path(directory), dict(os.environ))
+        self.assertEqual(row["reason"], "negative_marker_present")
+
+    @unittest.skipUnless(os.name == "posix", "private process groups require Linux/WSL")
+    def test_success_cannot_leave_a_private_child_running(self):
+        with tempfile.TemporaryDirectory() as directory:
+            row = execute([sys.executable, "-c",
+                           "import subprocess,sys; subprocess.Popen([sys.executable,'-c','import time; time.sleep(10)']); print('PASS')"],
+                          "PASS", 3, Path(directory), dict(os.environ))
+        self.assertEqual(row["status"], "FAIL")
+        self.assertEqual(row["reason"], "private_descendants_remaining")
+        self.assertEqual(row["cleanup"], "REMAINING_GROUP_KILLED")
+
+    @unittest.skipUnless(os.name == "posix", "private process groups require Linux/WSL")
+    def test_output_is_bounded_without_temporary_log_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            row = execute([sys.executable, "-c", "import sys; sys.stdout.write('x'*1048576)"],
+                          "PASS", 3, Path(directory), dict(os.environ))
+        self.assertEqual(row["reason"], "output_budget_exceeded")
+        self.assertEqual(row["stdout_bytes"], 262145)
 
 
 if __name__ == "__main__":
