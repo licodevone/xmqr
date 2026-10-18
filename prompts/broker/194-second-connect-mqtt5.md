@@ -13,3 +13,5 @@ Invariantes: verificar a duplicação pela posição do pacote na conexão antes
 Compatibilidade/migração: somente diagnóstico de erro no wire MQTT 5; sem migração de estado ou alteração de configuração. Sem tag/release isolada enquanto a fase 6A global segue aberta.
 
 Aceite: unitários para segundo CONNECT válido e corpo malformado, CONNECT inicial válido e MQTT 3.1.1; TCP com motivo `0x82`, fechamento, Will original, nenhuma segunda sessão/Will/retained, e regressão P190. Gates no WSL: fmt, teste completo, Clippy, build release, licenças e distribuição; CI do commit exato. Registrar falhas reais e marcar apenas P194 após evidência.
+
+Revisão 2: o primeiro `fmt --check` detectou somente uma asserção a reformatar; depois de `cargo fmt`, o teste direcionado parou na compilação com `Cannot allocate memory` ao gravar o grafo incremental no WSL (7,8 GiB RAM, swap em uso). A repetição usará `CARGO_INCREMENTAL=0` e `RUSTFLAGS=-Cdebuginfo=0` com `-j 1`, sem alteração funcional; registrar separadamente o resultado. Se a pressão persistir, obter CI do commit exato e não promover teste local bloqueado a PASS.
