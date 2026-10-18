@@ -1,8 +1,9 @@
 # Histórico de versões
 
-## Não publicado — teste cruzado C116
+## Não publicado — P214 em validação e teste cruzado C116
 
-- Fixture do broker cobre o perfil WSS mTLS local do client após a release 0.33.0. Sem alteração de runtime ou estado do broker 0.40.0.
+- P214 introduz opt-in separado para bind WSS mTLS fora de loopback, mantendo política mTLS/ACL e recusa de `Origin`; acesso por navegador não está incluído.
+- Fixture do broker cobre o perfil WSS mTLS local do client após a release 0.33.0. P214 não muda o formato de estado v15.
 
 ## 0.40.0 — WSS mTLS local (experimental)
 

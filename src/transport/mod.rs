@@ -383,17 +383,22 @@ fn admission_capacity(limit: usize) -> io::Result<u32> {
 }
 
 impl SecureTransport {
-    /// Bind a loopback WSS endpoint with the same mTLS generation and admission pool.
+    /// Bind WSS with the same mTLS generation and admission pool.
     /// # Errors
-    /// Rejects a password-only transport, non-loopback/zero port, or socket failure.
+    /// Rejects a password-only transport, remote address without opt-in, zero port, or socket failure.
     pub async fn bind_websocket_secure(
         &self,
         address: SocketAddr,
+        remote_enabled: bool,
     ) -> io::Result<WebSocketSecureTransport> {
-        if !self.require_client_certificate || !address.ip().is_loopback() || address.port() == 0 {
+        if !self.require_client_certificate
+            || address.ip().is_loopback() == remote_enabled
+            || address.ip().is_multicast()
+            || address.port() == 0
+        {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "WSS requires secure-mtls and a loopback IP with nonzero port",
+                "WSS requires secure-mtls, nonzero port and explicit remote opt-in",
             ));
         }
         Ok(WebSocketSecureTransport {

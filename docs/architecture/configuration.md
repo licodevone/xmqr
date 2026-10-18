@@ -23,7 +23,8 @@ version = 1
 mode = "secure-mtls"
 bind = "0.0.0.0:8883"
 # additional_binds = ["127.0.0.1:8884"] # P96, apenas secure-mtls
-# wss_bind = "127.0.0.1:8084" # P212 em main, mTLS WSS local opt-in
+# wss_bind = "127.0.0.1:8084" # P212 distribuído na 0.40.0
+# wss_remote_enabled = true # P214 em desenvolvimento; somente com bind remoto explícito
 state_dir = "/var/lib/xmqr"
 # server_keep_alive_seconds = 60 # MQTT 5, teto opcional de Keep Alive
 
@@ -83,7 +84,7 @@ perfis rejeitam essa opção. TCP e WS compartilham a quota
 Handshakes com `Origin` são recusados neste recorte sem autenticação; uso por
 navegador exigirá uma política de origem própria.
 
-P212 em `main` acrescenta `MQTT_WSS_BIND=127.0.0.1:8084` ou
+P212 na release 0.40.0 acrescenta `MQTT_WSS_BIND=127.0.0.1:8084` ou
 `[broker].wss_bind` para WSS `/mqtt` no perfil `secure-mtls` com política
 compartilhada. A porta deve ser positiva, numérica, loopback e distinta de
 todos os listeners TCP. A configuração recusa políticas estáticas por endpoint
@@ -91,8 +92,12 @@ em conjunto com WSS nesta primeira fatia. O handshake exige certificado de
 cliente, subprotocolo `mqtt` e não aceita `Origin`; usuário/senha e ACL
 continuam obrigatórios no CONNECT. TCP/WSS compartilham
 `MQTT_MAX_CONNECTIONS`, geração TLS e rotação SIGUSR1. Sem valor, WSS fica
-desativado. Alterar o bind exige restart. O pacote 0.39.0 ainda não contém
-P212; acesso remoto e navegador não foram homologados.
+desativado. Alterar o bind exige restart. P214, em desenvolvimento após a
+tag 0.40.0, propõe `MQTT_WSS_REMOTE_ENABLED=true` ou
+`[broker].wss_remote_enabled=true` com endereço WSS não loopback. Sem essa
+autorização explícita, o bind remoto é recusado; a flag isolada também falha.
+O certificado servidor precisa cobrir o hostname/IP remoto usado pelo client.
+Abrir a porta depende ainda da rede e do firewall. Navegador não foi aceito.
 
 Configuração TOML imutável por processo; mudanças de bind exigem restart. SIGHUP
 continua reservado ao bundle de segurança. SIGUSR1 relê apenas os arquivos TLS

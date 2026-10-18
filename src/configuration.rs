@@ -15,6 +15,7 @@ const KEYS: &[&str] = &[
     "MQTT_BIND",
     "MQTT_WS_BIND",
     "MQTT_WSS_BIND",
+    "MQTT_WSS_REMOTE_ENABLED",
     "MQTT_STATE_DIR",
     "MQTT_SERVER_CERT",
     "MQTT_SERVER_KEY",
@@ -96,22 +97,22 @@ impl Configuration {
         }
         let mut result = Self::default();
         for (name, value) in [
+            ("MQTT_MAX_CONNECTIONS", document.limits.max_connections),
             ("MQTT_MAX_SESSIONS", document.limits.max_sessions),
             ("MQTT_MAX_RETAINED", document.limits.max_retained),
             ("MQTT_MAX_SUBSCRIPTIONS", document.limits.max_subscriptions),
             ("MQTT_MAX_OFFLINE", document.limits.max_offline),
             ("MQTT_MAX_INFLIGHT", document.limits.max_inflight),
+            (
+                "MQTT_SERVER_KEEP_ALIVE_SECONDS",
+                document.broker.server_keep_alive_seconds.map(usize::from),
+            ),
         ] {
             if let Some(value) = value {
                 result
                     .values
                     .insert(name.to_owned(), value.to_string().into());
             }
-        }
-        if let Some(value) = document.limits.max_connections {
-            result
-                .values
-                .insert("MQTT_MAX_CONNECTIONS".to_owned(), value.to_string().into());
         }
         insert_string_values(
             &mut result.values,
@@ -123,17 +124,16 @@ impl Configuration {
                 ("MQTT_MONITOR_BIND", document.monitor.bind),
             ],
         );
-        if let Some(value) = document.broker.server_keep_alive_seconds {
-            result.values.insert(
-                "MQTT_SERVER_KEEP_ALIVE_SECONDS".to_owned(),
-                value.to_string().into(),
-            );
-        }
-        if let Some(enabled) = document.monitor.enabled {
-            result
-                .values
-                .insert("MQTT_MONITOR_ENABLED".into(), enabled.to_string().into());
-        }
+        insert_bool_values(
+            &mut result.values,
+            [
+                (
+                    "MQTT_WSS_REMOTE_ENABLED",
+                    document.broker.wss_remote_enabled,
+                ),
+                ("MQTT_MONITOR_ENABLED", document.monitor.enabled),
+            ],
+        );
         for (name, value) in [
             ("MQTT_STATE_DIR", document.broker.state_dir),
             ("MQTT_SERVER_CERT", document.tls.server_cert),
@@ -348,6 +348,7 @@ struct Broker {
     bind: Option<String>,
     ws_bind: Option<String>,
     wss_bind: Option<String>,
+    wss_remote_enabled: Option<bool>,
     state_dir: Option<PathBuf>,
     server_keep_alive_seconds: Option<u16>,
     #[serde(default)]
@@ -418,12 +419,45 @@ fn insert_string_values<const N: usize>(
     }
 }
 
+fn insert_bool_values<const N: usize>(
+    values: &mut BTreeMap<String, OsString>,
+    entries: [(&'static str, Option<bool>); N],
+) {
+    for (name, value) in entries {
+        if let Some(value) = value {
+            values.insert(name.to_owned(), value.to_string().into());
+        }
+    }
+}
+
 fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn remote_wss_setting_is_boolean_and_overridable() {
+        let text = "version=1\n[broker]\nwss_bind='0.0.0.0:8443'\nwss_remote_enabled=true";
+        let config = Configuration::parse(text, Path::new(".")).unwrap();
+        assert_eq!(config.var("MQTT_WSS_BIND").unwrap(), "0.0.0.0:8443");
+        assert_eq!(config.var("MQTT_WSS_REMOTE_ENABLED").unwrap(), "true");
+        for invalid in ["'true'", "1", "'secret'"] {
+            assert!(
+                Configuration::parse(
+                    &format!("version=1\n[broker]\nwss_remote_enabled={invalid}"),
+                    Path::new(".")
+                )
+                .is_err()
+            );
+        }
+        let mut overridden = Configuration::parse(text, Path::new(".")).unwrap();
+        overridden
+            .values
+            .insert("MQTT_WSS_REMOTE_ENABLED".to_owned(), "false".into());
+        assert_eq!(overridden.var("MQTT_WSS_REMOTE_ENABLED").unwrap(), "false");
+    }
+
     #[test]
     fn server_keep_alive_is_optional_bounded_and_overridable() {
         assert_eq!(

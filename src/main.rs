@@ -138,16 +138,18 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     .await
 }
 
+type ListenerBinds = (
+    SocketAddr,
+    Vec<SocketAddr>,
+    Option<SocketAddr>,
+    Option<(SocketAddr, bool)>,
+);
+
 #[allow(clippy::too_many_lines)] // Keep each security profile's startup and stop boundary explicit.
 async fn serve(
     config: &Configuration,
     mode: BrokerMode,
-    bind_addresses: (
-        SocketAddr,
-        Vec<SocketAddr>,
-        Option<SocketAddr>,
-        Option<SocketAddr>,
-    ),
+    bind_addresses: ListenerBinds,
     state_directory: PathBuf,
     limits: (TransportLimits, mqtt::StateLimits),
     operational_configs: (MonitorConfig, Option<AdminChannelConfig>),
@@ -231,8 +233,12 @@ async fn serve(
             for address in additional_binds {
                 transports.push(transport.bind_additional(address).await?);
             }
-            let wss_transport = if let Some(address) = secure_websocket_bind {
-                Some(transport.bind_websocket_secure(address).await?)
+            let wss_transport = if let Some((address, remote_enabled)) = secure_websocket_bind {
+                Some(
+                    transport
+                        .bind_websocket_secure(address, remote_enabled)
+                        .await?,
+                )
             } else {
                 None
             };
@@ -446,10 +452,28 @@ fn parse_wss_bind(
     mode: BrokerMode,
     tcp_bind: SocketAddr,
     additional_binds: &[SocketAddr],
-) -> io::Result<Option<SocketAddr>> {
+) -> io::Result<Option<(SocketAddr, bool)>> {
+    let remote_setting = config.var("MQTT_WSS_REMOTE_ENABLED");
+    let remote_enabled = match remote_setting.as_ref() {
+        Ok(value) if value == "true" => true,
+        Ok(value) if value == "false" => false,
+        Ok(_) | Err(env::VarError::NotUnicode(_)) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid MQTT_WSS_REMOTE_ENABLED",
+            ));
+        }
+        Err(env::VarError::NotPresent) => false,
+    };
     let value = match config.var("MQTT_WSS_BIND") {
         Ok(value) => value,
-        Err(env::VarError::NotPresent) => return Ok(None),
+        Err(env::VarError::NotPresent) if remote_setting.is_err() => return Ok(None),
+        Err(env::VarError::NotPresent) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "MQTT_WSS_REMOTE_ENABLED requires MQTT_WSS_BIND",
+            ));
+        }
         Err(env::VarError::NotUnicode(_)) => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -460,18 +484,25 @@ fn parse_wss_bind(
     let address: SocketAddr = value
         .parse()
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid MQTT_WSS_BIND"))?;
+    let collision = |other: &SocketAddr| {
+        address.port() == other.port()
+            && (address.ip() == other.ip()
+                || address.ip().is_unspecified()
+                || other.ip().is_unspecified())
+    };
     if mode != BrokerMode::SecureMtls
-        || !address.ip().is_loopback()
+        || address.ip().is_loopback() == remote_enabled
+        || address.ip().is_multicast()
         || address.port() == 0
-        || address == tcp_bind
-        || additional_binds.contains(&address)
+        || collision(&tcp_bind)
+        || additional_binds.iter().any(collision)
     {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "MQTT_WSS_BIND requires secure-mtls and a distinct loopback port",
+            "MQTT_WSS_BIND requires secure-mtls, a distinct port and explicit remote opt-in",
         ));
     }
-    Ok(Some(address))
+    Ok(Some((address, remote_enabled)))
 }
 
 async fn shutdown_signal() -> io::Result<()> {

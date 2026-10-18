@@ -357,10 +357,19 @@ def main():
             {"MQTT_MODE": "open-lab"}, {"MQTT_WSS_BIND": f"0.0.0.0:{port}"},
             {"MQTT_WSS_BIND": f"127.0.0.1:{tcp_port}"},
             {"MQTT_WSS_BIND": "127.0.0.1:0"},
+            {"MQTT_WSS_REMOTE_ENABLED": "true"},
+            {"MQTT_WSS_REMOTE_ENABLED": "1"},
+            {"MQTT_WSS_BIND": f"0.0.0.0:{port}", "MQTT_WSS_REMOTE_ENABLED": "false"},
+            {"MQTT_WSS_BIND": f"0.0.0.0:{port}", "MQTT_WSS_REMOTE_ENABLED": "true",
+             "MQTT_MODE": "open-lab"},
         ):
             rejected = subprocess.run([str(broker_bin)], env=dict(environment, **override),
                                       capture_output=True, timeout=5)
             assert rejected.returncode != 0, override
+        no_remote_bind = dict(environment, MQTT_WSS_REMOTE_ENABLED="true")
+        no_remote_bind.pop("MQTT_WSS_BIND")
+        assert subprocess.run([str(broker_bin)], env=no_remote_bind,
+                              capture_output=True, timeout=5).returncode != 0
         log_path = root / "broker.log"
         with log_path.open("wb") as log:
             broker = subprocess.Popen([str(broker_bin)], env=environment,
@@ -398,9 +407,28 @@ def main():
                 if broker.poll() is None:
                     broker.kill()
                     broker.wait(timeout=8)
+        remote_env = dict(environment, MQTT_STATE_DIR=str(root / "remote-state"),
+                          MQTT_WSS_BIND=f"0.0.0.0:{port}",
+                          MQTT_WSS_REMOTE_ENABLED="true")
+        with log_path.open("ab") as log:
+            broker = subprocess.Popen([str(broker_bin)], env=remote_env,
+                                      stdout=log, stderr=log)
+            try:
+                try:
+                    wait_port(broker, port)
+                except AssertionError as error:
+                    raise AssertionError(log_path.read_text(errors="replace")[-1000:]) from error
+                check_mqtt(root, port, tcp_port, password)
+                broker.send_signal(signal.SIGTERM)
+                assert broker.wait(timeout=8) == 0
+            finally:
+                if broker.poll() is None:
+                    broker.kill()
+                    broker.wait(timeout=8)
     print("P212_WSS_MTLS_WIRE_PASS" +
           (" C114_CLIENT_CROSS_PASS" if args.client else "") +
-          (" C116_PROFILE_BROKER_PASS" if args.profile_client else ""))
+          (" C116_PROFILE_BROKER_PASS" if args.profile_client else "") +
+          " P214_REMOTE_OPT_IN_PASS")
 
 
 if __name__ == "__main__":

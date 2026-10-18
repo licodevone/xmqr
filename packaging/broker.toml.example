@@ -10,6 +10,8 @@ max_inflight = 32
 mode = "secure-mtls"
 bind = "0.0.0.0:8883"
 # Somente mode = "open-lab": ws_bind = "127.0.0.1:8083" (caminho /mqtt)
+# WSS local secure-mtls: wss_bind = "127.0.0.1:8084"
+# WSS remoto exige ambos: wss_bind = "0.0.0.0:8443" e wss_remote_enabled = true
 state_dir = "/var/lib/xmqr"
 # server_keep_alive_seconds = 60 # MQTT 5: teto opcional, 1..65535
 [tls]
