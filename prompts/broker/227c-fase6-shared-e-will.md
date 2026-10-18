@@ -1,4 +1,4 @@
-# P227C v1.1 — fairness por grupo compartilhado e expiração de Will no takeover
+# P227C v1.2 — fairness por grupo compartilhado e expiração de Will no takeover
 
 Preparado em 18 de outubro de 2026, antes de testes novos e correções.
 Complementa [P227](227-fechamento-integrado-fase6.md). Pedido autorizado:
@@ -106,3 +106,42 @@ associações/obrigações preservadas. Rustfmt apenas dos arquivos próprios;
 GREEN targeted só após coordenação da janela Cargo. A norma foi reconferida:
 Message Expiry do Will está em3.1.3.2.4, corrigindo a referência numérica
 inicial; não houve mudança do requisito ou do oráculo.
+
+## Revisão v1.2 — campanha blackbox antes de alterar o teste
+
+O fix local foi commitado em10bab601050cb547933d6702e4291fe184e86c8d,
+com6/6testes P227C,12/12shared e14/14Will PASS (filtros sobrepostos).
+Esse resultado ainda não prova o executável integrado. O coordenador
+autorizou somente o novo scripts/verify_phase6_shared_will.py e este
+prompt/registro; nenhum novo runtime, codec, CI, versão ou dependência.
+
+Preparar teste wire independente do encoder Rust, reutilizando apenas
+helpers raw/lifecycle de fixture existente inspecionada. CLI exige
+--broker e --report novos; --state-root default/var/tmp em filesystemLinux
+nativo e --label baseline/candidate. Copiar o ELF explícito para diretório
+privado, registrar SHA/versão do efetivamente executado e do harness,
+remover variáveis MQTT herdadas e ouvir apenas127.0.0.1 em portaefêmera.
+Não instalar, reiniciar WSL, tocar serviço/estado/segredos ou pathsalheios.
+
+Casos mínimos: dois grupos A/B independentes, dois membros cada, quatro
+publicações por grupo estritamente intercaladas e confirmação por PUBACK
+mais leituras delimitadas, cobrando uma cópia por publicação e equilíbrio
+2/2 por grupo. Will retido com Delay60/SessionExpiryinfinito e expiry0/1:
+takeover ativo CleanStart da mesma identidade, aguardar CONNACK e fechamento
+da geração anterior, verificar entrega imediata/ausência e retained antes/
+depois do prazo. Usar barreiras MQTT e deadlines monotônicos; não depender
+de sleep para ordenar disconnect/register. Espera real pelo expiry1 é
+necessária, delimitada e medida. Falhas de asserção devem ter mensagens
+estáticas; relatório JSON não inclui payloads, pacotes, logs ou credenciais.
+
+Executar RED em .artifacts/p227-binaries/mqtt-broker-baseline-0.41.0
+(versão real antiga explicitada), preservando as três falhas; executar
+GREEN somente após o coordenador fornecer o ELF integrado0.42.0 congelado.
+Não usar o baseline como prova do0.42, nem assumir GREEN pelo unitário.
+Cada cenário tem estado próprio para uma falha não contaminar os demais;
+cleanup de sockets/filho/diretório deve ser explícito e constar no JSON.
+Relatório exclusivo não sobrescreve FAIL. Falha ambiental é classificada,
+não mascara defeito ou vira PASS. Commit local somente dos arquivos próprios
+depois da validação e em janela de index combinada com o agente do codec;
+push/tag/publicação continuam fora desta tarefa. Avisar argumentos e marker
+ao coordenador para integrar o runner, sem editar seu arquivo.

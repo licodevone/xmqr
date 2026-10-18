@@ -100,3 +100,62 @@ global 6A–6D, publicação, teste de hardware, queda física de energia ou SLA
 MIT própria e licenças de terceiros preservadas. As skills locais
 `xmqr-rust-mqtt`, `xmqr-tests` e `xmqr-security-review` orientaram isolamento,
 tipos/limites e negativos; não substituem os gates pendentes.
+
+## Complemento v1.2 — RED/GREEN blackbox do executável
+
+Depois do commit runtime10bab60, o coordenador autorizou a campanha wire
+delimitada. O subprompt foi revisado para v1.2 antes de criar
+`scripts/verify_phase6_shared_will.py`; não houve alteração adicional no
+runtime. O script exige `--broker` e `--report` exclusivo, aceita
+`--state-root /var/tmp` e `--label baseline|candidate` (default candidate),
+e emite `P227_SHARED_WILL_PASS` somente se todos os casos/cleanup passarem.
+Reutiliza os helpers raw/lifecycle de `verify_phase6_vbi.py`, não o encoder
+Rust. Cópia privada do ELF, cada cenário com estado nativo Linux separado,
+porta efêmera loopback e ambiente MQTT limpo. Nenhum broker do operador.
+
+O cenário shared publica QoS1 com confirmação e recebe QoS0, alternando A/B
+quatro vezes com dois membros estáveis em cada grupo. Valida bytes, uma cópia
+por publicação, grupo correto e contagem2/2; barreiras PING e leituras
+delimitadas detectam entrega extra. O takeover é ativo, mesma identidade,
+Clean Start, Will Retain, Delay60 e SessionExpiryinfinito: CONNACK da geração
+nova e EOF da anterior substituem sleeps de ordenação. Expiry1 exige property
+na entrega viva/retained e ausência após1,4s medidos. Expiry0 não pode entregar
+nem deixar retained. Nenhuma espera longa ou restart é usado para provar esses
+contratos.
+
+Comandos executados na raiz do broker, via Python3 no WSL Ubuntu26:
+
+```text
+python3 scripts/verify_phase6_shared_will.py --broker ../.artifacts/p227-binaries/mqtt-broker-baseline-0.41.0 --report ../.artifacts/p227c-shared-will-baseline-1.json --label baseline
+python3 scripts/verify_phase6_shared_will.py --broker ../.artifacts/p227-binaries/mqtt-broker-integrated-0.42.0 --report ../.artifacts/p227c-shared-will-candidate-1.json --label candidate
+```
+
+RED: ELF real `mqtt-broker 0.41.0`, SHA256
+`674963f56ab2def9297847a94f5e2388003824eb6d67b75db27e4c7fbbd1709f`.
+Três FAIL de asserção em1,394s, exit1, cleanupPASS. Falhas: distribuição não2/2,
+pacote indevido antes do PINGRESP do observador expiry0, e ausência da
+propriedade de expiração do Will expiry1. Report preservado, sem sobrescrever.
+Esse binário antigo não é apresentado como execução de0.42.
+
+GREEN autorizado no ELF congelado integrado, real `mqtt-broker 0.42.0`, SHA256
+`46d79faf91220cdd59e43602c8f3528a2654463a6f71408c542a9c8638b4f809`.
+Três PASS em4,972s, exit0 e marker final presente, cleanupPASS em todos os
+cenários e remoção da raiz privada confirmada. Shared teve oito publicações
+e `[2,2,2,2]`; expiry0 não encaminhou/reteve; expiry1 encaminhou, forneceu
+retained antes do prazo e não depois. Filesystem reportado ext2/ext3 pelo
+stat Linux (disco nativo WSL), não /tmp tmpfs ou /mnt/d para o estado.
+
+Os dois relatórios identificam o MESMO harness SHA256
+`b5cea4f99cfd4a0612969ec5278d9523bc8258eeb7fd5b5ef318a21a8941c11e`
+e helper SHA256
+`ccc8ecae90ccd18ecc98d27dc8876ad42453a2f2663576f853b6ff38f07fb064`.
+Não houve ajuste do oráculo entre RED e GREEN. AST e `--help` PASS; tentativa
+de reutilizar o report RED foi recusada por argparse exit2 antes de iniciar
+processo. `git diff --check` PASS. Não foi compilado/recompilado Rust por este
+agente nesta etapa. Relatórios contêm apenas metadados/contagens/erros estáticos,
+não pacotes, payloads, logs, credenciais ou estado bruto.
+
+Este complemento encerra o wire local dos dois fixes, mas não promove os
+demais gates globais6A–6D, interop de biblioteca externa ou AUTH/TLS. O runner
+integrado e a distribuição continuam com a coordenação; testes finitos não
+comprovam produção, fairness após reinícios contínuos ou perda de energia.
