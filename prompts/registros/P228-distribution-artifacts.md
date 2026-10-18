@@ -263,3 +263,46 @@ apontam respectivamente os IIDs finais475b31c8.../673a062c... db472bc.
 Imagens antigas não foram apagadas e são recuperáveis pelos aliases acima.
 Sem push/retag remoto, latest ou tags antigas alteradas. Export a seguir será
 executado no checkout limpo EXATO db, não no merge da branch de evidências.
+
+## Export final preparado e verificado — publicação retida
+
+Checkout temporário LIMPO exato
+`db472bc64558bf0e376a902b7780a259247c5149` confirmado antes de executar
+`scripts/release_assets.py` original, sem patch/bypass de revisão. A branch
+própria e seus commits foram preservados e retomados depois. Destino novo:
+`dist/release-db472bc-20261018`, oito arquivos. Export não publica DockerHub
+nem cria tag/release GitHub; campo git_tag do manifesto é alvo planejado.
+
+| Arquivo principal | Bytes | SHA256 |
+| --- | ---: | --- |
+| xmqr-broker_0.43.0-1_amd64.deb | 2953782 | c2341ab3a341b1854e85ebb2f0bec9535968374b226a12a60cee58aa7cef3d4e |
+| xmqr-broker-0.43.0-linux-amd64.tar.gz | 35672117 | 76c2bbbb407cd49725f69ca5a8eb2c05ec8b21f14bd8662ee5abea6d5253c55c |
+| xmqr-admin-0.43.0-linux-amd64.tar.gz | 31897574 | 67d33c3f23d4a9d7b2a9a95e58e5ceddb863ad9a6ed5f45d304f207aee29aaf1 |
+
+Cada principal tem sidecarSHA256; manifesto e sidecar completam oito assets.
+Manifesto `xmqr-broker-0.43.0-release-manifest.json`, SHA256
+`499c409f3d3a0b8bcbdfd2de9bb6d6b97dd7869d17fe7d1aef780b3146cb1859`.
+Tamanhos/hashes de todos os principais/sidecars conferidos após export.
+As imagens referidas no manifesto são os IIDs finais db475b31c8... e
+673a062c..., não os candidatos1574 ou d6. Sem sobrescrever exports anteriores.
+
+Leitura integral dos dois gzip até EOF validou CRC,36.023.808/32.240.128bytes
+descomprimidos. Leitura interna TAR sem extrair no host confirmou única
+RepoTag correta, revisão db, versão043, user10001 e entrypoint de cada papel.
+ConfigSHA broker`16f7bb4e640b212053d73c178af252908cb423985528fef8707642d7b872a9cb`;
+admin`1d3c0bf25bd966de4bbed0757ce26ef9e9cf5a604dccebdc05c517adc6c6fd88`.
+Isso valida o conteúdo exportado, não apenas metadados da imagem local.
+
+Coordenador informou campanha local finalall8 PASS69/69 em198,043s, fontes
+exatas brokerdb/clientfca/admin4483 limpas e ELFs oficiais do pacoteCI db.
+Evidência coordenada `.artifacts/p227-acceptance-final-all-8.json`, SHA256
+`67a45f7bd68f56d47ebbb9b76654cb534d42e7cc19c636956ab35db4645a7f5e`.
+Este agente não apresenta essa campanha como execução própria. CI integrada
+remota ainda aguarda confirmação do coordenador; NENHUMA tagGit/Hub/release
+publicada por esta frente. Antes de eventual push, reconferir ausência remota
+de ambos os tags043 e não sobrescrever referência remota já existente.
+
+Preparação local de distribuição pronta. Nenhum build/processo de teste deste
+agente permanece ativo. MIT, terceiros, estado do operador, serviços e latest
+preservados. O aceite/publicação globais e documentação principal são do
+coordenador; não há declaração de produção ou conformidade integral por isso.
