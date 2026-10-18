@@ -1,4 +1,4 @@
-# P227 v1.4 — concluir a fase 6 de MQTT 5
+# P227 v1.5 — concluir a fase 6 de MQTT 5
 
 Preparado em 18 de outubro de 2026 antes das alterações. Pedido explícito:
 investigar por que a fase6 permanece parcial e finalizar as entregas e o
@@ -149,3 +149,23 @@ diretório src ao PYTHONPATH do subprocesso de teste, sem pip/install global,
 sem copiar a biblioteca para o runtime XMQR e sem executar setup/hooks.
 Isso transforma a dependência do teste em insumo isolado e rastreável;
 não permite alegar que o pacote passou antes de executar os cenários.
+
+## Revisão 1.5 antes de ampliar o executor integrado
+
+Integrar o harness P227C de fairness/Will ao registro de fixtures, com relatório
+exclusivo. Conferir versões dos cinco binários contra os manifests próprios,
+não apenas igualdade debug/release do client. Identificar o módulo Paho pelo
+arquivo e SHA/version usados, preservando seu licenciamento, sem instalar.
+Adicionar testes determinísticos para divergência manifest/binário e marker
+negativo; nunca aceitar NOT_PASS como evidência positiva. Incluir C129 após
+entrega do agente, sem tocar a distribuição C128 ainda em alteração alheia.
+
+Auditoria normativa confirmou alias numérico válido ainda não mapeado com
+TopicName vazio: §3.3.4 caso3a exige diagnóstico0x82, não0x94. P227D terá
+prompt próprio, RED antes da correção e enum distinto em codec/mod.rs;
+zero/excesso permanecem0x94. Não alterar mapeamento válido ou quotas. A
+matriz só promove esse requisito após repetir o wire na fonte corrigida.
+
+Pedido do mantenedor autoriza seguir às fases seguintes somente depois do
+aceite efetivo da fase6. Respeitar dependências e preparar prompts de cada
+fatia; fase7 já aceita em seu contrato, bridge/fase8 segue pendências reais.
