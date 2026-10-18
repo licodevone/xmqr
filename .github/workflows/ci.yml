@@ -48,6 +48,7 @@ jobs:
       - run: python3 scripts/verify_mqtt5_second_connect.py
       - run: python3 scripts/verify_mqtt5_malformed_utf8.py
       - run: python3 scripts/verify_mqtt5_connect_utf8_reason.py
+      - run: python3 scripts/verify_mqtt5_truncated_fields.py
       - run: python3 scripts/verify_shutdown.py --broker target/debug/mqtt-broker
 
   ubuntu-package:

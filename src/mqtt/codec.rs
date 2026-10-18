@@ -46,6 +46,10 @@ pub(super) struct SecondConnect;
 #[error("malformed MQTT UTF-8 text")]
 pub(super) struct MalformedUtf8;
 
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[error("malformed MQTT field structure")]
+pub(super) struct MalformedPacketStructure;
+
 #[derive(Debug, thiserror::Error)]
 #[error("MQTT 5 subscription property is invalid for this packet")]
 pub(super) struct SubscriptionPropertyMalformed;
@@ -327,15 +331,15 @@ impl<'a> Cursor<'a> {
     fn new(input: &'a [u8]) -> Self {
         Self { input, pos: 0 }
     }
-    fn byte(&mut self) -> Result<u8, &'static str> {
-        let value = *self.input.get(self.pos).ok_or("truncated MQTT field")?;
+    fn byte(&mut self) -> Result<u8, MalformedPacketStructure> {
+        let value = *self.input.get(self.pos).ok_or(MalformedPacketStructure)?;
         self.pos += 1;
         Ok(value)
     }
-    fn word(&mut self) -> Result<u16, &'static str> {
+    fn word(&mut self) -> Result<u16, MalformedPacketStructure> {
         Ok(u16::from_be_bytes([self.byte()?, self.byte()?]))
     }
-    fn variable_integer(&mut self) -> Result<usize, &'static str> {
+    fn variable_integer(&mut self) -> Result<usize, MalformedPacketStructure> {
         let mut value = 0_usize;
         let mut multiplier = 1_usize;
         for _ in 0..4 {
@@ -346,18 +350,18 @@ impl<'a> Cursor<'a> {
             }
             multiplier *= 128;
         }
-        Err("invalid MQTT variable integer")
+        Err(MalformedPacketStructure)
     }
-    fn bytes(&mut self, len: usize) -> Result<&'a [u8], &'static str> {
-        let end = self.pos.checked_add(len).ok_or("MQTT length overflow")?;
+    fn bytes(&mut self, len: usize) -> Result<&'a [u8], MalformedPacketStructure> {
+        let end = self.pos.checked_add(len).ok_or(MalformedPacketStructure)?;
         let out = self
             .input
             .get(self.pos..end)
-            .ok_or("truncated MQTT field")?;
+            .ok_or(MalformedPacketStructure)?;
         self.pos = end;
         Ok(out)
     }
-    fn binary(&mut self) -> Result<&'a [u8], &'static str> {
+    fn binary(&mut self) -> Result<&'a [u8], MalformedPacketStructure> {
         let len = usize::from(self.word()?);
         self.bytes(len)
     }
@@ -372,11 +376,11 @@ impl<'a> Cursor<'a> {
         }
         Ok(value.to_owned())
     }
-    fn end(&self) -> Result<(), &'static str> {
+    fn end(&self) -> Result<(), MalformedPacketStructure> {
         if self.pos == self.input.len() {
             Ok(())
         } else {
-            Err("trailing MQTT packet bytes")
+            Err(MalformedPacketStructure)
         }
     }
 }
@@ -408,7 +412,7 @@ fn rejected_connect_property(
 
 // Inspect only known CONNECT property boundaries. An opaque/invalid suffix is
 // not safe to search bytewise for 0x27: it might be text or binary data.
-fn mqtt5_connect_maximum_packet_size(raw: &[u8]) -> Result<Option<u32>, &'static str> {
+fn mqtt5_connect_maximum_packet_size(raw: &[u8]) -> Result<Option<u32>, MalformedPacketStructure> {
     let mut properties = Cursor::new(raw);
     let mut maximum = None;
     while properties.pos < raw.len() {
@@ -433,7 +437,7 @@ fn mqtt5_connect_maximum_packet_size(raw: &[u8]) -> Result<Option<u32>, &'static
                 properties.binary()?;
                 properties.binary()?;
             }
-            _ => return Err("unknown MQTT 5 CONNECT property boundary"),
+            _ => return Err(MalformedPacketStructure),
         }
     }
     Ok(maximum)
@@ -1068,7 +1072,7 @@ fn decode_for(
                 reason_code,
             }
         }
-        0xc0 if body.is_empty() => Packet::PingReq,
+        0xc0 => Packet::PingReq,
         0xf0 if mqtt5 => {
             if c.byte()? != 0x19 {
                 return Err("unsupported MQTT 5 AUTH reason code".into());
@@ -3021,6 +3025,39 @@ mod tests {
                 .unwrap_err()
                 .is::<MalformedUtf8>()
         );
+    }
+
+    #[test]
+    fn mqtt5_internal_structure_errors_are_typed_across_packet_kinds() {
+        for (header, body) in [
+            (0x30, &[0, 1, b'x', 2, 0x26][..]),
+            (0x82, &[0, 1, 0, 0, 2, b'x'][..]),
+            (0xa2, &[0, 1, 0, 0, 2, b'x'][..]),
+            (0xf0, &[0x19, 4, 0x15, 0, 2, b'P'][..]),
+            (0xe0, &[0, 0, 0][..]),
+            (0x40, &[0, 1, 0, 0, 0][..]),
+            (0x62, &[0, 1, 0, 3, 0x1f, 0][..]),
+            (0xc0, &[0][..]),
+            (0x82, &[0, 1, 0xff, 0xff, 0xff, 0xff][..]),
+        ] {
+            assert!(
+                decode_for(header, body, true)
+                    .unwrap_err()
+                    .is::<MalformedPacketStructure>(),
+                "header {header:#x}, body {body:?}"
+            );
+        }
+        assert!(
+            decode_for(0x30, &[0, 2, b'x'], false)
+                .unwrap_err()
+                .is::<MalformedPacketStructure>()
+        );
+        assert!(
+            decode_for(0x30, &[0, 1, 0xff, 0], true)
+                .unwrap_err()
+                .is::<MalformedUtf8>()
+        );
+        assert!(matches!(decode_for(0xc0, &[], true), Ok(Packet::PingReq)));
     }
 
     #[test]

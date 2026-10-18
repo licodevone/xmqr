@@ -141,6 +141,13 @@ inclusive depois do texto malformado: limite 4 fecha sem CONNACK, limite 5
 permite a resposta mínima. Um byte `0x27` dentro de texto não vira propriedade.
 MQTT 3.1.1 mantém fechamento sem CONNACK 5; truncamentos, propriedades de
 fronteira desconhecida e a matriz normativa completa ainda estão pendentes.
+P197 tipa falhas estruturais de campos internos em quadros completos recebidos
+após CONNACK MQTT 5 (comprimento além do corpo, inteiro variável interno
+inválido e bytes extras em formato fechado). O broker tenta DISCONNECT `0x81`
+e fecha antes de aplicar publicação, assinatura ou remoção; Will da conexão
+ativa continua devido. O Remaining Length externo continua no P177, e CONNECT
+inicial estruturalmente truncado permanece sem CONNACK classificado. MQTT 3.1.1
+fecha sem DISCONNECT MQTT 5; demais erros semânticos e a matriz global pendem.
 P122/C63 acrescentam o ciclo QoS2 PUBREC/PUBREL/PUBCOMP em publicação e
 assinatura MQTT 5. Uma recusa de ACL de publicação QoS2 retorna PUBREC `0x87`
 sem commit; o client aguarda PUBCOMP antes de relatar sucesso e exibe recusa
