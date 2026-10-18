@@ -179,3 +179,68 @@ SHArawacfd4bb82...; comparação canônica LF84381e55..., sem mudar termos.
 Nenhum Hub/tag/prerelease/export final produzido. Rerótulo final por build
 cacheado e pacoteCI da fonte final ainda dependem da coordenação e dos gates
 globais; estes resultados não são aceite irrestrito da fase6.
+
+## Repetição da fonte final db472bc — gates locais PASS
+
+PreparaçãoP228B1.5 commitada antes da integração. Branch própria integrou
+main`db472bc64558bf0e376a902b7780a259247c5149` em merge1cd7f208, preservando
+623aeca/23c216; nenhuma alteração no original/main. Diff do merge contra db
+contém somente os três arquivos P228B/harness/este registro. Inputs de build
+src/Cargo/Docker/collector/notices/LICENSE iguais ao db e ba6, comprovados por
+Git, não por número de versão ou argumento. AGENTS/skills não diferiram.
+
+[CI39164202189](https://github.com/licodevone/xmqr/actions/runs/39164202189)
+consultada pela API: completed/success, head_sha exatamente db472bc.
+Artefato12150137120, `xmqr-broker-ubuntu26-amd64`, não expirado, baixado para
+`dist/ci-db472bc-39164202189`. Pacote OFICIAL2.953.782bytes, SHA256 recalculado
+e igual ao sidecar:
+`c2341ab3a341b1854e85ebb2f0bec9535968374b226a12a60cee58aa7cef3d4e`.
+DigestZIPb5c2ba3f... foi informado pela API, não recalculado aqui; não confundir
+com SHA do .deb. Uma consulta inicial `gh run view --json artifacts` recusou
+campo não suportado; consultas separadas de run/artifacts retornaram os dados.
+Isso foi falha de consulta, não de pacote/CI. ELFs extraídos sem instalação,
+versões0.43.0 PASS: broker1ee611b0.../admin3081297f... iguais aos hashes completos
+já registrados; bytes Ubuntu nativos conferidos novamente.
+
+Lifecycle REAL repetido desde instalação042 em novo container próprio com
+o pacote CI db, não apenas mudança de flag: PASS27,3274s/5etapas completas.
+Report `dist/qa-reports/p228-lifecycle-final-db472bc-1.json`, SHA256
+`f77015aadf65e3ec4388786b3d37cfd6a698e8546de2bb6dc2904ce2276485ad`.
+Retained/offline/documento15 e backup real privados, upgrade/replay16,
+negativo042/CÓPIA16 exit1/schema sem mutação, downgrade sem converter16,
+restore15 em destino NOVO com marcador original separado e negativo de perfil,
+replay042 e remove/purge preservando dados/secret/conta PASS. Snapshot16 desta
+execuçãoSHA`45aa71a1eb80161b7bee8efc092bba685d69df3d2ac4a03c2109b5744f09291c`;
+snapshot15/WAL iguais ao ciclo anterior. FAIL1/2 anteriores preservados.
+
+Imagens finais LOCAIS, VCS_REF db472bc, rebuild com etapa Cargo CACHED:
+
+- `xmqr-p228-broker:0.43.0-db472bc`, IID
+  `sha256:475b31c8258d853ae011cd46431b180556d19ce319db45b73923252c1f9c061b`;
+- `xmqr-p228-admin:0.43.0-db472bc`, IID
+  `sha256:673a062c7fd6ccaeedc34afb9ad1748f90fc7fba9367458ca49a642da649fafc`.
+
+`validate_image` original confirmou revisão/user/sinal/entrypoint/arquitetura.
+Hashes Bookworm medidos novamente: brokera122cc27.../admin36068a35..., idênticos
+aos candidatos, sem usar esses ELFs no .debUbuntu. QA final mTLS TCP/WSS,
+MQTT3.1.1/5, perfil, retained/restart e CA/SAN/password/ACL/opt-in negativos
+PASS com client038 por digest imutável. Report
+`dist/qa-reports/p228-docker-mtls-wss-final-db472bc-1.json`, SHA256
+`d152acf9ee6b5b9741ba99a0a725379283cf7c762cb81a805c2dfadb1f1d0f0c`.
+Imagem legacyadmin dedicada/UID10001/sem broker, lock ativo recusado,
+backup/verify/restore e destino existente recusado PASS. Report
+`dist/qa-reports/p228-admin-image-final-db472bc-1.json`, SHA256
+`7c0679a98886857ff31f345d165f1c8c0e2ed0b703577ab4ef903f53a86d3c0c`.
+
+Notices repetidos nos TRÊS artefatos finais (.deb oficial e ambas imagens):
+PASS166pacotes/323textos/1.728.802bytes originais; manifesto igual à coleta
+locked independente (inputs do coletor/Cargo/suplementos sem diferenças).
+MIT própria preservada, terceiros estritamente byte a byte. Testes leves
+repetidos: harness5/5, distribuição6/6, noticesnegativos14/14 PASS.
+
+Export final pendente nesta atualização: aliases DockerLOCAIS numerados043
+existentes apontam candidatos fonte1574ab9, não foram sobrescritos. Coordenador
+foi informado para confirmar ownership e preservação antes da troca local;
+alternativa seria exportar pelos refs próprios. Nenhum Hubpush/tagGit/release.
+CI integrada39164217059 ainda aguarda confirmação do coordenador. O preparo
+local não é aprovação da fase6 nem autorização para publicar.
