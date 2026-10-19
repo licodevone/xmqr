@@ -1,8 +1,10 @@
 # Auditoria normativa MQTT 5 — P231
 
-Estado: **iniciada, não concluída**. Não é certificado nem declaração de
-conformidade. O [aceite experimental da fase 6](../phase6-acceptance.md)
-continua válido em seu recorte; esta auditoria tem escopo diferente.
+Estado atual: **auditoria P232 concluída com achados**, conforme o
+[parecer final](mqtt5-audit-final.md). Conformidade integral não demonstrada.
+Este arquivo preserva o inventário/triagem inicial P231; não é certificado.
+O [aceite experimental da fase 6](../phase6-acceptance.md) continua válido no
+seu recorte, distinto da auditoria normativa.
 
 ## Base reproduzível
 
@@ -44,7 +46,9 @@ e painel têm contratos próprios; seu teste não substitui conformance do wire.
 Cada entrada começa `broker=UNREVIEWED`, `client=UNREVIEWED`. Estes estados
 significam que **este inventário ainda não julgou a regra**, não que o produto
 não a implemente. O JSON é gerado e não deve ser editado para inserir PASS.
-O registro semântico posterior deve conter, por papel:
+Os ledgers semânticos separados P232, ligados no parecer final, classificam
+todos os IDs; não confundir o template mecânico com revisão ainda aberta.
+O contrato de registro por papel é:
 
 1. Requisito/§, incluindo cláusulas não numeradas, força MUST/SHOULD/MAY,
    condições e justificativa de aplicabilidade ou não aplicabilidade.
@@ -105,17 +109,17 @@ A CI `MQTT5 inventory contracts (not protocol conformance)` roda contratos
 sintéticos e consistência interna do catálogo. Ela não baixa a fonte nem
 substitui a comparação `--check` com o HTML oficial observado.
 
-## Gestão de modelos e próximo recorte
+## Gestão de modelos e histórico da continuação
 
 Nesta fatia Luna/high localizou evidências e Sol/high revisou a interpretação
 normativa. O coordenador integrou as conclusões. A seleção foi feita na criação
 dos subagentes, não por troca do modelo principal ou configuração global.
 
-Próximo recorte: revisar semanticamente por papel os capítulos 1/2 e as regras
-não numeradas associadas, vinculando vetores independentes e evidência de
-execução. Depois seguir os estados de sessão, QoS, expiração e autenticação.
-Não iniciar todas essas correções de uma vez nem inferir certificação a partir
-do catálogo, do número de agentes ou dos 69 cenários anteriores.
+O recorte proposto originalmente (capítulos1/2, regras não numeradas e depois
+sessão/QoS/AUTH) foi executado com as demais seções em P232. O parecer final
+separa cinco desvios obrigatórios do client, recomendações de recepção,
+lacunas de evidência e suporte por inspeção. A continuidade é corrigir e
+validar os achados por prompts próprios, não recontar IDs como certificado.
 
 Prompt e resultados reais: [P231](../../prompts/broker/231-auditoria-normativa-mqtt5.md)
 e [registro](../../prompts/registros/P231-auditoria-normativa-mqtt5.md).

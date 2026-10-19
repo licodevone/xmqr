@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "audit": "P232",
+  "date_local": "2026-10-18",
+  "timezone": "America/Sao_Paulo",
+  "audit_result": "COMPLETED_WITH_FINDINGS",
+  "global_compliance": "NOT_DEMONSTRATED",
+  "ledger_accounting": {
+    "numbered_ids": 252,
+    "role_classifications": 504,
+    "unnumbered_reviews": 37,
+    "overlapping_finding_records": 20,
+    "broker": {"SUPPORTED_BY_INSPECTION": 220, "EVIDENCE_GAP": 2, "DEVIATION": 0, "NOT_APPLICABLE": 30},
+    "client": {"SUPPORTED_BY_INSPECTION": 115, "EVIDENCE_GAP": 18, "DEVIATION": 5, "NOT_APPLICABLE": 114},
+    "ledger_sha256": {
+      "mqtt5-audit-connect-auth.json": "5a56e4ce726a4cbab8a9824a658cb70994134b28c0a2c32f99776b91b486a423",
+      "mqtt5-audit-publish-subscribe.json": "a297c9344de82e1b26c58640330f4f6a78bc05217edfff96e17d4df75edcfebc",
+      "mqtt5-audit-session-flows.json": "24a961835533b88255898d5d0c3684ebc1373d1a86135e417dc2f9d70b2b7e15",
+      "mqtt5-audit-framing-transport.json": "b0b0954cafb5ae90cf6633572534b435011cfef35ebcd94361913e0c7fc760d0"
+    }
+  },
+  "official_source_sha256": "41116bcf54bc9b9ee72a425406293efda60fb40741e7d1512b87f51a46fa499c",
+  "snapshots": {
+    "broker_audited": "4bfac0722074c7a1f704f335d2d1b558e68e3d6b",
+    "broker_tested_package_source": "db472bc64558bf0e376a902b7780a259247c5149",
+    "broker_runtime_diff_paths": ["src", "Cargo.toml", "Cargo.lock", "Dockerfile"],
+    "broker_runtime_diff_empty": true,
+    "broker_elf_sha256": "1ee611b082b5e8cb14bf881996ce314c391573353cf8971232728cb54a243207",
+    "client_audited": "e03c5a46cfb33666896eb710892cf46e3c40ee38",
+    "client_tested_package_source": "1d60d382782ec33ed876b8b43d1c87503df7ef86",
+    "client_version": "0.41.0",
+    "client_deb_sha256": "ca68df0788d62ec2d63701eea07e63a168f4cdc26b0bbd10142dc163f686e6a7",
+    "client_elf_sha256": "b9f2fa67c4c4d7263966097cd048627929b59d161b436d1b23e6005edac872f0",
+    "client_cli_vendor_manifest_diff_empty": true,
+    "client_excluded_changes": ["src/bin/mqtt-bridge.rs", "src/bridge_journal.rs"],
+    "admin_context_only": "0796d3b4d93ae6815fe2458132f1f8bf0c5c48e4",
+    "limitations": "CLI source equality is not a claim that the entire current bridge equals the published bridge"
+  },
+  "current_wire_reports": [
+    {"file": "p232-client-wire-6.json", "sha256": "b24567a60f8d6c5025494683e226d43a9a03c1942899703e828d7faa623ffc65", "scenarios": 12, "PASS": 3, "FAIL": 9, "BLOCKED": 0, "binary_unchanged": true, "elapsed_seconds": 1.153},
+    {"file": "p232-broker-vbi-1.json", "sha256": "6f8e29b4b65b6ef0591c765e28820c0df2eecb3b166aaa3d895ee4b5c8a64cdc", "scenarios": 21, "status": "PASS"},
+    {"file": "p232-broker-alias-1.json", "sha256": "ce5c55b55280d93a55f07ea010ccfd465c3d268d0122a433769866e5825c0641", "scenarios": 9, "status": "PASS"},
+    {"file": "p232-broker-closes-2.json", "sha256": "c6fb41f44f7d5dad341b4b2ffd7989d8ccda78e8c98867edb2ba51b3364ecc67", "scenarios": 3, "mandatory_close": "PASS", "diagnostic_packets": 0, "cleanup": "PASS", "binary_unchanged": true}
+  ],
+  "client_final_scenarios": [
+    {"name": "canonical_pub_qos1", "status": "PASS", "category": "POSITIVE_CONTROL"},
+    {"name": "canonical_sub", "status": "PASS", "category": "POSITIVE_CONTROL", "displayed_expected_topic_and_payload": true},
+    {"name": "malformed_utf8_topic", "status": "PASS", "category": "RECEIVE_RECOMMENDATION", "displayed_rows": 0},
+    {"name": "maximum_qos_zero", "status": "FAIL", "category": "MANDATORY_CLIENT_BEHAVIOR", "requirement": "MQTT-3.2.2-11"},
+    {"name": "retain_unavailable", "status": "FAIL", "category": "MANDATORY_CLIENT_BEHAVIOR", "requirement": "MQTT-3.2.2-14"},
+    {"name": "resume_without_local_session_state", "status": "FAIL", "category": "MANDATORY_CLIENT_BEHAVIOR", "requirement": "MQTT-3.2.2-4"},
+    {"name": "qos2_repeated_pubrel", "status": "FAIL", "category": "MANDATORY_CLIENT_BEHAVIOR", "requirement": "MQTT-4.3.3-11", "canonical_qos2_cycle": "PASS"},
+    {"name": "qos2_duplicate_delivery", "status": "FAIL", "category": "MANDATORY_CLIENT_BEHAVIOR", "requirement": "MQTT-4.3.3-10", "displayed_same_transaction": 2},
+    {"name": "nul_topic", "status": "FAIL", "category": "RECEIVE_RECOMMENDATION", "displayed_rows": 1, "displayed_expected_topic_and_payload": true},
+    {"name": "nul_user_property", "status": "FAIL", "category": "RECEIVE_RECOMMENDATION"},
+    {"name": "nonminimal_connack_vbi", "status": "FAIL", "category": "RECEIVE_RECOMMENDATION"},
+    {"name": "reserved_puback_flags", "status": "FAIL", "category": "RECEIVE_RECOMMENDATION"}
+  ],
+  "preserved_earlier_reports": [
+    {"file": "p232-client-wire-1.json", "sha256": "9f28e9676463a440ef4a268d5916d2c8841f6a493df3b73df35c4867efc7200e", "limitation": "SUBACK harness bug invalidated subscriber control and receiving-string conclusions in this run"},
+    {"file": "p232-client-wire-2.json", "sha256": "657c3d8abc39d4403736a574d2a794edbb9a3e76feb6eff5f0b271b5d700df4f", "PASS": 3, "FAIL": 7},
+    {"file": "p232-client-wire-3.json", "sha256": "fe92eb80929c6616c0b712ada6840de367e1961c3933475dd5f3d01e59e8396f", "PASS": 3, "FAIL": 8},
+    {"file": "p232-client-wire-4.json", "sha256": "37507488cc4dc1b2a0c6b30903b8d4dc982f8fc80684a5f1679460bb22cdf3d8", "PASS": 3, "FAIL": 8},
+    {"file": "p232-client-wire-5.json", "sha256": "677c7b7a05d8b7c01ba035c06027fc3e43e089ceb7b626ad199582d16dd2a9d5", "PASS": 3, "FAIL": 9},
+    {"file": "p232-broker-closes-1.json", "sha256": "6705ff5785be75647515c2991eb21bc7e2feb0a664642fbd677d204e31d70568", "mandatory_close": "3/3PASS"}
+  ],
+  "historical_integrated_evidence": {
+    "run": "https://github.com/licodevone/xmqr/actions/runs/39164217059",
+    "broker": "db472bc64558bf0e376a902b7780a259247c5149",
+    "client": "501cde2ffbae6985f033ed8be60d9ad6dd8c18c4",
+    "admin": "4483a356196db93f99340bc7aa3b3cabfc4af810",
+    "report_sha256": "fe2757b81cda6f77a98713e9944bcae2500c7eaaab5bbf4074de34b3ff4f1ec5",
+    "fixtures": 69,
+    "status": "PASS",
+    "interpretation": "Historical finite acceptance only; not current peer execution or exhaustive normative proof"
+  },
+  "limitations": [
+    "Raw reports remain local outside Git under .artifacts; this file is a redacted summary with hashes, not a signature or independent attestation",
+    "No TLS, hardware, power-loss, native Windows runtime or long-duration claim follows from these loopback probes",
+    "Numbered classifications and section reviews are static judgments, not percentages of passing requirements",
+    "Five mandatory-client probes fail; four receiving recommendations fail; these categories must not be conflated",
+    "No runtime fixes, version increments or new distribution artifacts were made during the audit"
+  ]
+}

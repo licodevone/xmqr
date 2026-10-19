@@ -1,6 +1,6 @@
 # P232 — concluir auditoria MQTT 5, sem confundir relatório com conformidade
 
-ID/versão: P232 v1.0. Data: 2026-10-18.
+ID/versão: P232 v1.8. Data: 2026-10-18.
 
 ## Pedido, entrada e escopo
 
@@ -59,6 +59,55 @@ Achados: `id` próprio, `severity`, `summary`, `clauses`, `code`, `status`,
 `next_action`; static/probe/histórico sempre discriminados no texto.
 
 ## Validação e conclusão honesta
+
+Primeiro probe `p232-client-wire-1.json`: 3PASS/7FAIL, mas controle sub válido
+falhou por erro do harness: SUBACK concedeu QoS2 ao pedido QoS0. Os dois
+negativos de string não comprovam rejeição do conteúdo nessa execução.
+Preservar relatório, corrigir SUBACK para QoS efetivamente solicitado e repetir
+em novo relatório antes de usar esses resultados como evidência do client.
+Segunda execução: controles pub/sub e rejeição UTF-8 malformado PASS; sete
+desvios do client confirmados no recorte. Acrescentar probe de retransmissão
+QoS2 com mesmo PID antes de PUBREL e comparar mensagens JSONL efetivamente
+exibidas. Repetir controles e negativos em relatórios exclusivos; não corrigir
+o runtime para transformar a auditoria em aprovação. Rerodar também os gates
+broker VBI/alias existentes no ELF publicado confirmado, com estado nativo.
+Validador inicial: 9 contratos sintéticos PASS, mas ledger real FAIL em
+MQTT-3.3.1-3/client por applicability/status N/A incompatíveis. Revisar o
+julgamento da linha e outros pares equivalentes, sem afrouxar a validação;
+preservar resultado inicial e repetir. Novo probe QoS2 observou duas saídas
+para a mesma transação antes de PUBREL; registrar como desvio, não corrigir
+o produto nesta auditoria.
+Revisão independente Astra exige duas correções de julgamento: ausência de
+0x8E no takeover não prova violação de MUST (fechamento obrigatório passou);
+manter observação/diagnóstico sem desvio obrigatório. Perigos genéricos de
+reconexão rumqttc (DUP, alias, pending quota/controle) sem caminho atingível
+demonstrado no binário CLI são EVIDENCE_GAP/dependency-only, não DEVIATION do
+produto. Reconciliar linhas e achados sem apagar a análise da dependência.
+Revisão Luna recomenda observar JSONL nos probes de tópico e explicitar que
+validador de accounting não autentica evidências externas. Fortalecer contratos
+de tipos/chaves e saída, preservar relatórios antigos e repetir em novo arquivo.
+Outra correção Astra: MQTT-4.13.1-2 não existe na fonte; citar §4.13.1 sem ID
+no parágrafo do Client. Pacote malformado enviado pelo servidor falso não
+prova emissão inválida pelo client. Em §4.13 a resposta do Client é SHOULD,
+não o MUST de fechamento do Server. Separar achados de validação recomendada
+dos desvios obrigatórios de capacidades/QoS2; não somar oito probes FAIL como
+oito violações MUST. Linhas de formato do emissor sem comprovação de emissão
+inválida devem manter evidência insuficiente ou suporte estático justificado,
+com os probes de recepção explicitamente em categoria separada.
+Revisão final Astra: parecer delimitado coerente, sem bloqueio material.
+Corrigir comentário "Legitimate duplicate": o vetor é duplicata sintética
+para exercer a obrigação do receptor4.3.3-10, não licença para retransmissão
+arbitrária do emissor na mesma conexão. Repetir relatório exclusivo6 para
+fixar o hash do harness final; nenhuma mudança de oráculo ou runtime.
+Gate staged final detectou linha em branco extra no EOF do ledger de
+publicações (antes não rastreado no diff de worktree). Normalizar apenas EOF,
+atualizar hash desse ledger e repetir staged diff --check; conteúdo semântico
+e resultados de protocolo permanecem, falha de whitespace registrada.
+Completar a prova de3.2.2-4 com nova invocação comum sem outbox/manifesto local,
+Clean Start=false e CONNACK Session Present=1. Observar se a CLI encerra ou
+publica; controle canônico permanece. Relatório exclusivo5, sem substituir
+as execuções1–4. Classificar os probes em controle, MUST do Client ou
+recomendação de recepção, sem afirmar que todo FAIL corresponde a MUST.
 
 Ler norma oficial e código, não só documentação ou nomes de testes. Para cada
 ID, dar aplicabilidade justificada ou desvio/evidência insuficiente explícitos.

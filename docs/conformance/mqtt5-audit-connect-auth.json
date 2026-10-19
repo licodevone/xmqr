@@ -1,0 +1,2590 @@
+{
+  "schema_version": 1,
+  "part": "connect-auth",
+  "broker_commit": "4bfac0722074c7a1f704f335d2d1b558e68e3d6b",
+  "client_commit": "e03c5a46cfb33666896eb710892cf46e3c40ee38",
+  "requirements": [
+    {
+      "id": "MQTT-3.1.0-1",
+      "summary": "Send CONNECT as the first MQTT packet.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt requires the first decoded packet to be Connect.",
+        "code": [
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: mqtt_connect writes and flushes Connect before its first network read.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.0-2",
+      "summary": "Reject a second CONNECT and close its connection.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner raises SecondConnect before inspecting its body; serve_mqtt maps it to protocol error and returns through connection shutdown.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: mqtt_connect is used once per newly opened network; requests expose no second CONNECT path.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+        ],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-1",
+      "summary": "Use MQTT as protocol name; close refused connections, optionally signalling version refusal.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner compares the protocol string with MQTT; rejection returns through serve_connection shutdown.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Connect::write emits the literal MQTT protocol string.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-2",
+      "summary": "Close unsupported protocol versions, with an optional version refusal.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner accepts levels 4/5; unsupported-level path writes legacy refusal then returns to shutdown. The optional MQTT5 refusal is not claimed.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Connect::write uses protocol level 5 for this v5 client.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-3",
+      "summary": "Validate the reserved CONNECT flag as zero.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner rejects flags bit zero before registration.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Connect::write starts flags at zero and adds only defined clean/will/login bits.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-4",
+      "summary": "Clean Start discards the former session and creates a new one.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: register_with_policy_and_delay removes the previous session when clean is true and computes session_present false.",
+        "code": [
+          "src/mqtt/router.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: run_inner constructs a fresh EventLoop; durable modes are restricted to resume and cannot carry old state into clean mode.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/cli.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-5",
+      "summary": "Resume existing session state when Clean Start is false.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: register_with_policy_and_delay reuses persistent sessions and reconstructs bounded replay and inflight records.",
+        "code": [
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not own the server session-resume decision.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-6",
+      "summary": "Create a session when no resumable session exists.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: register_with_policy_and_delay inserts DurableSession when session_present is false.",
+        "code": [
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not create server-side sessions.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-7",
+      "summary": "Store an enabled Will in its server session.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: registration inserts PendingWill in candidate state and commits it before acceptance.",
+        "code": [
+          "src/mqtt/router.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not store the server's Will obligation.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-8",
+      "summary": "Publish the Will at delay or session end unless a specified cancellation occurs.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: unregister_with_receipt computes min(delay, session end); expiry processing/reconnect handles cancellation and publication through will_publication.",
+        "code": [
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not schedule server Will publication.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-9",
+      "summary": "Include Will properties, topic and payload when Will is enabled.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner consumes the bounded Will block, topic and binary payload when has_will is true.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Connect::write delegates present Will to LastWill::write, including its property length, topic and binary message.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs",
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-10",
+      "summary": "Remove a Will after publication or normal disconnect.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: unregister_with_receipt removes pending_wills before the committed publish/cancel transition; delayed entries are kept only while pending.",
+        "code": [
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not delete stored server Wills.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-11",
+      "summary": "Set Will QoS to zero when no Will is present.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CONNECT flag validation rejects nonzero Will QoS without has_will.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Connect::write adds Will QoS bits only through a present LastWill.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-12",
+      "summary": "With a Will, the permitted QoS choices are zero, one and two.",
+      "strength": "MAY",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner rejects reserved QoS 3; all three defined values are retained. The main body uses 'can', not MUST; MAY represents its permitted alternatives.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CLI QoS and rumqttc QoS enums expose only the three defined values; LastWill::write encodes them.",
+        "code": [
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-13",
+      "summary": "Clear Will Retain when no Will is present.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CONNECT flag validation rejects retain when has_will is false.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Connect::write adds retain only through a present LastWill.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-14",
+      "summary": "Publish non-retained Wills without retention.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner stores retain=false; will_publication preserves it and routing applies that retain setting.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not publish server Wills.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-15",
+      "summary": "Publish retained Wills as retained messages.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner stores retain=true; will_publication preserves it and routing applies that retain setting.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not publish server Wills.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-16",
+      "summary": "Omit username payload when its flag is clear.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner reads username only when its flag is set and Cursor::end rejects extra payload.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Login::write sets the username bit exactly when it writes that field.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-17",
+      "summary": "Include username payload when its flag is set.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner requires a length-prefixed text field when has_username.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Login::write writes username and sets its flag in the same branch.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-18",
+      "summary": "Omit password payload when its flag is clear.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner reads password only when its flag is set; final Cursor::end rejects extra bytes.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Login::write sets the password bit exactly when it writes the field.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-19",
+      "summary": "Include password payload when its flag is set.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner requires length-prefixed Binary Data when has_password.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Login::write writes password and sets its flag in the same branch.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-20",
+      "summary": "Send keep-alive PINGREQ when other traffic does not meet the interval.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not send client keep-alive pings.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: EventLoop::select schedules PingReq from keepalive_timeout; polling remains active in command loops.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-21",
+      "summary": "Replace the client's keep alive with Server Keep Alive when supplied.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not adopt a server-provided keep alive as a client.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: mqtt_connect updates options.keep_alive from CONNACK before EventLoop creates its timeout.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-22",
+      "summary": "Close a silent client after 1.5 nonzero keep-alive intervals.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt computes last_inbound + effective_keep_alive*1500ms and closes on timeout.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not enforce the server's inbound keep-alive deadline.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-23",
+      "summary": "Retain session state beyond connection closure when expiry is positive.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: SessionPolicy derives persistent from nonzero expiry; unregister_with_receipt preserves state until the deadline.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/router.rs",
+          "src/mqtt/store.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "EVIDENCE_GAP",
+        "rationale": "Static review: positive expiry is allowed without durable CLI state. Linux outbox/subscription journals cover selected flows; general retained incoming/outgoing state across all termination modes is not established by run_inner/EventLoop inspection.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs",
+          "../xmqr-client/src/outbox.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-24",
+      "summary": "Never send beyond the client's Maximum Packet Size.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt budgets CONNACK; write_limited guards all control writes and send_delivery checks fully encoded packet size.",
+        "code": [
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs",
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not send server-to-client MQTT traffic.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-25",
+      "summary": "Discard oversized outgoing application messages and complete their send obligation.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: send_delivery drops oversized QoS0 and calls discard_outbound for QoS1/2; actor commit removes the matching obligation and releases quota.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not complete server delivery obligations.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-26",
+      "summary": "Keep server-to-client Topic Aliases within the advertised maximum.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: OutboundAliases maximum is CONNECT maximum capped by MAX_TOPIC_ALIAS; encoding establishes/reuses aliases only from that bounded map.",
+        "code": [
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not choose server outbound aliases.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-27",
+      "summary": "Send no server aliases when the client maximum is zero or absent.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CONNECT defaults alias maximum to zero; OutboundAliases uses zero and falls back to full topic names.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not send server outbound aliases.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-28",
+      "summary": "Omit Response Information when it was not requested.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CONNACK builders never emit Response Information, which is also permitted when requested.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not build server CONNACK properties.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-29",
+      "summary": "Respect the restrictions on diagnostics after Request Problem Information zero.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: request flag is range/duplicate checked; broker emits no Reason String/User Property diagnostics outside permitted PUBLISH forwarding.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "EVIDENCE_GAP",
+        "rationale": "Static review: configure_connect_properties can request zero; command acknowledgement loops do not establish uniform detection of prohibited diagnostic properties from a server.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/puback.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.2-30",
+      "summary": "During enhanced initial authentication send only AUTH or DISCONNECT until CONNACK.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not send client packets while awaiting CONNACK.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "CONDITIONAL",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: PLAIN CONNECT carries initial data; mqtt_connect awaits CONNACK before exposing normal request processing. No challenge method is selected.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-1",
+      "summary": "Encode CONNECT payload fields in their defined order.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner consumes ID, Will properties/topic/binary payload, username then password.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Connect::write emits ID, LastWill and Login in that order.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-2",
+      "summary": "Use Client Identifier to associate session state.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: register_with_policy_and_delay keys sessions by scoped client_id and authenticated principal.",
+        "code": [
+          "src/mqtt/router.rs",
+          "src/auth/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: configure_options uses cli.client_id; outbox endpoint/session manifests bind durable state to the fixed client identifier.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/src/outbox.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-3",
+      "summary": "Place a present Client Identifier first in the payload.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner requires the length-prefixed ID before conditional fields.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Connect::write always writes client_id before LastWill/Login, including the permitted empty string.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-4",
+      "summary": "Encode Client Identifier as an MQTT UTF-8 string.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: Cursor::text uses strict UTF-8, excludes NUL and applies the project's stricter control/noncharacter policy.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CLI restricts requested IDs to ASCII; Connect::write emits UTF-8 length-prefixed text. Assigned IDs undergo validate_connack checks.",
+        "code": [
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-5",
+      "summary": "Accept the required 1–23 byte alphanumeric identifiers.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt permits nonempty IDs through 256 bytes before endpoint scoping; required ASCII IDs fit all scopes.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/auth/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not decide which client identifiers the server accepts.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-6",
+      "summary": "If accepting an empty identifier, assign a unique identifier.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "CONDITIONAL",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: new_assigned_client_id plus register_assigned_with_policy collision check retries without taking over an existing ID.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs",
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not assign identifiers to other clients.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-7",
+      "summary": "Process assigned identifiers normally and return them in CONNACK.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "CONDITIONAL",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt registers under the generated ID and requires budget for append_mqtt5_assigned_client_id before acceptance.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not construct the server's Assigned Client Identifier response.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-8",
+      "summary": "Close rejected identifier connections, optionally sending reason 0x85.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt returns after its bounded refusal without registering a session.",
+        "code": [
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not reject a peer's CONNECT identifier.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-9",
+      "summary": "Suppress a delayed Will if its same session reconnects before publication.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: register_with_policy_and_delay removes previous_will, publishes only when the old session ends, and cancels it on a resumed session.",
+        "code": [
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not schedule or cancel server Wills.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-10",
+      "summary": "Preserve User Property order in the published Will.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CONNECT parses ordered Vec pairs; will_publication clones message metadata and outgoing encoding iterates the same order.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/router.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not publish the server's stored Will metadata.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-11",
+      "summary": "Use MQTT UTF-8 encoding for the Will topic.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner uses Cursor::text then TopicName validation.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/topic.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CLI validates Will topic and LastWill::write writes its string bytes; Rust strings are UTF-8 and NUL is rejected.",
+        "code": [
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.3-12",
+      "summary": "Use MQTT UTF-8 encoding for username.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: username uses Cursor::text rather than binary password parsing.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CLI username is Rust UTF-8 text with controls/NUL excluded; Login::write emits its length prefix.",
+        "code": [
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/cli.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.4-1",
+      "summary": "Validate CONNECT structure and close invalid connections.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: FrameReader/decode_for_inner check bounded fields, flags and final Cursor::end; serve_connection always shuts down after error.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not validate received CONNECT packets.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.4-2",
+      "summary": "Close CONNECT attempts that fail content, authentication or authorization checks.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt performs policy authentication and Will/principal authorization before CONNACK and returns on refusal.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/router.rs",
+          "src/auth/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs",
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not authenticate incoming CONNECT attempts.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.4-3",
+      "summary": "Close the previous network connection on takeover; consider the described 0x8E diagnostic separately.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: register_with_policy_and_delay unregisters the previous live connection; unregister_with_receipt signals closure and serve_mqtt exits through connection shutdown. The explicit MUST requires closure. The adjacent description of sending 0x8E is not an explicit MUST send; section 4.13.2 permits closure without CONNACK/DISCONNECT. Missing notification is therefore a diagnostic recommendation, not a demonstrated mandatory deviation. Section 4.13.1's malformed/protocol-error SHOULD is not imported into takeover.",
+        "code": [
+          "src/mqtt/router.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": [
+          "Current-task probe executed by parent, not this agent: ../.artifacts/p232-broker-closes-1.json; takeover_previous_connection mandatory_close PASS, diagnostic absent, new_connection_ping PASS. The other two scenarios also observed mandatory closure; 3/3 applies to this finite probe, not whole-clause conformance.",
+          "Probe provenance: broker SHA256 1ee611b082b5e8cb14bf881996ce314c391573353cf8971232728cb54a243207; harness SHA256 ced49819bea2e7b41c154e6b180d3f16c6a9964d4b01b80b90fd30938822e85f. Report limits evidence to loopback open-lab; binary_unchanged and cleanup are true/PASS."
+        ]
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not perform server-side connection takeover.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.4-4",
+      "summary": "Apply Clean Start processing after accepting CONNECT.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: SessionPolicy.clean is applied by register_with_policy_and_delay before success response.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/router.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not perform the server Clean Start transition.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.4-5",
+      "summary": "Acknowledge successful CONNECT with success CONNACK.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt writes a success CONNACK only after successful registration, before replay or packet loop.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not send successful CONNACK.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.1.4-6",
+      "summary": "After rejecting CONNECT ignore following data except authentication traffic.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: all refusal branches return before reader.set_mqtt5 and the packet dispatch loop; pipelined data is not processed.",
+        "code": [
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not process rejected inbound CONNECT pipelines.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.0-1",
+      "summary": "Send success CONNACK before any server packet except AUTH.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt writes success before replay, subscriptions, live delivery and keep-alive loop.",
+        "code": [
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not order server response packets.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.0-2",
+      "summary": "Send at most one CONNACK per network connection.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: initial refusal returns; successful connection enters a loop that rejects second CONNECT and has no CONNACK writer.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not send CONNACK packets.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-1",
+      "summary": "Keep CONNACK acknowledge-flag reserved bits zero.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CONNACK encoders encode only u8::from(session_present) in flags.",
+        "code": [
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not encode CONNACK flags; receive-format weaknesses are tracked in the unnumbered review.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-2",
+      "summary": "Clean Start success has Session Present zero.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: register_with_policy_and_delay computes !clean && old persistent; encoders use session.resumed.",
+        "code": [
+          "src/mqtt/router.rs",
+          "src/mqtt/mod.rs",
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not choose server Session Present flags.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-3",
+      "summary": "On resume success report whether server session state exists.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: session_present derives from non-clean unexpired persistent state and is returned in success CONNACK.",
+        "code": [
+          "src/mqtt/router.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not declare server session existence.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-4",
+      "summary": "Close when Session Present is one but the client has no session state.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not own client session state.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "DEVIATION",
+        "rationale": "Static review: validate_connack rejects Session Present with clean start; durable modes reject a new local manifest plus Session Present. Ordinary resume creates fresh MqttState yet accepts Session Present=1 and continues.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-5",
+      "summary": "Discard client session state if Session Present is zero and continuing.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not discard the remote client's session state.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: EventLoop::poll clears pending on session_present false. Durable flows with incompatible previous state return error and close instead of continuing.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-6",
+      "summary": "Set Session Present zero in a refusal CONNACK.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: encode_mqtt5_connack hardcodes flags zero for all refusal reasons.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not send refusal CONNACK flags.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-7",
+      "summary": "Close after sending a CONNACK reason at or above 0x80.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt refusal branches return immediately; serve_connection performs shutdown.",
+        "code": [
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not send a refusal CONNACK.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-8",
+      "summary": "Use a defined CONNACK reason code; reconcile malformed body identifier.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: main body has malformed 'valuesT-3.2.2-8]' while Appendix B has MQTT-3.2.2-8. Audited body obligation is the defined-code rule; all v5 refusal/success encoder callsites use table codes.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not send CONNACK reason codes; the source identifier anomaly does not create an extra requirement.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-9",
+      "summary": "Advertise a Maximum QoS if the server lacks QoS1 or QoS2.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Conditional server restriction is not activated: inspected broker supports QoS0/1/2 and omits Maximum QoS, whose default is 2. src/mqtt/codec.rs and src/mqtt/router.rs implement those paths.",
+        "code": ["src/mqtt/codec.rs", "src/mqtt/router.rs"],
+        "tests": ["src/mqtt/codec.rs", "src/mqtt/router.rs"],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not advertise server QoS capabilities.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-10",
+      "summary": "A server with restricted publish QoS still accepts all defined requested subscription QoS values.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Restricted-QoS server condition is absent: this broker supports all QoS levels; decode_for_inner accepts subscription QoS0/1/2.",
+        "code": ["src/mqtt/codec.rs", "src/mqtt/router.rs"],
+        "tests": ["src/mqtt/codec.rs", "src/mqtt/router.rs"],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not accept incoming client SUBSCRIBE.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-11",
+      "summary": "Never publish above the server's Maximum QoS.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not act as a publishing client.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "DEVIATION",
+        "rationale": "Static review: run_inner extracts only alias maximum/session flag from CONNACK; validate_connack and MqttState::handle_incoming_connack do not apply max_qos. send_publication/outgoing_publish use requested CLI QoS unchanged.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connack.rs"
+        ],
+        "tests": [],
+        "evidence": [
+          "Current-task probe executed by parent, not this agent: ../.artifacts/p232-client-wire-2.json (canonical pub/sub controls passed; negotiated capability scenario failed).",
+          "Parent source attribution: published 0.41.0 ELF from 1d60d38, SHA256 b9f2fa67c4c4d7263966097cd048627929b59d161b436d1b23e6005edac872f0; relevant CLI/src, vendor and dependency diff to e03c5a46 reported empty; bridge-only changes."
+        ]
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-12",
+      "summary": "Reject a Will QoS beyond server capabilities and close; prefer reason 0x9B.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Capability-restriction condition is absent: broker supports every defined Will QoS, while the reserved value 3 is rejected as malformed by codec.rs.",
+        "code": ["src/mqtt/codec.rs", "src/mqtt/router.rs"],
+        "tests": ["src/mqtt/codec.rs", "src/mqtt/router.rs"],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not reject received Will capabilities.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-13",
+      "summary": "Reject retained Wills when retention is unavailable; prefer reason 0x9A.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Retention-unavailable condition is absent: broker implements retained Will routing and does not advertise Retain Available=0.",
+        "code": ["src/mqtt/codec.rs", "src/mqtt/router.rs"],
+        "tests": ["src/mqtt/codec.rs", "src/mqtt/router.rs"],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not reject incoming retained Wills.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-14",
+      "summary": "Do not publish retained messages when Retain Available is zero.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not act as a publishing client.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "DEVIATION",
+        "rationale": "Static review: CONNACK retain_available is parsed but ignored in validate_connack and MqttState. send_publication and durable_publish retain cli.retain even after server declares zero.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connack.rs"
+        ],
+        "tests": [],
+        "evidence": [
+          "Current-task probe executed by parent, not this agent: ../.artifacts/p232-client-wire-2.json (canonical pub/sub controls passed; negotiated capability scenario failed).",
+          "Parent source attribution: published 0.41.0 ELF from 1d60d38, SHA256 b9f2fa67c4c4d7263966097cd048627929b59d161b436d1b23e6005edac872f0; relevant CLI/src, vendor and dependency diff to e03c5a46 reported empty; bridge-only changes."
+        ]
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-15",
+      "summary": "Do not exceed the server's advertised Maximum Packet Size.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not send client-to-server traffic.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: mqtt_connect installs CONNACK max_packet_size in Network codec; Packet::write checks the complete packet size before encoding every packet type.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/framed.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/codec.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/mod.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/codec.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-16",
+      "summary": "For empty CONNECT IDs return a fresh Assigned Client Identifier.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "CONDITIONAL",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: registration collision checks include active/durable IDs; mandatory property budget is checked before registration.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/router.rs",
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs",
+          "src/mqtt/router.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not allocate server identifiers; client receipt checks are reviewed separately.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-17",
+      "summary": "Never send an alias above the server's maximum.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not send client PUBLISH aliases.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: run_inner uses CONNACK topic_alias_max; outgoing_publish independently rejects aliases above broker_topic_alias_max.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-18",
+      "summary": "Send no aliases when server maximum is absent or zero.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not send client PUBLISH aliases.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: run_inner defaults topic_alias_max to zero and rejects an explicitly requested alias above that value before publish.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-19",
+      "summary": "Omit CONNACK Reason String if it would exceed the client's packet limit.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: broker encoders omit Reason String entirely; write_limited also enforces whole-packet size.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not send server CONNACK diagnostics.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-20",
+      "summary": "Omit CONNACK User Properties if they would exceed the client's packet limit.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: broker encoders omit CONNACK User Properties and budget all mandatory properties.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not send server CONNACK User Properties.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-21",
+      "summary": "Use the keep alive selected by the server.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not adopt a server keep-alive override as a client.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: mqtt_connect applies props.server_keep_alive to options before timeout creation.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.2.2-22",
+      "summary": "Without an override, the server uses CONNECT Keep Alive.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt uses server_keep_alive.unwrap_or(keep_alive); zero uses a separate general idle cap as permitted.",
+        "code": [
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not enforce the server's negotiated inbound deadline.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.15.1-1",
+      "summary": "AUTH reserved flags must be zero; reject and close otherwise.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: decode_for_inner checks AUTH low nibble; handler sends malformed response where permitted then closes.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: FixedHeader::packet_type permits AUTH only when low nibble is zero; deserialization error ends polling and drops network.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/mod.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/framed.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"
+        ],
+        "tests": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/auth.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.15.2-1",
+      "summary": "Use one of the defined AUTH reason codes.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: encode_mqtt5_plain_auth_success emits Success; inbound PLAIN accepts Re-authenticate only, matching its one-shot exchange.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: AuthReasonCode enum/write limits output to defined values; plain_reauth_request selects ReAuthentivate.",
+        "code": [
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/auth.rs",
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.15.2-2",
+      "summary": "Do not add an AUTH Reason String that exceeds the peer's packet maximum.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: PLAIN success AUTH has no reason string; write_limited enforces its complete size.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: plain_reauth_request omits reason; Packet::write enforces peer maximum for AUTH.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/auth.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/mod.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-3.15.2-3",
+      "summary": "Do not add AUTH User Properties that exceed the peer's packet maximum.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: PLAIN success AUTH omits user properties and is bounded by write_limited.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: plain_reauth_request leaves user_properties empty; Packet::write size guard includes them.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/auth.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/mod.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-4.12.0-1",
+      "summary": "Close unsupported authentication methods, optionally sending an appropriate refusal.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: mqtt5_connect_properties_supported permits only PLAIN and refuses other methods with 0x8C; handler returns before state creation.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not accept or refuse incoming authentication methods.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-4.12.0-2",
+      "summary": "A server authentication challenge uses Continue Authentication.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "No server challenge exchange is implemented or selected: the only supported mechanism is one-shot PLAIN with initial data. Unsupported methods are rejected; no challenge is emitted.",
+        "code": ["src/mqtt/codec.rs", "src/mqtt/mod.rs"],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not emit server challenges.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-4.12.0-3",
+      "summary": "A client's authentication challenge response uses Continue Authentication.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not send client authentication challenge responses.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Only one-shot PLAIN is selected by configure_auth; no client challenge response is implemented. mqtt_connect closes on any pre-CONNACK AUTH instead of pretending to complete another mechanism.",
+        "code": ["../xmqr-client/src/v5_session.rs", "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-4.12.0-4",
+      "summary": "Close if the server rejects authentication during its initial exchange.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: initial PLAIN parsing/authentication denial returns through serve_connection shutdown, optionally after refusal CONNACK.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not reject authentication as the server.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-4.12.0-5",
+      "summary": "Keep the negotiated method in AUTH and successful CONNACK.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "CONDITIONAL",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: successful PLAIN CONNECT appends PLAIN in CONNACK; reauthentication compares CONNECT method and success AUTH repeats PLAIN.",
+        "code": [
+          "src/mqtt/codec.rs",
+          "src/mqtt/mod.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "CONDITIONAL",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: configure_auth and plain_reauth_request use PLAIN; confirm_auth_method and reauthenticate verify PLAIN in server responses.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/auth.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-4.12.0-6",
+      "summary": "Without CONNECT authentication method, send no server AUTH or CONNACK method.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: plain_requested controls method append; handler rejects AUTH without it and never emits a success AUTH.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/connect_contract_tests.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Server obligation; client does not generate server AUTH or CONNACK method properties.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-4.12.0-7",
+      "summary": "Without a CONNECT authentication method, send no client AUTH.",
+      "strength": "MUST_NOT",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not send client AUTH.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "APPLICABLE",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: CLI reauth mode requires auth-method plain; normal paths never enqueue AUTH. This conclusion is for the CLI, not every raw rumqttc API caller.",
+        "code": [
+          "../xmqr-client/src/cli.rs",
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-4.12.1-1",
+      "summary": "Reauthentication uses the method originally negotiated.",
+      "strength": "MUST",
+      "broker": {
+        "applicability": "NOT_APPLICABLE",
+        "status": "NOT_APPLICABLE",
+        "rationale": "Client obligation; broker does not initiate client reauthentication.",
+        "code": [],
+        "tests": [],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "CONDITIONAL",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: plain_reauth_request is available only after successful PLAIN CONNECT and always carries method PLAIN.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/src/cli.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    },
+    {
+      "id": "MQTT-4.12.1-2",
+      "summary": "Close failed reauthentication; preferably send a suitable DISCONNECT.",
+      "strength": "MIXED",
+      "broker": {
+        "applicability": "CONDITIONAL",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: serve_mqtt verifies principal and security generation, emits bounded 0x86 on credential rejection, then exits; malformed/method failures also close.",
+        "code": [
+          "src/mqtt/mod.rs",
+          "src/mqtt/codec.rs"
+        ],
+        "tests": [
+          "src/mqtt/codec.rs"
+        ],
+        "evidence": []
+      },
+      "client": {
+        "applicability": "CONDITIONAL",
+        "status": "SUPPORTED_BY_INSPECTION",
+        "rationale": "Static review: reauthenticate returns error on refusal, wrong method/reason, connection failure or timeout; run_inner drops connection. Optional DISCONNECT is not claimed.",
+        "code": [
+          "../xmqr-client/src/v5_session.rs",
+          "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"
+        ],
+        "tests": [
+          "../xmqr-client/src/v5_session.rs"
+        ],
+        "evidence": []
+      }
+    }
+  ],
+  "unnumbered": [
+    {
+      "section": "3.1.1 / 3.1.2 (structure, flags and timing)",
+      "review": "Inspected main normative body (official windows-1252 HTML, decoded with mqtt5_normative_inventory), not Appendix B summaries. Broker FrameReader validates fixed flags, bounded Remaining Length, CONNECT deadline, ordered fields and end-of-frame; CONNECT reserved/Will flags are checked before registration. Client Connect::write composes defined flags, protocol name/version and length-prefixed fields. Server CONNECT Keep Alive zero disables protocol ping enforcement while a distinct 300s idle policy remains. A PINGRESP timeout recommendation is implemented by rumqttc state ping tracking, but timing under scheduler starvation was not dynamically evaluated.",
+      "code": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/mod.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+      ],
+      "tests": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/connect_contract_tests.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+      ],
+      "limitations": "Static source review only by this agent. No builds, tests, services, dependencies or Git commands. Timing/load/fragmentation exhaustiveness is not claimed. Historical CI 39164217059 belongs to broker db472bc/client 501cde2/admin 4483, not these baseline commits; no historical PASS was assigned to a row."
+    },
+    {
+      "section": "3.1.2.11 (CONNECT properties)",
+      "review": "Broker mqtt5_connect_properties_supported checks property context, bounded VBI block and singleton uniqueness. Session Expiry defaults 0, Receive Maximum 65535 and Topic Alias Maximum 0; receive/packet size zero are rejected. Request Response/Problem flags are unique booleans; User Properties are repeatable UTF-8 pairs. Authentication Data without Method is a protocol error; duplicate method/data are rejected; unsupported methods get 0x8C after property checks. Informational CONNECT properties are intentionally consumed rather than forwarded. CLI validates ranges before configuring patched rumqttc. Response Information is never emitted; diagnostic strings/user properties are absent from broker control responses, so the server's Request Problem Information restriction is satisfied by omission.",
+      "code": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/mod.rs",
+        "../xmqr-client/src/cli.rs",
+        "../xmqr-client/src/v5_session.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+      ],
+      "tests": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/connect_contract_tests.rs",
+        "../xmqr-client/src/cli.rs",
+        "../xmqr-client/src/v5_session.rs"
+      ],
+      "limitations": "The client can request Problem Information=0, but uniform handling of forbidden server diagnostics was not established (row 3.1.2-29 EVIDENCE_GAP). This does not assert that a single ignored informational property is a security issue. Property context/error handling is inspected, not a dynamic full matrix."
+    },
+    {
+      "section": "3.1.3 (CONNECT payload, Will properties, UTF-8 and binary)",
+      "review": "Broker Cursor::text uses Rust strict UTF-8, rejects NUL, controls and noncharacters (the latter restrictions exceed the minimum); Cursor::binary preserves arbitrary payload/password/data bytes. Flags permit password without username in MQTT5. Client CLI restricts requested IDs to ASCII and validates Will topics, payload-format value and UTF-8 payload when indicator is 1; username rejects NUL/control characters. Broker Will property parsing enforces unique delay, expiry, format, content type, response topic and correlation data; User Properties remain ordered and repeatable. Delay defaults 0; Will expiry begins at publication via will_publication. TopicName rejects empty/wildcard response/Will topics; configured metadata bounds are additional implementation limits. PFI=1 Will validation by the server is optional; no mandatory server payload-UTF8 rejection is inferred. Will retain, QoS and metadata are stored together and transferred to routing; pending cancellation/publication is committed.",
+      "code": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/router.rs",
+        "src/mqtt/topic.rs",
+        "../xmqr-client/src/cli.rs",
+        "../xmqr-client/src/v5_session.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+      ],
+      "tests": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/router.rs",
+        "../xmqr-client/src/cli.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs"
+      ],
+      "limitations": "Client legacy password API uses strings, which limits inputs but still encodes valid Binary Data; arbitrary binary password support is not mandatory. General client persistence after closure remains a stated evidence gap. No power-loss or full Will/queue pressure campaign was executed."
+    },
+    {
+      "section": "3.1.4 (admission and takeover)",
+      "review": "serve_mqtt rejects malformed/unauthenticated/unauthorized CONNECT before registration or pipelined dispatch, checks ID length and required CONNACK budget, registers the session, writes CONNACK, then replays. Auth and Will ACL checks precede success. Takeover closes the previous connection via an actor close signal. Its missing 0x8E diagnostic remains P232-CONNECT-01 as a low-severity recommendation: the explicit MUST requires closure, while the diagnostic description refers to section 4.13, whose other-error handling permits closure without a DISCONNECT. The malformed/protocol-error diagnostic SHOULD in 4.13.1 is not assumed applicable to takeover. Router/session principal scoping is an intentional authorization boundary.",
+      "code": [
+        "src/mqtt/mod.rs",
+        "src/mqtt/router.rs",
+        "src/auth/mod.rs"
+      ],
+      "tests": [
+        "src/mqtt/connect_contract_tests.rs",
+        "src/mqtt/router.rs"
+      ],
+      "limitations": "This agent ran no takeover probe. Parent-executed ../.artifacts/p232-broker-closes-1.json confirms previous-connection closure, absent diagnostic and a working new-connection ping in loopback open-lab; this finite observation is separate from the static judgment and does not prove all takeover races or full deployment security."
+    },
+    {
+      "section": "3.2 (CONNACK format, properties, errors and session synchronization)",
+      "review": "Broker CONNACK encoders use fixed valid reason/flags, unique bounded properties and no payload; success builders advertise size/alias/receive maximum as budgets permit, Shared Subscription Available=1 and default support for QoS2/retained/wildcards/subscription identifiers. Assigned IDs use collision-safe actor admission and mandatory-property budgeting. Client applies server keep alive, expiry and maximum packet size; it enforces alias bounds and checks assigned ID and selected subscription capabilities. Explicit client MUST deviations remain: max_qos and retain_available are parsed but never applied before publication; ordinary resume accepts Session Present=1 with fresh empty MqttState. Separate receiving-validation gaps: ConnAck::read ignores reserved acknowledge flag bits and does not reject leftover payload; ConnAckProperties::read overwrites most singleton properties, does not range-check booleans/max_qos/zero receive/max-packet-size, and does not require exact property-block consumption. read_mqtt_string enforces Unicode decoding but not MQTT NUL restrictions. Parent-supplied probes observe acceptance of malformed server input, including CONNACK User Property containing NUL. These observations support P232-CONNECT-04 as a receiving-validation gap/recommendation: section 4.13.1 gives the receiving Client a SHOULD response, not the Server's MUST close. They do not prove the client emits malformed CONNACK or independently violates an explicit MUST-close obligation. This agent inspected the parser and did not run those probes.",
+      "code": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/mod.rs",
+        "src/mqtt/router.rs",
+        "../xmqr-client/src/v5_session.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connack.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/mod.rs"
+      ],
+      "tests": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/connect_contract_tests.rs",
+        "../xmqr-client/src/v5_session.rs"
+      ],
+      "limitations": "Root probe report ../.artifacts/p232-client-wire-2.json is current-task evidence reported by the parent, not historical CI or this agent's execution. Tested published client ELF came from source 1d60d38, SHA256 b9f2fa67c4c4d7263966097cd048627929b59d161b436d1b23e6005edac872f0; parent reports CLI/src, vendor and dependencies unchanged through baseline e03c5a46 (bridge-only differences). Broader malformed property cases are static findings, not independently executed probes here. Report 1 has a harness bug and is not used."
+    },
+    {
+      "section": "3.2.2-8 (source identifier reconciliation)",
+      "review": "The normative body contains malformed identifier text valuesT-3.2.2-8], adjacent to the rule requiring a listed CONNACK reason code. The catalog's canonical MQTT-3.2.2-8 occurs in Appendix B. Retained exactly one canonical ledger row, classified against the main-body rule; no alias row or extra MUST was invented.",
+      "code": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/mod.rs"
+      ],
+      "tests": [
+        "src/mqtt/connect_contract_tests.rs"
+      ],
+      "limitations": "The literal malformed token is a source anomaly, not a new requirement. Exact force for 3.1.2-12 is permission ('can' for the three valid Will QoS values); its MAY ledger classification is not an invented mandatory statement."
+    },
+    {
+      "section": "3.15 (AUTH structure, contexts and properties)",
+      "review": "Broker rejects AUTH reserved flags before body processing, validates unique Method/Data/Reason String, repeatable UTF-8 User Properties and full frame consumption. Its negotiated PLAIN flow accepts client Re-authenticate=0x19 and emits Success=0x00; no other enhanced method or initial challenge loop is claimed. Client patched FixedHeader::packet_type validates AUTH flags; AuthProperties::read rejects duplicate singletons and property-length mismatch; typed reason enum limits emitted codes. Both senders omit diagnostics and bound full AUTH size by the peer maximum. Client PLAIN reauthenticate requires success with matching method. General ordinary client loops can ignore unsolicited AUTH after a non-authenticated CONNECT: receiving-side semantic rejection is not uniformly established. The broker properly closes if AUTH is received without negotiated PLAIN.",
+      "code": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/mod.rs",
+        "../xmqr-client/src/v5_session.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/auth.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/mod.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+      ],
+      "tests": [
+        "src/mqtt/codec.rs",
+        "../xmqr-client/src/v5_session.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/auth.rs"
+      ],
+      "limitations": "Enhanced authentication is optional; absence of SCRAM/Kerberos challenge loops is not itself a deviation for one-shot PLAIN. Zero-length AUTH is decoded as Success by the patched library, but PLAIN CLI still demands its negotiated Method. No generic capability for arbitrary Auth API callers is claimed."
+    },
+    {
+      "section": "4.12 / 4.12.1 (enhanced authentication and reauthentication)",
+      "review": "Inspected main-body method agreement, initial client data, continuation codes, rejection/closure, method echo and reauthentication rules. Only TLS PLAIN with initial data is supported; broker rejects other methods/legacy credential ambiguity before state, verifies credentials against the transport/policy principal, and refuses identity changes or security-generation mismatch during reauthentication. Successful CONNACK/AUTH echo PLAIN. CLI sends initial PLAIN data, waits for CONNACK, validates echo, and optionally performs one reauthentication before normal I/O; failures drop the connection. Challenge-code clauses are explicitly inapplicable to this one-shot mechanism, not treated as unreviewed success. Non-PLAIN/TLS restrictions are implementation choices within optional enhanced authentication.",
+      "code": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/mod.rs",
+        "src/auth/mod.rs",
+        "../xmqr-client/src/cli.rs",
+        "../xmqr-client/src/v5_session.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs"
+      ],
+      "tests": [
+        "src/mqtt/codec.rs",
+        "src/mqtt/connect_contract_tests.rs",
+        "../xmqr-client/src/v5_session.rs"
+      ],
+      "limitations": "This is a static audit of protocol/method state transitions, not a credential-strength, TLS deployment or side-channel certification. No credentials, operator state or private keys were read. No new dynamic security test or public PoC was created."
+    }
+  ],
+  "findings": [
+    {
+      "id": "P232-CONNECT-01",
+      "severity": "LOW",
+      "summary": "Broker takeover omits the described Session taken over diagnostic; mandatory closure is supported and no MUST-send violation is established.",
+      "clauses": [
+        "MQTT-3.1.4-3"
+      ],
+      "code": [
+        "src/mqtt/router.rs",
+        "src/mqtt/mod.rs"
+      ],
+      "status": "RECOMMENDATION",
+      "next_action": "If clearer peer diagnostics are desired, consider a separately scoped change to convey bounded takeover reason 0x8E through the actor. Do not treat its current absence as a proven mandatory protocol violation: 3.1.4-3 explicitly requires closing, and 4.13.2 permits closing without DISCONNECT. Parent-executed ../.artifacts/p232-broker-closes-1.json observes closure and successful new-connection ping without a diagnostic; this agent only inspected that report."
+    },
+    {
+      "id": "P232-CONNECT-02",
+      "severity": "HIGH",
+      "summary": "Client sends publications that exceed server Maximum QoS or request forbidden retained storage because parsed CONNACK capabilities are ignored.",
+      "clauses": [
+        "MQTT-3.2.2-11",
+        "MQTT-3.2.2-14"
+      ],
+      "code": [
+        "../xmqr-client/src/v5_session.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connack.rs"
+      ],
+      "status": "DEVIATION",
+      "next_action": "Track an independently scoped client fix to retain/apply validated CONNACK capabilities before all regular and durable publish paths. Static inspection agrees with parent-reported failures in ../.artifacts/p232-client-wire-2.json; this agent did not execute the probes."
+    },
+    {
+      "id": "P232-CONNECT-03",
+      "severity": "MEDIUM",
+      "summary": "Ordinary client resume can proceed with Session Present although the fresh invocation has no local MQTT session state.",
+      "clauses": [
+        "MQTT-3.2.2-4"
+      ],
+      "code": [
+        "../xmqr-client/src/v5_session.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+      ],
+      "status": "DEVIATION",
+      "next_action": "Separate runtime prompt should validate local session ownership before continuing; keep Linux durable-mode handling and its intentional error/close behavior. Static finding; no dynamic assertion for this specific condition."
+    },
+    {
+      "id": "P232-CONNECT-04",
+      "severity": "MEDIUM",
+      "summary": "Client CONNACK receiving validation accepts malformed server input; this establishes a validation gap, not an explicit client MUST violation.",
+      "clauses": [
+        "3.2.2.1",
+        "3.2.2.3",
+        "1.5.4",
+        "4.13.1"
+      ],
+      "code": [
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connack.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/mod.rs"
+      ],
+      "status": "RECEIVE_VALIDATION_GAP",
+      "next_action": "Recommend focused validation coverage for singleton uniqueness, exact property boundaries, reserved flags/payload, value domains and MQTT UTF-8 constraints. Parent reports NUL User Property acceptance and nonminimal CONNACK VBI acceptance in ../.artifacts/p232-client-wire-2.json; the other cases are statically established parser gaps and were not dynamically executed by this agent. The fake server supplies the malformed packet: this does not demonstrate invalid CONNACK emission by the client or an independent client MUST-close violation. Receiving-client error handling is SHOULD under section 4.13.1; assess any justified exception and hardening separately from mandatory capability/session deviations."
+    },
+    {
+      "id": "P232-CONNECT-05",
+      "severity": "MEDIUM",
+      "summary": "Full client session-state preservation and uniform receiving-side diagnostic/authentication validation remain incompletely established.",
+      "clauses": [
+        "MQTT-3.1.2-23",
+        "MQTT-3.1.2-29",
+        "3.15"
+      ],
+      "code": [
+        "../xmqr-client/src/v5_session.rs",
+        "../xmqr-client/src/cli.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/eventloop.rs",
+        "../xmqr-client/vendor/rumqttc-0.25.1/src/v5/state.rs"
+      ],
+      "status": "EVIDENCE_GAP",
+      "next_action": "Document supported lifetime/termination modes and perform a separately scoped state-retention review plus targeted receiving-side error probes. Positive expiry and durable journals do not by themselves demonstrate every client state path."
+    }
+  ]
+}

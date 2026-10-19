@@ -1,4 +1,4 @@
-name: MQTT5 inventory contracts (not protocol conformance)
+name: MQTT5 audit accounting (not protocol conformance)
 
 on:
   push:
@@ -6,13 +6,21 @@ on:
     paths:
       - "scripts/mqtt5_normative_inventory.py"
       - "scripts/test_mqtt5_normative_inventory.py"
+      - "scripts/mqtt5_audit_ledger.py"
+      - "scripts/test_mqtt5_audit_ledger.py"
+      - "scripts/verify_p232_*.py"
       - "docs/conformance/mqtt5-normative-audit.json"
+      - "docs/conformance/mqtt5-audit-*.json"
       - ".github/workflows/mqtt5-normative-inventory.yml"
   pull_request:
     paths:
       - "scripts/mqtt5_normative_inventory.py"
       - "scripts/test_mqtt5_normative_inventory.py"
+      - "scripts/mqtt5_audit_ledger.py"
+      - "scripts/test_mqtt5_audit_ledger.py"
+      - "scripts/verify_p232_*.py"
       - "docs/conformance/mqtt5-normative-audit.json"
+      - "docs/conformance/mqtt5-audit-*.json"
       - ".github/workflows/mqtt5-normative-inventory.yml"
 
 permissions:
@@ -24,5 +32,23 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: integrations/xmqr
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: licodevone/xmqr-client
+          ref: e03c5a46cfb33666896eb710892cf46e3c40ee38
+          path: integrations/xmqr-client
+          persist-credentials: false
       - name: Validate extractor and internal catalog consistency (offline)
+        working-directory: integrations/xmqr
         run: python3 scripts/test_mqtt5_normative_inventory.py
+      - name: Validate classified ledger and negative accounting contracts (offline)
+        working-directory: integrations/xmqr
+        run: |
+          python3 scripts/test_mqtt5_audit_ledger.py
+          python3 scripts/mqtt5_audit_ledger.py
+      - name: Parse synthetic probe sources without starting services
+        working-directory: integrations/xmqr
+        run: python3 -c "import ast,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path('scripts').glob('verify_p232_*.py')]"

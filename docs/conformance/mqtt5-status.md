@@ -20,8 +20,12 @@ de prompts ou a cada afirmação histórica isolada.
 
 ## Histórico incremental
 
-Auditoria normativa separada iniciada em P231: [inventário e critérios](mqtt5-normative-audit.md).
-IDs catalogados não são percentual de conformidade nem novo aceite do wire.
+Auditoria normativa separada P232 concluída com achados:
+[parecer final](mqtt5-audit-final.md), [inventário e critérios](mqtt5-normative-audit.md).
+252 IDs classificados por papel e37 revisões por seção não são porcentagem
+de conformidade. Cinco falhas obrigatórias do client foram reproduzidas;
+broker sem novo MUST violado reproduzido, mas com lacunas explícitas.
+Não declarar conformidade integral/certificação a partir desses resultados.
 
 P168 acrescenta Eclipse Paho Python 2.1.0 ao gate MQTT 5 com ID atribuído,
 Session Present, QoS0/1/2, retained e fila offline. O gate Mosquitto existente
