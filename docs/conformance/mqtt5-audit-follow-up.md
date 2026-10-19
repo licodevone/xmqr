@@ -12,7 +12,7 @@ Este acompanhamento registra evidência posterior; não muda FAILs históricos.
 | Session Present sem estado local, MQTT-3.2.2-4 | C141 recusa a sessão; modos com estado preservados | Client 0.42.0 |
 | Entrega repetida QoS 2 e PUBREL repetido, MQTT-4.3.3-10/-11 | C142, controles e regressões nos ELFs do pacote e imagem | Client 0.42.0 |
 | NUL recebido em tópico/User Property, VBI redundante e flags reservadas | C144: 14/14 na CI debug/pacote e na imagem; P232 original 12/12 no pacote; cinco jobs CI C146 PASS | Client 0.42.1, fonte `db844a0` |
-| Texto recebido como dados WS/WSS, MQTT-6.0.0-1 | P234: 12/12 no ELF do pacote 0.42.1, controles binários e rejeição rápida de texto em MQTT 3.1.1/5; CI específica em preparação | Comportamento já existente demonstrado, sem alterar runtime |
+| Texto recebido como dados WS/WSS, MQTT-6.0.0-1 | P234: 12/12 local e na CI específica, mesmo ELF do pacote 0.42.1; controles binários e rejeição rápida de texto em MQTT 3.1.1/5 | Comportamento já existente demonstrado, sem alterar runtime |
 
 [Aceite C143](https://github.com/licodevone/xmqr-client/blob/main/prompts/registros/C143-five-audit-fixes.md):
 release 0.42.0 da fonte `e0e553c3328839177c293870a6d12291c0099d19`,
@@ -41,7 +41,8 @@ foram cobertos por C144; isso não encerra automaticamente cada obrigação de
 emissão, todos os campos, todas as sessões ou as interações da biblioteca.
 
 O [teste P234](../../prompts/registros/P234-quadros-websocket-client.md) já
-demonstrou localmente o fechamento por texto do servidor WS/WSS. O histórico
+demonstrou localmente e na [CI específica](https://github.com/licodevone/xmqr/actions/runs/39259711349)
+o fechamento por texto do servidor WS/WSS. O histórico
 P232 permanece como EVIDENCE_GAP daquela campanha. Evidência nova vale para os
 12 casos definidos, sem cobrir todos os frames malformados.
 

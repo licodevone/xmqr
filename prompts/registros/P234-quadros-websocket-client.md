@@ -20,8 +20,15 @@ socket do servidor ainda aberto. A terceira execução corrigiu apenas o simulad
 e passou em 2,701s. Esses FAILs não são reprovas do client nem PASS retroativos.
 [Relatórios e hashes](../../docs/conformance/mqtt5-client-websocket-p234.json).
 
-CI externa desta fixture aguarda publicação/verificação da release 0.42.1.
-O workflow extrai seu pacote com SHA-256 fixado, sem instalá-lo no host. O
-resultado local fecha a lacuna de evidência MQTT-6.0.0-1 no escopo examinado;
+[CI externa da fonte `2972028`](https://github.com/licodevone/xmqr/actions/runs/39259711349):
+12/12 PASS. O relatório foi baixado e parseado: binário inalterado e mesmo
+SHA-256 do ELF usado localmente. O workflow extraiu o pacote da release 0.42.1
+com SHA-256 fixado, sem instalá-lo no host. O resultado local e remoto fecha
+a lacuna de evidência MQTT-6.0.0-1 no escopo examinado;
 não prova todos os quadros, ataques ou conformidade MQTT integral. Ledgers
 P232 permanecem históricos. Sem tag/release do broker por esta prova.
+
+O commit com a fixture foi enviado com supressão da CI geral, pois não alterou
+Rust/runtime; o workflow específico foi acionado explicitamente por dispatch
+e seu resultado acima é a evidência nova. Não se alega nova execução dos gates
+Rust por uma alteração exclusiva do simulador/documentação.

@@ -316,5 +316,100 @@
     },
     "status": "PASS",
     "elapsed_seconds": 2.701
+  },
+  "ci": {
+    "run_id": 39259711349,
+    "source_commit": "29720289e3f7dbcc31df70290b6d4880b840dcde",
+    "url": "https://github.com/licodevone/xmqr/actions/runs/39259711349",
+    "conclusion": "success",
+    "report": {
+      "schema_version": 1,
+      "audit": "P234",
+      "binary_sha256": "704f4e26fef16ec536236ef6db6f7642340dbb80ede4a1733fc5c64dae0711a8",
+      "client_source_commit": "db844a0808dfa82e436e5b0fe960d66536df4703",
+      "scenarios": [
+        {
+          "protocol": "3.1.1",
+          "transport": "ws",
+          "mode": "binary",
+          "status": "PASS"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "ws",
+          "mode": "text-connack",
+          "status": "PASS"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "ws",
+          "mode": "text-publish",
+          "status": "PASS"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "wss-mtls",
+          "mode": "binary",
+          "status": "PASS"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "wss-mtls",
+          "mode": "text-connack",
+          "status": "PASS"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "wss-mtls",
+          "mode": "text-publish",
+          "status": "PASS"
+        },
+        {
+          "protocol": "5",
+          "transport": "ws",
+          "mode": "binary",
+          "status": "PASS"
+        },
+        {
+          "protocol": "5",
+          "transport": "ws",
+          "mode": "text-connack",
+          "status": "PASS"
+        },
+        {
+          "protocol": "5",
+          "transport": "ws",
+          "mode": "text-publish",
+          "status": "PASS"
+        },
+        {
+          "protocol": "5",
+          "transport": "wss-mtls",
+          "mode": "binary",
+          "status": "PASS"
+        },
+        {
+          "protocol": "5",
+          "transport": "wss-mtls",
+          "mode": "text-connack",
+          "status": "PASS"
+        },
+        {
+          "protocol": "5",
+          "transport": "wss-mtls",
+          "mode": "text-publish",
+          "status": "PASS"
+        }
+      ],
+      "fixture_sha256": "3636bcdc54ad333036154993507affa924fb26bd8df2a1ba62b724675b236f66",
+      "certificate_helper_sha256": "ad74f1be6e9fcf8f9e14d9fabcd6a93f028d04c9cb31ff677e77882dc155fb96",
+      "binary_unchanged": true,
+      "counts": {
+        "PASS": 12,
+        "FAIL": 0
+      },
+      "status": "PASS",
+      "elapsed_seconds": 1.306
+    }
   }
 }
