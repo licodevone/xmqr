@@ -1,5 +1,11 @@
 # MQTT 5 — subconjunto das fases 6A–6D
 
+As correções posteriores de P232 estão no [acompanhamento atual](mqtt5-audit-follow-up.md):
+cinco MUST corrigidos e distribuídos no client 0.42.0; quatro recomendações
+recebidas C144 verificadas na fonte posterior. Não atribuir os resultados
+históricos da auditoria aos executáveis corrigidos, nem presumir conformidade
+integral por essas correções.
+
 ## Checkpoint de fechamento P227 — 2026-10-18
 
 Fase6 aceita no contrato experimental M01–M10: broker0.43.0,
