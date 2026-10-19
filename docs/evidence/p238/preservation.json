@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "outside_blocks_preserved": true,
+  "local_admin_preserved": true,
+  "local_optional_button_remains_absent": true,
+  "appearance_search_idempotent": true,
+  "full_composition_idempotent": true,
+  "before_sha256": "3c3369f877ea26a82ef51473a238107482d41e55beb1c869861e82592eeb6248",
+  "after_sha256": "dc001926d6a52ee5f1eb2e25a9310a3956499560a0632a8b5038b8626aa8cdb4"
+}

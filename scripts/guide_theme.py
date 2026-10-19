@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 
 
-VERSION = "1.0"
+VERSION = "1.1"
 STORAGE_KEY = "xmqr-code-guide-theme"
 
 # Executado antes dos estilos e do body: a primeira pintura já usa a preferência.
@@ -150,15 +150,17 @@ html[data-theme] :focus-visible { outline: 3px solid var(--guide-focus); outline
   position: fixed; right: 20px; top: 16px; z-index: 40; max-width: calc(100vw - 32px);
 }
 html[data-theme] #guide-theme-toggle {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 9px 13px;
+  display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 10px;
   font: 600 13px/1.4 system-ui, sans-serif; border-radius: 7px; box-shadow: 0 3px 12px var(--guide-shadow);
 }
-#guide-theme-toggle::before { content: '\263e'; font-size: 19px; line-height: 1; }
-#guide-theme-toggle[aria-pressed="true"]::before { content: '\2713'; font-size: 15px; }
+#guide-theme-toggle svg { width: 22px; height: 22px; flex-shrink: 0; }
+#guide-theme-toggle .theme-sun { display: none; }
+html[data-theme="dark"] #guide-theme-toggle .theme-sun { display: block; }
+html[data-theme="dark"] #guide-theme-toggle .theme-moon { display: none; }
 @media (max-width: 800px) {
   #guide-theme-controls { top: 10px; right: 16px; }
   html[data-theme] body > header { padding-top: 72px; }
-  html[data-theme] #guide-theme-toggle { min-height: 40px; padding: 8px 11px; font-size: 12px; }
+  html[data-theme] #guide-theme-toggle { width: 44px; height: 44px; }
 }
 @media print {
   #guide-theme-controls { display: none !important; }
@@ -183,7 +185,10 @@ html[data-theme] #guide-theme-toggle {
 """
 
 CONTROLS = """<div id="guide-theme-controls" aria-label="Aparência do curso">
-<button id="guide-theme-toggle" type="button" aria-pressed="false">Modo escuro</button>
+<button id="guide-theme-toggle" type="button" aria-pressed="false" aria-label="Ativar modo escuro" title="Ativar modo escuro">
+<svg class="theme-moon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 13A8.8 8.8 0 0 1 11 3.2 8.8 8.8 0 1 0 20.8 13Z"/></svg>
+<svg class="theme-sun" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+</button>
 </div>"""
 
 SCRIPT = r"""(function () {
@@ -204,7 +209,9 @@ SCRIPT = r"""(function () {
   function apply(theme) {
     root.dataset.theme = theme;
     button.setAttribute('aria-pressed', String(theme === 'dark'));
-    button.title = theme === 'dark' ? 'Modo escuro ativo. Clique para usar o modo claro.' : 'Clique para usar o modo escuro.';
+    var label = theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro';
+    button.setAttribute('aria-label', label);
+    button.title = label;
   }
   apply(choice || systemTheme());
   button.addEventListener('click', function () {

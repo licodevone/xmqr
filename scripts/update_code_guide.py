@@ -9,28 +9,29 @@ import tempfile
 from guide_admin_panel import enhance as admin_panel
 from guide_leaf_navigation import enhance as leaf_navigation
 from guide_theme import enhance as theme
+from guide_search import enhance as search
 
 
-def enhance(document):
+def enhance(document, *, appearance_search_only=False):
     # As extensões preservam blocos independentes. Normalizar sua ordem também
     # quando o HTML já continha apenas algumas delas, sem refazer o curso.
     for _ in range(4):
-        updated = leaf_navigation(theme(admin_panel(document)))
+        updated = search(theme(document)) if appearance_search_only else leaf_navigation(search(theme(admin_panel(document))))
         if updated == document:
             return updated
         document = updated
     raise ValueError('As extensões do guia não convergiram para uma ordem estável.')
 
 
-def update(path):
+def update(path, *, appearance_search_only=False):
     path = Path(path)
     if path.is_symlink() or not path.is_file():
         raise ValueError('O destino deve ser um arquivo HTML existente e real.')
     original = path.read_bytes()
     bom = b'\xef\xbb\xbf' if original.startswith(b'\xef\xbb\xbf') else b''
     document = original.decode('utf-8-sig')
-    result = enhance(document)
-    if enhance(result) != result:
+    result = enhance(document, appearance_search_only=appearance_search_only)
+    if enhance(result, appearance_search_only=appearance_search_only) != result:
         raise ValueError('As extensões não passaram na verificação de idempotência.')
     encoded = bom + result.encode('utf-8')
     if encoded == original:
@@ -55,8 +56,9 @@ def update(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--html', type=Path, required=True)
+    parser.add_argument('--appearance-search-only', action='store_true', help='Preserva o conteúdo local das aulas; atualiza somente tema e busca.')
     args = parser.parse_args()
-    changed = update(args.html)
+    changed = update(args.html, appearance_search_only=args.appearance_search_only)
     print('Guia atualizado.' if changed else 'O guia já está atualizado.')
 
 

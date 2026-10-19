@@ -107,7 +107,7 @@ menu.addEventListener('click',()=>{const opened=sidebar.classList.toggle('is-ope
 addEventListener('keydown',event=>{if(event.key==='Escape'&&sidebar.classList.contains('is-open')){closeMenu();menu.focus();}});
 document.querySelectorAll('.open-all').forEach(control=>control.addEventListener('click',event=>{event.preventDefault();topics.forEach(detail=>detail.open=true);sync();}));
 document.querySelector('#close-topics').addEventListener('click',()=>{topics.forEach(detail=>detail.open=false);sync();});
-document.querySelector('#collapse').addEventListener('click',()=>{document.querySelectorAll('main details:not(.topic):not(.subtopic)').forEach(detail=>detail.open=false);});
+document.querySelector('#collapse')?.addEventListener('click',()=>{document.querySelectorAll('main details:not(.topic):not(.subtopic)').forEach(detail=>detail.open=false);});
 input.addEventListener('input',()=>{const q=input.value.toLocaleLowerCase('pt-BR').trim();document.querySelectorAll('main .filter').forEach(card=>{card.hidden=Boolean(q&&!card.textContent.toLocaleLowerCase('pt-BR').includes(q));if(q&&!card.hidden){const detail=card.querySelector(':scope > details');if(detail)detail.open=true;ancestors(card).forEach(parent=>parent.open=true);}});sync();});
 addEventListener('beforeprint',()=>{window.printState=[...document.querySelectorAll('main details')].map(detail=>[detail,detail.open]);window.printState.forEach(([detail])=>detail.open=true);});
 addEventListener('afterprint',()=>{(window.printState||[]).forEach(([detail,opened])=>detail.open=opened);sync();});
