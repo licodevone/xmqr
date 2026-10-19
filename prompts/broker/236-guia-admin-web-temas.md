@@ -87,4 +87,4 @@ de conteúdo/âncoras/sidebar e idempotência; HTML final ainda não alterado.
 - [x] Conteúdo e passos atuais no guia.
 - [x] Tema claro/escuro persistido.
 - [x] Validação e evidências honestas.
-- [ ] Commit/push das fontes e registro do HTML local.
+- [x] Commit/push das fontes e registro do HTML local (fb75667; reconciliação P237).

@@ -2,14 +2,26 @@
 
 Planejamento original P53, 2026-10-11; checklist atualizado em 2026-10-19.
 Versões publicadas atuais: broker/admin legado 0.43.0, client independente
-0.42.1 e xmqr-admin independente 0.11.0. Fases1–5 e 6A–6D foram aceitas
+0.43.0/bridge 0.5.0 e xmqr-admin independente 0.11.0. Fases1–5 e 6A–6D foram aceitas
 nos recortes documentados. A [fase 6](phase6-acceptance.md) passou 69/69
 cenários integrados com estado v16 e pares exatos; pacote, imagens e release
 0.43.0 foram conferidos por SHA remoto. A fase 7 foi aceita no contrato de
 transporte T01 após P222. Isso não declara prontidão de produção nem
 certificação MQTT 5 integral.
-O [plano detalhado de paridade](plano-paridade-mosquitto.md), atualizado em
-2026-10-13 por P78/C42/P86/P88, fecha o planejamento de funções, dependências e gates
+A **fase 8/T02 foi aceita no escopo finito P235/P237**, com C147/C148 e
+[client 0.43.0 / bridge 0.5.0 publicado por C149](https://github.com/licodevone/xmqr-client/releases/tag/v0.43.0).
+A fonte final `9e1d011ffa22aa1225d3775b6fc99a06ae6dfc60` passou os seis jobs da
+[CI exata](https://github.com/licodevone/xmqr-client/actions/runs/39301735099).
+Debug, pacote e imagem passaram wire 33 PASS/1 NOT_RUN, segurança 13/13 e
+brokers reais 34/34; recuperação debug 16/16. Tag anotada, seis anexos e imagem
+por digest foram conferidos remotamente. A [matriz da fase 8](phase8-acceptance.md)
+registra os oito requisitos e os artefatos. Permanecem os limites de um voo
+por rota, expiração conservadora e percurso cooperativo; sem certificação MQTT 5
+integral, commit atômico entre brokers ou garantia se um intermediário remover
+a propriedade. A fase 9/Windows continua aberta.
+
+O [plano detalhado de paridade](plano-paridade-mosquitto.md), reconciliado por
+P237 em 2026-10-19, fecha o planejamento de funções, dependências e gates
 para broker/admin/client. Planejamento concluído não encerra as fases pendentes.
 Estimativas para uma sequência de desenvolvimento
 com dedicação regular, contadas do início da execução, não datas prometidas.
@@ -294,7 +306,7 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~C140–C143: cinco falhas obrigatórias P232 corrigidas no client 0.42.0, que também distribui bridge 0.4.0/C139.~~ [Aceite e artefatos verificados](https://github.com/licodevone/xmqr-client/blob/main/prompts/registros/C143-five-audit-fixes.md), [CI exata](https://github.com/licodevone/xmqr-client/actions/runs/39183999929) e [acompanhamento P233](conformance/mqtt5-audit-follow-up.md).
 - [x] ~~C144/C146: quatro recomendações de validação recebida MQTT 5 corrigidas e distribuídas no client 0.42.1, com controles e regressões.~~ [Registro C144](https://github.com/licodevone/xmqr-client/blob/main/prompts/registros/C144-mqtt5-receive-validation.md), [aceite C146](https://github.com/licodevone/xmqr-client/blob/main/prompts/registros/C146-release-0.42.1.md), [CI exata](https://github.com/licodevone/xmqr-client/actions/runs/39257417702) com cinco jobs PASS e [release](https://github.com/licodevone/xmqr-client/releases/tag/v0.42.1). Seis anexos/digest remoto conferidos; lifecycle CI PASS, tentativa local acima de 180s preservada como falha. Conformidade integral não demonstrada.
 - [x] ~~P234: comprovação independente de rejeição de dados de texto WS/WSS no client 0.42.1, em MQTT 3.1.1/5, com controles binários fragmentados/concatenados.~~ [Registro](../prompts/registros/P234-quadros-websocket-client.md), [evidência](conformance/mqtt5-client-websocket-p234.json) e [CI específica](https://github.com/licodevone/xmqr/actions/runs/39259711349): 12/12 local e remoto, mesmo ELF e zero alteração de runtime. Fecha esse recorte de evidência MQTT-6.0.0-1; demais lacunas permanecem abertas.
-- [ ] Fase 8: bridge com reconexão, mapeamento de tópicos e prevenção de loops. C125 QoS 0, C126 QoS 1, C127 guardião de topologia gerenciada, C134/C135 QoS 2/journal, C136/C137/C139 origem MQTT 5 QoS 0/1/2 e distribuição C143/0.42.0 concluídos; faltam propagação/semântica de propriedades, journal adicional, mapeamento múltiplo e proteção para bridges externas.
+- [x] ~~Fase 8/T02: bridge com reconexão, 1–8 rotas, MQTT 5 nas duas pontas, propriedades/TTL, QoS/retained, journal formato 2 e percurso cooperativo limitado.~~ C147/C148 e distribuição C149 aceitos no contrato finito P235/P237. [Matriz e artefatos](phase8-acceptance.md), [CI exata](https://github.com/licodevone/xmqr-client/actions/runs/39301735099) com seis jobs PASS e [release client 0.43.0/bridge 0.5.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.43.0). Wire 33 PASS/1 NOT_RUN, segurança 13/13 e brokers 34/34 no debug/pacote/imagem; recuperação debug 16/16; tag, seis anexos e digest remoto conferidos. Sem transação distribuída nem garantia através de intermediário que remova propriedades.
 - [ ] Fase 9: Windows nativo, serviço, instalador, persistência e permissões homologados. [Relatório de planejamento](windows-native-evolution-plan.md); implementação futura, sem aceite nesta entrega.
 - [ ] Distribuição: homologar instalação/units Ubuntu24, arm64 e repositório APT assinado.
 - [ ] Extensões de paridade: avaliar plugins/hooks, TLS PSK, sockets Unix e opções avançadas conforme demanda.
@@ -314,7 +326,7 @@ e o link do registro. Manter itens em validação desmarcados e indicar seu bloq
 | Métricas/logs | Monitor loopback e contadores administrativos de cardinalidade fixa; `$SYS` não gerado por decisão B14 | Exportação adicional conforme demanda |
 | MQTT5 | Fase 6/M01–M10 aceita no contrato finito: 69/69 fixtures com broker0.43.0, client0.40.0 e admin0.11.0 | Extensões opcionais, matriz normativa exaustiva, carga prolongada e certificação integral não comprovadas; ver [limites](phase6-acceptance.md) |
 | WebSocket | Fase 7/T01 aceita por P222: WS/WSS, MQTT 3.1.1/5 no subconjunto disponível, mTLS/Origin/ACL, client independente 0.36.0, Chromium, estado durável por URL, reinício/crash, quadros/limites e regressões TCP/TLS | Carga prolongada, power loss, múltiplos inflight e conformidade MQTT 5 global não inferidos |
-| Bridge | Sidecar `mqtt-bridge 0.4.0` publicado no client 0.42.0: direção única TLS/mTLS, QoS 0/1/2, reconexão, guardião de topologia gerenciada e journal privado QoS 2; origem MQTT 5 QoS 0/1/2 com Retain As Published e journal isolado C139. Distribuição C143 verificada | Retained vivo MQTT 3.1.1, propriedades propagadas, transação entre brokers, loops com bridges externas, mapeamento múltiplo e aceite global T02; fase 8 aberta |
+| Bridge | Client 0.43.0/bridge 0.5.0 publicado por C149: 1–8 rotas, MQTT 5 nas duas pontas, metadados/TTL, retained, journal formato 2 e percurso cooperativo. [Fase 8/T02 aceita no contrato finito](phase8-acceptance.md), com CI exata, debug/pacote/imagem e artefatos remotos conferidos | Um voo por rota, expiração conservadora, sem commit atômico entre brokers ou certificação integral; intermediário que apaga propriedades rompe o percurso. Extensões exigem contrato próprio |
 | Distribuição | Deb26 amd64; sem APT próprio | Ubuntu24 validado, arm64, repositório APT assinado e política de upgrade |
 | Windows nativo | Não homologado | Persistência/locks/CRUD/sinais adaptados, serviço Windows, instalador e testes |
 | Clients | Perfis, saída/filtros, repetição, sessões/journals e MQTT5 no contrato da fase6; sem paridade exaustiva | Extensões e campanhas específicas de firmwareESP32 como consumidor, sem reabrir o aceite atual do CLI |

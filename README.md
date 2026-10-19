@@ -15,8 +15,11 @@ admin independente0.11.0 é o par compatível. Pacote Ubuntu26amd64, imagens
 Docker numeradas, checksums e evidências estão na release. [Instalação](docs/current-releases-wsl.md)
 e [nota de migração](docs/releases/0.43.0.md).
 
-O transporte da fase7 já foi aceito; bridge/fase8 e Windows nativo/fase9
-continuam com critérios próprios. Não há certificação integral MQTT5 ou
+O transporte da fase7 e a [bridge/fase8](docs/phase8-acceptance.md) foram
+aceitos em seus contratos finitos. Client0.43.0 distribui bridge0.5.0 com
+múltiplas rotas, MQTT5/metadados/expiry, journal e percurso cooperativo;
+[release](https://github.com/licodevone/xmqr-client/releases/tag/v0.43.0).
+Windows nativo/fase9 permanece planejado. Não há certificação integral MQTT5 ou
 homologação de produção. Código próprio MIT; notices de terceiros preservados.
 
 ## Histórico dos marcos anteriores

@@ -1,12 +1,30 @@
 # Plano de paridade funcional do XMQR com Mosquitto
 
-Atualizado em 2026-10-18. Fases1–5 e fase6 aceitas em seus contratos finitos;
+Atualizado em 2026-10-19 por P237. Fases1–5 e fase6 aceitas em seus contratos finitos;
 transporteT01/fase7 também aceito. Marcos publicados: broker/legadoadmin
-0.43.0, client0.40.0 e admin independente0.11.0. Estado v16, migração e
+0.43.0, client0.43.0/bridge0.5.0 e admin independente0.11.0. Estado v16, migração e
 rollback foram validados. [Aceite fase6](phase6-acceptance.md) delimita a
 prova de M01–M10. As linhas históricas M01–M10 abaixo registram entregas
 parciais de paridade ampla com Mosquitto; não convertem o aceite finito em
 certificação MQTT 5 integral.
+A **fase 8/T02 está aceita no contrato finito P235/P237**, com C147/C148 e
+[distribuição C149/client0.43.0/bridge0.5.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.43.0).
+Fonte `9e1d011ffa22aa1225d3775b6fc99a06ae6dfc60`,
+[CI exata](https://github.com/licodevone/xmqr-client/actions/runs/39301735099)
+com seis jobs PASS; wire33PASS/1NOT_RUN, segurança13/13 e brokers34/34 no
+debug/pacote/imagem, recuperação debug16/16 e distribuição remota conferida.
+A [matriz de aceite](phase8-acceptance.md) vincula os oito requisitos à prova e
+aos artefatos. Um voo por rota, expiração conservadora e percurso cooperativo
+permanecem: não há commit atômico entre brokers, certificação integral MQTT 5
+ou garantia através de intermediário que remova propriedades. Fase9 aberta.
+
+As quatro recomendações de validação recebida MQTT 5 foram corrigidas em
+[C144](https://github.com/licodevone/xmqr-client/blob/main/prompts/registros/C144-mqtt5-receive-validation.md)
+e distribuídas em [C146/client0.42.1](https://github.com/licodevone/xmqr-client/blob/main/prompts/registros/C146-release-0.42.1.md);
+o [acompanhamento P233](conformance/mqtt5-audit-follow-up.md) preserva os
+resultados anteriores e sua resolução. Esse recorte não equivale à certificação
+integral MQTT 5 e não encerra os gates próprios da bridge.
+
 O planejamento está completo como backlog
 executável; as funcionalidades pendentes não estão implementadas por isso.
 O propósito é evoluir um broker MQTT e seus utilitários com contratos próprios,
@@ -95,8 +113,9 @@ incrementos; não são pendências reabertas do contrato finito aceito.
 | M10 | Decisão e recorte aceitos6D:PLAIN inicialTLS/mTLS e reauth explícita da mesma identidade; sem desafios arbitrários/reauth periódica |
 
 Os casos internos e testes dirigidos podem se sobrepor; não somar esses
-números às69fixtures. A fase8/bridge e extensões opcionais seguem com gates
-próprios. Não se anuncia certificação integral ou paridade exaustiva.
+números às69fixtures. A fase8/bridge foi aceita em seu contrato próprio
+P235/P237; extensões opcionais continuam com gates próprios. Não se anuncia
+certificação integral ou paridade exaustiva.
 
 ## Matriz de entregas
 
@@ -153,7 +172,7 @@ antes do código. Critérios da coluna final são condições de aceite futuras.
 | M09 | Broker: assinaturas compartilhadas | Em aceite P227C/H | Grupo ativo/durável e redistribuiçãoQoS1 preservados; escalonamento independente por grupo e Will takeover3/3wirePASS no candidato anterior. Fairness é por vida do processo; não é garantia através de reinícios contínuos. Repetir integração no core final |
 | M10 | Broker/client: autenticação estendida AUTH | Decisão documentada ADR0007; integração final pendente | Recorte: PLAIN inicial sobreTLS/mTLS e reautenticação explícita da mesma identidade. Paho independente testou autenticação inicial e negativos, não reauth. Desafios arbitrários e reautenticação periódica não oferecidos; não são requisitos implicitamente entregues. [Decisão e limites](architecture/adr-0007-mqtt5-auth-scope.md) |
 | T01 | Broker/client: WebSocket/WSS | ACCEPTED no transporte por P222: P210–P221/C112–C124 | [Matriz T01](phase7-acceptance.md) e ADR 0003; MQTT 5 global 6A–6D, carga prolongada e produção não inferidos |
-| T02 | Broker/client: bridge entre brokers | Parcial C125–C138: sidecar TLS/mTLS unidirecional, QoS 0/1/2 no modo MQTT 3.1.1, journal QoS 2, guardião da topologia gerenciada e origem MQTT 5 QoS 0/1 com Retain As Published; client 0.41.0/bridge 0.3.0 distribuídos e XMQR↔Mosquitto validados | Retained vivo MQTT 3.1.1, origem MQTT 5/QoS 2, propriedades, ciclos externos, mapeamento múltiplo e transação entre brokers; [registro C138](https://github.com/licodevone/xmqr-client/blob/main/prompts/registros/C138-release-0.41.0.md) |
+| T02 | Broker/client: bridge entre brokers | ACEITA no contrato finito P235/P237: C147/C148, TLS/mTLS, 1–8 rotas, MQTT 5 nas duas pontas, QoS 0/1/2, metadados/TTL/retained, journal formato 2 e percurso cooperativo. Client0.43.0/bridge0.5.0 publicado por C149; seis jobs CI PASS | [Matriz e artefatos](phase8-acceptance.md): debug/pacote/imagem, recuperação, segurança, tag/seis anexos/digest conferidos. Sem transação distribuída, certificação integral ou garantia através de intermediário que remova propriedades |
 | T03 | Broker: Unix domain sockets | Decisão | B09/A04; permissões, credencial do processo, ACL e portability sem substituir TLS remoto |
 | T04 | Broker: TLS PSK e opções TLS avançadas | Decisão | B11; verificar suporte do provider e modelo de identidade antes de prometer implementação |
 | X01 | Broker: hooks/plugins | Decisão | B08/A04; fronteira isolada/limitada, ABI/versionamento, falha fechada e nenhuma callback bloqueante no hot path |
@@ -184,7 +203,7 @@ a um Mosquitto isolado. APIs de plugins, arquivos de persistência e comando
 | Fase 6C fluxo | M05/M06/M07 | Saída 6B | Negociação bilateral, backlog, QoS0/1/2, alias/reset e propriedades duráveis |
 | Fase 6D assinaturas e auth | M08/M09; decisão M10 | Saída 6C | Matriz MQTT5 por requisito e interop, shared/failure/fairness; subconjunto ausente explicitado |
 | Fase 7 WebSocket | T01 | Saída fase 6D | Clientes independentes e browser de teste, fragmentação/limites/WSS e regressão TCP |
-| Fase 8 bridge | T02 | Saída fase 7 | Mosquitto nas duas pontas, loops, reconnect, remapeamento e negativas de ACL/TLS |
+| Fase 8 bridge | T02 | Saída fase 7 | [Aceita no contrato P235/P237](phase8-acceptance.md): oito requisitos comprovados, C149/client0.43.0/bridge0.5.0 publicado, CI exata e provas debug/pacote/imagem, instalação/rollback e distribuição remota conferidos |
 | Fase 9 distribuição estendida | D02/D03/D04/D05; decisões T03/T04/X01 | Saída fase 3 para D02, contratos individuais para demais | Matriz nativa/containers/serviços/upgrade/reversão, versões suportadas e releases completas |
 
 Antecipar D02 após a fase 3 pode evitar bloquear MQTT5 por empacotamento.
@@ -293,9 +312,11 @@ responsável, dependência e aceite definidos; execução permanece no checklist
 
 ## Próxima etapa após a fase6
 
-Prosseguir com os requisitos ainda abertos de T02/fase8. Client 0.41.0/C138
-distribui a bridge QoS 0/1/2 no modo MQTT 3.1.1, origem MQTT 5/QoS 0/1 e
-seu journal QoS 2 antigo; isso não resolve retained vivo MQTT 3.1.1,
-propriedades, transações entre brokers ou loops de bridges externas. Depois
-vêm fase9/Windows nativo e as prioridades adicionais do plano de evolução.
-Preparar prompts, validar e distribuir cada fatia sem mover tags anteriores.
+Fase8/T02 foi aceita no contrato finito P235/P237, com C147/C148 distribuídos
+por C149 no client0.43.0/bridge0.5.0. A [matriz de aceite](phase8-acceptance.md)
+preserva evidências, FAIL/NOT_RUN históricos, limites e conferência remota dos
+artefatos. A próxima trilha é fase9/Windows nativo e as prioridades adicionais
+do plano de evolução, mediante prompt próprio. Não inferir certificação
+integral, commit atômico entre brokers ou proteção por intermediário que
+remova propriedades. Preparar prompts, validar e distribuir cada fatia sem
+mover tags anteriores.
