@@ -37,3 +37,14 @@ a exercitar MQTT: não é falha do produto. Preservar o relatório original
 `p234-package-ws.json`; converter o buffer HTTP completo para bytes antes de
 interpretar campos e repetir os mesmos 12 casos em um relatório novo, sem
 alterar os critérios. Não atribuir PASS retroativo à primeira execução.
+
+## v1.2 — corrigir observação JSON e fechamento do servidor sintético
+
+Segunda execução: 4 PASS (texto no CONNACK) e 8 FAIL. O controle procurava
+payload literal em JSONL, cujo contrato público usa `payload_bytes`; passar a
+comparar o vetor de bytes e tópico exatos, exigindo uma única publicação.
+Depois do Close, o simulador aguardava o processo mantendo o socket aberto;
+fechar o socket do servidor após completar a resposta Close e só então esperar
+o processo, evitando dependência circular no encerramento. Preservar os dois
+relatórios e os prazos/oráculo de rejeição, em vez de aceitar timeout como PASS.
+Repetir em relatório v3 sem alterar produto ou dependências.
