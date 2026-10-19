@@ -28,3 +28,12 @@ P233 com escopo exato. Se houver FAIL, preservar relatório e revisar prompt
 antes de corrigir produto ou harness. Após release C146, CI Ubuntu26 extrai
 pacote publicado com hash fixado e executa a fixture sem instalar o pacote.
 Sem novos Rust gates só para a prova externa; sem tag/release do broker.
+
+## v1.1 — erro do simulador antes dos pacotes MQTT
+
+A primeira execução gerou 12 FAILs de TypeError ao construir o dicionário
+de cabeçalhos HTTP com chaves bytearray não hasháveis. Nenhum caso chegou
+a exercitar MQTT: não é falha do produto. Preservar o relatório original
+`p234-package-ws.json`; converter o buffer HTTP completo para bytes antes de
+interpretar campos e repetir os mesmos 12 casos em um relatório novo, sem
+alterar os critérios. Não atribuir PASS retroativo à primeira execução.
