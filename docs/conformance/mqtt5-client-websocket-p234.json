@@ -1,0 +1,320 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "timezone": "America/Sao_Paulo",
+  "audit": "P234",
+  "runtime_changed": false,
+  "client_source_commit": "db844a0808dfa82e436e5b0fe960d66536df4703",
+  "client_package_sha256": "c6a1356e5eaefda6be2f18abb5dd5fafe4865c166346a6fc57002cd99cedfb7c",
+  "client_package_origin": "GitHub Actions 39257417702",
+  "mqtt_helper_sha256": "72d35a2ead597bc9be0d59f6fb70e3d9f6a902dd0d70c50e622e9e48936b831c",
+  "historical_reports": [
+    {
+      "schema_version": 1,
+      "audit": "P234",
+      "binary_sha256": "704f4e26fef16ec536236ef6db6f7642340dbb80ede4a1733fc5c64dae0711a8",
+      "client_source_commit": "db844a0808dfa82e436e5b0fe960d66536df4703",
+      "scenarios": [
+        {
+          "protocol": "3.1.1",
+          "transport": "ws",
+          "mode": "binary",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "ws",
+          "mode": "text-connack",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "ws",
+          "mode": "text-publish",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "wss-mtls",
+          "mode": "binary",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "wss-mtls",
+          "mode": "text-connack",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "wss-mtls",
+          "mode": "text-publish",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "5",
+          "transport": "ws",
+          "mode": "binary",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "5",
+          "transport": "ws",
+          "mode": "text-connack",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "5",
+          "transport": "ws",
+          "mode": "text-publish",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "5",
+          "transport": "wss-mtls",
+          "mode": "binary",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "5",
+          "transport": "wss-mtls",
+          "mode": "text-connack",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        },
+        {
+          "protocol": "5",
+          "transport": "wss-mtls",
+          "mode": "text-publish",
+          "status": "FAIL",
+          "error_type": "TypeError",
+          "reason": "cannot use 'bytearray' as a dict key (unhashable type: 'bytearray')"
+        }
+      ],
+      "fixture_sha256": "e2c7ded9796ee4d5cf7d8d5f342ec45140bb46706c87a1b31ef16f46256f230e",
+      "certificate_helper_sha256": "ad74f1be6e9fcf8f9e14d9fabcd6a93f028d04c9cb31ff677e77882dc155fb96",
+      "binary_unchanged": true,
+      "counts": {
+        "PASS": 0,
+        "FAIL": 12
+      },
+      "status": "FAIL",
+      "elapsed_seconds": 1.802
+    },
+    {
+      "schema_version": 1,
+      "audit": "P234",
+      "binary_sha256": "704f4e26fef16ec536236ef6db6f7642340dbb80ede4a1733fc5c64dae0711a8",
+      "client_source_commit": "db844a0808dfa82e436e5b0fe960d66536df4703",
+      "scenarios": [
+        {
+          "protocol": "3.1.1",
+          "transport": "ws",
+          "mode": "binary",
+          "status": "FAIL",
+          "error_type": "AssertionError",
+          "reason": "binary control failed"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "ws",
+          "mode": "text-connack",
+          "status": "PASS"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "ws",
+          "mode": "text-publish",
+          "status": "FAIL",
+          "error_type": "TimeoutExpired",
+          "reason": "Command '['/mnt/d/projects/my-project/acmebr-projects/acmebr-broker-client/xmqr-client/dist/c146-ci-unpacked/usr/bin/mqtt-client', 'sub', '--ws-url', 'ws://127.0.0.1:57227/mqtt', '--protocol-version',"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "wss-mtls",
+          "mode": "binary",
+          "status": "FAIL",
+          "error_type": "AssertionError",
+          "reason": "binary control failed"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "wss-mtls",
+          "mode": "text-connack",
+          "status": "PASS"
+        },
+        {
+          "protocol": "3.1.1",
+          "transport": "wss-mtls",
+          "mode": "text-publish",
+          "status": "FAIL",
+          "error_type": "TimeoutExpired",
+          "reason": "Command '['/mnt/d/projects/my-project/acmebr-projects/acmebr-broker-client/xmqr-client/dist/c146-ci-unpacked/usr/bin/mqtt-client', 'sub', '--ws-url', 'wss://127.0.0.1:41227/mqtt', '--protocol-version'"
+        },
+        {
+          "protocol": "5",
+          "transport": "ws",
+          "mode": "binary",
+          "status": "FAIL",
+          "error_type": "AssertionError",
+          "reason": "binary control failed"
+        },
+        {
+          "protocol": "5",
+          "transport": "ws",
+          "mode": "text-connack",
+          "status": "PASS"
+        },
+        {
+          "protocol": "5",
+          "transport": "ws",
+          "mode": "text-publish",
+          "status": "FAIL",
+          "error_type": "TimeoutExpired",
+          "reason": "Command '['/mnt/d/projects/my-project/acmebr-projects/acmebr-broker-client/xmqr-client/dist/c146-ci-unpacked/usr/bin/mqtt-client', 'sub', '--ws-url', 'ws://127.0.0.1:39793/mqtt', '--protocol-version',"
+        },
+        {
+          "protocol": "5",
+          "transport": "wss-mtls",
+          "mode": "binary",
+          "status": "FAIL",
+          "error_type": "AssertionError",
+          "reason": "binary control failed"
+        },
+        {
+          "protocol": "5",
+          "transport": "wss-mtls",
+          "mode": "text-connack",
+          "status": "PASS"
+        },
+        {
+          "protocol": "5",
+          "transport": "wss-mtls",
+          "mode": "text-publish",
+          "status": "FAIL",
+          "error_type": "TimeoutExpired",
+          "reason": "Command '['/mnt/d/projects/my-project/acmebr-projects/acmebr-broker-client/xmqr-client/dist/c146-ci-unpacked/usr/bin/mqtt-client', 'sub', '--ws-url', 'wss://127.0.0.1:60785/mqtt', '--protocol-version'"
+        }
+      ],
+      "fixture_sha256": "ae18637a4743f197bd47fc4de17bdc2141498a97167aa5aa64b8611279a186a0",
+      "certificate_helper_sha256": "ad74f1be6e9fcf8f9e14d9fabcd6a93f028d04c9cb31ff677e77882dc155fb96",
+      "binary_unchanged": true,
+      "counts": {
+        "PASS": 4,
+        "FAIL": 8
+      },
+      "status": "FAIL",
+      "elapsed_seconds": 30.561
+    }
+  ],
+  "final_report": {
+    "schema_version": 1,
+    "audit": "P234",
+    "binary_sha256": "704f4e26fef16ec536236ef6db6f7642340dbb80ede4a1733fc5c64dae0711a8",
+    "client_source_commit": "db844a0808dfa82e436e5b0fe960d66536df4703",
+    "scenarios": [
+      {
+        "protocol": "3.1.1",
+        "transport": "ws",
+        "mode": "binary",
+        "status": "PASS"
+      },
+      {
+        "protocol": "3.1.1",
+        "transport": "ws",
+        "mode": "text-connack",
+        "status": "PASS"
+      },
+      {
+        "protocol": "3.1.1",
+        "transport": "ws",
+        "mode": "text-publish",
+        "status": "PASS"
+      },
+      {
+        "protocol": "3.1.1",
+        "transport": "wss-mtls",
+        "mode": "binary",
+        "status": "PASS"
+      },
+      {
+        "protocol": "3.1.1",
+        "transport": "wss-mtls",
+        "mode": "text-connack",
+        "status": "PASS"
+      },
+      {
+        "protocol": "3.1.1",
+        "transport": "wss-mtls",
+        "mode": "text-publish",
+        "status": "PASS"
+      },
+      {
+        "protocol": "5",
+        "transport": "ws",
+        "mode": "binary",
+        "status": "PASS"
+      },
+      {
+        "protocol": "5",
+        "transport": "ws",
+        "mode": "text-connack",
+        "status": "PASS"
+      },
+      {
+        "protocol": "5",
+        "transport": "ws",
+        "mode": "text-publish",
+        "status": "PASS"
+      },
+      {
+        "protocol": "5",
+        "transport": "wss-mtls",
+        "mode": "binary",
+        "status": "PASS"
+      },
+      {
+        "protocol": "5",
+        "transport": "wss-mtls",
+        "mode": "text-connack",
+        "status": "PASS"
+      },
+      {
+        "protocol": "5",
+        "transport": "wss-mtls",
+        "mode": "text-publish",
+        "status": "PASS"
+      }
+    ],
+    "fixture_sha256": "3636bcdc54ad333036154993507affa924fb26bd8df2a1ba62b724675b236f66",
+    "certificate_helper_sha256": "ad74f1be6e9fcf8f9e14d9fabcd6a93f028d04c9cb31ff677e77882dc155fb96",
+    "binary_unchanged": true,
+    "counts": {
+      "PASS": 12,
+      "FAIL": 0
+    },
+    "status": "PASS",
+    "elapsed_seconds": 2.701
+  }
+}

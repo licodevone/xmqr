@@ -1,0 +1,32 @@
+name: Auditoria do client WS e WSS
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/verify_p234_client_websocket_frames.py
+      - .github/workflows/auditoria-client-websocket.yml
+permissions:
+  contents: read
+jobs:
+  quadros-do-client:
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    steps:
+      - name: Preparar ferramentas do ambiente isolado
+        run: apt-get update -qq && apt-get install -y --no-install-recommends git curl ca-certificates python3 openssl
+      - uses: actions/checkout@v4
+      - name: Baixar e conferir o pacote publicado
+        run: |
+          mkdir -p dist/p234/bin
+          curl -fsSL https://github.com/licodevone/xmqr-client/releases/download/v0.42.1/xmqr-client_0.42.1-1_amd64.deb -o dist/p234/client.deb
+          echo 'c6a1356e5eaefda6be2f18abb5dd5fafe4865c166346a6fc57002cd99cedfb7c  dist/p234/client.deb' | sha256sum -c -
+          dpkg-deb -x dist/p234/client.deb dist/p234/bin
+          test "$(dist/p234/bin/usr/bin/mqtt-client --version)" = 'mqtt-client 0.42.1'
+      - name: Verificar dados binários e rejeição de texto
+        run: python3 -B scripts/verify_p234_client_websocket_frames.py --client dist/p234/bin/usr/bin/mqtt-client --client-source-commit db844a0808dfa82e436e5b0fe960d66536df4703 --report dist/p234/relatorio.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p234-quadros-ws-wss
+          path: dist/p234/relatorio.json
