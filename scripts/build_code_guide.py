@@ -155,3 +155,7 @@ print(f'HTML criado: {len(out):,} caracteres; {len(cards)} prompts; {len(sources
 # Gerar notas somente após escrever fontes limpas evita duplicação em regenerações.
 import runpy
 runpy.run_path(str(root/'scripts/guide_line_notes.py'), run_name='__main__')
+
+# P236: manter operação atual e preferências visuais também nas regenerações.
+from update_code_guide import update as update_current_guide
+update_current_guide(destination)

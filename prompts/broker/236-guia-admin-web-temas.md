@@ -1,4 +1,4 @@
-# P236 v1.0 — operação atual do admin e temas no curso HTML
+# P236 v1.3 — operação atual do admin e temas no curso HTML
 
 2026-10-19. Broker main195f9c2 limpo, adminA25 publicado na fonte4c664cf,
 aceite local concluído/CI pendente; admin distribuído0.11.0 sem A23–A25.
@@ -11,6 +11,10 @@ modo claro/escuro. Guia local existe,3.6MB, gerado pelos scripts deste repo.
   sem regenerar exemplos de código a partir de trabalho clientC148 não aceito.
 - Acrescentar seção/aulas de operação atual do admin com sidebar de títulos
   idênticos, âncoras únicas, expansão/fechamento, busca e checklist manual honesto.
+- Pedido adicional: itens da sidebar sem filhos deixam de ter details/summary,
+  seta e aria-expanded. Continuam links diretos para abrir/visitar a aula;
+  apenas itens com filhos possuem controle de expansão. Aplicar também às
+  aulas históricas existentes sem alterar seu conteúdo.
 - Explicar broker/client/admin; painel9080, monitor9090/ready e TLS8883;
   tecnologias HTML/CSS/JS nativos + Rust/Axum/Tokio/HTTPJSON.
 - Distinguir release distribuída de fonte recente (A23console,A24contas,A25status).
@@ -47,6 +51,8 @@ Sem bibliotecas/recursos remotos novos. Preferência visual não contém segredo
 
 Implementar extensão idempotente versionada em scripts/guide_admin_panel.py
 e scripts/guide_theme.py, conteúdo em docs/course-admin-web.html (fragmento).
+Navegação sem filhos em scripts/guide_leaf_navigation.py, extensão idempotente
+com mesma API enhance(document)->str e aplicada pelo gerador/updater.
 Ligar extensões à geração existente e oferecer atualização do HTML existente
 sem refazer o snapshot histórico. Arquivos isolados por agente, sem concorrência
 de edição no HTML final. Documento ../docs fica fora dos três Git roots:
@@ -63,8 +69,22 @@ apenas em fixtures próprias se necessário; nunca no sistema do operador.
 Registrar evidências/revisar prompt antes de corrigir falha. Docs sozinhas não
 alteram versões nem exigem suite MQTT/Rust sem relação. Commit/push autorizados.
 
+v1.1 acrescenta pedido explícito do usuário sobre navegação sem filhos antes
+da implementação correspondente; não remover o acesso ao conteúdo da aula.
+
+v1.2 após primeiro ensaio unitário da extensão leaf: cinco casos falharam
+com TypeError antes de alterar o HTML final. O helper offset colidiu com
+atributo interno int de HTMLParser; renomear para character_offset e repetir
+os mesmos casos, sem enfraquecer validação de preservação/idempotência.
+
+v1.3 registra erro na expectativa de contagem da validação do fragmento:
+o conteúdo possui oito aulas e15passos (sete aulas com dois passos e uma
+de checklist com um), e34caixas inicialmente desmarcadas. O contrato não
+exigia16passos. Corrigir apenas a contagem esperada, mantendo os critérios
+de conteúdo/âncoras/sidebar e idempotência; HTML final ainda não alterado.
+
 - [x] Prompt preparado antes das mudanças.
-- [ ] Conteúdo e passos atuais no guia.
-- [ ] Tema claro/escuro persistido.
-- [ ] Validação e evidências honestas.
+- [x] Conteúdo e passos atuais no guia.
+- [x] Tema claro/escuro persistido.
+- [x] Validação e evidências honestas.
 - [ ] Commit/push das fontes e registro do HTML local.
