@@ -1,0 +1,34 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="$(var.ProductName)"
+      Manufacturer="ACMEBR"
+      Version="$(var.ProductVersion)"
+      UpgradeCode="$(var.UpgradeCode)"
+      Scope="perMachine">
+
+    <MajorUpgrade
+        DowngradeErrorMessage="Uma versão mais recente já está instalada." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="VendorFolder" Name="XMQR">
+        <Directory Id="INSTALLFOLDER" Name="$(var.ProductFolder)">
+
+          <Component Id="MainExecutable" Guid="*">
+            <File
+                Id="MainExecutableFile"
+                Source="$(var.BinaryDir)\$(var.ExecutableName)"
+                KeyPath="yes" />
+          </Component>
+
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
+      <ComponentRef Id="MainExecutable" />
+    </Feature>
+
+  </Package>
+</Wix>
