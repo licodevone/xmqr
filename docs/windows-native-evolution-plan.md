@@ -16,13 +16,34 @@ locks e builds dos três adaptadores foram comprovados, com 21 testes dirigidos
 aprovados. Controle SCM real e W2/W3 continuam pendentes; os negativos reais
 confirmaram as recusas de persistência/token nativos.
 
+## Atualização P242 - client e admin
+
+Em 2026-10-21, client C151 e admin A27 receberam proteção nativa de arquivos
+privados por proprietário/DACL, com recusa de reparse points e aliases de
+caminho. Pub/sub mTLS, saída privada limitada, parada cooperativa e painel
+autenticado com usuários persistidos passaram em 12 cenários Windows usando
+os executáveis release. Veja o
+[registro P242](../prompts/registros/P242-windows-client-admin-runtime.md).
+Esses resultados substituem os bloqueios de token/senha das avaliações
+históricas; não encerram as fases globais abaixo. Instalação MSI, SCM real,
+boot/login e bandeja com serviços instalados ainda exigem VM elevada.
+Bridge/outbox do client e bundle/canal Unix/backup do admin conservam seus
+limites de plataforma. Nenhum serviço foi instalado nesta execução.
+
 ## Situação dos três sistemas
+
+Atualização P241 (2026-10-21): a persistência do broker descrita como bloqueada
+na avaliação histórica abaixo foi implementada no Windows. Testes nativos de
+IO/recuperação e MQTT após reinício/crash passaram. O
+[registro P241](../prompts/registros/P241-windows-broker-runtime.md) mantém as
+evidências e os limites: SCM, boot, ACL/instalação, bandeja real e queda de energia
+continuam sem aceite global. Os marcos abaixo permanecem abertos.
 
 | Sistema | O que existe | Lacuna para Windows nativo |
 | --- | --- | --- |
-| Broker `mqtt-broker` | Código Rust e CLI; distribuição atual em `.deb`/Docker Linux. | A [persistência](../src/persistence/mod.rs) recusa sincronização durável do diretório fora de Unix; sinalização/rotação, segurança de arquivos, serviço e recuperação exigem adaptação e teste Windows. Compilar um `.exe` não prova durabilidade. |
-| Client `mqtt-client` | CLI de publicação/assinatura com histórico de builds portáveis Windows; um só programa pode exercer os dois papéis com credenciais/ACL distintas. | Credenciais privadas, [encerramento](../../xmqr-client/src/signals.rs), reconexão e saída de console precisam de regressão no Windows atual. Serviços permanentes de assinatura/publicação, upgrade e instalador não foram homologados. |
-| Admin independente `xmqr-admin` | CLI, backup/verify/restore, edição de bundle e canal local no Linux. | O [canal](../../xmqr-admin/src/channel.rs) usa socket Unix em módulo Linux; [usuários](../../xmqr-admin/src/users.rs), [token](../../xmqr-admin/src/token.rs) e edição de bundle dependem de permissões/sincronização Unix ou recusam a operação fora dessa plataforma. Precisam de transporte local autenticado, ACL e operações atômicas equivalentes. |
+| Broker `mqtt-broker` | CLI/adaptador SCM; P241 acrescenta persistência e testes MQTT nativos Windows. | Instalação/SCM/boot e ACL efetiva aguardam VM elevada; rotação Unix e backup legado têm escopo separado. Crash de processo não comprova recuperação após queda de energia. |
+| Client `mqtt-client` | C151: pub/sub Windows mTLS, senha/configuração privadas e saída NDJSON limitada com sincronização antes dos ACKs; parada cooperativa validada. | SCM, MSI/upgrade, boot e interop externa ainda pendentes. Bridge/outbox e journal QoS2 permanecem Linux; crash pode duplicar a saída. |
+| Admin independente `xmqr-admin` | A27: token e usuários privados nativos, painel HTTP loopback autenticado, bootstrap/login e persistência após reinício comprovados. | SCM/MSI/boot ainda pendentes. Bundle dinâmico usa o core fixado com política Linux; canal Unix e backup/restore não receberam equivalentes Windows. |
 
 O `mqtt-admin` incluído no pacote do broker é legado e também requer avaliação
 própria. Não substituir o admin independente por ele sem compatibilidade

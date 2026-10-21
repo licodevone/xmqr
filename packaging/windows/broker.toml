@@ -1,5 +1,5 @@
 # Experimental Windows service. Provision certificates and security files first.
-# Windows durable storage remains a separate acceptance gate; do not weaken it.
+# P241 validates native process-crash recovery; elevated SCM/ACL acceptance is pending.
 version = 1
 
 [broker]

@@ -653,14 +653,21 @@ async fn run_until_shutdown(
     connections: ConnectionDrain,
 ) -> Result<(), mqtt_broker::transport::HandlerError> {
     // Drop the accept loop/listener before queuing the actor shutdown barrier.
-    #[cfg(all(windows, feature = "windows-service-runtime"))]
-    windows_service::running()?;
     let stopped = {
         tokio::pin!(serving);
-        tokio::select! {
-            biased;
-            signal = shutdown_signal() => signal,
-            result = &mut serving => result,
+        #[cfg(all(windows, feature = "windows-service-runtime"))]
+        let readiness = windows_service::running();
+        #[cfg(not(all(windows, feature = "windows-service-runtime")))]
+        let readiness = Ok::<(), io::Error>(());
+        match readiness {
+            Ok(()) => tokio::select! {
+                biased;
+                signal = shutdown_signal() => signal,
+                result = &mut serving => result,
+            },
+            // Even an SCM status failure must close listeners and flush the
+            // actor before its error is propagated to service_main.
+            Err(error) => Err(error),
         }
     };
     metrics.set_listener_ready(false);

@@ -10,6 +10,10 @@
     <MajorUpgrade
         DowngradeErrorMessage="Uma versão mais recente já está instalada." />
 
+    <Property Id="MsiLogging" Value="voicewarmup" />
+    <Property Id="XMQR_ACCEPT_LICENSE" Secure="yes" />
+    <Property Id="XMQR_START_MENU" Value="1" Secure="yes" />
+    <Property Id="XMQR_DESKTOP" Value="0" Secure="yes" />
     <MediaTemplate EmbedCab="yes" />
     <Upgrade Id="$(var.UpgradeCode)">
       <UpgradeVersion Minimum="$(var.ProductVersion)" Maximum="$(var.ProductVersion)"
@@ -17,6 +21,8 @@
     </Upgrade>
     <Launch Condition="Installed OR NOT XMQR_SAME_VERSION"
         Message="Remova o candidato experimental da mesma versao antes de instalar outro. Os dados serao preservados." />
+    <Launch Condition="UILevel &gt;= 5 OR XMQR_ACCEPT_LICENSE = &quot;1&quot; OR Installed OR REMOVE = &quot;ALL&quot;"
+        Message="A instala&#xE7;&#xE3;o silenciosa exige aceita&#xE7;&#xE3;o expl&#xED;cita: defina XMQR_ACCEPT_LICENSE=1." />
     <!-- Never apply a protected ACL to a caller-supplied shared/root directory. -->
     <SetProperty Id="XmqrExpectedDataDir" Value="[CommonAppDataFolder]XMQR\$(var.ComponentId)\"
         Before="LaunchConditions" Sequence="both" />
@@ -33,6 +39,11 @@
     <Property Id="DATADIR" Secure="yes">
       <RegistrySearch Id="PreviousDataDirectory" Root="HKLM"
           Key="SOFTWARE\XMQR\Install\$(var.ComponentId)" Name="DataDirectory"
+          Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="XMQR_MANAGER_EXE" Secure="yes">
+      <RegistrySearch Id="InstalledManagerExecutable" Root="HKLM"
+          Key="SOFTWARE\XMQR\Manager" Name="Executable"
           Type="raw" Bitness="always64" />
     </Property>
 
@@ -118,6 +129,28 @@
       </Directory>
     </StandardDirectory>
 
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="XMQRStartMenuFolder" Name="XMQR">
+        <Component Id="ManagerStartMenuAlias" Guid="*" Bitness="always64"
+            Condition="XMQR_MANAGER_EXE AND XMQR_START_MENU = &quot;1&quot;" Transitive="yes">
+          <Shortcut Id="ComponentStartMenuLink" Name="$(var.ProductName)"
+              Target="[XMQR_MANAGER_EXE]" />
+          <RemoveFolder Id="RemoveComponentStartMenuFolder" On="uninstall" />
+          <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)"
+              Name="ManagerStartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="ManagerDesktopAlias" Guid="*" Bitness="always64"
+          Condition="XMQR_MANAGER_EXE AND XMQR_DESKTOP = &quot;1&quot;" Transitive="yes">
+        <Shortcut Id="ComponentDesktopLink" Name="$(var.ProductName)"
+            Target="[XMQR_MANAGER_EXE]" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)"
+            Name="ManagerDesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
       <Files Directory="NOTICESDIR" Include="$(var.NoticesDir)\**" />
       <ComponentRef Id="MainExecutable" />
@@ -128,7 +161,10 @@
       <ComponentRef Id="PrivateCertificatesDirectory" />
       <ComponentRef Id="PrivateLogsDirectory" />
       <ComponentRef Id="PrivateStateDirectory" />
+      <ComponentRef Id="ManagerStartMenuAlias" />
+      <ComponentRef Id="ManagerDesktopAlias" />
     </Feature>
 
+    <UIRef Id="XmqrInstallerUI" />
   </Package>
 </Wix>

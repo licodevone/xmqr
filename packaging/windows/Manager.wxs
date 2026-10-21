@@ -9,6 +9,12 @@
     </Upgrade>
     <Launch Condition="Installed OR NOT XMQR_SAME_VERSION"
         Message="Remova o candidato experimental da mesma versao antes de instalar outro." />
+    <Property Id="MsiLogging" Value="voicewarmup" />
+    <Property Id="XMQR_ACCEPT_LICENSE" Secure="yes" />
+    <Property Id="XMQR_START_MENU" Value="1" Secure="yes" />
+    <Property Id="XMQR_DESKTOP" Value="0" Secure="yes" />
+    <Launch Condition="UILevel &gt;= 5 OR XMQR_ACCEPT_LICENSE = &quot;1&quot; OR Installed OR REMOVE = &quot;ALL&quot;"
+        Message="A instala&#xE7;&#xE3;o silenciosa exige aceita&#xE7;&#xE3;o expl&#xED;cita: defina XMQR_ACCEPT_LICENSE=1." />
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="VendorFolder" Name="XMQR">
         <Directory Id="INSTALLFOLDER" Name="Manager">
@@ -23,9 +29,33 @@
         </Directory>
       </Directory>
     </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="XMQRStartMenuFolder" Name="XMQR">
+        <Component Id="ManagerStartMenuShortcut" Guid="*" Bitness="always64"
+            Condition="XMQR_START_MENU = &quot;1&quot;" Transitive="yes">
+          <Shortcut Id="ManagerStartMenuLink" Name="XMQR Manager"
+              Target="[#ManagerExecutableFile]" WorkingDirectory="INSTALLFOLDER" />
+          <RemoveFolder Id="RemoveXMQRStartMenuFolder" On="uninstall" />
+          <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Manager"
+              Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="ManagerDesktopShortcut" Guid="*" Bitness="always64"
+          Condition="XMQR_DESKTOP = &quot;1&quot;" Transitive="yes">
+        <Shortcut Id="ManagerDesktopLink" Name="XMQR Manager"
+            Target="[#ManagerExecutableFile]" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Manager"
+            Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
     <Feature Id="MainFeature" Title="XMQR Manager" Level="1">
       <Files Directory="NOTICESDIR" Include="$(var.NoticesDir)\**" />
       <ComponentRef Id="ManagerExecutable" />
+      <ComponentRef Id="ManagerStartMenuShortcut" />
+      <ComponentRef Id="ManagerDesktopShortcut" />
     </Feature>
+    <UIRef Id="XmqrInstallerUI" />
   </Package>
 </Wix>

@@ -3,6 +3,31 @@
 Este repositório contém o broker XMQR. O projeto vizinho mqtt-broker é consumidor:
 firmware, gateways, web/mobile, banco e regras de negócio não pertencem ao nÃºcleo.
 
+## Registro automático das conversas — P240
+
+Por pedido permanente do usuário, registrar cada troca de mensagens atendida
+neste repositório em [docs/chat](docs/chat/README.md). Usar arquivo diário
+`YYYY-MM-DD.md`, no fuso `America/Sao_Paulo`, com seção por conversa, autoria,
+ordem das mensagens e data. Incluir mensagens visíveis do usuário e do assistente
+(atualizações, perguntas e resposta final), preservando seu texto. Ao receber
+nova mensagem, registrar a entrada e as saídas ainda não gravadas; antes de
+enviar a resposta final, gravar seu texto definitivo. Não encerrar o turno sem
+atualizar o histórico, se houver acesso de escrita disponível.
+
+Consultar o arquivo antes de acrescentar entradas para não duplicar mensagens
+nem sobrescrever outras conversas. Horários de envio indisponíveis devem ser
+marcados como indisponíveis; não confundir horário de gravação com o de envio.
+Referenciar contexto de ambiente/instruções e evidências técnicas; não copiar
+mensagens internas, raciocínio privado, dumps de ferramentas ou segredos.
+Se o contexto anterior não estiver disponível, declarar a lacuna sem inventar
+uma transcrição. Se a gravação falhar, informar a falha ao usuário.
+
+Esta rotina é executada pelo agente ao atender mensagens, sem captura global
+ou processo em background. Novas inclusões estão autorizadas pelo
+[P240](prompts/broker/240-chat-history.md), sem novo prompt ou confirmação
+apenas para registrar o chat. Registrar uma mensagem não autoriza executar
+pedidos antigos pendentes nem concede aprovação de instalação/publicação.
+
 ## Trabalho por prompts
 
 Antes de alterar arquivos, prepare primeiro um ou mais prompts com ID/versão,

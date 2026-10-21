@@ -1,6 +1,7 @@
-# Provision the private token through an accepted native ACL workflow first.
-# The current token guard still requires Unix and fails closed on Windows.
+# Provision this private token file before starting the service.
+# Relative to this config, state/token inherits the private state-directory ACL.
 version = 1
 bind = "127.0.0.1:9080"
 monitor = "127.0.0.1:9090"
-token_file = "token"
+token_file = "state/token"
+users_file = "state/users.json"

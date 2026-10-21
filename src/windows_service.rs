@@ -113,10 +113,10 @@ pub fn running() -> io::Result<()> {
         .lock()
         .map_err(|_| io::Error::other("service status unavailable"))?;
     if *STOP.borrow() {
-        return Err(io::Error::new(
-            io::ErrorKind::Interrupted,
-            "service stopping",
-        ));
+        // A stop during initialization must still reach the broker's normal
+        // shutdown barrier. The retained watch value wakes shutdown() even
+        // when its receiver is created after this check.
+        return Ok(());
     }
     if let Some(handle) = *guard {
         handle
@@ -130,7 +130,11 @@ pub fn running() -> io::Result<()> {
 
 pub async fn shutdown() -> io::Result<()> {
     if !active() {
-        return tokio::signal::ctrl_c().await;
+        let mut interrupt = tokio::signal::windows::ctrl_break()?;
+        return tokio::select! {
+            result = tokio::signal::ctrl_c() => result,
+            _ = interrupt.recv() => Ok(()),
+        };
     }
     let mut receiver = STOP.subscribe();
     receiver
@@ -161,17 +165,23 @@ fn service_main(_arguments: Vec<OsString>) {
         log("control handler failed");
         return;
     };
-    if let Ok(mut guard) = STATUS.lock() {
-        *guard = Some(handle);
-    } else {
-        return;
-    }
-    if handle
-        .set_service_status(status(ServiceState::StartPending, false))
-        .is_err()
     {
-        log("start status failed");
-        return;
+        let Ok(mut guard) = STATUS.lock() else {
+            return;
+        };
+        *guard = Some(handle);
+        // Serialize the first status with stop handling so StartPending can
+        // never overwrite a StopPending status reported by the handler.
+        let state = if *STOP.borrow() {
+            ServiceState::StopPending
+        } else {
+            ServiceState::StartPending
+        };
+        if handle.set_service_status(status(state, false)).is_err() {
+            *guard = None;
+            log("start status failed");
+            return;
+        }
     }
     log("starting");
     let success = std::panic::catch_unwind(context.run).unwrap_or(false);

@@ -9,7 +9,7 @@ pub mod backup;
 #[cfg(test)]
 pub(crate) mod faults;
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 mod fault_tests;
 
 use std::{
@@ -23,6 +23,8 @@ use fs2::FileExt;
 use thiserror::Error;
 
 const WAL_NAME: &str = "state.wal";
+#[cfg(windows)]
+const WAL_INIT_NAME: &str = "state.wal.init";
 const SNAPSHOT_NAME: &str = "state.snapshot";
 const SNAPSHOT_TEMP_NAME: &str = "state.snapshot.tmp";
 const LOCK_NAME: &str = "state.lock";
@@ -113,7 +115,9 @@ impl Store {
             .truncate(false)
             .open(lock_path)?;
         lock.try_lock_exclusive().map_err(|error| {
-            if error.kind() == io::ErrorKind::WouldBlock {
+            if error.kind() == io::ErrorKind::WouldBlock
+                || error.raw_os_error() == fs2::lock_contended_error().raw_os_error()
+            {
                 StorageError::AlreadyOpen
             } else {
                 StorageError::Io(error)
@@ -124,7 +128,13 @@ impl Store {
         // only after acquiring the exclusive lock.
         let temporary_snapshot = directory.join(SNAPSHOT_TEMP_NAME);
         match fs::remove_file(&temporary_snapshot) {
-            Ok(()) => sync_directory(&directory)?,
+            Ok(()) => {
+                // This uncommitted file is never replayed. Windows publishes
+                // committed files through write-through moves instead of a
+                // directory fsync; persisting this cleanup is unnecessary.
+                #[cfg(not(windows))]
+                sync_directory(&directory)?;
+            }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
         }
@@ -139,12 +149,7 @@ impl Store {
         if snapshot_exists && !wal_exists {
             return Err(corrupt("WAL", "missing after a committed snapshot"));
         }
-        let mut wal = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&wal_path)?;
+        let mut wal = open_wal(&directory, &wal_path)?;
 
         let wal_length = wal.metadata()?.len();
         if !wal_exists
@@ -158,6 +163,7 @@ impl Store {
             wal.set_len(0)?;
             wal.write_all(WAL_HEADER)?;
             wal.sync_all()?;
+            #[cfg(not(windows))]
             sync_directory(&directory)?;
         }
 
@@ -300,10 +306,7 @@ impl Store {
         let snapshot = encode_snapshot(&self.state, self.sequence)?;
         #[cfg(test)]
         self.faults.check(faults::Point::SnapshotCreate)?;
-        let mut temporary_file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temporary_path)?;
+        let mut temporary_file = write_options().create_new(true).open(&temporary_path)?;
         #[cfg(test)]
         self.faults
             .write_all(faults::Point::SnapshotWrite, &mut temporary_file, &snapshot)?;
@@ -316,10 +319,13 @@ impl Store {
         drop(temporary_file);
         #[cfg(test)]
         self.faults.check(faults::Point::SnapshotRename)?;
-        fs::rename(&temporary_path, &final_path)?;
+        publish_snapshot(&temporary_path, &final_path)?;
         crash_at("after_snapshot_rename");
         #[cfg(test)]
         self.faults.check(faults::Point::DirectorySync)?;
+        // On Windows publish_snapshot has already completed a write-through
+        // move. Keep the fault boundary before truncating the recoverable WAL.
+        #[cfg(not(windows))]
         sync_directory(&self.directory)?;
         crash_at("after_snapshot_dir_fsync");
 
@@ -653,12 +659,71 @@ fn corrupt(component: &'static str, reason: &'static str) -> StorageError {
     StorageError::Corrupt { component, reason }
 }
 
+fn write_options() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    options.write(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        // FILE_FLAG_WRITE_THROUGH. File::sync_all/sync_data still form the
+        // explicit acknowledgement barriers; no unbuffered alignment changes.
+        options.custom_flags(0x8000_0000);
+    }
+    options
+}
+
+#[cfg(not(windows))]
+fn open_wal(_directory: &Path, path: &Path) -> io::Result<File> {
+    write_options()
+        .read(true)
+        .create(true)
+        .truncate(false)
+        .open(path)
+}
+
+#[cfg(windows)]
+fn open_wal(directory: &Path, path: &Path) -> io::Result<File> {
+    // The caller owns the cross-process writer lock. An interrupted initial
+    // publication leaves only this disposable file, never committed state.
+    let temporary = directory.join(WAL_INIT_NAME);
+    match fs::remove_file(&temporary) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    if !path.try_exists()? {
+        let mut file = write_options().create_new(true).open(&temporary)?;
+        file.write_all(WAL_HEADER)?;
+        file.sync_all()?;
+        crash_at("after_wal_init_fsync");
+        drop(file);
+        // Same directory, no cross-volume copy fallback, no overwrite. The
+        // dependency's safe wrapper sets MOVEFILE_WRITE_THROUGH on Windows.
+        atomicwrites::move_atomic(&temporary, path)?;
+        crash_at("after_wal_init_publish");
+    }
+    // Never recreate a missing WAL after publication; surface the failure.
+    write_options().read(true).open(path)
+}
+
+#[cfg(windows)]
+fn publish_snapshot(temporary: &Path, destination: &Path) -> io::Result<()> {
+    // Contents are flushed and the handle closed by the caller before moving.
+    // MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH, without COPY_ALLOWED.
+    atomicwrites::replace_atomic(temporary, destination)
+}
+
+#[cfg(not(windows))]
+fn publish_snapshot(temporary: &Path, destination: &Path) -> io::Result<()> {
+    fs::rename(temporary, destination)
+}
+
 #[cfg(unix)]
 fn sync_directory(directory: &Path) -> io::Result<()> {
     File::open(directory)?.sync_all()
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn sync_directory(_directory: &Path) -> io::Result<()> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -666,8 +731,10 @@ fn sync_directory(_directory: &Path) -> io::Result<()> {
     ))
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, any(unix, windows)))]
 mod tests {
+    #[cfg(windows)]
+    use super::WAL_INIT_NAME;
     use std::{
         fs::{File, OpenOptions},
         io::{Read, Seek, SeekFrom, Write},
@@ -955,5 +1022,53 @@ mod tests {
                 assert_eq!(store.sequence(), 1);
             }
         }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn initial_wal_publication_recovers_after_process_exit() {
+        for stage in ["after_wal_init_fsync", "after_wal_init_publish"] {
+            let directory = tempdir().expect("tempdir");
+            let status = Command::new(std::env::current_exe().expect("test executable"))
+                .args(["--exact", "persistence::tests::crash_probe", "--nocapture"])
+                .env("MQTT_STORAGE_CRASH_STAGE", stage)
+                .env("MQTT_STORAGE_CRASH_DIRECTORY", directory.path())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .expect("spawn initial publication crash probe");
+            assert_eq!(status.code(), Some(71), "crash point {stage}");
+            let mut recovered = Store::open(directory.path()).expect("recover initialization");
+            assert!(recovered.is_empty());
+            assert_eq!(recovered.put(b"key", b"durable").unwrap(), 1);
+            assert!(!directory.path().join(WAL_INIT_NAME).exists());
+            drop(recovered);
+            assert_eq!(
+                Store::open(directory.path()).unwrap().get(b"key"),
+                Some(b"durable".as_slice())
+            );
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn stale_initialization_file_never_replaces_committed_wal() {
+        let directory = tempdir().unwrap();
+        let mut store = Store::open(directory.path()).unwrap();
+        store.put(b"key", b"acknowledged").unwrap();
+        let temporary = directory.path().join(WAL_INIT_NAME);
+        std::fs::write(&temporary, b"incomplete initialization").unwrap();
+        assert!(matches!(
+            Store::open(directory.path()),
+            Err(StorageError::AlreadyOpen)
+        ));
+        assert!(
+            temporary.exists(),
+            "active writer prevents temporary cleanup"
+        );
+        drop(store);
+        let recovered = Store::open(directory.path()).unwrap();
+        assert_eq!(recovered.get(b"key"), Some(b"acknowledged".as_slice()));
+        assert!(!temporary.exists());
     }
 }

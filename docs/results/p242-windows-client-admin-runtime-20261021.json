@@ -1,0 +1,237 @@
+{
+  "schema": 1,
+  "prompt": "P242 v1.3",
+  "date_utc": "2026-10-21T18:01:56.196833+00:00",
+  "platform": "native Windows x86_64-pc-windows-msvc",
+  "runtime": {
+    "schema": 1,
+    "binary_sha256": {
+      "broker": "bdcf6eabafd70a8206916c4fd078bda002e2f0fb257bf3bc6b1c549f53882fff",
+      "client": "39c5f170849d2a514c31c13468625790cd362786a3a09846cc2d98169398d69d",
+      "admin": "1363dfb1277d1f9d5ac829e8ec46e18799ea13ea1d555788a3f2d1514201a482"
+    },
+    "checks": [
+      "mtls-3.1.1-qos1-private-service-output",
+      "mtls-3.1.1-qos2-private-service-output",
+      "mtls-5-qos1-private-service-output",
+      "mtls-5-qos2-private-service-output",
+      "service-config-publisher-and-background-subscriber-graceful-stop",
+      "full-private-output-refuses-new-record-without-truncating",
+      "wire-mtls-qos1-full-output-no-puback",
+      "wrong-password-rejected",
+      "untrusted-ca-rejected",
+      "admin-private-token-authenticated-broker-status",
+      "admin-web-bootstrap-login-private-users-persist-after-restart",
+      "wrong-server-san-rejected"
+    ],
+    "scm_lifecycle": "NOT_RUN",
+    "msi_installation": "NOT_RUN",
+    "result": "PASS"
+  },
+  "earlier_runtime_reports": [
+    "target/p242-runtime-debug-proof/report.json",
+    "target/p242-runtime-release-proof/report.json"
+  ],
+  "unit_and_cli_gates": {
+    "client": {
+      "service_tests": 95,
+      "normal_cli_tests": 93,
+      "result": "PASS",
+      "strict_clippy": "PASS service all-targets and normal mqtt-client bin",
+      "normal_bins_and_service_builds": "PASS",
+      "fmt": "PASS"
+    },
+    "admin": {
+      "service_tests": 31,
+      "normal_unit_tests": 29,
+      "normal_cli_integration_tests": 2,
+      "result": "PASS",
+      "strict_clippy": "PASS both all-targets",
+      "normal_and_service_builds": "PASS",
+      "fmt": "PASS"
+    },
+    "broker_strict_clippy": "preexisting Windows warnings remain; not globally PASS"
+  },
+  "packaging": {
+    "result": "PASS",
+    "wix_verifier": "13/13 PASS",
+    "manifest": {
+      "schema": 1,
+      "target": "x86_64-pc-windows-msvc",
+      "experimental": true,
+      "native_acceptance": false,
+      "built_at_utc": "2026-10-21T17:58:59.0479305Z",
+      "limitations": [
+        "Broker Windows durable storage has passed native persistence and MQTT recovery proof; MSI/SCM acceptance remains pending.",
+        "Admin private token and web-user files, bootstrap authentication, and authenticated status have passed native Windows runtime proof; MSI/SCM acceptance remains pending.",
+        "Client private password and service-config ACLs plus bounded private JSONL subscriber output have passed native Windows runtime proof; MSI/SCM acceptance remains pending.",
+        "MSI installation, effective ACLs, boot, logon, upgrade and rollback require disposable elevated Windows VM validation."
+      ],
+      "packages": [
+        {
+          "kind": "manager",
+          "file": "xmqr-manager-0.1.0-windows-x64-experimental.msi",
+          "version": "0.1.0",
+          "sha256": "06e66938de1545ce6fa00004278ed7fc02c1de9551a38ca127380ec272fca242",
+          "executable_sha256": "7dcda82ec131f0a770c23e96193ca4d1024ee6d32664a142b5d4687087cdcacd",
+          "source_commit": "6cb7b1dc222d11f8af01addd134a839a8b5ecf33",
+          "source_dirty": true
+        },
+        {
+          "kind": "broker",
+          "file": "xmqr-broker-0.43.0-windows-x64-experimental.msi",
+          "version": "0.43.0",
+          "sha256": "57ffea517d842398bf3555de71e6f86d2279c2adb953cbe0e41bdf86455faed3",
+          "executable_sha256": "bdcf6eabafd70a8206916c4fd078bda002e2f0fb257bf3bc6b1c549f53882fff",
+          "source_commit": "6cb7b1dc222d11f8af01addd134a839a8b5ecf33",
+          "source_dirty": true
+        },
+        {
+          "kind": "client",
+          "file": "xmqr-client-0.43.0-windows-x64-experimental.msi",
+          "version": "0.43.0",
+          "sha256": "de9474882f2679d078ad007996d985bcae18fb538aa75e75f1bc32cff3bb6ce8",
+          "executable_sha256": "39c5f170849d2a514c31c13468625790cd362786a3a09846cc2d98169398d69d",
+          "source_commit": "fbbf7af768493c7c6adfdcef06750d6402a7a658",
+          "source_dirty": true
+        },
+        {
+          "kind": "admin",
+          "file": "xmqr-admin-0.11.0-windows-x64-experimental.msi",
+          "version": "0.11.0",
+          "sha256": "d9535f757167ae5f62ef103c7f2f1b173f3c464a691b5b81b3ddd194dafaed17",
+          "executable_sha256": "1363dfb1277d1f9d5ac829e8ec46e18799ea13ea1d555788a3f2d1514201a482",
+          "source_commit": "2b6f245c30efb6d57af85b70d56e645d7a3b9b71",
+          "source_dirty": true
+        }
+      ]
+    },
+    "checksums_verified": 1033,
+    "notice_package_counts": {
+      "manager": 79,
+      "broker": 147,
+      "client": 147,
+      "admin": 197
+    }
+  },
+  "archive": {
+    "path": "dist/windows/xmqr-windows-broker-client-admin-20261021-experimental.zip",
+    "bytes": 9426726,
+    "sha256": "f6a96e965da096821668fd1c23f5d4d9a644d50e581efbebe0ad7199bcab77d1",
+    "crc_and_embedded_checksums": "PASS"
+  },
+  "source_sha256": {
+    "broker": {
+      "Cargo.lock": "53768d0fd2ddba06a1c5499126616eee9dbc480d6e70006411094dc14293a119",
+      "Cargo.toml": "1d6efc0364b687952ca3dcacd65a8aea7fca8f69ede581bad0d21da40d93da5d",
+      "packaging/windows-service/Cargo.lock": "5127eb76796240cf758be98e8f3d6b3795cdbca425eef224de790ea7ff80e5b9",
+      "packaging/windows-service/Cargo.toml": "db55d18141ac04c2cbdbc9ea6a6ccf751be0a14b31796d1b272db758356fb9c5",
+      "src/admin_channel.rs": "235e414d5533db86d9e23edb02259686154b31ac61994ef9ba6c204ee7473401",
+      "src/auth/dynamic.rs": "090801122afdf5e63de1e7dcc92c69dfe5edf42cd08366f9c837fc4e060bd366",
+      "src/auth/mod.rs": "e2ed3aede609af39fb1c8a531ac312886e3cd1fdbf704c11ef699c8fc360b894",
+      "src/bin/mqtt-admin/main.rs": "cd407541df03b1bb2d3e6638e05ed199e6767fb2445dd6290b16d7e17be4daa2",
+      "src/bin/mqtt-admin/state.rs": "e133440ed9f548ea3a328c97ce7e87eefb8b3ec44cbf0cf89f4b5a5ccca90442",
+      "src/bin/mqtt-admin/users.rs": "7438bf5231452ad257bc77089c2a19895b61576af54edcc822911616c774a33d",
+      "src/configuration.rs": "5298469664d855ed0707804aa8e84bbde7915c919b76e1382210b087d2b864a3",
+      "src/lib.rs": "39fe4a376efc58f5573aab60dd639eb6544979a64bda6ea57fcb4e16b190cb60",
+      "src/main.rs": "fe6b482a0aa5c7b9e1addd4dedb38cd7dba4fa152332838dea62c5a7d4f388bd",
+      "src/monitoring.rs": "030055a4f940f00eb5dbacde4be7f73adb139ac667c09c225e1b883a0947d1e1",
+      "src/mqtt/clock.rs": "38228c0fc315eb96d1f88bea20bfeb12222647fed496ed008fb88c10ab423567",
+      "src/mqtt/codec.rs": "279eb28a179c5abfbc9f930e601b748af3a99796f3b0a8b0c2e172f7674295a7",
+      "src/mqtt/connect_contract_tests.rs": "e64e57842806348d04505198dc0732a3317e2c188975e5baf8508ea27f107630",
+      "src/mqtt/expiry_contract_tests.rs": "851a8aba59bc8315702de77043c3e9bcf5e7a12fd30b6acd20ddf1ae3f980d37",
+      "src/mqtt/fuzz_tests.rs": "7c5474818a76f6379c1f97c16897860687c6df4f241fa2ee2fa23f2d5e2e7103",
+      "src/mqtt/limits.rs": "c58b12ed16ad2abe61cd7bf7ce9779bc08c55caa4d01dc3b0991f7e5b135d70f",
+      "src/mqtt/mod.rs": "788303dd6b8e89c80a967c9a518caccb139dcf1d5e48a9087eb8a119674bda1f",
+      "src/mqtt/router.rs": "79f1e01ed9b1c0690e69e5eccaef03ee8870d42db41eb67b4a7b6157e90efd77",
+      "src/mqtt/storage_fault_tests.rs": "6e44229bfe5f2cf6d60862ab4d7467f115320bd3c73bd2c30a2ae8f19c3d37ae",
+      "src/mqtt/store.rs": "44f11cfb3aeb0984b9c6386b9947614c7258392ec6c8c2e8e430b3e0f5261599",
+      "src/mqtt/topic.rs": "eaa48064ac5bd27e0525ef0ba28a250b4f6ed173c373afbd1393370ab915433f",
+      "src/persistence/actor.rs": "5067bf1e20a657b7734264a7d6bda913713c5b65e5f9a7ae56f3d97fe61000dc",
+      "src/persistence/backup.rs": "b2cf83b2c822f1c0279e4ec0d2625fed72fdef778480d45915f3c6c73ba244bc",
+      "src/persistence/fault_tests.rs": "616912451504e3eadd218cee5fdce012f3c150ed4615f3c32c773cdf65fd20d4",
+      "src/persistence/faults.rs": "985b73ca06ea2613ccc0b3b439570e691df09ebbd71e72eca3e202e10da7b4d5",
+      "src/persistence/mod.rs": "ab945f60979eab21ce97694d57305a759a197226cf539e2576f74da05bf61739",
+      "src/transport/mod.rs": "81aeb133dd2a27a851d008bdc0144ce921729b05596687f402953351bbcade0d",
+      "src/transport/rotation.rs": "681cca85cac61fb019bbb5ed1f3b284e3b4ea32fa16f0e4721776cecea12683d",
+      "src/windows_launch.rs": "31d4010cb6dae53d387d583a2d95345e64de0ed61abd968ba334a7dadc518aca",
+      "src/windows_service.rs": "9cef96d1f70a2847d86e6c2fd0836d7f8371b0e0f808f4f9d8e509560fbfa120"
+    },
+    "client": {
+      "Cargo.lock": "d1ba5e0c71014f625ea68b5084b6ca27858352044d5725b1da8c3d7cc99f84bb",
+      "Cargo.toml": "716abd45d3fe84cb362a6a286d968d9993b50d802c4df73cd1ad08c59bd572a6",
+      "packaging/windows-service/Cargo.lock": "8b9572ce1baa62312fcf97eb0eb3988008a9279503b92e23751544e6550d7748",
+      "packaging/windows-service/Cargo.toml": "bf7589dc8d273d9cd361836352b2c1bbdbd9bd24509d5ea21c188664b3bb0d9c",
+      "src/bin/mqtt-bridge.rs": "2d440eea57370b891723947741c76aca95db0708b3c6526658f89bece05b3668",
+      "src/bridge_journal.rs": "1e39c15585660ceb57f383c64c16462b1b323285eeba7d71ce1d18eb9368f288",
+      "src/bridge_metadata.rs": "897447e0ebc48bf9bb1044abddeb8f62b21585b8a5205c720bf5c7b3a413f467",
+      "src/bridge_multi.rs": "2c39dce3bf2d056c4ca4445bcac1327144d263209ac518c6078fa2f0b61dc322",
+      "src/bridge_store.rs": "9692dcedfbac7b6164d769c1839c3de4e55ef90334efbbcbecfaa4622cc4c082",
+      "src/bridge_v5.rs": "99598993aad9842f6ee3ef9c0161415aa5d14ec9a9e792d00b14dc286fbe8403",
+      "src/cli.rs": "6bc67523e15b5efcfabfb1ead3b206bea7575aa49a5eb58324c63779ee165446",
+      "src/credentials.rs": "4a7341e4cf0a14c1e610d72724600748fa45d113f0ac2fe98fa098d01472969a",
+      "src/main.rs": "82790c7da27f0773066f5fb9495d93d253439a54afaed90f4ce3bd1110359548",
+      "src/outbox.rs": "cc36ba5be425f1197be1d88d75c75397ff4792d49ecb5fc1515fcf87ca1ba110",
+      "src/output.rs": "31a6ec3ff225ee3d0a7f2820557bce0d05c639e044d7fb0a400c0ecd82c0a731",
+      "src/payload.rs": "90e8229b6dc79bf375c69fec860c9cb24db6577e8e21d4f9db49de8330081585",
+      "src/profile.rs": "63072b1d3631dcfdf38ab2f5a39ce167c2a207f85adfd98dd839f7311b172c83",
+      "src/service_config.rs": "30900a3ee149b6b000758579214bca8bb07022f52d63559d4932429de0745108",
+      "src/service_output.rs": "763053f95e505f9cda1c1298e76042e654d4382145a75f908d9a7f0ea9f2123b",
+      "src/session.rs": "f50119e3db445bc28ddf6dff215b7d381232f4f7e322f845b524952ba672807b",
+      "src/signals.rs": "22b6df9d0d5f372fbb6b6f49673f96991eaa513fd31ffc68388364e08c4c7783",
+      "src/tls.rs": "e25437d3997095614a383301d7b469a840921fef7a90a3d361d810ddf3641dc4",
+      "src/v5_session.rs": "8213bbae04d0cd3b94d11f75d7ac308c567a076a5692a371eef9a65afa93cd35",
+      "src/windows_private.rs": "26e35c63b2c572dbf2bf6047caf7ccbb5a5174b93c349a9e5f7c91c95a24980c",
+      "src/windows_service.rs": "9cef96d1f70a2847d86e6c2fd0836d7f8371b0e0f808f4f9d8e509560fbfa120"
+    },
+    "admin": {
+      "Cargo.lock": "931272c8917ff598a161238b6a5ce6b02c496ab2c3198c3beb3d0b288700b6c2",
+      "Cargo.toml": "2566844fd74f543ec184debf853a77787bc3072e4966e399da36f6cf1efbabe8",
+      "packaging/windows-service/Cargo.lock": "218480c45676dc80bf147b7a287e0900311c8573418cb9ef3060a80997687790",
+      "packaging/windows-service/Cargo.toml": "bbefa5fb57a44df68207ac5f676abfd285e9b25cf0b900d33911f2ca0f206fd3",
+      "src/bundle.rs": "24138bde3fed585cbf1cf9c08a19db4a589ca85eb73c21032611f5e173c35c16",
+      "src/bundle_edit.rs": "512a227121ca3cba3e957599979d3dc52633e9da2caea80b56a38cf2c3965416",
+      "src/channel.rs": "dc1a78658015bf1728bcf44675efc66374c9eeff0cc962902dcfaaf3239aa7aa",
+      "src/cli.rs": "6fb548323b47f7ef14528d3d8c99685ca3c09dbff61cb8dd9ad8c02eceb3aa92",
+      "src/config.rs": "e53f7d605342a2c7a508ddd21b13901cf7b84b5b28049a9ec2395858c8ef5d65",
+      "src/listener.rs": "cb4fe8fc52cc7acbcc9008030884c5c9fff7e97a8a8971ab34ba69397df5f702",
+      "src/main.rs": "213e050ffd090cfdf37ac319eb6109aa8f042bbe16821875b18de41cf3d728dd",
+      "src/monitor.rs": "e9cd1616bec556cab6050ca067f815093fb9bd9c89aa61c1ba536f775ff4d2e7",
+      "src/mqtt_console.rs": "5b526036954e3afed4fcf1e05cd80ec8ee3b94f6897070e1b87b5e01da76d8a1",
+      "src/state.rs": "e133440ed9f548ea3a328c97ce7e87eefb8b3ec44cbf0cf89f4b5a5ccca90442",
+      "src/token.rs": "a05b5fbce3f18c0c96476ccdcd0ed79347e6edda7d14d39d3eb2a5bc67f0f8d5",
+      "src/users.rs": "34bc3ac47d0fd09d072fd77fcd91b31b11d004588c83d88660bfae854719305a",
+      "src/web.rs": "3ba788edf89a685c8b0b995e9b91101290c3c92edab8a2e58d54d4b3f3e5a0f2",
+      "src/web_auth.rs": "67337c939e6ee143e5c726f32e6945028eb751878fbcfdadeb369901491455f2",
+      "src/windows_private.rs": "8d5382159cd3fceca025b64a7bb814cd11820bd0b65ae65f08f1f3bc7356e0ec",
+      "src/windows_service.rs": "9cef96d1f70a2847d86e6c2fd0836d7f8371b0e0f808f4f9d8e509560fbfa120"
+    }
+  },
+  "unexecuted": [
+    "MSI installation and effective installer ACL",
+    "LocalService SCM lifecycle",
+    "boot/logon",
+    "live tray with installed services",
+    "UAC",
+    "upgrade/repair/rollback/uninstall"
+  ],
+  "environment": {
+    "session_administrator": false,
+    "SCM_CIM_query": "access denied",
+    "installed_service_inventory": "not established",
+    "disposable_elevated_vm": "unavailable"
+  },
+  "host_mutations": {
+    "service_installation": false,
+    "MSI_installation": false,
+    "certificate_store_changes": false,
+    "commit_push_tag": false
+  },
+  "limitations": [
+    "Client Windows output can duplicate after crash; no durable inbound QoS2 journal.",
+    "Client bridge/outbox retain Linux restrictions.",
+    "Admin dynamic bundle core remains pinned and Linux guarded; Unix channel and backup/restore not ported.",
+    "Provisioned service files must normalize owner/DACL for LocalService; helper effective ACL not executed on host.",
+    "Unsigned experimental candidate; native_acceptance=false."
+  ]
+}

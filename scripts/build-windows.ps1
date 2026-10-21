@@ -108,10 +108,12 @@ foreach ($kind in $selected) {
         '--manifest-path', $build.Manifest, '-o', $noticesDirectory)
     if ($kind -eq 'manager') {
         $wixArguments = @('build', (Join-Path $repoRoot 'packaging/windows/Manager.wxs'),
+            (Join-Path $repoRoot 'packaging/windows/InstallerUI.wxs'),
             '-arch', 'x64', '-d', "ProductVersion=$($build.Version)", '-d', "BinaryDir=$binaryDirectory",
             '-d', "NoticesDir=$noticesDirectory", '-out', $msi)
     } else {
-        $wixArguments = @('build', (Join-Path $repoRoot 'packaging/windows/Product.wxs'), '-arch', 'x64',
+        $wixArguments = @('build', (Join-Path $repoRoot 'packaging/windows/Product.wxs'),
+            (Join-Path $repoRoot 'packaging/windows/InstallerUI.wxs'), '-arch', 'x64',
             '-d', "ProductName=$($definition.Name)", '-d', "ProductVersion=$($build.Version)",
             '-d', "UpgradeCode=$($definition.Upgrade)", '-d', "ProductFolder=$($definition.Folder)",
             '-d', "BinaryDir=$binaryDirectory", '-d', "ExecutableName=$($definition.Binary).exe",
@@ -131,16 +133,21 @@ $record = [ordered]@{
     schema = 1; target = $Target; experimental = $true; native_acceptance = $false
     built_at_utc = [DateTime]::UtcNow.ToString('o')
     limitations = @(
-        'Broker Windows durable storage is not accepted.',
-        'Admin private token files currently require Unix.',
-        'Client service modes remain subject to native credentials and output restrictions.',
-        'MSI installation, ACLs, boot, logon, upgrade and rollback require disposable elevated Windows VM validation.'
+        'Broker Windows durable storage has passed native persistence and MQTT recovery proof; MSI/SCM acceptance remains pending.',
+        'Admin private token and web-user files, bootstrap authentication, and authenticated status have passed native Windows runtime proof; MSI/SCM acceptance remains pending.',
+        'Client private password and service-config ACLs plus bounded private JSONL subscriber output have passed native Windows runtime proof; MSI/SCM acceptance remains pending.',
+        'MSI installation, effective ACLs, boot, logon, upgrade and rollback require disposable elevated Windows VM validation.'
     )
     packages = $packages
 }
 $record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'manifest.json') -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-windows.ps1') -Destination $OutputDirectory
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Instalar-XMQR.cmd') -Destination $OutputDirectory
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'diagnose-windows.ps1') -Destination $OutputDirectory
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'provision_windows_service_file.ps1') -Destination $OutputDirectory
 Copy-Item -LiteralPath (Join-Path $repoRoot 'packaging/windows/README.md') -Destination $OutputDirectory
+Copy-Item -LiteralPath (Join-Path $repoRoot 'packaging/windows/TERMS.pt-BR.txt') -Destination $OutputDirectory
+Copy-Item -LiteralPath (Join-Path $repoRoot 'packaging/windows/TERMS.pt-BR.rtf') -Destination $OutputDirectory
 $checksums = Get-ChildItem -LiteralPath $OutputDirectory -File -Recurse |
     Where-Object { $_.Extension -ne '.wixpdb' } | Sort-Object FullName | ForEach-Object {
         $relative = [IO.Path]::GetRelativePath($OutputDirectory, $_.FullName).Replace('\', '/')

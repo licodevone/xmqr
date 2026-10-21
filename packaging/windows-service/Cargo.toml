@@ -71,4 +71,5 @@ default = ["windows-service-runtime"]
 windows-service-runtime = []
 
 [target.'cfg(windows)'.dependencies]
+atomicwrites = "=0.4.4"
 windows-service = "0.8"

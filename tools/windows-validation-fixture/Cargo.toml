@@ -1,0 +1,14 @@
+[package]
+name = "xmqr-windows-validation-fixture"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+description = "Test-only password hash fixture for native interoperability runners"
+license = "MIT"
+
+[dependencies]
+argon2 = "=0.5.3"
+
+[lints.rust]
+unsafe_code = "forbid"

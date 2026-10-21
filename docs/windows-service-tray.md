@@ -6,6 +6,15 @@ no [registro P239](../prompts/registros/P239-windows-services-tray.md).
 
 ## Experiência da bandeja
 
+P243 acrescenta assistente de instalação com leitura/aceite de licença, atalhos
+opcionais no menu Iniciar e na Área de Trabalho e telas de conclusão/erro.
+O aplicativo a abrir é **XMQR Manager**. Atalhos de broker/client/admin abrem
+esse mesmo gerenciador, com nomes distintos e somente quando ele está instalado.
+O pacote completo inclui `Instalar-XMQR.cmd` e diagnóstico somente leitura.
+Veja o [registro P243](../prompts/registros/P243-windows-installer-discovery.md).
+As tabelas dos quatro MSIs foram auditadas; instalação e interação UAC reais
+continuam dependentes da validação elevada já descrita neste documento.
+
 O novo [XMQR Manager](../tools/windows-manager/README.md) é um programa Rust
 independente, `xmqr-manager.exe`. A instalação coordenada inclui o gerenciador
 e somente os componentes escolhidos. Cada componente instalado registra seu
@@ -79,17 +88,29 @@ o binário novo por um `.exe` antigo. Veja
   locks reais dos três produtos, builds debug Windows x64 MSVC, markers dos
   executáveis e 21 testes dirigidos passaram. Veja a
   [evidência P239](results/p239-windows-service-proof-20261021.json).
-  Clippy estrito passa no cliente; broker/admin ainda falham nos avisos Windows
-  preexistentes. Os builds comprovados não são novos MSIs nem aceite SCM.
-- O armazenamento do broker continua recusando `sync_directory` no Windows.
-  Um serviço com esse broker falhará ao inicializar estado novo; não é um broker
-  Windows operacional aceito. Adaptar persistência NTFS e provar recuperação
-  é pré-requisito, sem retirar a proteção Unix por conveniência.
-- O admin ainda depende de política Unix para tokens/usuários privados.
-  Seu adaptador não homologa o painel nativo; o pin do core permanece intacto.
-- O client mantém restrições de credenciais/estado. Seu adaptador recusa entrada
-  interativa e assinatura sem destino Windows seguro, em vez de descartar
-  mensagens na saída invisível do serviço. Bridge durável continua Linux.
+  Esse checkpoint é histórico: P242 também passou o Clippy estrito do admin.
+  O broker mantém os avisos Windows preexistentes. Build não equivale a aceite SCM.
+- P241 implementa a publicação do WAL e snapshot no Windows, mantendo o
+  `fsync` de diretório no Unix. A biblioteca nativa passou em 247 testes
+  (um caso anteriormente ignorado continua ignorado), além de 13 testes do
+  binário. O broker executou MQTT em loopback e recuperou mensagens retidas
+  confirmadas após parada normal e crash de processo. Isso não homologa SCM,
+  perda de energia ou todo sistema de arquivos. Veja o
+  [registro P241](../prompts/registros/P241-windows-broker-runtime.md).
+- P242 acrescenta validação nativa de proprietário/DACL e caminhos privados ao
+  client e ao admin. O client publica e assina com mTLS e saída NDJSON limitada,
+  sincronizada antes do ACK; o admin autentica por token ou login no painel
+  loopback, com usuários persistidos após reinício. Os executáveis release
+  passaram em 12 cenários integrados. Veja o
+  [registro P242](../prompts/registros/P242-windows-client-admin-runtime.md).
+- Antes de iniciar como LocalService, arquivos privados provisionados pelo
+  operador precisam de proprietário/DACL compatíveis com essa conta. O pacote
+  inclui `provision_windows_service_file.ps1`, restrito ao componente instalado.
+  Os templates exigem credenciais/certificados reais e não iniciam serviços.
+- Bridge/outbox e estado durável avançado do client continuam Linux. A saída
+  Windows pode duplicar registros após crash; não promete exatamente uma vez.
+  O admin conserva o pin do core: bundle dinâmico e canal Unix/backup não foram
+  homologados como operações nativas Windows.
 - Instalação elevada, UAC, ACL efetiva, login, atualização, remoção e controle
   real dos serviços ainda exigem VM descartável. Compilar WiX com fixtures
   verifica o schema do instalador, não essas propriedades.

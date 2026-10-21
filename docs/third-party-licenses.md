@@ -16,6 +16,7 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | async-tungstenite | 0.29.1 | `MIT` |
 | async_io_stream | 0.3.3 | `Unlicense` |
 | atomic-waker | 1.1.2 | `Apache-2.0 OR MIT` |
+| atomicwrites | 0.4.4 | `MIT` |
 | autocfg | 1.5.1 | `Apache-2.0 OR MIT` |
 | aws-lc-rs | 1.18.1 | `ISC AND (Apache-2.0 OR ISC)` |
 | aws-lc-sys | 0.45.0 | `ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)` |
@@ -64,6 +65,7 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | lazy_static | 1.5.0 | `MIT OR Apache-2.0` |
 | libc | 0.2.189 | `MIT OR Apache-2.0` |
 | linux-raw-sys | 0.12.1 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
+| linux-raw-sys | 0.4.15 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | log | 0.4.34 | `MIT OR Apache-2.0` |
 | matchers | 0.2.0 | `MIT` |
 | memchr | 2.8.3 | `Unlicense OR MIT` |
@@ -98,6 +100,7 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | rtoolbox | 0.0.6 | `Apache-2.0` |
 | rustc_version | 0.4.1 | `MIT OR Apache-2.0` |
 | rusticata-macros | 4.1.0 | `MIT/Apache-2.0` |
+| rustix | 0.38.44 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | rustix | 1.1.5 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` |
 | rustls | 0.23.45 | `Apache-2.0 OR ISC OR MIT` |
 | rustls-pemfile | 2.2.0 | `Apache-2.0 OR ISC OR MIT` |
@@ -155,6 +158,7 @@ Este inventário não substitui esses textos nem uma revisão de licença dos fo
 | winapi-x86_64-pc-windows-gnu | 0.4.0 | `MIT/Apache-2.0` |
 | windows-link | 0.2.1 | `MIT OR Apache-2.0` |
 | windows-sys | 0.52.0 | `MIT OR Apache-2.0` |
+| windows-sys | 0.59.0 | `MIT OR Apache-2.0` |
 | windows-sys | 0.61.2 | `MIT OR Apache-2.0` |
 | windows-targets | 0.52.6 | `MIT OR Apache-2.0` |
 | windows_aarch64_gnullvm | 0.52.6 | `MIT OR Apache-2.0` |
