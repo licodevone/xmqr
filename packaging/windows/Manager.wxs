@@ -1,0 +1,31 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="XMQR Manager" Manufacturer="ACMEBR" Version="$(var.ProductVersion)"
+      UpgradeCode="FCBCBF36-F876-44C8-898A-3AB86B26D890" Scope="perMachine" InstallerVersion="500">
+    <MajorUpgrade DowngradeErrorMessage="Uma versao mais recente ja esta instalada." />
+    <MediaTemplate EmbedCab="yes" />
+    <Upgrade Id="FCBCBF36-F876-44C8-898A-3AB86B26D890">
+      <UpgradeVersion Minimum="$(var.ProductVersion)" Maximum="$(var.ProductVersion)"
+          IncludeMinimum="yes" IncludeMaximum="yes" OnlyDetect="yes" Property="XMQR_SAME_VERSION" />
+    </Upgrade>
+    <Launch Condition="Installed OR NOT XMQR_SAME_VERSION"
+        Message="Remova o candidato experimental da mesma versao antes de instalar outro." />
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="VendorFolder" Name="XMQR">
+        <Directory Id="INSTALLFOLDER" Name="Manager">
+          <Directory Id="NOTICESDIR" Name="notices" />
+          <Component Id="ManagerExecutable" Guid="*" Bitness="always64">
+            <File Id="ManagerExecutableFile" Source="$(var.BinaryDir)\xmqr-manager.exe" KeyPath="yes" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+                Name="XMQR Manager" Type="string" Value="&quot;[#ManagerExecutableFile]&quot;" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Manager"
+                Name="Executable" Type="string" Value="[#ManagerExecutableFile]" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <Feature Id="MainFeature" Title="XMQR Manager" Level="1">
+      <Files Directory="NOTICESDIR" Include="$(var.NoticesDir)\**" />
+      <ComponentRef Id="ManagerExecutable" />
+    </Feature>
+  </Package>
+</Wix>

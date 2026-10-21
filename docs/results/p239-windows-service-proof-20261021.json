@@ -1,0 +1,1067 @@
+{
+  "schema": 1,
+  "started_utc": "2026-10-21T03:47:11.300634+00:00",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "target": "x86_64-pc-windows-msvc",
+  "script_sha256": "ca18235b6f7e54c5278c50b6a5393db65b0a0b3c2505c0a3380a7eba5533351b",
+  "products": {
+    "broker": {
+      "source_hashes": {
+        "Cargo.lock": "be6ce65df9e0fc62cd9fe5f11e9e29e511c1a7df5aa6aa69eec50b35ffc932a9",
+        "Cargo.toml": "940b29b8b8d91c3ba8bf8bfdf9c631d5f39984d116e9c27b207ac1a0d0a55c1d",
+        "packaging/windows-service/Cargo.lock": "3f5a84d75647a70edb51343d013cafa360d0b8f3bb65827db4e8f697c1a3efe0",
+        "packaging/windows-service/Cargo.toml": "11708387351b47e14dfa40fdc011cd597bc1d08efd0a9b89402b9d6688ac97a4",
+        "src/admin_channel.rs": "235e414d5533db86d9e23edb02259686154b31ac61994ef9ba6c204ee7473401",
+        "src/auth/dynamic.rs": "090801122afdf5e63de1e7dcc92c69dfe5edf42cd08366f9c837fc4e060bd366",
+        "src/auth/mod.rs": "e2ed3aede609af39fb1c8a531ac312886e3cd1fdbf704c11ef699c8fc360b894",
+        "src/bin/mqtt-admin/main.rs": "cd407541df03b1bb2d3e6638e05ed199e6767fb2445dd6290b16d7e17be4daa2",
+        "src/bin/mqtt-admin/state.rs": "e133440ed9f548ea3a328c97ce7e87eefb8b3ec44cbf0cf89f4b5a5ccca90442",
+        "src/bin/mqtt-admin/users.rs": "7438bf5231452ad257bc77089c2a19895b61576af54edcc822911616c774a33d",
+        "src/configuration.rs": "5298469664d855ed0707804aa8e84bbde7915c919b76e1382210b087d2b864a3",
+        "src/lib.rs": "39fe4a376efc58f5573aab60dd639eb6544979a64bda6ea57fcb4e16b190cb60",
+        "src/main.rs": "cec14a0136a1ce8fe5e0a860003b97d73a96bd09cb33cf2a7e675e59a9746e42",
+        "src/monitoring.rs": "030055a4f940f00eb5dbacde4be7f73adb139ac667c09c225e1b883a0947d1e1",
+        "src/mqtt/clock.rs": "38228c0fc315eb96d1f88bea20bfeb12222647fed496ed008fb88c10ab423567",
+        "src/mqtt/codec.rs": "279eb28a179c5abfbc9f930e601b748af3a99796f3b0a8b0c2e172f7674295a7",
+        "src/mqtt/connect_contract_tests.rs": "e64e57842806348d04505198dc0732a3317e2c188975e5baf8508ea27f107630",
+        "src/mqtt/expiry_contract_tests.rs": "851a8aba59bc8315702de77043c3e9bcf5e7a12fd30b6acd20ddf1ae3f980d37",
+        "src/mqtt/fuzz_tests.rs": "7c5474818a76f6379c1f97c16897860687c6df4f241fa2ee2fa23f2d5e2e7103",
+        "src/mqtt/limits.rs": "c58b12ed16ad2abe61cd7bf7ce9779bc08c55caa4d01dc3b0991f7e5b135d70f",
+        "src/mqtt/mod.rs": "788303dd6b8e89c80a967c9a518caccb139dcf1d5e48a9087eb8a119674bda1f",
+        "src/mqtt/router.rs": "79f1e01ed9b1c0690e69e5eccaef03ee8870d42db41eb67b4a7b6157e90efd77",
+        "src/mqtt/storage_fault_tests.rs": "6e44229bfe5f2cf6d60862ab4d7467f115320bd3c73bd2c30a2ae8f19c3d37ae",
+        "src/mqtt/store.rs": "44f11cfb3aeb0984b9c6386b9947614c7258392ec6c8c2e8e430b3e0f5261599",
+        "src/mqtt/topic.rs": "eaa48064ac5bd27e0525ef0ba28a250b4f6ed173c373afbd1393370ab915433f",
+        "src/persistence/actor.rs": "5067bf1e20a657b7734264a7d6bda913713c5b65e5f9a7ae56f3d97fe61000dc",
+        "src/persistence/backup.rs": "b2cf83b2c822f1c0279e4ec0d2625fed72fdef778480d45915f3c6c73ba244bc",
+        "src/persistence/fault_tests.rs": "616912451504e3eadd218cee5fdce012f3c150ed4615f3c32c773cdf65fd20d4",
+        "src/persistence/faults.rs": "985b73ca06ea2613ccc0b3b439570e691df09ebbd71e72eca3e202e10da7b4d5",
+        "src/persistence/mod.rs": "ab77d30cea85fe4e6ba0249328fde3f0221f26679778dde7fb9c055e99d84b64",
+        "src/transport/mod.rs": "81aeb133dd2a27a851d008bdc0144ce921729b05596687f402953351bbcade0d",
+        "src/transport/rotation.rs": "681cca85cac61fb019bbb5ed1f3b284e3b4ea32fa16f0e4721776cecea12683d",
+        "src/windows_launch.rs": "31d4010cb6dae53d387d583a2d95345e64de0ed61abd968ba334a7dadc518aca",
+        "src/windows_service.rs": "1562aed243fb1b9f1cbc5260f87c9ad9bc721d700f543cd16f0eee5c9dc54d67"
+      },
+      "build": "PASS",
+      "marker": "PASS",
+      "head": "26dd7b6134396aeb7b0368e5a15cad881af7edd4",
+      "source_dirty": true,
+      "executable": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-broker.exe",
+      "executable_sha256": "345906f1d3cabcfe46df8b899f9e130ea04653abbbac05dc65a36b9bf5e1396d",
+      "capabilities": {
+        "schema": 1,
+        "component": "broker",
+        "service_entrypoint": true
+      },
+      "sources_unchanged_during_proof": true
+    },
+    "client": {
+      "source_hashes": {
+        "Cargo.lock": "3bf8dd9757bf04f39ccf42fe6d4acdb57fa1b42cc1dc48f0234068030593f1b7",
+        "Cargo.toml": "e132f4f9a86ea58b731b277e91f0a8a98a1319abf612f1aacfb5c7c7f9a756ac",
+        "packaging/windows-service/Cargo.lock": "3a155115bd8cdbd8d7693b375e71c149fa2d8a95aad06e307da1c61f011e980c",
+        "packaging/windows-service/Cargo.toml": "f5cb1d134f35e2bf9f2f04d69cd6c6bcabffc10102364d0a7986d65d6262d250",
+        "src/bin/mqtt-bridge.rs": "2d440eea57370b891723947741c76aca95db0708b3c6526658f89bece05b3668",
+        "src/bridge_journal.rs": "1e39c15585660ceb57f383c64c16462b1b323285eeba7d71ce1d18eb9368f288",
+        "src/bridge_metadata.rs": "897447e0ebc48bf9bb1044abddeb8f62b21585b8a5205c720bf5c7b3a413f467",
+        "src/bridge_multi.rs": "2c39dce3bf2d056c4ca4445bcac1327144d263209ac518c6078fa2f0b61dc322",
+        "src/bridge_store.rs": "9692dcedfbac7b6164d769c1839c3de4e55ef90334efbbcbecfaa4622cc4c082",
+        "src/bridge_v5.rs": "99598993aad9842f6ee3ef9c0161415aa5d14ec9a9e792d00b14dc286fbe8403",
+        "src/cli.rs": "a243ff80d27fc6fad10c33db2e407ad6790a3f2dd00d5d21cfa7b625b223319e",
+        "src/credentials.rs": "e185a57edd8c36a0ea06255a79c2fc4bca03dc9c030ec8e863046989efb778de",
+        "src/main.rs": "916b8c3e60e3fdd6f9ac6b54dcb7cbb9b1ca2b4511df19ffe410b8552f932081",
+        "src/outbox.rs": "cc36ba5be425f1197be1d88d75c75397ff4792d49ecb5fc1515fcf87ca1ba110",
+        "src/output.rs": "ca639935366b5939f1e4dc42519bd6c19077cd9dc9e465b239775670312ad7ec",
+        "src/payload.rs": "90e8229b6dc79bf375c69fec860c9cb24db6577e8e21d4f9db49de8330081585",
+        "src/profile.rs": "63072b1d3631dcfdf38ab2f5a39ce167c2a207f85adfd98dd839f7311b172c83",
+        "src/service_config.rs": "81aaf4c71dc25e0e0d44280afc2beb2e7da29f5ff033ec63b21f3e10367ec596",
+        "src/session.rs": "dcae69bf211ab7d256dc882a5f864092e997203053c5f311c998e853a6d1afac",
+        "src/signals.rs": "22b6df9d0d5f372fbb6b6f49673f96991eaa513fd31ffc68388364e08c4c7783",
+        "src/tls.rs": "e25437d3997095614a383301d7b469a840921fef7a90a3d361d810ddf3641dc4",
+        "src/v5_session.rs": "68d98b98881d1198dbf7d78877d0d8e2fa65b9a8a9f8bad6ee733076365b6312",
+        "src/windows_service.rs": "71b51554679a8175e5b9bafa3b2d8a7c82a8546999a7dd08d36d8fe6ac4842a3",
+        "vendor/rumqttc-0.25.1/examples/async_manual_acks.rs": "6907ad5125173f948f6186752c597cff7b330573aadf42b73d232ef67ad7da03",
+        "vendor/rumqttc-0.25.1/examples/async_manual_acks_v5.rs": "618a4b69c63fb0973ddaf520ce374138f39d234c729bd20d77e08b67b50ba7c5",
+        "vendor/rumqttc-0.25.1/examples/asyncpubsub.rs": "d9187f6eb46b64cb97f48154f90004569c569eac0dddca85821fe8dadc5e9db7",
+        "vendor/rumqttc-0.25.1/examples/asyncpubsub_v5.rs": "cc7d27ad45a0a495a4a8b8457622dce045dbeec2cf980d4b09ed0a38b8469260",
+        "vendor/rumqttc-0.25.1/examples/serde.rs": "16205254a82c74808e13991ffbc7f9b2420a0ad89d340e8a6f0b602f96427aba",
+        "vendor/rumqttc-0.25.1/examples/subscription_ids.rs": "3b217e697e5c56c9fb9ac37b19e5b6cae2cb2d431427bb35a5bf4e3ed7679161",
+        "vendor/rumqttc-0.25.1/examples/syncpubsub.rs": "66c2c1f49060612f03ac0c8562e1ef28b01901374f5f6ce715b68e402a881056",
+        "vendor/rumqttc-0.25.1/examples/syncpubsub_v5.rs": "00eaf66b5c0cb4defd7f6bd6938162a3cc6a32f609f52e47a2e3ee5b684b9815",
+        "vendor/rumqttc-0.25.1/examples/syncrecv.rs": "ff2f86aacd42c7cfa2a42834b0cf0bab46f36d31dabaf884633e7451ef6519b0",
+        "vendor/rumqttc-0.25.1/examples/syncrecv_v5.rs": "7b5df17f2bfd3dafe6405a442b2b3984821a643387f85c2d35ae0181d83e9b24",
+        "vendor/rumqttc-0.25.1/examples/tls.rs": "594665c8a6e3090b154f65f768b5c23b0e602f2374d41d2d8e6080e50dce6d30",
+        "vendor/rumqttc-0.25.1/examples/tls2.rs": "c25424e2684798d89dc896cdac3ef4dd9af998165f9f88365f3cd4c392affe80",
+        "vendor/rumqttc-0.25.1/examples/tls_native.rs": "c31ce630c60d6bab9c5939a8753f731b1306792368bd338a54aa5dc718d3a2c7",
+        "vendor/rumqttc-0.25.1/examples/topic_alias.rs": "f7001a4cadba165d7f2e0447593714faff114646b816144b0a00a0b05388ac88",
+        "vendor/rumqttc-0.25.1/examples/websocket.rs": "48694e15aba93c20832eaf2947c02818be4ab92a87297ad101de3690bde0dab7",
+        "vendor/rumqttc-0.25.1/examples/websocket_proxy.rs": "14c1aa3f0ba9a005e1d0ef8b272e43a858ceee1a16c77a21237122ff9d5406f1",
+        "vendor/rumqttc-0.25.1/src/client.rs": "d124c202681375bb273b43ee4e702293400e973fd030103e5f35738e0c0ad4fa",
+        "vendor/rumqttc-0.25.1/src/eventloop.rs": "62011f4d91c03f568635448334ff592ba33a4119152823d94694788f851dbc3e",
+        "vendor/rumqttc-0.25.1/src/framed.rs": "1797cd427c32f55a4a91410caf0e46dbbf1a4611214cbb716bda6b10b298f0eb",
+        "vendor/rumqttc-0.25.1/src/lib.rs": "ebc30ee91fe96de8ad8a17e776ff011c83f2628314dc5b373dd9d344de2be297",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/mod.rs": "0f6ce143217f7b40fc46c6fc33f39a3f9f3dc601420f50eb9461c9bc471fd09a",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/topic.rs": "a02af65960dcd9ef3bf2751f0febb3c2a607f2d7d4ea39af748b7f6af341ea91",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/codec.rs": "311d11cb8b689926e950905eb924b64ac28f438fd1bf0382e86c164eaa21c31a",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/connack.rs": "bcd00c5199725e2d35be17e9d10f4abb29206a927c951162a579e769d7769285",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/connect.rs": "9c1f8b3f4878b1a8e3d4566d0c73cfb4de8f61d60ff004ed8fcda109424fc54a",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/disconnect.rs": "19e469e25415c3c0b6b49316d5fb69eae889c72e83e0af193cc06bb992c8d101",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/mod.rs": "ccd65f3510645799dbe1be31ae14980d9abafa673fc46b4dc1e47af143c20b04",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/ping.rs": "68eb55db3cb3e5955990d770e5553f65aa88e1173b14a103706f9a64a793b2da",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/puback.rs": "a0fe6ffad6eff19998ddbacd4e8cb046f8a9217a82e4cec783fdeba3adc4ca52",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/pubcomp.rs": "c44e3b0e07eadd2bb8c9700d301fc63a9c0f1d9a709e8ec219b2451bfb985a7e",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/publish.rs": "952778293472217fd87d88e912d3532cc003513b4775dcd95a1a08a6613b7d55",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/pubrec.rs": "79d0aeea88ce55543e4e03fc51820fcfcb2a3ad45b8eaa3c81b9ed0d52e465ac",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/pubrel.rs": "79e7ecad0cd8c061c3c9d8b4e5b0358ae74ff5b561400032e56e623a00bdb4e6",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/suback.rs": "7da204028898d861dec6092677a279bd0ad07db66792734a79bf731178be8f71",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/subscribe.rs": "d848ea92619dff3d6e909ec5bdceebbdb1efafc20ebe0d38602f70ed263d560d",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/unsuback.rs": "23903bd5bb638f87241a6a909f624be0d86c536ecb696855ba8311c59a36f883",
+        "vendor/rumqttc-0.25.1/src/mqttbytes/v4/unsubscribe.rs": "53ba35ad5ed3c239df0508c94958cea6ce5e09460e5999429774364e5ca23b95",
+        "vendor/rumqttc-0.25.1/src/proxy.rs": "f0ec40d342dda3957d23c99e74a50919188d6f5f85807332acc4ad17219e181a",
+        "vendor/rumqttc-0.25.1/src/state.rs": "53657be81abb1aa5fa9d64943f2821bc4423c3ade33f431b0d894c92e8303962",
+        "vendor/rumqttc-0.25.1/src/tls.rs": "6bfc662640b1a17bcf9f92aede10047e07ea2fbf33c4a578cff6d8ac1a5f52e5",
+        "vendor/rumqttc-0.25.1/src/v5/client.rs": "638f2c60bebfc12049fb049625340a54da187a83d2c51cfb468e7ce03a6b3964",
+        "vendor/rumqttc-0.25.1/src/v5/eventloop.rs": "f2c3eb17f1a61a980cc7c24bab1919a90c13714c958766ec5aadf095971b080a",
+        "vendor/rumqttc-0.25.1/src/v5/framed.rs": "cea2cdf485a18a01deb97f45cfb193390f439109c4e7d8b920fc2c4c6e90c8f9",
+        "vendor/rumqttc-0.25.1/src/v5/mod.rs": "b3633a70b8221d73118a967058cc31927d275c057fd3cf4acc6c9ca8452b3b11",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/mod.rs": "0b59cfd247d3e577cd84f0a969d364a4b8e22a88f9fa23bb84482b8119af1a39",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/auth.rs": "b46b40ef7144b7cef8a9dc00d808d50e2995a7a174305a9dd3beecbc02a42329",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/codec.rs": "b77803b18bfdb127d55feb2143703354c6aa8fed129718e3aafe60362b2fcaf7",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connack.rs": "de5a286190c4751ef68796b9c6d3fc5e5e87c68cbc89cbe04175d8cee1ff7f5c",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/connect.rs": "373f15e2cdea07ed60716eeec7432278882c2c4420b5dfb7ea914c29bf369571",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/disconnect.rs": "e5ac871ee7112e5204da535c6b3e8641fd75310daba3d55fc7106a2f49e95960",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/mod.rs": "9ac2ac3bec693621ab3ccbc81f3d6300679cdea84b5ca4c30d37c3c885cae7f0",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/ping.rs": "bbb2837722243e6cdfea6272422291b5cf1b3bb87db2b08f83192d60a8b205ea",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/puback.rs": "6a0c76411700b6c222cd9721dff6e328f65f2da9807de7a3dfa3cbca45d6be5b",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/pubcomp.rs": "dcf01743892ae23c5e2edeb7bcb1f247ee2f5f5e3807b76fb11e270fbdc5d934",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/publish.rs": "fe677b69dfb0a6965996de6944517cf32897b64ea0d55ae88c7a27ce87a2f885",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/pubrec.rs": "f822a8152b915d150841cf25777b74ad2aaf5048a5c0e2ecefa705f5b476d3aa",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/pubrel.rs": "89d6e61ede788822443349a61acd80a7160d34cbf7b2c8086e3f2409810853db",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/suback.rs": "85e10c2f8846409ecef3306348109394d5f6a530c3b1ca23c5fa4a7aba34fe3d",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/subscribe.rs": "79efd02c9cb571d9546162b0adb18b194b17348e0a48ee5f35102f488ded258e",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/unsuback.rs": "cd98cee83feb585a17a4c57eb1b76cf1fb53584489fe17aad3894ef688b63315",
+        "vendor/rumqttc-0.25.1/src/v5/mqttbytes/v5/unsubscribe.rs": "6ab5b0fada649a639d9a8fea1a063281419de6d7994536e828caa9cccab394c1",
+        "vendor/rumqttc-0.25.1/src/v5/state.rs": "9797ee5c6aa74b28d6e00d618f284ed4f3ad0cf37bf0d9bca34e5c212d9d5056",
+        "vendor/rumqttc-0.25.1/src/websockets.rs": "6b08a93df98a20dc3a6343534073665a52fda9932fba5d3cfe0080c9e224e266",
+        "vendor/rumqttc-0.25.1/target/debug/build/serde-8118e3cdcb40dd29/out/private.rs": "f8e9470772811a1bdcd201fb21e14cbf37a57d192b38cd98f66bd4a83442c26b",
+        "vendor/rumqttc-0.25.1/target/debug/build/serde_core-dbee3cfbc830a0a2/out/private.rs": "27ad1b5fb4eebeb1da6419cbfad3ac1922ed1d817fcbab0a1dae1bdfd38d8307",
+        "vendor/rumqttc-0.25.1/target/debug/build/thiserror-04a849b97ef7c929/out/private.rs": "c385ad46030276a0b59234d0d09c638287f044510ad8b82b8bf012de2f3a3539",
+        "vendor/rumqttc-0.25.1/tests/broker.rs": "0385923ecea041d528b6c066ebec4f53c7ffa48bbfa6bbfab5c704a2b61e0ac4",
+        "vendor/rumqttc-0.25.1/tests/reliability.rs": "c870eff0e352e3b29d51e3e1899d52a56ba94a47b6a31e2957863c1a4830ac5b"
+      },
+      "build": "PASS",
+      "marker": "PASS",
+      "head": "fbbf7af768493c7c6adfdcef06750d6402a7a658",
+      "source_dirty": true,
+      "executable": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-client.exe",
+      "executable_sha256": "25510681a62aa771bcf5e19c870c40915c23d538cb72a22e63f9d4a0e7bef0e5",
+      "capabilities": {
+        "schema": 1,
+        "component": "client",
+        "service_entrypoint": true
+      },
+      "sources_unchanged_during_proof": true
+    },
+    "admin": {
+      "source_hashes": {
+        "Cargo.lock": "346eae57ea39c3e0d0c0bc40d43ab4b7445c69ff0bb7c60967308deb76032324",
+        "Cargo.toml": "c56d994f81df183e1d9b63c1fcd0747a57532f4f68256206d7ef4f04c6977d37",
+        "packaging/windows-service/Cargo.lock": "52118b7d93a07197808ec623aa0f570150d773fdeba9b4430848283f8e312357",
+        "packaging/windows-service/Cargo.toml": "e4c0e32f95134eb922150f9c1b5a882e175643f45e00f052f520d3639b43242a",
+        "src/bundle.rs": "24138bde3fed585cbf1cf9c08a19db4a589ca85eb73c21032611f5e173c35c16",
+        "src/bundle_edit.rs": "8289ed75b99eeede68f4e8fb3edc6cf01e19df394f6844a22c2c3c5fe8a3a648",
+        "src/channel.rs": "dc1a78658015bf1728bcf44675efc66374c9eeff0cc962902dcfaaf3239aa7aa",
+        "src/cli.rs": "6fb548323b47f7ef14528d3d8c99685ca3c09dbff61cb8dd9ad8c02eceb3aa92",
+        "src/config.rs": "20b680d4151db7b9ecd4b67bd2334c4ad24ea00a61f11b90eb30024aaa46a2e9",
+        "src/listener.rs": "cb4fe8fc52cc7acbcc9008030884c5c9fff7e97a8a8971ab34ba69397df5f702",
+        "src/main.rs": "ee6d1ee10c5526bc13789d6110a404c7972a8118e8fa970e8db32060dec5647f",
+        "src/monitor.rs": "e9cd1616bec556cab6050ca067f815093fb9bd9c89aa61c1ba536f775ff4d2e7",
+        "src/mqtt_console.rs": "efdaafaabe9d0e364bfb08a43648c7382503a08c2b42016060c7a182231302e2",
+        "src/state.rs": "e133440ed9f548ea3a328c97ce7e87eefb8b3ec44cbf0cf89f4b5a5ccca90442",
+        "src/token.rs": "df2ab5014d64e591a0a25e6605cb4bccde79ce907b3fc27cd3f444d8d10f8eaa",
+        "src/users.rs": "91614b36aa5e4ec4303a6dc52c64b97f4efafd412bbf9148e8b96329c2a3e144",
+        "src/web.rs": "e883a472c0791cb7f468a27133bba0dd1e2d9b5beb8bafb6c6101e54d78edf02",
+        "src/web_auth.rs": "b63d21c006ebde7d58a91d5b30fcd3269fa9a2889bf3614d07b84135e766ffe0",
+        "src/windows_service.rs": "71b51554679a8175e5b9bafa3b2d8a7c82a8546999a7dd08d36d8fe6ac4842a3"
+      },
+      "build": "PASS",
+      "marker": "PASS",
+      "head": "2b6f245c30efb6d57af85b70d56e645d7a3b9b71",
+      "source_dirty": true,
+      "executable": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\xmqr-admin.exe",
+      "executable_sha256": "f7ad1b7be758a2c9751507cdbfae3b23b360a94d6c2bb020df65ccfa67ce14d2",
+      "capabilities": {
+        "schema": 1,
+        "component": "admin",
+        "service_entrypoint": true
+      },
+      "sources_unchanged_during_proof": true
+    }
+  },
+  "commands": [
+    {
+      "label": "rustc",
+      "argv": [
+        "rustc",
+        "-Vv"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.064,
+      "log": "rustc.log",
+      "log_sha256": "341fed434cf52bd9ba5ab2f3507dbd943a2062212028574e529fc3e7e5ecd7a8"
+    },
+    {
+      "label": "cargo",
+      "argv": [
+        "cargo",
+        "-V"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.066,
+      "log": "cargo.log",
+      "log_sha256": "c35608815f43d0b8788a9b826fad2bb17384f49fb328dc4fe64da9db5f5ef4d6"
+    },
+    {
+      "label": "broker-head",
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.056,
+      "log": "broker-head.log",
+      "log_sha256": "5a3e7f3f57e31e05ea1c6716c5bd0bc73ed3030220499cf5399886da6f14b400"
+    },
+    {
+      "label": "broker-git-status",
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.06,
+      "log": "broker-git-status.log",
+      "log_sha256": "4c8f6f925655e209da7d6ae8e22fd24aef3c5ba0be90e379de780d1003d30df9"
+    },
+    {
+      "label": "broker-fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\packaging\\windows-service\\Cargo.toml",
+        "--",
+        "--check"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.441,
+      "log": "broker-fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "broker-build",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--bin",
+        "mqtt-broker"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 2.656,
+      "log": "broker-build.log",
+      "log_sha256": "0ed64c1733c94870484fe87906f76a8302816d7eb1c5aa09d222d72e7b14abd5"
+    },
+    {
+      "label": "broker-marker",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-broker.exe",
+        "--windows-service-capabilities"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.421,
+      "log": "broker-marker.log",
+      "log_sha256": "5d0f74e283eb7c206e12bb26d29b28df1e06a3aa15edca9b8eb015a7095b7de9"
+    },
+    {
+      "label": "broker-version",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-broker.exe",
+        "--version"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.022,
+      "log": "broker-version.log",
+      "log_sha256": "d3a154c1ce619945338e5cef8c7fc8d30f5d9bb83df39adace51b0538b9e638a"
+    },
+    {
+      "label": "broker-tests-1",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--bin",
+        "mqtt-broker",
+        "windows_"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": 4,
+      "status": "PASS",
+      "seconds": 1.807,
+      "log": "broker-tests-1.log",
+      "log_sha256": "ca6495ea8b32b065d422b7ffde29a21d8e69d4417cbc20a463aff549199e2261"
+    },
+    {
+      "label": "broker-tests-2",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--lib",
+        "configuration::tests"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": 10,
+      "status": "PASS",
+      "seconds": 11.85,
+      "log": "broker-tests-2.log",
+      "log_sha256": "ad3a7f5df2d1dd922823d546037f7c214fa76bd75293879219f51586eabca269"
+    },
+    {
+      "label": "broker-clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 101,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "FAIL",
+      "seconds": 4.767,
+      "log": "broker-clippy.log",
+      "log_sha256": "9829e3124e2f0f8e227794ff7e3ed403693c0cd15a13833b1026fef29e5c9955"
+    },
+    {
+      "label": "broker-reject-relative-config",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-broker.exe",
+        "--windows-service",
+        "xmqr-broker",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\broker",
+        "--config",
+        "relative.toml"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 1,
+      "expected_exit_codes": [
+        1,
+        2
+      ],
+      "required_text": "--windows-service",
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.029,
+      "log": "broker-reject-relative-config.log",
+      "log_sha256": "ffcb9eb872e97d5ce69db27193bf3c53fd82c9cf4aa32f50a25666464c9248a8"
+    },
+    {
+      "label": "broker-outside-scm",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-broker.exe",
+        "--windows-service",
+        "xmqr-broker",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\broker",
+        "--config",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\broker\\config.toml"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 1,
+      "expected_exit_codes": [
+        1
+      ],
+      "required_text": "1063",
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.023,
+      "log": "broker-outside-scm.log",
+      "log_sha256": "4599d21b39415e63fcf2b9eded194b696f3723bcdb07d756b804b9757a6fa115"
+    },
+    {
+      "label": "broker-native-storage-negative",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-broker.exe"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr",
+      "exit_code": 1,
+      "expected_exit_codes": [
+        1
+      ],
+      "required_text": "durable directory fsync is supported on Unix targets only",
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.041,
+      "log": "broker-native-storage-negative.log",
+      "log_sha256": "6d8aa0ab316df1ba3b021dd411479d23a9d7b3dce3ca68939402dbb4bb2805ed"
+    },
+    {
+      "label": "client-head",
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.054,
+      "log": "client-head.log",
+      "log_sha256": "1a9fb151845fa9b515f840092b0d1dac624b01547b5378285e658aaea4a85e23"
+    },
+    {
+      "label": "client-git-status",
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.052,
+      "log": "client-git-status.log",
+      "log_sha256": "11554d5c3b7769eef97393f7553b6aebedb6ccd4337e49b0f5f9b2931f4dfe97"
+    },
+    {
+      "label": "client-fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client\\packaging\\windows-service\\Cargo.toml",
+        "--",
+        "--check"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.287,
+      "log": "client-fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "client-build",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--bin",
+        "mqtt-client"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 2.181,
+      "log": "client-build.log",
+      "log_sha256": "75f548ffe03c7391ea3150f3ea49b447ffe233dd0202411f6324334ed2b6583f"
+    },
+    {
+      "label": "client-marker",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-client.exe",
+        "--windows-service-capabilities"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.31,
+      "log": "client-marker.log",
+      "log_sha256": "68d0b1f854ec4751d8817e8cb8579983f77e82b96cbcad974c1bcc4b9e5a71f5"
+    },
+    {
+      "label": "client-version",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-client.exe",
+        "--version"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.03,
+      "log": "client-version.log",
+      "log_sha256": "37210542da304d35fef5dda0f0c54c4f86a1ee874080f38fff2aa7fa38170170"
+    },
+    {
+      "label": "client-tests-1",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--bin",
+        "mqtt-client",
+        "windows_service::tests"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": 1,
+      "status": "PASS",
+      "seconds": 2.52,
+      "log": "client-tests-1.log",
+      "log_sha256": "2bd214647bd0ef040e7197c33739cc885403b5db9eedcb2a15e835dc367cae54"
+    },
+    {
+      "label": "client-tests-2",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--bin",
+        "mqtt-client",
+        "service_config::tests"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": 2,
+      "status": "PASS",
+      "seconds": 0.302,
+      "log": "client-tests-2.log",
+      "log_sha256": "4644b93ad089d3e689842c2d25947de5e412aeca86616187920b2506d53d2f97"
+    },
+    {
+      "label": "client-clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 1.716,
+      "log": "client-clippy.log",
+      "log_sha256": "c83b5fc58251b558d3b1d04f4e66d04ebe5fb6e09979997ed433c10831cb793f"
+    },
+    {
+      "label": "client-reject-relative-config",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-client.exe",
+        "--windows-service",
+        "xmqr-client-default",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\client",
+        "--config",
+        "relative.toml"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 2,
+      "expected_exit_codes": [
+        1,
+        2
+      ],
+      "required_text": "--windows-service",
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.028,
+      "log": "client-reject-relative-config.log",
+      "log_sha256": "810d72235ef1f0120bd8c62aea8e268668650c86970cd71ec9b52e8d3dbd68a3"
+    },
+    {
+      "label": "client-outside-scm",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\mqtt-client.exe",
+        "--windows-service",
+        "xmqr-client-default",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\client",
+        "--config",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\client\\config.toml"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-client",
+      "exit_code": 1,
+      "expected_exit_codes": [
+        1
+      ],
+      "required_text": "dispatcher",
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.023,
+      "log": "client-outside-scm.log",
+      "log_sha256": "52a57f6ec74e60cd278f890459e4a5dbdbb7d976195af6ceea979df41e149202"
+    },
+    {
+      "label": "admin-head",
+      "argv": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.056,
+      "log": "admin-head.log",
+      "log_sha256": "23a6e796777809c7b4a10c3a59aefa0bf743a36e480aef5bfc330d5721984a7e"
+    },
+    {
+      "label": "admin-git-status",
+      "argv": [
+        "git",
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.056,
+      "log": "admin-git-status.log",
+      "log_sha256": "b09e53d656c1e183aaa942fd70a9d95dd82f6a29190a3083e4fb0ceaf70b631e"
+    },
+    {
+      "label": "admin-fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin\\packaging\\windows-service\\Cargo.toml",
+        "--",
+        "--check"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.242,
+      "log": "admin-fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "admin-build",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--bin",
+        "xmqr-admin"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 3.177,
+      "log": "admin-build.log",
+      "log_sha256": "3fa1b25df30a51481c44ff7ea12ea7d2cd9053b0f301582a6db25522730ec5bc"
+    },
+    {
+      "label": "admin-marker",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\xmqr-admin.exe",
+        "--windows-service-capabilities"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.262,
+      "log": "admin-marker.log",
+      "log_sha256": "5746bd29e5b1598ec25aa451cebeb824acfb3c150c82f6f42bcbfb0373b11d65"
+    },
+    {
+      "label": "admin-version",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\xmqr-admin.exe",
+        "--version"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.021,
+      "log": "admin-version.log",
+      "log_sha256": "ecac7bcd52002fdcf3dd7df2fdbb4114135eab35ea9fc1fc88092efd945be53c"
+    },
+    {
+      "label": "admin-tests-1",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--bin",
+        "xmqr-admin",
+        "windows_service::tests"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": 1,
+      "status": "PASS",
+      "seconds": 3.25,
+      "log": "admin-tests-1.log",
+      "log_sha256": "c9645e2f5489e22efca1c4fb8c75549d3da105d27cc40bac8d52648536fd179c"
+    },
+    {
+      "label": "admin-tests-2",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--bin",
+        "xmqr-admin",
+        "config::tests"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 0,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": 3,
+      "status": "PASS",
+      "seconds": 0.37,
+      "log": "admin-tests-2.log",
+      "log_sha256": "a64f2debecbbd5655888c43bf77fc36f29106ab7b334d2d235f14e998f7aa90e"
+    },
+    {
+      "label": "admin-clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--manifest-path",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin\\packaging\\windows-service\\Cargo.toml",
+        "--target-dir",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 101,
+      "expected_exit_codes": [
+        0
+      ],
+      "required_text": null,
+      "tests_passed": null,
+      "status": "FAIL",
+      "seconds": 1.541,
+      "log": "admin-clippy.log",
+      "log_sha256": "99f80fd8f03d9df2a1406905c01436ebca8f78407ca7455ef0de0b2cfaa90eb0"
+    },
+    {
+      "label": "admin-reject-relative-config",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\xmqr-admin.exe",
+        "--windows-service",
+        "xmqr-admin",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\admin",
+        "--config",
+        "relative.toml"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 1,
+      "expected_exit_codes": [
+        1,
+        2
+      ],
+      "required_text": "--windows-service",
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.031,
+      "log": "admin-reject-relative-config.log",
+      "log_sha256": "3d6528f4b7a6375f673121ebd1c4b3ef330828028df382039f554bdfce819014"
+    },
+    {
+      "label": "admin-outside-scm",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\xmqr-admin.exe",
+        "--windows-service",
+        "xmqr-admin",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\admin",
+        "--config",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\admin\\config.toml"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 1,
+      "expected_exit_codes": [
+        1
+      ],
+      "required_text": "1063",
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.024,
+      "log": "admin-outside-scm.log",
+      "log_sha256": "4599d21b39415e63fcf2b9eded194b696f3723bcdb07d756b804b9757a6fa115"
+    },
+    {
+      "label": "admin-native-token-negative",
+      "argv": [
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-service-proof\\x86_64-pc-windows-msvc\\debug\\xmqr-admin.exe",
+        "serve",
+        "--config",
+        "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr\\target\\p239-proof-20261021-final\\admin\\config.toml"
+      ],
+      "cwd": "D:\\projects\\my-project\\acmebr-projects\\acmebr-broker-client\\xmqr-admin",
+      "exit_code": 1,
+      "expected_exit_codes": [
+        1
+      ],
+      "required_text": "private token files require Unix",
+      "tests_passed": null,
+      "status": "PASS",
+      "seconds": 0.027,
+      "log": "admin-native-token-negative.log",
+      "log_sha256": "bec8d95c876d116534fc37b6533950327dd401a66889fdfaa593a2a97e484c75"
+    }
+  ],
+  "scm_lifecycle": "NOT_RUN",
+  "native_acceptance": false,
+  "finished_utc": "2026-10-21T03:47:50.370643+00:00",
+  "builds_and_markers_pass": true,
+  "all_executed_checks_pass": false,
+  "log_directory": "target/p239-proof-20261021-final",
+  "host_observation": {
+    "observed_utc": "2026-10-21T03:49:37.0869270Z",
+    "services": [],
+    "components_hklm_present": false,
+    "elevated": true,
+    "sandbox_executable_present": false,
+    "scm_control_executed": false
+  },
+  "packaging_contracts": {
+    "exit_code": 0,
+    "passed": 11,
+    "not_run": 1,
+    "log": "target/p239-proof-packaging.log",
+    "sha256": "5cd4993b4b60b0d14bfd4320d1e19ef9298b4a59611611971d70f8750c5d4469"
+  }
+}

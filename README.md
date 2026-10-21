@@ -1,5 +1,8 @@
 # XMQR
 
+Integração Windows experimental: [serviço e bandeja P239](docs/windows-service-tray.md),
+com estado da implementação, atalhos e bloqueios de homologação nativa.
+
 ## Marco atual 0.43.0
 
 A [prerelease 0.43.0](https://github.com/licodevone/xmqr/releases/tag/v0.43.0)

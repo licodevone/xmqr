@@ -4,30 +4,130 @@
       Manufacturer="ACMEBR"
       Version="$(var.ProductVersion)"
       UpgradeCode="$(var.UpgradeCode)"
-      Scope="perMachine">
+      Scope="perMachine"
+      InstallerVersion="500">
 
     <MajorUpgrade
         DowngradeErrorMessage="Uma versão mais recente já está instalada." />
 
     <MediaTemplate EmbedCab="yes" />
+    <Upgrade Id="$(var.UpgradeCode)">
+      <UpgradeVersion Minimum="$(var.ProductVersion)" Maximum="$(var.ProductVersion)"
+          IncludeMinimum="yes" IncludeMaximum="yes" OnlyDetect="yes" Property="XMQR_SAME_VERSION" />
+    </Upgrade>
+    <Launch Condition="Installed OR NOT XMQR_SAME_VERSION"
+        Message="Remova o candidato experimental da mesma versao antes de instalar outro. Os dados serao preservados." />
+    <!-- Never apply a protected ACL to a caller-supplied shared/root directory. -->
+    <SetProperty Id="XmqrExpectedDataDir" Value="[CommonAppDataFolder]XMQR\$(var.ComponentId)\"
+        Before="LaunchConditions" Sequence="both" />
+    <SetProperty Id="XmqrExpectedLogsDir" Value="[CommonAppDataFolder]XMQR\$(var.ComponentId)\logs\"
+        Before="LaunchConditions" Sequence="both" />
+    <SetProperty Id="XmqrExpectedCertsDir" Value="[CommonAppDataFolder]XMQR\$(var.ComponentId)\certificates\"
+        Before="LaunchConditions" Sequence="both" />
+    <SetProperty Id="XmqrExpectedStateDir" Value="[CommonAppDataFolder]XMQR\$(var.ComponentId)\state\"
+        Before="LaunchConditions" Sequence="both" />
+    <Launch Condition="(NOT DATADIR OR DATADIR = XmqrExpectedDataDir) AND (NOT LOGSDIR OR LOGSDIR = XmqrExpectedLogsDir) AND (NOT CERTSDIR OR CERTSDIR = XmqrExpectedCertsDir) AND (NOT STATEDIR OR STATEDIR = XmqrExpectedStateDir)"
+        Message="DATADIR personalizado ainda nao e suportado. Use a pasta dedicada padrao em ProgramData\XMQR." />
+
+    <!-- Registry values belong to this component MSI, never to the shared tray. -->
+    <Property Id="DATADIR" Secure="yes">
+      <RegistrySearch Id="PreviousDataDirectory" Root="HKLM"
+          Key="SOFTWARE\XMQR\Install\$(var.ComponentId)" Name="DataDirectory"
+          Type="raw" Bitness="always64" />
+    </Property>
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="VendorFolder" Name="XMQR">
         <Directory Id="INSTALLFOLDER" Name="$(var.ProductFolder)">
+          <Directory Id="NOTICESDIR" Name="notices" />
 
-          <Component Id="MainExecutable" Guid="*">
+          <Component Id="MainExecutable" Guid="*" Bitness="always64">
             <File
                 Id="MainExecutableFile"
                 Source="$(var.BinaryDir)\$(var.ExecutableName)"
                 KeyPath="yes" />
+            <ServiceInstall Id="XmqrService" Name="$(var.ServiceName)"
+                DisplayName="$(var.ProductName)" Description="XMQR experimental Windows service"
+                Type="ownProcess" Start="auto" ErrorControl="normal"
+                Account="NT AUTHORITY\LocalService"
+                Arguments="--windows-service $(var.ServiceName) &quot;[LOGSDIR].&quot; --config &quot;[DATADIR]$(var.ConfigName)&quot;" />
+            <!-- Do not start an unprovisioned service during MSI installation. -->
+            <ServiceControl Id="XmqrServiceLifecycle" Name="$(var.ServiceName)"
+                Stop="both" Remove="uninstall" Wait="yes" />
+          </Component>
+          <Component Id="TrayRegistration" Guid="*" Bitness="always64">
+            <RegistryKey Root="HKLM" Key="SOFTWARE\XMQR\Components\$(var.ComponentId)" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="Kind" Value="$(var.Kind)" Type="string" KeyPath="yes" />
+              <RegistryValue Name="DisplayName" Value="$(var.ProductName)" Type="string" />
+              <RegistryValue Name="Executable" Value="[#MainExecutableFile]" Type="string" />
+              <RegistryValue Name="ServiceName" Value="$(var.ServiceName)" Type="string" />
+              <RegistryValue Name="ConfigFile" Value="[DATADIR]$(var.ConfigName)" Type="string" />
+              <RegistryValue Name="CertificatesDir" Value="[CERTSDIR]" Type="string" />
+              <RegistryValue Name="LogsDir" Value="[LOGSDIR]" Type="string" />
+              <?if $(var.Kind) = admin ?>
+              <RegistryValue Name="PanelUrl" Value="http://127.0.0.1:9080/" Type="string" />
+              <?endif?>
+            </RegistryKey>
+          </Component>
+          <Component Id="RememberDataDirectory" Guid="*" Bitness="always64" Permanent="yes">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)"
+                Name="DataDirectory" Value="[DATADIR]" Type="string" KeyPath="yes" />
           </Component>
 
         </Directory>
       </Directory>
     </StandardDirectory>
 
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="VendorDataFolder" Name="XMQR">
+        <Directory Id="DATADIR" Name="$(var.ComponentId)">
+          <Component Id="PrivateDataDirectory" Guid="*" Bitness="always64" Permanent="yes">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)" Name="DataDirectoryAcl" Type="integer" Value="1" KeyPath="yes" />
+            <CreateFolder>
+              <PermissionEx Sddl="D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FRFX;;;LS)" />
+            </CreateFolder>
+          </Component>
+          <Component Id="InitialConfiguration" Guid="*" Bitness="always64" Permanent="yes" NeverOverwrite="yes">
+            <File Id="ConfigurationFile" Source="$(var.ConfigSource)" Name="$(var.ConfigName)" KeyPath="yes" />
+          </Component>
+          <Directory Id="CERTSDIR" Name="certificates">
+            <Component Id="PrivateCertificatesDirectory" Guid="*" Bitness="always64" Permanent="yes">
+              <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)" Name="CertificatesDirectoryAcl" Type="integer" Value="1" KeyPath="yes" />
+              <CreateFolder>
+                <PermissionEx Sddl="D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FRFX;;;LS)" />
+              </CreateFolder>
+            </Component>
+          </Directory>
+          <Directory Id="LOGSDIR" Name="logs">
+            <Component Id="PrivateLogsDirectory" Guid="*" Bitness="always64" Permanent="yes">
+              <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)" Name="LogsDirectoryAcl" Type="integer" Value="1" KeyPath="yes" />
+              <CreateFolder>
+                <PermissionEx Sddl="D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;LS)" />
+              </CreateFolder>
+            </Component>
+          </Directory>
+          <Directory Id="STATEDIR" Name="state">
+            <Component Id="PrivateStateDirectory" Guid="*" Bitness="always64" Permanent="yes">
+              <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)" Name="StateDirectoryAcl" Type="integer" Value="1" KeyPath="yes" />
+              <CreateFolder>
+                <PermissionEx Sddl="D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;LS)" />
+              </CreateFolder>
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
+      <Files Directory="NOTICESDIR" Include="$(var.NoticesDir)\**" />
       <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="TrayRegistration" />
+      <ComponentRef Id="RememberDataDirectory" />
+      <ComponentRef Id="InitialConfiguration" />
+      <ComponentRef Id="PrivateDataDirectory" />
+      <ComponentRef Id="PrivateCertificatesDirectory" />
+      <ComponentRef Id="PrivateLogsDirectory" />
+      <ComponentRef Id="PrivateStateDirectory" />
     </Feature>
 
   </Package>

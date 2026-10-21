@@ -1,0 +1,21 @@
+# Experimental Windows service. Provision certificates and security files first.
+# Windows durable storage remains a separate acceptance gate; do not weaken it.
+version = 1
+
+[broker]
+mode = "secure-mtls"
+bind = "127.0.0.1:8883"
+state_dir = "state"
+
+[tls]
+server_cert = "certificates/server.crt"
+server_key = "certificates/server.key"
+client_ca = "certificates/ca.crt"
+
+[security]
+users_file = "users.toml"
+acl_file = "acl.toml"
+
+[monitor]
+enabled = true
+bind = "127.0.0.1:9090"

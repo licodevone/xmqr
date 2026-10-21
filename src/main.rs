@@ -1,3 +1,8 @@
+#[cfg(any(test, all(windows, feature = "windows-service-runtime")))]
+mod windows_launch;
+#[cfg(all(windows, feature = "windows-service-runtime"))]
+mod windows_service;
+
 use std::{
     env, fs, io,
     net::SocketAddr,
@@ -20,6 +25,30 @@ use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    #[cfg(all(windows, feature = "windows-service-runtime"))]
+    if env::args_os().len() == 2
+        && env::args_os()
+            .nth(1)
+            .is_some_and(|arg| arg == "--windows-service-capabilities")
+    {
+        println!(r#"{{"schema":1,"component":"broker","service_entrypoint":true}}"#);
+        return Ok(());
+    }
+    #[cfg(all(windows, feature = "windows-service-runtime"))]
+    if env::args_os()
+        .nth(1)
+        .is_some_and(|arg| arg == "--windows-service")
+    {
+        let launch = windows_launch::Launch::parse(&env::args_os().skip(1).collect::<Vec<_>>())?;
+        windows_service::dispatch(launch.service_name, launch.logs, || match run() {
+            Ok(()) => true,
+            Err(error) => {
+                windows_service::report_failure(error.as_ref());
+                false
+            }
+        })?;
+        return Ok(());
+    }
     let mut arguments = env::args_os().skip(1);
     match (arguments.next(), arguments.next()) {
         (None, None) => run(),
@@ -42,7 +71,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .compact()
         .init();
 
-    let config = Configuration::load()?;
+    let config = load_configuration()?;
     let monitor_config = MonitorConfig::from_lookup(|name| config.var(name))?;
     let admin_config = AdminChannelConfig::from_lookup(|name| config.var_os(name))?;
     if admin_config.is_some() && config.var_os("MQTT_SECURITY_BUNDLE").is_none() {
@@ -590,6 +619,15 @@ fn valid_origin_port(value: &str) -> bool {
         .is_some_and(|port| port.parse::<u16>().is_ok_and(|number| number > 0))
 }
 
+fn load_configuration() -> io::Result<Configuration> {
+    #[cfg(all(windows, feature = "windows-service-runtime"))]
+    if windows_service::active() {
+        let launch = windows_launch::Launch::parse(&env::args_os().skip(1).collect::<Vec<_>>())?;
+        return Configuration::from_file(&launch.config);
+    }
+    Configuration::load()
+}
+
 async fn shutdown_signal() -> io::Result<()> {
     #[cfg(unix)]
     {
@@ -600,7 +638,11 @@ async fn shutdown_signal() -> io::Result<()> {
             _ = terminate.recv() => Ok(()),
         }
     }
-    #[cfg(not(unix))]
+    #[cfg(all(windows, feature = "windows-service-runtime"))]
+    {
+        windows_service::shutdown().await
+    }
+    #[cfg(not(any(unix, all(windows, feature = "windows-service-runtime"))))]
     tokio::signal::ctrl_c().await
 }
 
@@ -611,6 +653,8 @@ async fn run_until_shutdown(
     connections: ConnectionDrain,
 ) -> Result<(), mqtt_broker::transport::HandlerError> {
     // Drop the accept loop/listener before queuing the actor shutdown barrier.
+    #[cfg(all(windows, feature = "windows-service-runtime"))]
+    windows_service::running()?;
     let stopped = {
         tokio::pin!(serving);
         tokio::select! {

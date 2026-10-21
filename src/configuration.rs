@@ -70,6 +70,13 @@ impl Configuration {
         )
     }
 
+    /// Read an explicit file without environment overrides (service configuration).
+    /// # Errors
+    /// Rejects unreadable or invalid configuration using the regular schema.
+    pub fn from_file(path: &Path) -> io::Result<Self> {
+        Self::load_with(Some(path), BTreeMap::new())
+    }
+
     fn load_with(path: Option<&Path>, overrides: BTreeMap<String, OsString>) -> io::Result<Self> {
         let mut result = Self::default();
         if let Some(path) = path {
@@ -738,5 +745,26 @@ mod tests {
         )
         .unwrap();
         assert!(Configuration::load_with(Some(&path), BTreeMap::new()).is_err());
+    }
+
+    #[test]
+    fn explicit_service_configuration_uses_file_base_and_fails_closed() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("service config.toml");
+        assert!(Configuration::from_file(&path).is_err());
+        std::fs::write(
+            &path,
+            "version=1\n[broker]\nstate_dir='state'\nmode='open-lab'",
+        )
+        .unwrap();
+        let config = Configuration::from_file(&path).unwrap();
+        assert_eq!(config.var("MQTT_MODE").unwrap(), "open-lab");
+        assert_eq!(
+            config.var_os("MQTT_STATE_DIR").unwrap(),
+            directory.path().join("state")
+        );
+        std::fs::write(&path, "version=1\n[tls]\npassword='secret-fixture'").unwrap();
+        let error = Configuration::from_file(&path).err().unwrap();
+        assert!(!error.to_string().contains("secret-fixture"));
     }
 }

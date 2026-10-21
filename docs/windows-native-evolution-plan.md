@@ -1,9 +1,20 @@
 # XMQR no Windows nativo — relatório de planejamento
 
-**Estado:** planejamento futuro, sem implementação ou homologação Windows nesta
+**Estado histórico do relatório P193:** planejamento futuro, sem implementação ou homologação Windows nesta
 entrega. A [fase 9](evolution-plan.md) continua desmarcada. Instalar os pacotes
 Ubuntu no WSL e acessar o serviço pelo Windows não constitui uma versão nativa.
 As versões publicadas permanecem no [guia de releases](current-releases-wsl.md).
+
+## Atualização P239 - infraestrutura experimental
+
+O [serviço e a bandeja](windows-service-tray.md) agora têm implementação
+experimental separada dos builds convencionais. O texto de planejamento abaixo
+preserva a avaliação P193; W2/W3/W4/W5/W6 continuam sem aceite global.
+O [registro P239](../prompts/registros/P239-windows-services-tray.md) distingue
+gates executados e bloqueios de persistência/ACL. Em 2026-10-21, dependências,
+locks e builds dos três adaptadores foram comprovados, com 21 testes dirigidos
+aprovados. Controle SCM real e W2/W3 continuam pendentes; os negativos reais
+confirmaram as recusas de persistência/token nativos.
 
 ## Situação dos três sistemas
 
