@@ -1,4 +1,6 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
+#[cfg(any(windows, test))]
+mod icon_pixels;
 mod model;
 #[cfg(windows)]
 mod platform;

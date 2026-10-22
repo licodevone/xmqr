@@ -57,6 +57,8 @@ if ($ManagerOnly -and $PSBoundParameters.ContainsKey('Components')) {
 }
 $selected = if ($ManagerOnly) { @('manager') } else { @('manager') + @($Components | Select-Object -Unique) }
 $built = @{}
+$brandStage = Join-Path $repoRoot ('target/windows-brand-staging/' + [Guid]::NewGuid().ToString('N'))
+$null = New-Item -ItemType Directory -Path $brandStage -Force
 
 # Always build current locked source first; never silently package an old .exe.
 foreach ($kind in $selected) {
@@ -85,6 +87,27 @@ foreach ($kind in $selected) {
         }
     }
     $sourceRoot = if ($kind -eq 'manager') { $repoRoot } else { $definition.Root }
+    $originalHash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
+    $brandDirectory = Join-Path $brandStage $kind
+    $null = New-Item -ItemType Directory -Path $brandDirectory
+    $branded = Join-Path $brandDirectory ($definition.Binary + '.exe')
+      if ($kind -in @('client', 'admin', 'manager')) {
+          # These crates link their icons with the Windows resource compiler.
+        # Audit existing resources and copy bytes; never mutate this executable.
+        $iconProof = & (Join-Path $PSScriptRoot 'verify_windows_executable_icon.ps1') -InputExecutable $binary `
+              -IconPath (Join-Path $repoRoot "packaging/windows/icons/$kind.ico") | ConvertFrom-Json
+        if (-not $iconProof.unchanged -or $iconProof.icon_images -ne 9 -or $iconProof.executable_sha256 -cne $originalHash) {
+              throw "Native $kind icon verification failed."
+        }
+        [IO.File]::Copy($binary, $branded, $false)
+          if ((Get-FileHash -LiteralPath $branded -Algorithm SHA256).Hash.ToLowerInvariant() -cne $originalHash) { throw "Native $kind copy changed bytes." }
+    } else {
+        $null = & (Join-Path $PSScriptRoot 'set_windows_executable_icon.ps1') -InputExecutable $binary `
+            -IconPath (Join-Path $repoRoot "packaging/windows/icons/$kind.ico") -OutputExecutable $branded
+    }
+    $binary = $branded
+    $verifiedVersion = & $binary '--version'
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($verifiedVersion -join ''))) { throw 'Branded executable did not pass its version probe.' }
     $revision = & git -C $sourceRoot rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw 'Cannot determine source revision.' }
     $status = & git -C $sourceRoot status --porcelain
@@ -92,6 +115,7 @@ foreach ($kind in $selected) {
     $built[$kind] = @{
         Binary = $binary; Manifest = $manifest; Version = (Get-PackageVersion (Join-Path $definition.Root 'Cargo.toml')); Revision = "$revision"
         Dirty = [bool]$status; Sha256 = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
+        OriginalSha256 = $originalHash
     }
 }
 
@@ -127,6 +151,7 @@ foreach ($kind in $selected) {
         kind = $kind; file = $fileName; version = $build.Version
         sha256 = (Get-FileHash -LiteralPath $msi -Algorithm SHA256).Hash.ToLowerInvariant()
         executable_sha256 = $build.Sha256; source_commit = $build.Revision; source_dirty = $build.Dirty
+        executable_before_icon_sha256 = $build.OriginalSha256; icon_code_integrity = $true
     }
 }
 $record = [ordered]@{

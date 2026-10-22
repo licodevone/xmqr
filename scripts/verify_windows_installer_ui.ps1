@@ -55,7 +55,7 @@ try {
     # OpenDatabase mode 0 is read-only. This script never installs or modifies the MSI.
     $database = $installer.OpenDatabase($fullMsi, 0)
 
-    $dialogs = @(Get-MsiTableRows $database 'Dialog' @('Dialog', 'Control_First'))
+    $dialogs = @(Get-MsiTableRows $database 'Dialog' @('Dialog', 'Control_First', 'Control_Default', 'Control_Cancel'))
     $controls = @(Get-MsiTableRows $database 'Control' @('Dialog_', 'Control', 'Type', 'Property', 'Text', 'X', 'Y', 'Width', 'Height', 'Attributes'))
     $events = @(Get-MsiTableRows $database 'ControlEvent' @('Dialog_', 'Control_', 'Event', 'Argument', 'Condition'))
     $sequence = @(Get-MsiTableRows $database 'InstallUISequence' @('Action', 'Condition', 'Sequence'))
@@ -63,11 +63,11 @@ try {
     $checkboxes = @(Get-MsiTableRows $database 'CheckBox' @('Property', 'Value'))
     $controlConditions = @(Get-MsiTableRows $database 'ControlCondition' @('Dialog_', 'Control_', 'Action', 'Condition'))
     $launchConditions = @(Get-MsiTableRows $database 'LaunchCondition' @('Condition', 'Description'))
-    $components = @(Get-MsiTableRows $database 'Component' @('Component', 'Condition', 'Directory_'))
+    $components = @(Get-MsiTableRows $database 'Component' @('Component', 'Condition', 'Directory_', 'Attributes'))
 
     $expectedDialogs = @(
         'XmqrWelcomeDlg', 'XmqrTermsDlg', 'XmqrProgressDlg', 'XmqrExitDlg', 'XmqrErrorDlg',
-        'XmqrCancelDlg', 'XmqrCancelledDlg', 'XmqrFatalDlg'
+        'XmqrCancelDlg', 'XmqrCancelledDlg', 'XmqrFatalDlg', 'XmqrRemoveDlg'
     )
     foreach ($dialog in $expectedDialogs) {
         Assert-Check ($dialogs.Dialog -contains $dialog) "dialog table contains $dialog"
@@ -78,12 +78,22 @@ try {
     $execute = $sequence | Where-Object Action -EQ 'ExecuteAction' | Select-Object -First 1
     Assert-Check ($null -ne $welcome -and [int]$welcome.Sequence -lt [int]$progress.Sequence) 'welcome precedes progress'
     Assert-Check ($null -ne $progress -and [int]$progress.Sequence -lt [int]$execute.Sequence) 'progress precedes ExecuteAction'
+    $remove = $sequence | Where-Object Action -EQ 'XmqrRemoveDlg' | Select-Object -First 1
+    Assert-Check ($null -ne $remove -and [int]$remove.Sequence -lt [int]$progress.Sequence -and
+        $remove.Condition -eq 'REMOVE = "ALL"' -and $welcome.Condition -eq 'NOT (REMOVE = "ALL")') 'uninstall confirmation replaces the fresh-install screen only for REMOVE=ALL'
+    $removeDialog = $dialogs | Where-Object Dialog -EQ 'XmqrRemoveDlg' | Select-Object -First 1
+    Assert-Check ($removeDialog.Control_Default -eq 'Cancel' -and $removeDialog.Control_Cancel -eq 'Cancel') 'uninstall defaults to Cancel including Escape'
+    $removeControls = @($controls | Where-Object Dialog_ -EQ 'XmqrRemoveDlg')
+    Assert-Check (@($removeControls | Where-Object Type -EQ 'CheckBox').Count -eq 0 -and
+        ($removeControls | Where-Object Control -EQ 'Remove').Text -eq 'Desinstalar') 'uninstall confirmation has a clear removal action without license or shortcut choices'
     Assert-Check (($sequence | Where-Object Action -EQ 'XmqrExitDlg').Sequence -contains '-1') 'successful operations show finish dialog'
     Assert-Check (($sequence | Where-Object Action -EQ 'XmqrCancelledDlg').Sequence -contains '-2') 'cancelled operations show cancellation dialog'
     Assert-Check (($sequence | Where-Object Action -EQ 'XmqrFatalDlg').Sequence -contains '-3') 'failed operations show fatal-error dialog'
 
     $requiredEvents = @(
         @{ Dialog = 'XmqrWelcomeDlg'; Control = 'Next'; Event = 'EndDialog'; Argument = 'Return' },
+        @{ Dialog = 'XmqrRemoveDlg'; Control = 'Remove'; Event = 'EndDialog'; Argument = 'Return' },
+        @{ Dialog = 'XmqrRemoveDlg'; Control = 'Cancel'; Event = 'EndDialog'; Argument = 'Exit' },
         @{ Dialog = 'XmqrWelcomeDlg'; Control = 'ReadTerms'; Event = 'SpawnDialog'; Argument = 'XmqrTermsDlg' },
         @{ Dialog = 'XmqrTermsDlg'; Control = 'Close'; Event = 'EndDialog'; Argument = 'Return' },
         @{ Dialog = 'XmqrWelcomeDlg'; Control = 'Cancel'; Event = 'SpawnDialog'; Argument = 'XmqrCancelDlg' },
@@ -157,7 +167,7 @@ try {
     $startMenuProperty = $properties | Where-Object Property -EQ 'XMQR_START_MENU' | Select-Object -First 1
     $desktopProperty = $properties | Where-Object Property -EQ 'XMQR_DESKTOP' | Select-Object -First 1
     Assert-Check ($null -ne $startMenuProperty -and $startMenuProperty.Value -eq '1') 'Start Menu shortcut is checked by default'
-    Assert-Check ($null -ne $desktopProperty -and $desktopProperty.Value -eq '0') 'Desktop shortcut is optional and unchecked by default'
+    Assert-Check ($null -ne $desktopProperty -and $desktopProperty.Value -eq '1') 'Desktop shortcut is optional and checked by default'
     foreach ($choice in @(
         @{ Control = 'StartMenuChoice'; Property = 'XMQR_START_MENU' },
         @{ Control = 'DesktopChoice'; Property = 'XMQR_DESKTOP' }
@@ -176,6 +186,26 @@ try {
     foreach ($secureProperty in @('XMQR_ACCEPT_LICENSE', 'XMQR_START_MENU', 'XMQR_DESKTOP')) {
         Assert-Check ($secureProperties -split ';' -contains $secureProperty) "$secureProperty survives the per-machine UI-to-service handoff"
     }
+
+    $shortcuts = @(Get-MsiTableRows $database 'Shortcut' @('Directory_', 'Name', 'Component_', 'Target', 'Arguments', 'WkDir', 'Icon_'))
+    $icons = @(Get-MsiTableRows $database 'Icon' @('Name'))
+    $arpIcon = $properties | Where-Object Property -EQ 'ARPPRODUCTICON' | Select-Object -First 1
+    Assert-Check ($icons.Name -contains 'ProductIcon.ico' -and $arpIcon.Value -eq 'ProductIcon.ico') 'Applications entry uses the product icon embedded in this MSI'
+    Assert-Check ($shortcuts.Count -eq 3 -and @($shortcuts | Where-Object Icon_ -NE 'ProductIcon.ico').Count -eq 0) 'Start Menu, Desktop and uninstall shortcuts use the product-specific embedded icon'
+    $uninstallLinks = @($shortcuts | Where-Object Component_ -EQ 'UninstallShortcut')
+    Assert-Check ($uninstallLinks.Count -eq 1) 'exactly one uninstall shortcut belongs to this MSI'
+    $uninstall = $uninstallLinks[0]
+    $productName = ($properties | Where-Object Property -EQ 'ProductName' | Select-Object -First 1).Value
+    $productCode = ($properties | Where-Object Property -EQ 'ProductCode' | Select-Object -First 1).Value
+    Assert-Check ($productCode -match '^\{[0-9A-Fa-f-]{36}\}$' -and $uninstall.Arguments -eq '/x [ProductCode] /norestart') 'uninstall targets this MSI ProductCode with full UI and no automatic restart'
+    Assert-Check ($uninstall.Directory_ -eq 'INSTALLFOLDER' -and $uninstall.WkDir -eq 'INSTALLFOLDER' -and
+        ($uninstall.Name -split '\|')[-1] -eq ('Desinstalar ' + $productName) -and
+        $uninstall.Target -eq '[System64Folder]msiexec.exe') 'product-named uninstall shortcut uses Windows Installer in its installation folder'
+    $uninstallComponent = $components | Where-Object Component -EQ 'UninstallShortcut' | Select-Object -First 1
+    Assert-Check ($uninstallComponent.Directory_ -eq 'INSTALLFOLDER' -and -not $uninstallComponent.Condition -and
+        ([int]$uninstallComponent.Attributes -band 16) -eq 0) 'uninstall shortcut is always installed and removed with its owning MSI'
+    $featureComponents = @(Get-MsiTableRows $database 'FeatureComponents' @('Feature_', 'Component_'))
+    Assert-Check (@($featureComponents | Where-Object { $_.Feature_ -eq 'MainFeature' -and $_.Component_ -eq 'UninstallShortcut' }).Count -eq 1) 'main feature includes the uninstall shortcut independently of tray and desktop choices'
 
     if ($Kind -eq 'manager') {
         $shortcuts = @(Get-MsiTableRows $database 'Shortcut' @('Directory_', 'Name', 'Component_', 'Target', 'Arguments', 'WkDir'))

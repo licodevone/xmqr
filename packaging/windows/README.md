@@ -1,4 +1,53 @@
-# Instaladores Windows experimentais — P243
+# Instaladores Windows experimentais - P246
+
+## Icones, atalhos e estado inicial
+
+P246 usa a marca XMQR no Broker e os nomes Admin/Client/Manager grandes com
+XMQR pequeno embaixo nos demais. Os icones identificam os executaveis, a
+entrada em Aplicativos, menu Iniciar, desktop e desinstalacao. As duas opcoes
+de atalhos agora comecam marcadas; o usuario pode desmarca-las no assistente.
+Os atalhos dos componentes abrem o Manager da bandeja, onde ficam os controles
+dos servicos instalados. Broker, Client e Admin sao servicos; o Manager e o
+aplicativo de interface, nao um quarto servico Windows.
+
+O codigo SCM1077 significa que nao houve tentativa de inicio desde o ultimo
+boot. A bandeja agora mostra **Ainda nao iniciado**, sem classifica-lo como
+falha de execucao. O MSI continua sem iniciar servicos ainda nao provisionados.
+Configure arquivos privados/certificados/conexao antes de iniciar. Quando
+solicitar Iniciar pela bandeja, permita o UAC e consulte o resultado.
+
+Instalacoes existentes nao sao modificadas pela geracao de novos MSIs. Os
+registros da instalacao anterior mostraram desktop desmarcado e atalhos de
+menu presentes. A consulta administrativa de configs/status nesta sessao foi
+negada: isso nao comprova falta de arquivos ou causa de inicializacao.
+
+## Desinstalar pela pasta do programa
+
+Cada novo MSI cria um atalho de desinstalacao na propria pasta do programa,
+independentemente das opcoes de menu Iniciar/Area de Trabalho e da presenca
+do Manager:
+
+| Pasta padrao | Atalho |
+| --- | --- |
+| `C:\Program Files\XMQR\Broker` | Desinstalar XMQR Broker |
+| `C:\Program Files\XMQR\Client` | Desinstalar XMQR Client |
+| `C:\Program Files\XMQR\Admin` | Desinstalar XMQR Admin |
+| `C:\Program Files\XMQR\Manager` | Desinstalar XMQR Manager (auxiliar) |
+
+Abra o atalho, confirme **Desinstalar** e permita a elevacao do Windows se
+solicitada. **Cancelar** encerra antes da remocao. O Windows Installer usa o
+ProductCode daquele MSI para remover somente aquele produto, sem reinicio
+automatico. O MSI para/remove o servico correspondente e os arquivos do
+programa; configuracoes, certificados, logs e estado em ProgramData permanecem.
+Remover um componente preserva o Manager; remover o Manager preserva os
+componentes instalados, mas retira o gerenciador da bandeja.
+
+Pacotes ja instalados nao recebem esse atalho automaticamente. Para eles,
+continue usando **Configuracoes > Aplicativos > Aplicativos instalados** do
+Windows. Um novo candidato da mesma versao exige remover o anterior antes de
+instalar este, conforme a protecao existente; nao faca essa troca apenas para
+diagnosticar servicos. Os pacotes anteriores e os dados nao sao alterados
+pela geracao deste candidato.
 
 Os arquivos deste diretório implementam empacotamento nativo. Não constituem
 release aceita nem prova de instalação, persistência ou segurança no Windows.

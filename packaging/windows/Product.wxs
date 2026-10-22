@@ -13,7 +13,9 @@
     <Property Id="MsiLogging" Value="voicewarmup" />
     <Property Id="XMQR_ACCEPT_LICENSE" Secure="yes" />
     <Property Id="XMQR_START_MENU" Value="1" Secure="yes" />
-    <Property Id="XMQR_DESKTOP" Value="0" Secure="yes" />
+    <Property Id="XMQR_DESKTOP" Value="1" Secure="yes" />
+    <Icon Id="ProductIcon.ico" SourceFile="$(sys.SOURCEFILEDIR)icons\$(var.Kind).ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon.ico" />
     <MediaTemplate EmbedCab="yes" />
     <Upgrade Id="$(var.UpgradeCode)">
       <UpgradeVersion Minimum="$(var.ProductVersion)" Maximum="$(var.ProductVersion)"
@@ -51,6 +53,14 @@
       <Directory Id="VendorFolder" Name="XMQR">
         <Directory Id="INSTALLFOLDER" Name="$(var.ProductFolder)">
           <Directory Id="NOTICESDIR" Name="notices" />
+
+          <Component Id="UninstallShortcut" Guid="*" Bitness="always64">
+            <Shortcut Id="UninstallLink" Name="Desinstalar $(var.ProductName)" Icon="ProductIcon.ico"
+                Target="[System64Folder]msiexec.exe" Arguments="/x [ProductCode] /norestart"
+                WorkingDirectory="INSTALLFOLDER" Description="Remover $(var.ProductName); preservar dados e configuracoes" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)"
+                Name="UninstallShortcut" Value="1" Type="integer" KeyPath="yes" />
+          </Component>
 
           <Component Id="MainExecutable" Guid="*" Bitness="always64">
             <File
@@ -133,7 +143,7 @@
       <Directory Id="XMQRStartMenuFolder" Name="XMQR">
         <Component Id="ManagerStartMenuAlias" Guid="*" Bitness="always64"
             Condition="XMQR_MANAGER_EXE AND XMQR_START_MENU = &quot;1&quot;" Transitive="yes">
-          <Shortcut Id="ComponentStartMenuLink" Name="$(var.ProductName)"
+          <Shortcut Id="ComponentStartMenuLink" Name="$(var.ProductName)" Icon="ProductIcon.ico"
               Target="[XMQR_MANAGER_EXE]" />
           <RemoveFolder Id="RemoveComponentStartMenuFolder" On="uninstall" />
           <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)"
@@ -144,7 +154,7 @@
     <StandardDirectory Id="DesktopFolder">
       <Component Id="ManagerDesktopAlias" Guid="*" Bitness="always64"
           Condition="XMQR_MANAGER_EXE AND XMQR_DESKTOP = &quot;1&quot;" Transitive="yes">
-        <Shortcut Id="ComponentDesktopLink" Name="$(var.ProductName)"
+        <Shortcut Id="ComponentDesktopLink" Name="$(var.ProductName)" Icon="ProductIcon.ico"
             Target="[XMQR_MANAGER_EXE]" />
         <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Install\$(var.ComponentId)"
             Name="ManagerDesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
@@ -154,6 +164,7 @@
     <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1">
       <Files Directory="NOTICESDIR" Include="$(var.NoticesDir)\**" />
       <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="UninstallShortcut" />
       <ComponentRef Id="TrayRegistration" />
       <ComponentRef Id="RememberDataDirectory" />
       <ComponentRef Id="InitialConfiguration" />

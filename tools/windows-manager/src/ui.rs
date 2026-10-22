@@ -206,7 +206,7 @@ impl App {
         }
         menu.append(&PredefinedMenuItem::separator())?;
         menu.append(&MenuItem::new(
-            "Verde: serviço em execução; conexão MQTT não verificada",
+            "Verde: todos os serviços em execução; conexão MQTT não verificada",
             false,
             None,
         ))?;
@@ -241,27 +241,9 @@ impl App {
 }
 
 fn icon(color: Color) -> Result<Icon, tray_icon::BadIcon> {
-    let rgba = match color {
-        Color::Green => [35, 190, 105, 255],
-        Color::Gray | Color::Hidden => [128, 137, 148, 160],
-        Color::Yellow => [235, 174, 36, 255],
-        Color::Red => [217, 63, 69, 255],
-    };
-    let mut pixels = vec![0; 32 * 32 * 4];
-    for y in 0_i32..32 {
-        for x in 0_i32..32 {
-            let dx = x - 16;
-            let dy = y - 16;
-            if dx * dx + dy * dy <= 196 {
-                let pixel = if (x - y).abs() <= 1 || (x + y - 32).abs() <= 1 {
-                    [245, 248, 250, rgba[3]]
-                } else {
-                    rgba
-                };
-                let index = ((y * 32 + x) * 4) as usize;
-                pixels[index..index + 4].copy_from_slice(&pixel);
-            }
-        }
-    }
-    Icon::from_rgba(pixels, 32, 32)
+    Icon::from_rgba(
+        crate::icon_pixels::rgba(include_bytes!("../assets/manager.rgba"), color),
+        crate::icon_pixels::SIDE,
+        crate::icon_pixels::SIDE,
+    )
 }

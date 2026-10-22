@@ -110,7 +110,8 @@ class PackagingContracts(unittest.TestCase):
             self.assertEqual(package.find(".//w:Property[@Id='MsiLogging']", NS).attrib["Value"], "voicewarmup")
 
     def test_component_shortcuts_cannot_overwrite_the_shared_manager_link(self):
-        shortcuts = self.product.findall(".//w:Shortcut", NS)
+        shortcuts = [shortcut for shortcut in self.product.findall(".//w:Shortcut", NS)
+                     if shortcut.attrib["Id"] != "UninstallLink"]
         self.assertEqual(len(shortcuts), 2)
         for shortcut in shortcuts:
             self.assertEqual(shortcut.attrib["Name"], "$(var.ProductName)")

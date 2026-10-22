@@ -95,6 +95,7 @@ pub fn loopback_url(value: &str) -> bool {
 pub enum State {
     Running,
     Stopped,
+    NeverStarted,
     Pending,
     Failed,
     Unknown,
@@ -106,11 +107,24 @@ impl State {
         match self {
             Self::Running => "Em execução",
             Self::Stopped => "Parado",
+            Self::NeverStarted => "Ainda não iniciado",
             Self::Pending => "Em transição",
             Self::Failed => "Falha",
             Self::Unknown => "Estado indisponível",
             Self::CliOnly => "CLI instalada; sem serviço",
         }
+    }
+}
+
+/// Translate an observed SCM state; 1077 records no start attempt since boot.
+pub fn service_state(state: &str, exit_code: u32) -> State {
+    match state {
+        "Running" => State::Running,
+        "Stopped" if exit_code == 0 => State::Stopped,
+        "Stopped" if exit_code == 1077 => State::NeverStarted,
+        "Stopped" => State::Failed,
+        "Start Pending" | "Stop Pending" | "Continue Pending" | "Pause Pending" => State::Pending,
+        _ => State::Unknown,
     }
 }
 
@@ -155,7 +169,11 @@ impl Snapshot {
             .map(|e| e.state)
             .filter(|s| *s != State::CliOnly)
             .collect();
-        if states.is_empty() || states.iter().all(|s| *s == State::Stopped) {
+        if states.is_empty()
+            || states
+                .iter()
+                .all(|s| matches!(s, State::Stopped | State::NeverStarted))
+        {
             return Color::Gray;
         }
         if states.iter().all(|s| *s == State::Running) {
@@ -190,7 +208,7 @@ impl Action {
     }
     pub fn enabled(self, state: State) -> bool {
         match self {
-            Self::Start => matches!(state, State::Stopped | State::Failed),
+            Self::Start => matches!(state, State::Stopped | State::NeverStarted | State::Failed),
             Self::Stop | Self::Restart => state == State::Running,
         }
     }
@@ -276,6 +294,46 @@ mod tests {
             .color(),
             Color::Red
         );
+    }
+
+    #[test]
+    fn never_started_status_is_not_an_application_failure() {
+        assert_eq!(service_state("Stopped", 1077), State::NeverStarted);
+        assert_eq!(State::NeverStarted.label(), "Ainda não iniciado");
+        assert_eq!(snapshot(&[State::NeverStarted]).color(), Color::Gray);
+        assert_eq!(
+            snapshot(&[State::Stopped, State::NeverStarted]).color(),
+            Color::Gray
+        );
+        assert_eq!(
+            snapshot(&[State::Running, State::NeverStarted]).color(),
+            Color::Yellow
+        );
+        assert!(Action::Start.enabled(State::NeverStarted));
+        assert!(!Action::Stop.enabled(State::NeverStarted));
+        assert!(!Action::Restart.enabled(State::NeverStarted));
+    }
+
+    #[test]
+    fn scm_status_preserves_real_failure_and_unavailable_queries() {
+        assert_eq!(service_state("Stopped", 0), State::Stopped);
+        for code in [1, 5, 1067] {
+            assert_eq!(service_state("Stopped", code), State::Failed);
+        }
+        for code in [0, 1077, 1067] {
+            assert_eq!(service_state("Running", code), State::Running);
+        }
+        for state in [
+            "Start Pending",
+            "Stop Pending",
+            "Continue Pending",
+            "Pause Pending",
+        ] {
+            assert_eq!(service_state(state, 1077), State::Pending);
+        }
+        for state in ["Unknown", "Missing", ""] {
+            assert_eq!(service_state(state, 1077), State::Unknown);
+        }
     }
     #[test]
     fn service_and_component_ids_cannot_inject_commands_or_target_other_services() {

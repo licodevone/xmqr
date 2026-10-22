@@ -1,4 +1,4 @@
-use crate::model::{Action, Component, Entry, Kind, Snapshot, State, valid_id};
+use crate::model::{Action, Component, Entry, Kind, Snapshot, State, service_state, valid_id};
 use fs2::FileExt;
 use serde::Deserialize;
 use std::{
@@ -231,15 +231,13 @@ pub fn snapshot() -> Snapshot {
                         Some("Serviço ausente ou executável diferente da instalação".into());
                     continue;
                 }
-                entry.state = match record.state.as_str() {
-                    "Running" => State::Running,
-                    "Stopped" if record.exit_code == 0 => State::Stopped,
-                    "Stopped" => State::Failed,
-                    "Start Pending" | "Stop Pending" | "Continue Pending" | "Pause Pending" => {
-                        State::Pending
-                    }
-                    _ => State::Unknown,
-                };
+                entry.state = service_state(&record.state, record.exit_code);
+                if entry.state == State::NeverStarted {
+                    entry.detail = Some(
+                        "Nenhuma tentativa de início desde o último boot (1077); configure os arquivos privados antes de iniciar."
+                            .into(),
+                    );
+                }
                 if record.state == "Missing" {
                     entry.detail = Some("Serviço registrado no produto não foi encontrado".into());
                 }

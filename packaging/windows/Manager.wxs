@@ -12,13 +12,22 @@
     <Property Id="MsiLogging" Value="voicewarmup" />
     <Property Id="XMQR_ACCEPT_LICENSE" Secure="yes" />
     <Property Id="XMQR_START_MENU" Value="1" Secure="yes" />
-    <Property Id="XMQR_DESKTOP" Value="0" Secure="yes" />
+    <Property Id="XMQR_DESKTOP" Value="1" Secure="yes" />
+    <Icon Id="ProductIcon.ico" SourceFile="$(sys.SOURCEFILEDIR)icons\manager.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon.ico" />
     <Launch Condition="UILevel &gt;= 5 OR XMQR_ACCEPT_LICENSE = &quot;1&quot; OR Installed OR REMOVE = &quot;ALL&quot;"
         Message="A instala&#xE7;&#xE3;o silenciosa exige aceita&#xE7;&#xE3;o expl&#xED;cita: defina XMQR_ACCEPT_LICENSE=1." />
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="VendorFolder" Name="XMQR">
         <Directory Id="INSTALLFOLDER" Name="Manager">
           <Directory Id="NOTICESDIR" Name="notices" />
+          <Component Id="UninstallShortcut" Guid="*" Bitness="always64">
+            <Shortcut Id="UninstallLink" Name="Desinstalar XMQR Manager" Icon="ProductIcon.ico"
+                Target="[System64Folder]msiexec.exe" Arguments="/x [ProductCode] /norestart"
+                WorkingDirectory="INSTALLFOLDER" Description="Remover somente o gerenciador da bandeja XMQR" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Manager"
+                Name="UninstallShortcut" Value="1" Type="integer" KeyPath="yes" />
+          </Component>
           <Component Id="ManagerExecutable" Guid="*" Bitness="always64">
             <File Id="ManagerExecutableFile" Source="$(var.BinaryDir)\xmqr-manager.exe" KeyPath="yes" />
             <RegistryValue Root="HKLM" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
@@ -33,7 +42,7 @@
       <Directory Id="XMQRStartMenuFolder" Name="XMQR">
         <Component Id="ManagerStartMenuShortcut" Guid="*" Bitness="always64"
             Condition="XMQR_START_MENU = &quot;1&quot;" Transitive="yes">
-          <Shortcut Id="ManagerStartMenuLink" Name="XMQR Manager"
+          <Shortcut Id="ManagerStartMenuLink" Name="XMQR Manager" Icon="ProductIcon.ico"
               Target="[#ManagerExecutableFile]" WorkingDirectory="INSTALLFOLDER" />
           <RemoveFolder Id="RemoveXMQRStartMenuFolder" On="uninstall" />
           <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Manager"
@@ -44,7 +53,7 @@
     <StandardDirectory Id="DesktopFolder">
       <Component Id="ManagerDesktopShortcut" Guid="*" Bitness="always64"
           Condition="XMQR_DESKTOP = &quot;1&quot;" Transitive="yes">
-        <Shortcut Id="ManagerDesktopLink" Name="XMQR Manager"
+        <Shortcut Id="ManagerDesktopLink" Name="XMQR Manager" Icon="ProductIcon.ico"
             Target="[#ManagerExecutableFile]" WorkingDirectory="INSTALLFOLDER" />
         <RegistryValue Root="HKLM" Key="SOFTWARE\XMQR\Manager"
             Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
@@ -53,6 +62,7 @@
     <Feature Id="MainFeature" Title="XMQR Manager" Level="1">
       <Files Directory="NOTICESDIR" Include="$(var.NoticesDir)\**" />
       <ComponentRef Id="ManagerExecutable" />
+      <ComponentRef Id="UninstallShortcut" />
       <ComponentRef Id="ManagerStartMenuShortcut" />
       <ComponentRef Id="ManagerDesktopShortcut" />
     </Feature>

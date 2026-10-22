@@ -5,6 +5,20 @@
       <Property Id="DefaultUIFont" Value="XmqrUIFont" />
       <Property Id="ErrorDialog" Value="XmqrErrorDlg" />
 
+      <Dialog Id="XmqrRemoveDlg" Width="370" Height="200" Title="Desinstalar [ProductName]">
+        <Control Id="Title" Type="Text" X="20" Y="18" Width="330" Height="28"
+            Text="Deseja desinstalar [ProductName]?" />
+        <Control Id="Info" Type="Text" X="25" Y="58" Width="320" Height="90"
+            Text="O Windows Installer remover&#xE1; somente [ProductName]. Os arquivos de configura&#xE7;&#xE3;o, certificados, logs e dados em ProgramData ser&#xE3;o preservados. Os demais produtos XMQR continuar&#xE3;o instalados." />
+        <Control Id="Remove" Type="PushButton" X="198" Y="170" Width="88" Height="17" Text="Desinstalar">
+          <Publish Event="EndDialog" Value="Return" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="299" Y="170" Width="58" Height="17"
+            Default="yes" Cancel="yes" Text="Cancelar">
+          <Publish Event="EndDialog" Value="Exit" />
+        </Control>
+      </Dialog>
+
       <Dialog Id="XmqrWelcomeDlg" Width="370" Height="270" Title="Instala&#xE7;&#xE3;o de [ProductName]">
         <Control Id="Title" Type="Text" X="20" Y="18" Width="330" Height="32"
             Text="Bem-vindo &#xE0; instala&#xE7;&#xE3;o de [ProductName]" />
@@ -46,7 +60,7 @@
         </Control>
       </Dialog>
 
-      <Dialog Id="XmqrProgressDlg" Width="370" Height="150" Title="Instala&#xE7;&#xE3;o de [ProductName]" Modeless="yes">
+      <Dialog Id="XmqrProgressDlg" Width="370" Height="150" Title="[ProductName]" Modeless="yes">
         <Control Id="ActionText" Type="Text" X="20" Y="20" Width="330" Height="20">
           <Subscribe Event="ActionText" Attribute="Text" />
         </Control>
@@ -137,7 +151,8 @@
     </UI>
 
     <InstallUISequence>
-      <Show Dialog="XmqrWelcomeDlg" Before="XmqrProgressDlg" Condition="1" />
+      <Show Dialog="XmqrWelcomeDlg" Before="XmqrRemoveDlg" Condition="NOT (REMOVE = &quot;ALL&quot;)" />
+      <Show Dialog="XmqrRemoveDlg" Before="XmqrProgressDlg" Condition="REMOVE = &quot;ALL&quot;" />
       <Show Dialog="XmqrProgressDlg" Before="ExecuteAction" Condition="1" />
       <Show Dialog="XmqrExitDlg" OnExit="success" />
       <Show Dialog="XmqrCancelledDlg" OnExit="cancel" />
