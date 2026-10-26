@@ -1,5 +1,9 @@
 # P255 — Managers Windows e Ubuntu
 
+Publicação posterior: [P256](P256-manager-releases.md), com Windows 0.1.1,
+Ubuntu 0.1.0, CI exata, tags e anexos verificados. Os resultados abaixo descrevem
+os candidatos locais P255 anteriores à publicação.
+
 Data: 2026-10-25, America/Sao_Paulo. [Prompt v1.0–v1.4](../broker/255-desktop-managers.md).
 Entrada: HEAD 654410c, históricos/P254 e alterações anteriores preservados.
 Pedido: corrigir atalhos e criar Manager Ubuntu; durante o trabalho, o usuário
