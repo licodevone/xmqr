@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=XMQR Manager
+Comment=Gerenciar serviços, configurações e logs do XMQR
+Exec=xmqr-manager
+Icon=xmqr-manager
+Terminal=false
+Categories=System;
+StartupNotify=true

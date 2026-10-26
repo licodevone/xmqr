@@ -27,6 +27,36 @@ function Invoke-Checked([string] $Command, [string[]] $Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "$Command failed with exit code $LASTEXITCODE" }
 }
 
+function Invoke-CapturedProbe([string] $Executable, [string] $Flag) {
+    # PowerShell may close a native pipeline before a GUI-subsystem executable
+    # finishes. Own the process and both pipes until it has actually exited.
+    $start = [Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $Executable
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $start.ArgumentList.Add($Flag)
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $start
+    try {
+        $null = $process.Start()
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(15000)) {
+            $process.Kill()
+            $process.WaitForExit()
+            throw "Executable probe timed out: $Flag"
+        }
+        $text = $stdout.GetAwaiter().GetResult()
+        $errorText = $stderr.GetAwaiter().GetResult()
+        if ($process.ExitCode -ne 0) { throw "Executable probe failed: $Flag ($errorText)" }
+        return $text.Trim()
+    } finally {
+        $process.Dispose()
+    }
+}
+
 function Get-PackageVersion([string] $Manifest) {
     $text = Get-Content -LiteralPath $Manifest -Raw
     $package = [regex]::Match($text, '(?ms)^\[package\]\s*(.*?)(?=^\[|\z)')
@@ -78,8 +108,7 @@ foreach ($kind in $selected) {
     $binary = Join-Path $targetDirectory "$Target/release/$($definition.Binary).exe"
     if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) { throw "Build did not produce $binary" }
     if ($kind -ne 'manager') {
-        $probe = & $binary '--windows-service-capabilities'
-        if ($LASTEXITCODE -ne 0) { throw "The $kind binary has no service entrypoint; refusing to package it." }
+        $probe = Invoke-CapturedProbe $binary '--windows-service-capabilities'
         $capability = $probe | ConvertFrom-Json
         if ($capability.schema -ne 1 -or $capability.component -ne $kind -or
             $capability.service_entrypoint -isnot [bool] -or -not $capability.service_entrypoint) {
@@ -106,8 +135,8 @@ foreach ($kind in $selected) {
             -IconPath (Join-Path $repoRoot "packaging/windows/icons/$kind.ico") -OutputExecutable $branded
     }
     $binary = $branded
-    $verifiedVersion = & $binary '--version'
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($verifiedVersion -join ''))) { throw 'Branded executable did not pass its version probe.' }
+    $verifiedVersion = Invoke-CapturedProbe $binary '--version'
+    if ([string]::IsNullOrWhiteSpace($verifiedVersion)) { throw 'Branded executable did not pass its version probe.' }
     $revision = & git -C $sourceRoot rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw 'Cannot determine source revision.' }
     $status = & git -C $sourceRoot status --porcelain

@@ -1,5 +1,15 @@
 # Versionamento
 
+## Managers de desktop — versões independentes P256
+
+Manager Windows 0.1.1 e Manager Ubuntu 0.1.0 são componentes independentes no
+repositório do broker. Tags: `manager-windows-v0.1.1` e `manager-ubuntu-v0.1.0`;
+não alteram a versão 0.43.0 do broker. Pré-releases experimentais com aceite
+finito de fonte/testes/pacotes; homologação UAC/polkit/desktop permanece aberta.
+[Windows](docs/releases/manager-windows-0.1.1.md),
+[Ubuntu](docs/releases/manager-ubuntu-0.1.0.md) e
+[proveniência/publicação](prompts/registros/P256-manager-releases.md).
+
 ## P228 — broker/admin legado 0.43.0 publicado, estado v16
 
 P227E migra documentos1–15 para16 na gravação, sem fabricar intervalo

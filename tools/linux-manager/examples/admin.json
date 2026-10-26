@@ -1,0 +1,12 @@
+{
+  "id": "admin",
+  "kind": "admin",
+  "name": "XMQR Admin",
+  "executable": "/usr/bin/xmqr-admin",
+  "service": "xmqr-admin.service",
+  "config": "/etc/xmqr-admin/admin.env",
+  "config_dir": "/etc/xmqr-admin",
+  "certificates": null,
+  "logs": null,
+  "panel": "http://127.0.0.1:9080/"
+}

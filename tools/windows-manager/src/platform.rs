@@ -57,13 +57,24 @@ pub fn entry() -> Result<(), Box<dyn std::error::Error>> {
             }
             control(id, action, false).map_err(Into::into)
         }
+        [flag, action] if flag == "--control-all" => {
+            let action = Action::parse(action).ok_or("invalid action")?;
+            control_all(action, false).map_err(Into::into)
+        }
+        [flag, target, id] if flag == "--open" => {
+            let target = Shortcut::parse(target).ok_or("invalid shortcut")?;
+            if !valid_id(id) {
+                return Err("invalid component".into());
+            }
+            open_shortcut(id, target, false, true).map_err(Into::into)
+        }
         [flag] if flag == "--version" => {
             println!("xmqr-manager {}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }
         [flag] if flag == "--help" => {
             println!(
-                "XMQR Manager\nSem argumentos: bandeja\n--diagnose: inventário e status JSON\n--version\n--control start|stop|restart COMPONENTE: helper local"
+                "XMQR Manager\nSem argumentos: bandeja\n--diagnose: inventário e status JSON\n--version\n--control start|stop|restart COMPONENTE: helper local\n--control-all start|stop|restart: conjunto de serviços instalados\n--open config|config-dir|certificates|logs COMPONENTE: helper administrativo"
             );
             Ok(())
         }
@@ -395,15 +406,60 @@ fn action_result(code: i32) -> io::Result<()> {
     if code == 0 {
         return Ok(());
     }
-    Err(io::Error::other(match code {
-        3 => "Serviço ausente ou executável diferente da instalação",
-        5 => "Acesso negado ao controle do serviço",
-        6 => "Existem serviços dependentes em execução; parada recusada",
-        7 => "Serviço em transição; aguarde e tente novamente",
-        124 => "Prazo excedido; confira o estado antes de repetir",
-        1223 => "Elevação cancelada ou indisponível",
-        _ => "Operação não concluída; consulte o estado e os logs",
-    }))
+    let kind = if code == 5 {
+        io::ErrorKind::PermissionDenied
+    } else {
+        io::ErrorKind::Other
+    };
+    Err(io::Error::new(
+        kind,
+        match code {
+            3 => "Serviço ausente ou executável diferente da instalação",
+            5 => "Acesso negado ao controle do serviço",
+            6 => "Existem serviços dependentes em execução; parada recusada",
+            7 => "Serviço em transição; aguarde e tente novamente",
+            124 => "Prazo excedido; confira o estado antes de repetir",
+            1223 => "Elevação cancelada ou indisponível",
+            _ => "Operação não concluída; consulte o estado e os logs",
+        },
+    ))
+}
+
+pub fn control_all(action: Action, allow_elevation: bool) -> io::Result<()> {
+    let snapshot = snapshot();
+    let plan = crate::model::control_plan(&snapshot, action).map_err(io::Error::other)?;
+    let result = execute_plan(&plan, |id, step| control(id, step, false));
+    if let Err(error) = &result
+        && error.kind() == io::ErrorKind::PermissionDenied
+        && allow_elevation
+    {
+        let helper = env::current_exe()?;
+        let helper = helper
+            .to_str()
+            .ok_or_else(|| io::Error::other("Caminho inválido"))?;
+        let output = powershell(
+            include_str!("elevate-control-all.ps1"),
+            &[
+                ("XMQR_CONTROL_HELPER", helper),
+                ("XMQR_CONTROL_ACTION", action.name()),
+            ],
+            Duration::from_secs(4550),
+        )?;
+        return action_result(output.code).map_err(|error| io::Error::new(error.kind(),
+                    format!("Operação geral não concluída: {error}. Reconsulte os estados; pode haver ações já concluídas.")));
+    }
+    result
+}
+
+fn execute_plan(
+    plan: &[(String, Action)],
+    mut execute: impl FnMut(&str, Action) -> io::Result<()>,
+) -> io::Result<()> {
+    for (index, (id, step)) in plan.iter().enumerate() {
+        execute(id, *step).map_err(|error| io::Error::new(error.kind(), format!(
+            "Operação geral interrompida em {id}: {error}. {index} etapa(s) concluída(s); confira os estados.")))?;
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -415,8 +471,77 @@ pub enum Shortcut {
     Panel,
 }
 
+impl Shortcut {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "config" => Some(Self::Config),
+            "config-dir" => Some(Self::ConfigDir),
+            "certificates" => Some(Self::Certificates),
+            "logs" => Some(Self::Logs),
+            _ => None,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Config => "config",
+            Self::ConfigDir => "config-dir",
+            Self::Certificates => "certificates",
+            Self::Logs => "logs",
+            Self::Panel => "panel",
+        }
+    }
+}
+
+fn target_access(path: &Path, file: bool) -> io::Result<()> {
+    let metadata = fs::metadata(path)?;
+    if file {
+        if !metadata.is_file() {
+            return Err(io::Error::other("Configuração não é um arquivo"));
+        }
+        // Test editing access without reading or writing configuration bytes.
+        OpenOptions::new().read(true).write(true).open(path)?;
+    } else {
+        if !metadata.is_dir() {
+            return Err(io::Error::other("Caminho não é uma pasta"));
+        }
+        if let Some(entry) = fs::read_dir(path)?.next() {
+            entry?;
+        }
+    }
+    Ok(())
+}
+
+fn shortcut_error(error: io::Error) -> io::Error {
+    let message = match error.kind() {
+        io::ErrorKind::PermissionDenied => {
+            "Acesso negado ao destino; autenticação administrativa necessária".into()
+        }
+        io::ErrorKind::NotFound => "Arquivo ou pasta não encontrado; confira a instalação".into(),
+        _ => format!("Não foi possível abrir o destino: {error}"),
+    };
+    io::Error::new(error.kind(), message)
+}
+
 pub fn shortcut(id: &str, shortcut: Shortcut) -> io::Result<()> {
+    open_shortcut(id, shortcut, true, false)
+}
+
+fn open_shortcut(
+    id: &str,
+    shortcut: Shortcut,
+    allow_elevation: bool,
+    administrative_browser: bool,
+) -> io::Result<()> {
+    if !valid_id(id) {
+        return Err(io::Error::other("Componente inválido"));
+    }
     let snapshot = inventory();
+    if snapshot.error.is_some() {
+        return Err(io::Error::other(
+            "Inventário indisponível; nenhuma ação executada",
+        ));
+    }
     let entry = snapshot
         .entries
         .iter()
@@ -443,19 +568,49 @@ pub fn shortcut(id: &str, shortcut: Shortcut) -> io::Result<()> {
         Shortcut::Panel => unreachable!(),
     }
     .ok_or_else(|| io::Error::other("Caminho não configurado"))?;
-    let metadata =
-        fs::metadata(path).map_err(|_| io::Error::other("Caminho ausente ou acesso negado"))?;
-    if matches!(shortcut, Shortcut::Config) {
-        if !metadata.is_file() {
-            return Err(io::Error::other("Configuração não é um arquivo"));
+    let file = matches!(shortcut, Shortcut::Config);
+    if let Err(error) = target_access(path, file) {
+        if error.kind() == io::ErrorKind::PermissionDenied && allow_elevation {
+            let helper = env::current_exe()?;
+            let helper = helper
+                .to_str()
+                .ok_or_else(|| io::Error::other("Caminho inválido"))?;
+            let elevated = powershell(
+                include_str!("elevate-open.ps1"),
+                &[
+                    ("XMQR_OPEN_HELPER", helper),
+                    ("XMQR_OPEN_TARGET", shortcut.name()),
+                    ("XMQR_OPEN_ID", id),
+                ],
+                Duration::from_secs(55),
+            )?;
+            return match elevated.code {
+                0 => Ok(()),
+                1223 => Err(io::Error::other(
+                    "Autenticação administrativa cancelada ou indisponível",
+                )),
+                124 => Err(io::Error::other(
+                    "Autenticação excedeu o prazo; confira as janelas antes de repetir",
+                )),
+                _ => Err(io::Error::other(
+                    "Não foi possível abrir o destino como administrador; confira a instalação",
+                )),
+            };
         }
+        return Err(shortcut_error(error));
+    }
+    if file {
         Command::new(windows_program(r"System32\notepad.exe")?)
             .arg(path)
             .spawn()?;
+    } else if administrative_browser {
+        // Explorer normally delegates to the unelevated desktop process. A
+        // separate read-only browser retains this helper's administrative token.
+        spawn_script(
+            include_str!("browse-folder.ps1"),
+            &[("XMQR_BROWSE_ROOT", path.as_os_str())],
+        )?;
     } else {
-        if !metadata.is_dir() {
-            return Err(io::Error::other("Caminho não é uma pasta"));
-        }
         Command::new(windows_program("explorer.exe")?)
             .arg(path)
             .spawn()?;
@@ -463,9 +618,151 @@ pub fn shortcut(id: &str, shortcut: Shortcut) -> io::Result<()> {
     Ok(())
 }
 
+fn spawn_script(script: &str, values: &[(&str, &std::ffi::OsStr)]) -> io::Result<()> {
+    let mut command = Command::new(windows_program(
+        r"System32\WindowsPowerShell\v1.0\powershell.exe",
+    )?);
+    command
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-STA",
+            "-Command",
+            script,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW);
+    // Restrict module lookup in GUI helpers as in the synchronous runner.
+    let modules = windows_program(r"System32\WindowsPowerShell\v1.0\powershell.exe")?
+        .parent()
+        .expect("system executable has parent")
+        .join("Modules");
+    command.env("PSModulePath", modules);
+    for (name, value) in values {
+        command.env(name, value);
+    }
+    command.spawn()?;
+    Ok(())
+}
+
+pub fn notify_error(message: &str) {
+    let _ = spawn_script(
+        include_str!("notify-error.ps1"),
+        &[("XMQR_ERROR_MESSAGE", message.as_ref())],
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shortcut_helper_rejects_urls_and_shell_fragments() {
+        for value in [
+            "panel",
+            "config;Stop-Service Spooler",
+            "../config",
+            "",
+            "logs\n",
+        ] {
+            assert!(Shortcut::parse(value).is_none());
+        }
+        for value in ["config", "config-dir", "certificates", "logs"] {
+            assert_eq!(Shortcut::parse(value).unwrap().name(), value);
+        }
+        for shortcut in [Shortcut::Config, Shortcut::ConfigDir] {
+            assert!(open_shortcut("bad;id", shortcut, false, true).is_err());
+        }
+    }
+
+    #[test]
+    fn shortcut_access_distinguishes_missing_wrong_type_and_accessible_destinations() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory =
+            env::temp_dir().join(format!("xmqr-shortcut-{}-{unique}", std::process::id()));
+        fs::create_dir(&directory).unwrap();
+        let file = directory.join("fixture.toml");
+        fs::write(&file, b"fixture only").unwrap();
+        assert!(target_access(&file, true).is_ok());
+        assert!(target_access(&directory, false).is_ok());
+        assert!(target_access(&file, false).is_err());
+        assert!(target_access(&directory, true).is_err());
+        let original_permissions = fs::metadata(&file).unwrap().permissions();
+        let mut readonly_permissions = original_permissions.clone();
+        readonly_permissions.set_readonly(true);
+        fs::set_permissions(&file, readonly_permissions).unwrap();
+        let denied = target_access(&file, true).unwrap_err();
+        fs::set_permissions(&file, original_permissions).unwrap();
+        assert_eq!(denied.kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(
+            target_access(&directory.join("missing"), true)
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::NotFound
+        );
+        for kind in [io::ErrorKind::NotFound, io::ErrorKind::PermissionDenied] {
+            assert_eq!(shortcut_error(io::Error::from(kind)).kind(), kind);
+        }
+        fs::remove_file(file).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn elevation_script_rejects_untrusted_arguments_without_prompting() {
+        for (id, target) in [
+            ("broker;Start-Process calc", "config"),
+            ("broker", "panel"),
+            ("broker", "logs;throw"),
+        ] {
+            let output = powershell(
+                include_str!("elevate-open.ps1"),
+                &[("XMQR_OPEN_ID", id), ("XMQR_OPEN_TARGET", target)],
+                Duration::from_secs(10),
+            )
+            .unwrap();
+            assert_eq!(output.code, 2);
+        }
+    }
+
+    #[test]
+    fn batch_executor_stops_at_first_failure_and_preserves_denial_for_single_uac() {
+        let plan = vec![
+            ("client".into(), Action::Stop),
+            ("admin".into(), Action::Stop),
+            ("broker".into(), Action::Stop),
+            ("broker".into(), Action::Start),
+        ];
+        let mut executed = Vec::new();
+        let error = execute_plan(&plan, |id, step| {
+            executed.push((id.to_owned(), step));
+            if id == "broker" {
+                Err(io::Error::from(io::ErrorKind::PermissionDenied))
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap_err();
+        assert_eq!(executed, plan[..3]);
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert!(error.to_string().contains("2 etapa(s) concluída(s)"));
+    }
+
+    #[test]
+    fn bulk_elevation_rejects_other_actions_without_prompting() {
+        let output = powershell(
+            include_str!("elevate-control-all.ps1"),
+            &[("XMQR_CONTROL_ACTION", "stop;shutdown")],
+            Duration::from_secs(10),
+        )
+        .unwrap();
+        assert_eq!(output.code, 2);
+    }
 
     #[test]
     fn powershell_data_is_not_executed_and_unicode_survives() {

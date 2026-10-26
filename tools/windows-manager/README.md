@@ -47,6 +47,20 @@ operação e periodicamente; a bandeja reflete alterações feitas em Services.m
 
 ## Controles e atalhos
 
+O menu principal oferece **Iniciar todos os serviços**, **Parar todos os
+serviços** e **Reiniciar todos os serviços**, além dos controles individuais.
+Inclui somente serviços registrados: inicia broker, admin e clients; para na
+ordem inversa. Reiniciar todos para o conjunto antes de iniciá-lo novamente,
+inclusive os que estavam parados. Serviços em transição ou com consulta
+indisponível bloqueiam a operação antes da primeira alteração. Falha durante
+a sequência interrompe as próximas etapas e informa possível resultado parcial;
+não há transação nem rollback automático. Não força dependentes de outros
+produtos. O estado SCM é reconsultado após cada operação. A elevação do conjunto
+usa um único helper `--control-all start|stop|restart`, que relê o inventário;
+após acesso negado, solicita UAC uma vez para executar a intenção do conjunto.
+Os serviços já alterados são reavaliados pelo helper. Uma operação pode incluir
+até 64 serviços/instâncias registrados.
+
 Iniciar/parar/reiniciar usam ServiceController do Windows via PowerShell local;
 reiniciar aguarda a parada antes de iniciar, com prazo total de 30 segundos.
 Uma operação por vez; a interface permanece responsiva. Dependentes ativos
@@ -59,9 +73,18 @@ nome e executável. Cancelar a elevação exibe erro e mantém os serviços. Nã
 alteradas ACLs pelo gerenciador. Scripts são fixos e parâmetros são dados do
 ambiente; nenhum conteúdo de configuração é avaliado como PowerShell.
 
-Configuração abre no Bloco de Notas; pastas abrem no Explorer. O gerenciador não
-lê certificados/chaves nem eleva o editor; permissões NTFS continuam valendo.
-Editar não reinicia o serviço automaticamente. URLs do admin abrem no navegador.
+Configuração abre no Bloco de Notas; o acesso de leitura/escrita é sondado sem
+ler ou gravar bytes. Pastas acessíveis abrem no Explorer após sondagem real de
+listagem. Em acesso negado, o clique solicita UAC para o helper
+`--open config|config-dir|certificates|logs ID`, que relê o inventário HKLM.
+O editor da configuração registrada é iniciado com o token administrativo.
+Pastas protegidas abrem em um navegador administrativo de consulta, pois
+Explorer pode delegar ao processo do desktop sem elevação. Esse navegador
+lista arquivos e permite navegar subpastas sem alterar permissões, abrir
+associações de arquivos ou seguir links/junções. Limite de 2000 itens por pasta.
+Erros e cancelamento de UAC geram aviso independente do menu da bandeja.
+O gerenciador não lê o conteúdo de certificados/chaves. Editar não reinicia
+o serviço automaticamente. URLs do admin abrem no navegador.
 Atalhos usam os caminhos registrados pelo instalador, inclusive instalações
 personalizadas. Arquivo/pasta ausente apresenta erro, sem criar substitutos.
 

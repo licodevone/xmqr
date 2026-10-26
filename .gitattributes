@@ -4,4 +4,6 @@
 *.env text eol=lf
 *.sh text eol=lf
 *.yml text eol=lf
+tools/linux-manager/xmqr-manager text eol=lf
+tools/linux-manager/*.desktop text eol=lf
 packaging/notices/** -text

@@ -214,6 +214,58 @@ impl Action {
     }
 }
 
+/// A batch is ordered, idempotent for start/stop and never targets CLI entries.
+/// Restart means stop the whole set before starting any member of the set.
+pub fn control_plan(snapshot: &Snapshot, action: Action) -> Result<Vec<(String, Action)>, String> {
+    if snapshot.error.is_some() {
+        return Err("Inventário indisponível".into());
+    }
+    let mut entries: Vec<_> = snapshot
+        .entries
+        .iter()
+        .filter(|entry| entry.component.service_name.is_some())
+        .collect();
+    if entries.is_empty() {
+        return Err("Nenhum serviço XMQR instalado".into());
+    }
+    for entry in &entries {
+        if entry.detail.is_some() && !matches!(entry.state, State::NeverStarted | State::Failed)
+            || matches!(
+                entry.state,
+                State::Pending | State::Unknown | State::CliOnly
+            )
+        {
+            return Err(format!(
+                "{}: estado indisponível ou serviço em transição",
+                entry.component.display_name
+            ));
+        }
+    }
+    entries.sort_by_key(|entry| {
+        let rank = match entry.component.kind {
+            Kind::Broker => 0,
+            Kind::Admin => 1,
+            Kind::Client => 2,
+        };
+        (rank, &entry.component.id)
+    });
+    let mut plan = Vec::new();
+    if matches!(action, Action::Stop | Action::Restart) {
+        for entry in entries.iter().rev().filter(|e| e.state == State::Running) {
+            plan.push((entry.component.id.clone(), Action::Stop));
+        }
+    }
+    if matches!(action, Action::Start | Action::Restart) {
+        for entry in entries
+            .iter()
+            .filter(|e| action == Action::Restart || e.state != State::Running)
+        {
+            plan.push((entry.component.id.clone(), Action::Start));
+        }
+    }
+    Ok(plan)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -398,5 +450,60 @@ mod tests {
         c.config_file = None;
         c.service_name = Some("xmqr-admin".into());
         assert!(!c.valid());
+    }
+
+    fn batch_snapshot() -> Snapshot {
+        let mut entries = Vec::new();
+        for (kind, id, service) in [
+            (Kind::Client, "client-default", "xmqr-client-default"),
+            (Kind::Broker, "broker", "xmqr-broker"),
+            (Kind::Admin, "admin", "xmqr-admin"),
+        ] {
+            let mut c = component(kind, id);
+            c.service_name = Some(service.into());
+            entries.push(Entry {
+                component: c,
+                state: State::Running,
+                detail: None,
+            });
+        }
+        Snapshot {
+            entries,
+            error: None,
+        }
+    }
+
+    #[test]
+    fn batch_restart_stops_every_member_before_starting_the_broker() {
+        assert_eq!(
+            control_plan(&batch_snapshot(), Action::Restart).unwrap(),
+            vec![
+                ("client-default".into(), Action::Stop),
+                ("admin".into(), Action::Stop),
+                ("broker".into(), Action::Stop),
+                ("broker".into(), Action::Start),
+                ("admin".into(), Action::Start),
+                ("client-default".into(), Action::Start),
+            ]
+        );
+    }
+
+    #[test]
+    fn batch_plan_skips_cli_and_noops_and_rejects_unknown_before_work() {
+        let mut snapshot = batch_snapshot();
+        assert!(control_plan(&snapshot, Action::Start).unwrap().is_empty());
+        snapshot.entries[0].state = State::Stopped;
+        assert_eq!(
+            control_plan(&snapshot, Action::Start).unwrap(),
+            vec![("client-default".into(), Action::Start)]
+        );
+        snapshot.entries[0].component.service_name = None;
+        snapshot.entries[0].state = State::CliOnly;
+        assert_eq!(control_plan(&snapshot, Action::Stop).unwrap().len(), 2);
+        snapshot.entries[1].state = State::Unknown;
+        assert!(control_plan(&snapshot, Action::Restart).is_err());
+        snapshot.entries[1].state = State::Pending;
+        assert!(control_plan(&snapshot, Action::Stop).is_err());
+        assert!(control_plan(&Snapshot::default(), Action::Start).is_err());
     }
 }

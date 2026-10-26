@@ -3,6 +3,11 @@
 Integração Windows experimental: [serviço e bandeja P239](docs/windows-service-tray.md),
 com estado da implementação, atalhos e bloqueios de homologação nativa.
 
+Managers de desktop P255: [Windows](tools/windows-manager/README.md) com
+atalhos administrativos e [Ubuntu](tools/linux-manager/README.md) com GTK,
+systemd/polkit e bandeja opcional. Ambos oferecem iniciar/parar/reiniciar
+serviços individualmente ou em conjunto. [Validação e limites](prompts/registros/P255-desktop-managers.md).
+
 ## Marco atual 0.43.0
 
 A [prerelease 0.43.0](https://github.com/licodevone/xmqr/releases/tag/v0.43.0)

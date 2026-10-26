@@ -1,5 +1,5 @@
 use crate::{
-    model::{Action, Color, Snapshot},
+    model::{Action, Color, Snapshot, control_plan},
     platform::{self, Shortcut},
 };
 use std::{
@@ -27,6 +27,7 @@ enum UserEvent {
 #[derive(Clone, Debug)]
 enum Work {
     Control(String, Action),
+    ControlAll(Action),
     Open(String, Shortcut),
 }
 #[derive(Clone)]
@@ -115,11 +116,16 @@ fn worker(receiver: Receiver<Work>, proxy: EventLoopProxy<UserEvent>) {
             Ok(work) => {
                 let result = match work {
                     Work::Control(id, action) => platform::control(&id, action, true),
+                    Work::ControlAll(action) => platform::control_all(action, true),
                     Work::Open(id, shortcut) => platform::shortcut(&id, shortcut),
                 };
                 let message = match result {
                     Ok(()) => "Operação concluída".into(),
-                    Err(error) => error.to_string(),
+                    Err(error) => {
+                        let message = error.to_string();
+                        platform::notify_error(&message);
+                        message
+                    }
                 };
                 if proxy.send_event(UserEvent::Done(message)).is_err() {
                     return;
@@ -147,6 +153,21 @@ impl App {
         }
         if let Some(message) = &self.message {
             menu.append(&MenuItem::new(message, false, None))?;
+        }
+        menu.append(&PredefinedMenuItem::separator())?;
+        for (action, label) in [
+            (Action::Start, "Iniciar todos os serviços"),
+            (Action::Stop, "Parar todos os serviços"),
+            (Action::Restart, "Reiniciar todos os serviços"),
+        ] {
+            let enabled = !self.busy
+                && control_plan(&self.snapshot, action).is_ok_and(|plan| !plan.is_empty());
+            let item = MenuItem::new(label, enabled, None);
+            self.actions.insert(
+                item.id().clone(),
+                MenuAction::Work(Work::ControlAll(action)),
+            );
+            menu.append(&item)?;
         }
         menu.append(&PredefinedMenuItem::separator())?;
         for entry in &self.snapshot.entries {
