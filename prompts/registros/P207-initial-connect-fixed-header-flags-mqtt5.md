@@ -1,7 +1,0 @@
-# P207 — flags reservadas no CONNECT inicial MQTT 5
-
-- [Prompt P207](../broker/207-initial-connect-fixed-header-flags-mqtt5.md) criado e enviado antes do código (`bd7bcea`). Código `59f841d`; revisão de CI `6a9cf7bc0dc4c31be4e4e4a5e6f2934d23a55a50`.
-- CONNECT inicial com cabeçalho `0x11`–`0x1f` e prefixo MQTT 5 com propriedades completas recebe CONNACK `0x81` se o limite de saída permite cinco bytes, seguido de fechamento. Sem identificação verificável da versão, ou com Maximum Packet Size menor que cinco, fecha sem resposta. Não cria sessão nem Will. Após CONNACK, qualquer segundo CONNECT mantém `0x82` de P194.
-- Unitário cobre os 15 valores, MQTT 5, MQTT 3.1.1, prefixo truncado, limite e segundo CONNECT. Fixture TCP `P207_INITIAL_CONNECT_FLAGS_PASS` cobre extremos `0x11`/`0x1f`, CONNACK, limite, ausência de Will, 3.1.1 e conexão saudável posterior. Regressões P194/P203/P204/P205 PASS. Ubuntu 26.04/WSL: suíte Rust completa (227 testes de biblioteca, seis campanhas ignoradas), fmt, Clippy `-D warnings`, build release, licenças e seis contratos de distribuição PASS.
-- [CI da revisão exata](https://github.com/licodevone/xmqr/actions/runs/39111182280) PASS em `rust` e `ubuntu-package`, incluindo o novo ensaio TCP. Sem tag/release isolada; broker publicado 0.37.0 não inclui P207. Fases 6A–6D/7–9 permanecem abertas.
-- Referência: [OASIS MQTT 5, §§2.1.3, 3.2.2.2 e 4.13](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html). A resposta CONNACK a CONNECT malformado é permitida, mas não obrigatória.

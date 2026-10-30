@@ -1,9 +1,0 @@
-# P137 — prerelease experimental broker 0.20.0
-
-- [Prompt P137](../broker/137-release-0.20.0.md) criado antes do bump. Base funcional P136 `8fecd73` com [CI PASS](https://github.com/licodevone/xmqr/actions/runs/38995803831); client C73 `f130005` com [CI PASS](https://github.com/licodevone/xmqr-client/actions/runs/38995798483).
-- Cargo/lock, Dockerfile, changelog, README, VERSIONING e nota de release preparados para 0.20.0. O documento durável permanece v8; o admin legado acompanha o broker e o admin independente fica em 0.4.0.
-- Fonte imutável `35c586a42903955b4500c2146e302eeb4ebe3cc6`, tag anotada `v0.20.0`, [CI da fonte PASS](https://github.com/licodevone/xmqr/actions/runs/38996215555). Ubuntu 26.04/WSL: fmt, testes, Clippy, release build, licenças, P134/P136 TCP/Mosquitto e `mqtt-broker`/`mqtt-admin --version` PASS.
-- `.deb` 0.20.0-1 e imagens Linux/amd64 broker/admin numeradas foram construídos da fonte exata, executados como usuário 10001 sem rede e exportados com rótulos de versão/revisão conferidos. Upgrade 0.19.0/0.17.0 → 0.20.0/0.18.0, downgrade e remoção em contêiner Ubuntu 26.04 descartável: `PACKAGE_LIFECYCLE_PASS`, preservação de estado/credenciais; nenhuma instalação no WSL do operador.
-- [Prerelease](https://github.com/licodevone/xmqr/releases/tag/v0.20.0) com oito anexos: `.deb`, dois arquivos de imagem, três SHA-256, manifesto e SHA-256 do manifesto. Nomes, tamanhos e digest SHA-256 de todos os anexos remotos conferidos com os arquivos locais.
-- Docker Hub numerado, digest remoto conferido: `lepinheiro100/xmqr-broker:0.20.0` `sha256:01f618182338254e04e90095bb77bd1e4860e5779c2eae64a830a4541231d70b`; `lepinheiro100/xmqr-admin:0.20.0` `sha256:beb401653089abad5cccaeae75388d5f6c5467d9f6866ef084bd49042b528dd4`. `latest` intacta.
-- [Nota de release](../../docs/releases/0.20.0.md) documenta backup e rollback v8; admin independente 0.4.0 inalterado. Fases 6A–6D seguem abertas.

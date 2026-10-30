@@ -1,7 +1,0 @@
-# P136 — Maximum Packet Size MQTT 5
-
-- [Prompt P136](../broker/136-maximum-packet-size-mqtt5.md) criado antes do código; base `51f451e`, broker 0.19.0, documento v8.
-- CONNECT aceita `0x27` não zero/único, guarda o teto somente na conexão e não altera o limite de entrada de 65536 bytes. CONNACK de sucesso omite a propriedade opcional quando dez bytes não cabem; abaixo de cinco bytes, fecha antes de criar sessão.
-- Todas as respostas e entregas passam pelo teto total de bytes. PUBLISH QoS0 acima do teto é descartado; QoS1/2 é removido do estado durável e libera a vaga de Receive Maximum sem ACK fictício. Pacote essencial que não cabe fecha a conexão. MQTT 3.1.1 não recebe limite novo.
-- Ubuntu 26.04/WSL: negativos de zero/duplicata/truncamento e contrato TCP, unidade de descarte durável, integração real em `scripts/verify_mqtt5_maximum_packet_size.py` com borda 32/33 bytes, QoS1/2, retained, restart, client C73 e Mosquitto 2.0.22 PASS; regressão P134 PASS. `cargo fmt --all --check`, `cargo test --locked --quiet` (158 PASS/6 ignorados, demais suites PASS), `cargo clippy --locked --all-targets -- -D warnings` e `cargo build --locked --release --quiet` PASS.
-- Commit `8fecd73` publicado; [CI de `main` PASS](https://github.com/licodevone/xmqr/actions/runs/38995803831), inclusive pacote Ubuntu26. [CI C73 PASS](https://github.com/licodevone/xmqr-client/actions/runs/38995798483). P136/C73 aceitos no recorte descrito. Fase 6C permanece aberta para Topic Alias, demais propriedades de publicação e revisão final de flow control.

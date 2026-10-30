@@ -1,5 +1,0 @@
-# P168 — segunda implementação externa MQTT 5 aceita parcialmente
-
-O [prompt P168](../broker/168-paho-mqtt5-interop.md) foi commitado antes do harness (`b05a06f`). Fonte exata `4cbc4d91387732034ffcd021e9b2d750e516e713`: `scripts/verify_paho_mqtt5.py` passou em Ubuntu 26.04 descartável com o pacote broker 0.30.0 e Eclipse Paho Python 2.1.0. Exercitou Client Identifier vazio atribuído, propriedade `0x12`, Session Expiry 60, Session Present após reconexão, entrega offline QoS1, pub/sub QoS0/1/2, retained e recusa de ID vazio MQTT 3.1.1. [CI PASS](https://github.com/licodevone/xmqr/actions/runs/39023405299) executou esse harness no job Rust, mantendo `scripts/verify_interop.py` com `mosquitto-clients` MQTT 5; o job de pacote Ubuntu 26.04 também passou.
-
-A dependência Paho 2.1.0 é apenas de teste, fixada e instalada em área temporária da CI; não foi instalada no WSL do operador. Isto cobre duas bibliotecas externas em cenários selecionados, não uma matriz normativa exaustiva. M02, propriedades/reason codes restantes e aceite global 6A continuam abertos. Sem tag/release isolada; a release publicada broker 0.30.0 precede este gate.

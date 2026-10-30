@@ -1,7 +1,0 @@
-# P179 — marco broker/admin legado 0.32.0 publicado
-
-O [prompt P179](../broker/179-release-0.32.0.md) antecedeu a alteração de versão (`26e1745`). Fonte exata `35f0388e1ae10483537d19162882500160405990`: 200 testes de biblioteca PASS/6 ignorados, demais alvos, fmt, Clippy, build release, inventário de licenças, 6 contratos de distribuição e testes TCP P175–P178 PASS localmente. [CI PASS](https://github.com/licodevone/xmqr/actions/runs/39027534502) em Rust e pacote Ubuntu 26.04. O ciclo descartável com broker 0.31.0 → 0.32.0 → rollback → purge e client 0.27.0 retornou `PACKAGE_LIFECYCLE_PASS`, preservando configuração e arquivo privado.
-
-Pacote `xmqr-broker_0.32.0-1_amd64.deb`: SHA-256 `f9529cd82d6643bef1807b383979e728a91442b4d178218288851554fd112f19`. A tag anotada `v0.32.0` aponta à fonte exata; a [prerelease](https://github.com/licodevone/xmqr/releases/tag/v0.32.0) tem 8 anexos, tamanhos e SHA-256 remotos iguais aos locais (`BROKER_REMOTE_HASH_PASS 8`). As imagens numeradas `lepinheiro100/xmqr-broker:0.32.0` e `lepinheiro100/xmqr-admin:0.32.0` foram executadas pelos digests remotos `sha256:2d67664c897f27d05452554aa163bc1050a423f97ac36289c109990a92ae40d0` e `sha256:1ecaeb8207e94ec2c3743535e6d017c653e4b5173a989b2064f16889dd81db37`, com versão conferida.
-
-Estado v15 sem migração; broker 0.31.0 e admin independente 0.10.0 o leem. Client independente permanece 0.27.0. Para voltar a broker 0.28.0 ou anterior, é necessário backup privado v14 anterior à migração. WSL do operador e Docker `latest` permaneceram intactos. Fases 6A–6D e 7–9 seguem abertas.

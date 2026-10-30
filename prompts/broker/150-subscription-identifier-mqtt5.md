@@ -1,7 +1,0 @@
-# P150 rev1 — Subscription Identifier MQTT 5 no broker
-
-Entrada: broker `v0.24.0`/estado v11 e client C87 em validação. [OASIS MQTT 5 §3.8.2.1.2 e §3.3.4](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html): SUBSCRIBE aceita um identificador 1..268435455 para todos os filtros; PUBLISH encaminhado contém os IDs das assinaturas correspondentes, inclusive duplicatas, e publicação recebida do client não pode conter o identificador.
-
-Objetivo: decodificar/validar propriedade 0x0B em SUBSCRIBE, armazenar ID opcional por filtro durável, aplicar substituição/cancelamento/ACL sem órfãos e emitir os IDs das assinaturas correspondentes nos PUBLISH MQTT 5. Preservar comportamento MQTT 3.1.1, QoS, retained, RAP, No Local, filas offline, retransmissão e limites de pacote. Versionar estado de modo explícito caso o formato mude, manter migração a partir de v11 e documentar rollback com backup privado anterior. Não declarar compatibilidade do admin 0.6.0 com novo formato antes de um gate próprio.
-
-Aceite: unitários de codec/state/router; TCP real com client C87 e Mosquitto, filtros sobrepostos, mesmo ID repetido, retenção, sessão persistente/restart, QoS0/1/2, negativos zero/duplicado/ID em PUBLISH de entrada/limite; fmt/test/Clippy/build/licenças e CI do commit exato. Checklist só P150 parcial se aceito; fase 6D global permanece aberta. Release e atualização do admin seguem marcos posteriores, sem ESP32 nem instalação no WSL do operador.

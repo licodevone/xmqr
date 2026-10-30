@@ -1,5 +1,0 @@
-# Deliberately unprovisioned: supply normal pub/sub arguments after validation.
-# No password, inline payload or interactive stdin belongs in this file.
-# Subscriber service requires a private output sink; see native acceptance limits.
-version = 1
-arguments = []

@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=XMQR Manager
-Comment=Gerenciar os sistemas XMQR instalados
-Exec=xmqr-manager --background
-Icon=xmqr-manager
-Terminal=false
-X-GNOME-Autostart-enabled=true

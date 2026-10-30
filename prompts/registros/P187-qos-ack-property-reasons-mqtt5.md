@@ -1,7 +1,0 @@
-# P187 — motivos de propriedades inválidas em ACKs QoS MQTT 5
-
-O [prompt P187](../broker/187-qos-ack-property-reasons-mqtt5.md) foi registrado e enviado antes do código (`319b061`). Implementação `e151cc0` em `main`; [CI PASS](https://github.com/licodevone/xmqr/actions/runs/39037710028) nos jobs Rust e pacote Ubuntu 26.04, incluindo verificador TCP P187. Não houve migração do estado v15 nem tag isolada.
-
-Após CONNACK MQTT 5, PUBACK/PUBREC/PUBREL/PUBCOMP recebidos do client com identificador de propriedade fora de contexto geram DISCONNECT `0x81`; Reason String duplicada gera `0x82`. User Property continua repetível. A desconexão de erro preserva a transição do Will, o limite de pacote de saída e as obrigações QoS duráveis, sem processar o ACK inválido. MQTT 3.1.1 mantém o fechamento anterior sem DISCONNECT MQTT 5. Truncamento, UTF-8 inválido, Packet Identifier zero, Reason Code inválido, quotas e limites locais continuam fora desta classificação.
-
-Evidência local PASS: `cargo fmt --all -- --check`, biblioteca 207 testes aprovados/6 ignorados, demais alvos, `cargo clippy --locked --all-targets -- -D warnings`, `cargo build --release --locked`, inventário de licenças e 6 testes de distribuição. O teste unitário cobriu os quatro ACKs, propriedades válidas, inválidas e truncadas; `P187_ACK_PROPERTY_REASONS_PASS` cobriu TCP real, Will, replay durável e MQTT 3.1.1. Regressões P169–P172, P175, P181 e P183–P186 PASS. A CI remota completou com ambos os jobs aprovados. Aceites globais 6A/6C e matriz por cláusula seguem abertos.
