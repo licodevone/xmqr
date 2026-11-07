@@ -1,5 +1,15 @@
 # Histórico de versões
 
+## 0.44.0 — candidato experimental
+
+- P268 permite selecionar MQTT 3.1.1 e/ou MQTT 5 por listener TCP, WS
+  ou WSS. A política padrão aceita as duas versões.
+- P265 adiciona `mqtt-broker --check-config` para validar a configuração
+  antes de iniciar o serviço.
+- P267 limita o tamanho do material PEM e reaproveita as CAs decodificadas.
+- [Notas do candidato](docs/releases/0.44.0.md) e
+  [validação da distribuição](prompts/registros/P269-release-0.44.0.md).
+
 ## 0.43.0 — fechamento experimental da fase6 e estado16
 
 - VBI mínimo em MQTT5 e diagnóstico0x82 para alias válido ainda não mapeado;

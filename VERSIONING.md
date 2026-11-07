@@ -1,5 +1,12 @@
 # Versionamento
 
+## P269 — Broker e admin legado 0.44.0 em preparação
+
+O P268 adiciona política de versão MQTT por listener e mantém o estado v16.
+A tag `v0.44.0` identifica o candidato somente após a validação da fonte e dos
+pacotes. Consulte as [notas](docs/releases/0.44.0.md) e o
+[registro](prompts/registros/P269-release-0.44.0.md).
+
 ## Managers de desktop — versões independentes P256
 
 Manager Windows 0.1.1 e Manager Ubuntu 0.1.0 são componentes independentes no

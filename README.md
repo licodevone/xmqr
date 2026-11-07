@@ -8,7 +8,11 @@ atalhos administrativos e [Ubuntu](tools/linux-manager/README.md) com GTK,
 systemd/polkit e bandeja opcional. Ambos oferecem iniciar/parar/reiniciar
 serviços individualmente ou em conjunto. [Validação e limites](prompts/registros/P255-desktop-managers.md).
 
-## Marco atual 0.43.0
+## Marco publicado 0.43.0 e candidato 0.44.0
+
+A fonte desta branch prepara o Broker e o `mqtt-admin` legado 0.44.0.
+Consulte as [notas do candidato](docs/releases/0.44.0.md) para configuração,
+compatibilidade e situação da publicação.
 
 A [prerelease 0.43.0](https://github.com/licodevone/xmqr/releases/tag/v0.43.0)
 conclui a fase6 no contrato experimental M01–M10: MQTT3.1.1/5, sessões,
