@@ -1,11 +1,13 @@
 //! Versioned configuration snapshot. Never mutates the process environment.
+use crate::mqtt::ProtocolVersions;
 use serde::Deserialize;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     env,
     ffi::OsString,
     fs::File,
     io::{self, Read},
+    net::SocketAddr,
     path::{Path, PathBuf},
 };
 
@@ -45,6 +47,7 @@ pub struct Configuration {
     values: BTreeMap<String, OsString>,
     additional_binds: Vec<String>,
     endpoint_policies: Vec<EndpointPolicyFiles>,
+    listener_protocols: BTreeMap<SocketAddr, ProtocolVersions>,
 }
 
 /// Static user/ACL files for one explicitly named mTLS listener.
@@ -163,14 +166,9 @@ impl Configuration {
                 if path.as_os_str().is_empty() {
                     return Err(invalid("MQTT_CONFIG paths must not be empty"));
                 }
-                let resolved = if path.is_absolute() {
-                    path
-                } else {
-                    base.join(path)
-                };
                 result
                     .values
-                    .insert(name.to_owned(), resolved.into_os_string());
+                    .insert(name.to_owned(), base.join(path).into_os_string());
             }
         }
         result.additional_binds = document.broker.additional_binds;
@@ -197,7 +195,37 @@ impl Configuration {
                 acl_file: resolve(entry.acl_file)?,
             });
         }
+        result.listener_protocols = parse_listener_protocols(document.listener_protocols)?;
         Ok(result)
+    }
+
+    /// Reject policies that do not match an effective MQTT listener.
+    /// # Errors
+    /// Returns an error for a policy referring to an unknown bind.
+    pub fn validate_listener_protocols(
+        &self,
+        listeners: impl IntoIterator<Item = SocketAddr>,
+    ) -> io::Result<()> {
+        let listeners: BTreeSet<_> = listeners.into_iter().collect();
+        if self
+            .listener_protocols
+            .keys()
+            .any(|bind| !listeners.contains(bind))
+        {
+            return Err(invalid(
+                "listener protocol policy refers to an unknown MQTT bind",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Get the startup-selected versions for an effective MQTT listener.
+    #[must_use]
+    pub fn listener_protocol_versions(&self, bind: SocketAddr) -> ProtocolVersions {
+        self.listener_protocols
+            .get(&bind)
+            .copied()
+            .unwrap_or_default()
     }
 
     /// Return one static policy for each listener, in bind order, if enabled.
@@ -386,6 +414,12 @@ struct EndpointPolicyEntry {
     users_file: PathBuf,
     acl_file: PathBuf,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ListenerProtocolEntry {
+    bind: String,
+    accept_protocol_versions: Vec<u8>,
+}
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Monitor {
@@ -414,10 +448,44 @@ struct Document {
     #[serde(default)]
     endpoint_policies: Vec<EndpointPolicyEntry>,
     #[serde(default)]
+    listener_protocols: Vec<ListenerProtocolEntry>,
+    #[serde(default)]
     monitor: Monitor,
     #[serde(default)]
     admin: Admin,
 }
+fn parse_listener_protocols(
+    entries: Vec<ListenerProtocolEntry>,
+) -> io::Result<BTreeMap<SocketAddr, ProtocolVersions>> {
+    // One primary, at most three additional TCP listeners and one WS/WSS.
+    if entries.len() > 5 {
+        return Err(invalid(
+            "at most five listener protocol policies are supported",
+        ));
+    }
+    let mut policies = BTreeMap::new();
+    for entry in entries {
+        let bind: SocketAddr = entry
+            .bind
+            .parse()
+            .map_err(|_| invalid("invalid listener protocol policy bind"))?;
+        let versions = match entry.accept_protocol_versions.as_slice() {
+            [4] => ProtocolVersions::Mqtt311,
+            [5] => ProtocolVersions::Mqtt5,
+            [4, 5] | [5, 4] => ProtocolVersions::Both,
+            _ => {
+                return Err(invalid(
+                    "accept_protocol_versions must be [4], [5] or [4, 5]",
+                ));
+            }
+        };
+        if policies.insert(bind, versions).is_some() {
+            return Err(invalid("duplicate listener protocol policy bind"));
+        }
+    }
+    Ok(policies)
+}
+
 fn insert_string_values<const N: usize>(
     values: &mut BTreeMap<String, OsString>,
     entries: [(&'static str, Option<String>); N],

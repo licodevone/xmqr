@@ -16,6 +16,23 @@ e4d09cec660a0dba20790181727b17c44040913425a3340d3838e45113241f76  xmqr-client_0.
 fe03ffc858e7583e7d8ce6808b4f56495c688beb69d47870db7fe0c1b8b55469  xmqr-admin_0.11.0-1_amd64.deb
 ```
 
+## Reprodução da fonte publicada
+
+| Componente | Repositório | Tag | Commit da fonte |
+| --- | --- | --- | --- |
+| Broker / admin legado 0.43.0 | `xmqr` | `v0.43.0` | `db472bc64558bf0e376a902b7780a259247c5149` |
+| Client 0.43.0 / Bridge 0.5.0 | `xmqr-client` | `v0.43.0` | `9e1d011ffa22aa1225d3775b6fc99a06ae6dfc60` |
+| Admin independente 0.11.0 | `xmqr-admin` | `v0.11.0` | `4483a356196db93f99340bc7aa3b3cabfc4af810` |
+| Manager desktop Windows 0.1.1 | `xmqr` | `manager-windows-v0.1.1` | `2aa4279d9b10ec474d65ca4afe262f03e61c4dc6` |
+| Manager desktop Ubuntu 0.1.0 | `xmqr` | `manager-ubuntu-v0.1.0` | `2aa4279d9b10ec474d65ca4afe262f03e61c4dc6` |
+
+Em um checkout isolado, confira `git rev-parse 'TAG^{commit}'` contra a
+matriz e faça checkout do commit correspondente. Use os lockfiles e o
+toolchain documentados no marco. Para obter os binários distribuídos,
+baixe o pacote da release e confira seu checksum.
+
+## Instalação dos pacotes
+
 Baixe cada `.deb` e seu `.sha256` na respectiva página de release. No Ubuntu 26.04 do WSL, dentro da pasta de downloads, confirme `dpkg --print-architecture` como `amd64` e execute:
 
 ```sh

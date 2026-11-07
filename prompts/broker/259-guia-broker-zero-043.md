@@ -1,4 +1,4 @@
-# P259 v1.0 — percurso de construção do broker até 0.43.0
+# P259 v1.1 — percurso de construção do broker até 0.43.0
 
 ## Entrada verificada
 
@@ -11,6 +11,19 @@ Preservar alterações existentes em docs/chat e os arquivos não rastreados P25
 AGENTS, contrato-base, contexto, cobertura, CONTRIBUTING, VERSIONING, plano,
 nota 0.43.0 e registros P227/P228 foram consultados. Cabeçalhos antigos
 descrevem checkpoints históricos; não são o estado final.
+
+## Reprodução das versões publicadas
+
+Use a [matriz de tags e commits](../../docs/current-releases-wsl.md#reprodução-da-fonte-publicada)
+para fixar Broker, Client/Bridge, Admin e Managers. Em cada repositório,
+confira o commit resolvido pela tag antes de compilar com o lockfile e o
+toolchain do marco. Para reproduzir o pacote publicado, verifique o SHA-256
+do artefato da release correspondente.
+
+Ao preparar uma funcionalidade nova, declare no prompt a base exata do
+componente e os pares exigidos para testes. Atualize a matriz de versões
+publicadas quando houver uma nova release validada. Uma versão declarada
+no manifesto de uma branch posterior não identifica sua fonte exata.
 
 ## Objetivo e escopo
 

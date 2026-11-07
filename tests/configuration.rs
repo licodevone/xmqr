@@ -20,6 +20,183 @@ fn broker(path: &std::path::Path) -> Command {
 }
 
 #[test]
+fn check_config_refuses_invalid_or_unmatched_listener_protocols() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    let base = "version=1\n[broker]\nmode='open-lab'\nbind='127.0.0.1:1883'\nstate_dir='state'\n";
+    let policy = "[[listener_protocols]]\nbind='127.0.0.1:1883'\n";
+    for versions in ["[]", "[3]", "[5, 5]", "[4, 5, 4]"] {
+        fs::write(
+            &path,
+            format!("{base}{policy}accept_protocol_versions={versions}\n"),
+        )
+        .unwrap();
+        assert_eq!(
+            broker(&path)
+                .arg("--check-config")
+                .output()
+                .unwrap()
+                .status
+                .code(),
+            Some(2)
+        );
+    }
+    let valid = format!("{policy}accept_protocol_versions=[5]\n");
+    fs::write(&path, format!("{base}{valid}{valid}")).unwrap();
+    assert_eq!(
+        broker(&path)
+            .arg("--check-config")
+            .output()
+            .unwrap()
+            .status
+            .code(),
+        Some(2)
+    );
+    fs::write(&path, format!("{base}{valid}")).unwrap();
+    let invalid = broker(&path)
+        .arg("--check-config")
+        .env("MQTT_BIND", "127.0.0.1:1884")
+        .output()
+        .unwrap();
+    assert_eq!(invalid.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("unknown MQTT bind"));
+    assert!(
+        broker(&path)
+            .arg("--check-config")
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert!(!directory.path().join("state").exists());
+}
+
+#[cfg(unix)]
+struct BrokerChild(std::process::Child);
+
+#[cfg(unix)]
+impl Drop for BrokerChild {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[cfg(unix)]
+async fn ws_exchange(
+    address: std::net::SocketAddr,
+    connect: &[u8],
+) -> Option<async_tungstenite::tungstenite::Message> {
+    use async_tungstenite::tungstenite::{Message, client::IntoClientRequest};
+    use futures_util::StreamExt as _;
+    let mut request = format!("ws://{address}/mqtt")
+        .into_client_request()
+        .unwrap();
+    request
+        .headers_mut()
+        .insert("Sec-WebSocket-Protocol", "mqtt".parse().unwrap());
+    tokio::time::timeout(std::time::Duration::from_secs(4), async {
+        let (mut ws, _) = async_tungstenite::tokio::connect_async(request)
+            .await
+            .unwrap();
+        ws.send(Message::Binary(connect.to_vec().into()))
+            .await
+            .unwrap();
+        ws.next().await.transpose().unwrap()
+    })
+    .await
+    .unwrap()
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn tcp_and_websocket_listeners_enforce_independent_mqtt_versions() {
+    use async_tungstenite::tungstenite::Message;
+    use std::{net::TcpListener, time::Duration};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpStream,
+        time::{sleep, timeout},
+    };
+    const V311: &[u8] = b"\x10\x11\x00\x04MQTT\x04\x02\x00\x1e\x00\x05test1";
+    const V5: &[u8] = b"\x10\x12\x00\x04MQTT\x05\x02\x00\x1e\x00\x00\x05test1";
+    const V5_MAX_4: &[u8] =
+        b"\x10\x17\x00\x04MQTT\x05\x02\x00\x1e\x05\x27\x00\x00\x00\x04\x00\x05test1";
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    let tcp_reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let ws_reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let tcp = tcp_reservation.local_addr().unwrap();
+    let ws = ws_reservation.local_addr().unwrap();
+    fs::write(
+        &path,
+        format!("version=1\n[broker]\nmode='open-lab'\nbind='{tcp}'\nws_bind='{ws}'\nstate_dir='state'\n\
+            [[listener_protocols]]\nbind='{tcp}'\naccept_protocol_versions=[5]\n\
+            [[listener_protocols]]\nbind='{ws}'\naccept_protocol_versions=[4]\n"),
+    ).unwrap();
+    drop(tcp_reservation);
+    drop(ws_reservation);
+    let _child = BrokerChild(broker(&path).stdout(Stdio::null()).spawn().unwrap());
+    let deadline = Duration::from_secs(5);
+    let mut denied = timeout(deadline, async {
+        loop {
+            if let Ok(stream) = TcpStream::connect(tcp).await {
+                break stream;
+            }
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("could not connect to the fixture broker");
+    denied.write_all(V311).await.unwrap();
+    let mut response = Vec::new();
+    timeout(deadline, denied.read_to_end(&mut response))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(response, [0x20, 2, 0, 0x01]);
+    let mut active = TcpStream::connect(tcp).await.unwrap();
+    active.write_all(V5).await.unwrap();
+    let mut header = [0; 2];
+    timeout(deadline, active.read_exact(&mut header))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(header[0], 0x20);
+    assert!(header[1] >= 3 && header[1] < 128);
+    let mut body = vec![0; usize::from(header[1])];
+    timeout(deadline, active.read_exact(&mut body))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(&body[..2], &[0, 0]);
+    assert_eq!(
+        ws_exchange(ws, V5).await,
+        Some(Message::Binary(vec![0x20, 3, 0, 0x84, 0].into()))
+    );
+    assert!(matches!(
+        ws_exchange(ws, V5_MAX_4).await,
+        None | Some(Message::Close(_))
+    ));
+    active.write_all(&[0xc0, 0]).await.unwrap();
+    let mut pong = [0; 2];
+    timeout(deadline, active.read_exact(&mut pong))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        pong,
+        [0xd0, 0],
+        "a refused CONNECT must not take over a session"
+    );
+    active.write_all(&[0xe0, 0]).await.unwrap();
+    assert_eq!(
+        ws_exchange(ws, V311).await,
+        Some(Message::Binary(vec![0x20, 2, 0, 0].into()))
+    );
+}
+
+#[test]
 fn check_config_reports_effective_limits_without_touching_state() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("broker.toml");

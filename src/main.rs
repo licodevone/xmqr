@@ -133,6 +133,13 @@ async fn run(check: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>
     let limits = TransportLimits {
         max_concurrent_connections: config.max_connections()?,
     };
+    let binds = (
+        bind_address,
+        additional_binds,
+        lab_websocket_bind,
+        secure_websocket_bind,
+    );
+    validate_listener_protocols(&config, &binds)?;
     if check {
         parse_wss_allowed_origins(&config, secure_websocket_bind.is_some())?;
         config.server_keep_alive_seconds()?;
@@ -144,7 +151,7 @@ async fn run(check: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>
                 "valid": true,
                 "profile": mode.profile_name(),
                 "max_connections": limits.max_concurrent_connections,
-                "tcp_listeners": 1 + additional_binds.len(),
+                "tcp_listeners": 1 + binds.1.len(),
                 "ws_enabled": lab_websocket_bind.is_some(),
                 "wss_enabled": secure_websocket_bind.is_some(),
                 "monitor_enabled": monitor_config.enabled,
@@ -157,12 +164,7 @@ async fn run(check: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>
     serve(
         &config,
         mode,
-        (
-            bind_address,
-            additional_binds,
-            lab_websocket_bind,
-            secure_websocket_bind,
-        ),
+        binds,
         state_directory,
         (limits, state_limits),
         (monitor_config, admin_config),
@@ -177,6 +179,16 @@ type ListenerBinds = (
     Option<SocketAddr>,
     Option<(SocketAddr, bool)>,
 );
+
+fn validate_listener_protocols(config: &Configuration, binds: &ListenerBinds) -> io::Result<()> {
+    let (primary, additional, ws, wss) = binds;
+    config.validate_listener_protocols(
+        std::iter::once(*primary)
+            .chain(additional.iter().copied())
+            .chain(*ws)
+            .chain(wss.map(|(address, _)| address)),
+    )
+}
 
 #[allow(clippy::too_many_lines)] // Keep each security profile's startup and stop boundary explicit.
 async fn serve(
@@ -195,6 +207,7 @@ async fn serve(
     let endpoint_policies = config.endpoint_policies(bind_address, &additional_binds)?;
     let (limits, state_limits) = limits;
     let server_keep_alive_seconds = config.server_keep_alive_seconds()?;
+    let primary_versions = config.listener_protocol_versions(bind_address);
     match mode {
         BrokerMode::SecureMtls | BrokerMode::TlsPassword => {
             let tls_files = tls_files(config, mode)?;
@@ -249,14 +262,18 @@ async fn serve(
             };
             let mut transports = Vec::new();
             for address in additional_binds {
-                transports.push(transport.bind_additional(address).await?);
+                transports.push((
+                    transport.bind_additional(address).await?,
+                    config.listener_protocol_versions(address),
+                ));
             }
             let wss_transport = if let Some((address, remote_enabled)) = secure_websocket_bind {
-                Some(
+                Some((
                     transport
                         .bind_websocket_secure(address, remote_enabled, wss_allowed_origins)
                         .await?,
-                )
+                    config.listener_protocol_versions(address),
+                ))
             } else {
                 None
             };
@@ -266,46 +283,65 @@ async fn serve(
             info!(%bind_address, "secure MQTT listener started");
             let shutdown_router = router.clone();
             let connections = transport.drain_handle();
-            transports.insert(0, transport);
+            transports.insert(0, (transport, primary_versions));
             run_until_shutdown(
                 async move {
                     let mut listeners: Vec<
                         std::pin::Pin<Box<dyn std::future::Future<Output = io::Result<()>> + Send>>,
                     > = Vec::new();
-                    for (index, transport) in transports.into_iter().enumerate() {
+                    for (index, (transport, versions)) in transports.into_iter().enumerate() {
                         let auth = scoped.as_ref().map_or_else(
                             || Arc::clone(&auth),
-                            |policies| Arc::new(AccessPolicy::scoped(policies.clone(), Some(index))));
+                            |policies| {
+                                Arc::new(AccessPolicy::scoped(policies.clone(), Some(index)))
+                            },
+                        );
                         let router = Arc::clone(&router);
                         listeners.push(Box::pin(async move {
-                            transport.serve(move |connection| {
-                                let auth = Arc::clone(&auth);
-                                let router = Arc::clone(&router);
-                                async move { mqtt::serve_connection(connection, auth, router).await }
-                            }).await
+                            transport
+                                .serve(move |connection| {
+                                    let auth = Arc::clone(&auth);
+                                    let router = Arc::clone(&router);
+                                    async move {
+                                        mqtt::serve_connection_with_protocols(
+                                            connection, auth, router, versions,
+                                        )
+                                        .await
+                                    }
+                                })
+                                .await
                         }));
                     }
-                    if let Some(wss_transport) = wss_transport {
+                    if let Some((wss_transport, versions)) = wss_transport {
                         let auth = Arc::clone(&auth);
                         let router = Arc::clone(&router);
                         listeners.push(Box::pin(async move {
-                            wss_transport.serve(move |connection| {
-                                let auth = Arc::clone(&auth);
-                                let router = Arc::clone(&router);
-                                async move { mqtt::serve_connection(connection, auth, router).await }
-                            }).await
+                            wss_transport
+                                .serve(move |connection| {
+                                    let auth = Arc::clone(&auth);
+                                    let router = Arc::clone(&router);
+                                    async move {
+                                        mqtt::serve_connection_with_protocols(
+                                            connection, auth, router, versions,
+                                        )
+                                        .await
+                                    }
+                                })
+                                .await
                         }));
                     }
                     // All accept futures are owned here: cancellation drops every
                     // listener synchronously before the router shutdown barrier.
                     std::future::poll_fn(move |context| {
                         for listener in &mut listeners {
-                            if let std::task::Poll::Ready(result) = listener.as_mut().poll(context) {
+                            if let std::task::Poll::Ready(result) = listener.as_mut().poll(context)
+                            {
                                 return std::task::Poll::Ready(result);
                             }
                         }
                         std::task::Poll::Pending
-                    }).await
+                    })
+                    .await
                 },
                 shutdown_router,
                 metrics.clone(),
@@ -329,7 +365,10 @@ async fn serve(
                 OpenLabTransport::bind_observed(bind_address, limits, Some(metrics.clone()))
                     .await?;
             let ws_transport = if let Some(address) = lab_websocket_bind {
-                Some(transport.bind_websocket(address).await?)
+                Some((
+                    transport.bind_websocket(address).await?,
+                    config.listener_protocol_versions(address),
+                ))
             } else {
                 None
             };
@@ -344,13 +383,26 @@ async fn serve(
                 let tcp = transport.serve(move |connection| {
                     let auth = Arc::clone(&tcp_auth);
                     let router = Arc::clone(&tcp_router);
-                    async move { mqtt::serve_connection(connection, auth, router).await }
+                    async move {
+                        mqtt::serve_connection_with_protocols(
+                            connection,
+                            auth,
+                            router,
+                            primary_versions,
+                        )
+                        .await
+                    }
                 });
-                if let Some(ws_transport) = ws_transport {
+                if let Some((ws_transport, versions)) = ws_transport {
                     let ws = ws_transport.serve(move |connection| {
                         let auth = Arc::clone(&auth);
                         let router = Arc::clone(&router);
-                        async move { mqtt::serve_connection(connection, auth, router).await }
+                        async move {
+                            mqtt::serve_connection_with_protocols(
+                                connection, auth, router, versions,
+                            )
+                            .await
+                        }
                     });
                     tokio::select! { result = tcp => result, result = ws => result }
                 } else {
@@ -385,7 +437,15 @@ async fn serve(
                 transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
                     let router = Arc::clone(&router);
-                    async move { mqtt::serve_connection(connection, auth, router).await }
+                    async move {
+                        mqtt::serve_connection_with_protocols(
+                            connection,
+                            auth,
+                            router,
+                            primary_versions,
+                        )
+                        .await
+                    }
                 }),
                 shutdown_router,
                 metrics.clone(),
@@ -421,7 +481,15 @@ async fn serve(
                 transport.serve(move |connection| {
                     let auth = Arc::clone(&auth);
                     let router = Arc::clone(&router);
-                    async move { mqtt::serve_connection(connection, auth, router).await }
+                    async move {
+                        mqtt::serve_connection_with_protocols(
+                            connection,
+                            auth,
+                            router,
+                            primary_versions,
+                        )
+                        .await
+                    }
                 }),
                 shutdown_router,
                 metrics.clone(),

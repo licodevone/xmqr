@@ -92,7 +92,26 @@ impl OutboundAliases {
     }
 }
 
-/// Serve one transport connection under the startup-selected access policy.
+/// MQTT versions accepted by a listener.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ProtocolVersions {
+    #[default]
+    Both,
+    Mqtt311,
+    Mqtt5,
+}
+
+impl ProtocolVersions {
+    const fn accepts(self, mqtt5: bool) -> bool {
+        match self {
+            Self::Both => true,
+            Self::Mqtt311 => !mqtt5,
+            Self::Mqtt5 => mqtt5,
+        }
+    }
+}
+
+/// Serve one transport connection with both supported MQTT versions.
 ///
 /// # Errors
 ///
@@ -101,14 +120,26 @@ impl OutboundAliases {
 /// other unsupported protocol levels emit `CONNACK 0x01`,
 /// refused client identifiers `0x02`, and authentication failures `0x05`.
 pub async fn serve_connection(
+    connection: BrokerConnection,
+    auth: Arc<AccessPolicy>,
+    router: Arc<Router>,
+) -> Result<(), HandlerError> {
+    serve_connection_with_protocols(connection, auth, router, ProtocolVersions::Both).await
+}
+
+/// Serve one transport connection under the listener's MQTT version policy.
+/// # Errors
+/// Propagates transport and MQTT errors, as in [`serve_connection`].
+pub async fn serve_connection_with_protocols(
     mut connection: BrokerConnection,
     auth: Arc<AccessPolicy>,
     router: Arc<Router>,
+    versions: ProtocolVersions,
 ) -> Result<(), HandlerError> {
     // Close remains inside the admitted task, even after a CONNECT refusal or
     // actor cleanup error. Preserve the MQTT error ahead of a later close error.
     let _connection_metric = router.metrics().connection();
-    let result = serve_mqtt(&mut connection, auth, router).await;
+    let result = serve_mqtt(&mut connection, auth, router, versions).await;
     let closed = connection.shutdown().await;
     result?;
     closed.map_err(Into::into)
@@ -119,6 +150,7 @@ async fn serve_mqtt(
     connection: &mut BrokerConnection,
     auth: Arc<AccessPolicy>,
     router: Arc<Router>,
+    versions: ProtocolVersions,
 ) -> Result<(), HandlerError> {
     let metrics = router.metrics();
     let mut reader = FrameReader::new(connection.take_initial_mqtt_bytes());
@@ -175,6 +207,25 @@ async fn serve_mqtt(
     let will = will.map(|message| *message);
     let outbound_maximum = maximum_packet_size.map_or(usize::MAX, |value| value as usize);
     let plain_authentication = plain_authentication.map(Zeroizing::new);
+    if mqtt5 && outbound_maximum < 5 {
+        // Even the minimal MQTT 5 CONNACK cannot fit. No session was created.
+        return Ok(());
+    }
+    if !versions.accepts(mqtt5) {
+        if mqtt5 {
+            write_limited(
+                connection,
+                &codec::encode_mqtt5_connack(0x84),
+                outbound_maximum,
+            )
+            .await?;
+        } else {
+            connection
+                .write_all_with_deadline(&encode_connack(0x01), WRITE_TIMEOUT)
+                .await?;
+        }
+        return Ok(());
+    }
     let plain_requested = plain_authentication.is_some();
     let server_keep_alive = if mqtt5 {
         router
@@ -183,10 +234,6 @@ async fn serve_mqtt(
     } else {
         None
     };
-    if mqtt5 && outbound_maximum < 5 {
-        // Even the minimal MQTT 5 CONNACK cannot fit. No session was created.
-        return Ok(());
-    }
     if plain_requested && !connection.is_tls() {
         write_limited(
             connection,

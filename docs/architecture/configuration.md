@@ -69,6 +69,29 @@ nova. Um Maximum Packet Size insuficiente para anunciar o valor exigido recusa
 o CONNECT com 0x95 antes de abrir sessão. MQTT 3.1.1 e a configuração ausente
 conservam o comportamento anterior. A opção exige restart e não migra estado.
 
+## Versões MQTT por listener
+
+Use uma tabela `[[listener_protocols]]` por endereço que deve restringir as
+versões aceitas. O endereço precisa coincidir com um bind MQTT TCP, WS ou
+WSS efetivo, considerando os overrides do ambiente.
+
+```toml
+[[listener_protocols]]
+bind = "127.0.0.1:8883"
+accept_protocol_versions = [5]
+```
+
+`[4]` aceita MQTT 3.1.1, `[5]` aceita MQTT 5 e `[4, 5]` aceita ambas.
+Um listener sem tabela aceita as duas versões. `--check-config` rejeita
+níveis inválidos, tabelas duplicadas e endereços sem listener.
+A alteração entra em vigor após reinício.
+
+Para um CONNECT válido de versão bloqueada, o broker responde com CONNACK
+`0x01` em MQTT 3.1.1 ou `0x84` em MQTT 5 e fecha a conexão antes de
+autenticar ou abrir uma sessão. Em MQTT 5, fecha sem CONNACK quando o
+Maximum Packet Size anunciado não comporta a resposta.
+Pacotes já recusados pelo codec mantêm seu diagnóstico.
+
 ## Limites e etapas
 
 P54 acrescenta, incluído na versão0.11.0:
