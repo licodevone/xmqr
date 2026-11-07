@@ -40,7 +40,8 @@ pub fn entry() -> Result<(), Box<dyn std::error::Error>> {
                     serde_json::json!({
                         "id":entry.component.id, "name":entry.component.display_name,
                         "service":entry.component.service_name, "state":entry.state.label(),
-                        "detail":entry.detail
+                        "detail":entry.detail,
+                        "next_step":entry.state.next_step()
                     })
                 })
                 .collect();

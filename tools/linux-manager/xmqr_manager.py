@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: MIT
 """XMQR Manager for Ubuntu GNOME. Privileges stay in systemd/polkit and GVfs."""
 import argparse
-from dataclasses import asdict
 import json
 import os
 from pathlib import Path
@@ -362,7 +361,7 @@ def main():
     args = parser.parse_args()
     try:
         if args.diagnose:
-            print(json.dumps({'components': [asdict(e) for e in Backend().snapshot()]}, ensure_ascii=False))
+            print(json.dumps(Backend().diagnose(), ensure_ascii=False))
             return 0
         if os.geteuid() == 0:
             raise ManagerError('Inicie o Manager como usuário do desktop. O sistema pedirá autenticação quando necessário.')

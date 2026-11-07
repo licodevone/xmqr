@@ -57,6 +57,16 @@ class BackendTests(unittest.TestCase):
         self.backend.exists = lambda _: False
         self.assertEqual(self.backend.inventory(), [])
 
+    def test_diagnose_preserves_inventory_and_explains_unavailable_status(self):
+        self.fake.executable = '/usr/bin/unexpected'
+        report = self.backend.diagnose()
+        broker = next(item for item in report['components']
+                      if item['component']['id'] == 'broker')
+        self.assertEqual(broker['state'], 'unknown')
+        self.assertIn('systemd', broker['next_step'])
+        self.assertFalse(any(call[0][1] in ('start', 'stop', 'restart')
+                             for call in self.fake.calls))
+
     def test_admin_without_unit_is_cli_without_invented_panel_or_config(self):
         admin = self.backend.resolve('admin')
         self.assertIsNone(admin.service)

@@ -103,6 +103,23 @@ pub enum State {
 }
 
 impl State {
+    #[cfg(any(windows, test))]
+    pub fn next_step(self) -> &'static str {
+        match self {
+            Self::Running => {
+                "Verifique a prontidão do componente ou faça um teste MQTT autorizado."
+            }
+            Self::Stopped => "Confira se o serviço deveria estar em execução.",
+            Self::NeverStarted => "Confira o modo de inicialização e a configuração do serviço.",
+            Self::Pending => "Aguarde a transição e consulte o estado novamente.",
+            Self::Failed => {
+                "Confira o código do SCM, os logs e o acesso da conta do serviço aos arquivos."
+            }
+            Self::Unknown => "Confira o cadastro do executável e a disponibilidade do SCM.",
+            Self::CliOnly => "Execute a CLI manualmente ou confira o cadastro de serviço.",
+        }
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Running => "Em execução",
@@ -370,10 +387,14 @@ mod tests {
     fn scm_status_preserves_real_failure_and_unavailable_queries() {
         assert_eq!(service_state("Stopped", 0), State::Stopped);
         for code in [1, 5, 1067] {
-            assert_eq!(service_state("Stopped", code), State::Failed);
+            let observed = service_state("Stopped", code);
+            assert_eq!(observed, State::Failed);
+            assert!(observed.next_step().contains("SCM"));
         }
         for code in [0, 1077, 1067] {
-            assert_eq!(service_state("Running", code), State::Running);
+            let observed = service_state("Running", code);
+            assert_eq!(observed, State::Running);
+            assert!(observed.next_step().contains("prontidão"));
         }
         for state in [
             "Start Pending",

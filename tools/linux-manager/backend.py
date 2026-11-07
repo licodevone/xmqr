@@ -20,6 +20,14 @@ STATES = {
     'running': 'Em execução', 'stopped': 'Parado', 'pending': 'Em transição',
     'failed': 'Falha', 'unknown': 'Estado indisponível', 'cli': 'CLI instalada; sem serviço',
 }
+NEXT_STEPS = {
+    'running': 'Verifique a prontidão do componente ou faça um teste MQTT autorizado.',
+    'stopped': 'Confira se o serviço deveria estar em execução.',
+    'pending': 'Aguarde a transição e consulte o estado novamente.',
+    'failed': 'Confira o journal da unit e o acesso da conta do serviço aos arquivos.',
+    'unknown': 'Confira a disponibilidade do systemd e o executável cadastrado.',
+    'cli': 'Execute a CLI manualmente ou confira o cadastro da unit.',
+}
 
 
 class ManagerError(Exception):
@@ -221,6 +229,12 @@ class Backend:
 
     def snapshot(self):
         return [self.status(c) for c in self.inventory()]
+
+    def diagnose(self):
+        return {'components': [
+            {**asdict(entry), 'next_step': NEXT_STEPS[entry.state]}
+            for entry in self.snapshot()
+        ]}
 
     def resolve(self, id_):
         component = next((c for c in self.inventory() if c.id == id_), None)
