@@ -1,5 +1,8 @@
 # XMQR Manager para Windows
 
+Interface opcional para terminal: [PowerShell7](../../docs/windows-terminal-manager.md),
+com menu e comandos delegados aos helpers existentes, sem abrir a bandeja.
+
 Aplicativo Rust independente, binário `xmqr-manager.exe`, sem Cargo workspace e
 sem dependência do código do broker, client ou admin. Requer Rust 1.90 ou mais
 recente para compilar suas bibliotecas de interface (os produtos mantêm seu MSRV).

@@ -1,0 +1,92 @@
+name: Oracle Installer
+
+on:
+  push:
+    branches: ['installer/oracle-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [fresh, bridge-resume, mqtt-resume]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Static validation
+        run: |
+          bash -n scripts/install_oracle_x86.sh
+          python3 -m py_compile scripts/verify_oracle_installer.py scripts/package_oracle_installer.py scripts/test_oracle_installer_ci.py
+      - name: Ubuntu26 systemd lifecycle
+        run: python3 scripts/test_oracle_installer_ci.py --scenario '${{ matrix.scenario }}' --report '.artifacts/oracle-installer/${{ matrix.scenario }}.json'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oracle-validation-${{ matrix.scenario }}
+          path: .artifacts/oracle-installer/*.json
+
+  publish:
+    needs: validate
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/installer/oracle-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: oracle-validation-*
+          merge-multiple: true
+          path: /tmp/oracle-validation
+      - name: Freeze validated package
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib
+          reports=[json.loads(p.read_text()) for p in sorted(pathlib.Path('/tmp/oracle-validation').glob('*.json'))]
+          assert {r['scenario'] for r in reports}=={'fresh','bridge-resume','mqtt-resume'}
+          assert all(r['status']=='PASS' and r['source_revision']==os.environ['GITHUB_SHA'] for r in reports)
+          evidence={'status':'PASS','source_revision':os.environ['GITHUB_SHA'],'scenarios':reports,
+                    'run_url':f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"}
+          pathlib.Path('/tmp/oracle-evidence.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          PY
+          python3 scripts/package_oracle_installer.py --output dist/oracle-installer/release --source-revision "$GITHUB_SHA" --evidence /tmp/oracle-evidence.json
+          python3 scripts/package_oracle_installer.py --output dist/oracle-installer/repeat --source-revision "$GITHUB_SHA" --evidence /tmp/oracle-evidence.json
+          cmp dist/oracle-installer/release/*.zip dist/oracle-installer/repeat/*.zip
+          python3 -m zipfile -e dist/oracle-installer/release/*.zip /tmp/oracle-bundle
+          python3 /tmp/oracle-bundle/verify_oracle_installer.py --integrity-only
+          sha256sum dist/oracle-installer/release/*
+      - name: Publish immutable candidate tag and prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n "s/^INSTALLER_VERSION='\([^']*\)'$/\1/p" scripts/install_oracle_x86.sh)
+          TAG="oracle-installer-v$VERSION"
+          test -n "$VERSION"
+          test -z "$(git ls-remote --tags origin "refs/tags/$TAG")"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$TAG" "$GITHUB_SHA" -m "XMQR Oracle Installer $VERSION; Ubuntu26 fresh/bridge-resume/mqtt-resume PASS; run $GITHUB_RUN_ID"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" dist/oracle-installer/release/* --verify-tag --prerelease --latest=false --title "XMQR Oracle Installer $VERSION" --notes-file docs/releases/oracle-installer-0.1.0-rc.1.md
+          export TAG
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess
+          release=json.loads(subprocess.check_output(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/{os.environ['TAG']}"],text=True))
+          files=list(pathlib.Path('dist/oracle-installer/release').glob('*'))
+          assert len(release['assets'])==len(files)==2
+          assert release['prerelease'] and not release['draft']
+          assets={a['name']:a for a in release['assets']}
+          for path in files:
+              data=path.read_bytes(); asset=assets[path.name]
+              assert asset['size']==len(data)
+              assert asset['digest']=='sha256:'+hashlib.sha256(data).hexdigest()
+          print('REMOTE_ASSETS_PASS files=2')
+          PY

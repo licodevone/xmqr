@@ -1,5 +1,8 @@
 # XMQR Manager — Ubuntu
 
+Companheiro para SSH/Ubuntu Server: [Manager Terminal](../../docs/linux-terminal-manager.md).
+Usa o mesmo backend sem GTK; comando separado `xmqr-manager-terminal`.
+
 Aplicativo de desktop independente, versão inicial 0.1.0, Python 3.10+/GTK 3.
 Janela e bandeja opcional Ayatana AppIndicator; sem suporte à bandeja, a janela
 continua disponível pelo menu de aplicativos. Requer sessão gráfica Ubuntu GNOME
