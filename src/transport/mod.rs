@@ -14,7 +14,7 @@ use async_tungstenite::{
 };
 use std::{
     future::Future,
-    io::{self, BufReader},
+    io,
     net::SocketAddr,
     panic::AssertUnwindSafe,
     path::{Path, PathBuf},
@@ -28,7 +28,7 @@ use std::{
 use futures_util::FutureExt;
 use rustls::{
     RootCertStore, ServerConfig,
-    pki_types::{CertificateDer, CertificateRevocationListDer, PrivateKeyDer},
+    pki_types::{CertificateDer, CertificateRevocationListDer},
     server::WebPkiClientVerifier,
     version::{TLS12, TLS13},
 };
@@ -42,9 +42,13 @@ use tokio::{
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
 use tracing::{debug, error, info, warn};
 use ws_stream_tungstenite::WsStream;
-use x509_parser::{parse_x509_certificate, parse_x509_crl, time::ASN1Time};
+use x509_parser::{
+    certificate::X509Certificate, parse_x509_certificate, parse_x509_crl, time::ASN1Time,
+};
 
+mod pem;
 mod rotation;
+use pem::{load_certificates, load_crls, load_private_key};
 pub use rotation::{TlsFiles, TlsWatcher, watch_tls};
 
 /// Maximum number of MQTT bytes accepted by the first application read.
@@ -249,6 +253,10 @@ pub enum TlsConfigError {
         #[source]
         source: io::Error,
     },
+    #[error("{kind} PEM must resolve to a regular file")]
+    NonRegularPem { kind: &'static str },
+    #[error("{kind} PEM exceeds the {max_bytes} byte limit")]
+    PemTooLarge { kind: &'static str, max_bytes: u64 },
     #[error("invalid {kind} PEM file {path}: {message}")]
     InvalidPem {
         kind: &'static str,
@@ -1073,7 +1081,13 @@ pub fn load_mtls_server_config(files: &MtlsFiles) -> Result<Arc<ServerConfig>, T
     validate_certificates(&server_certificates, "server")?;
     let server_key = load_private_key(&files.server_private_key)?;
     let client_ca_certificates = load_certificates(&files.client_ca_certificate, "client CA")?;
-    validate_certificates(&client_ca_certificates, "client CA")?;
+    let client_issuers = if files.client_crl.is_some() {
+        validated_certificates(&client_ca_certificates, "client CA")
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        validate_certificates(&client_ca_certificates, "client CA")?;
+        Vec::new()
+    };
 
     let mut roots = RootCertStore::empty();
     for certificate in &client_ca_certificates {
@@ -1086,7 +1100,7 @@ pub fn load_mtls_server_config(files: &MtlsFiles) -> Result<Arc<ServerConfig>, T
         WebPkiClientVerifier::builder_with_provider(Arc::new(roots), Arc::clone(&provider));
     if let Some(crl_path) = &files.client_crl {
         let crls = load_crls(crl_path)?;
-        validate_crls(&crls, &client_ca_certificates)?;
+        validate_crls(&crls, &client_issuers)?;
         verifier_builder = verifier_builder
             .with_crls(crls)
             .enforce_revocation_expiration();
@@ -1130,20 +1144,27 @@ fn validate_certificates(
     certificates: &[CertificateDer<'static>],
     kind: &'static str,
 ) -> Result<(), TlsConfigError> {
+    validated_certificates(certificates, kind).try_for_each(|certificate| certificate.map(drop))
+}
+
+fn validated_certificates<'a>(
+    certificates: &'a [CertificateDer<'static>],
+    kind: &'static str,
+) -> impl Iterator<Item = Result<X509Certificate<'a>, TlsConfigError>> {
     let now = ASN1Time::now();
-    for der in certificates {
+    certificates.iter().map(move |der| {
         let (remainder, certificate) = parse_x509_certificate(der.as_ref())
             .map_err(|_| TlsConfigError::CertificateValidity(kind))?;
         if !remainder.is_empty() || !certificate.validity().is_valid_at(now) {
             return Err(TlsConfigError::CertificateValidity(kind));
         }
-    }
-    Ok(())
+        Ok(certificate)
+    })
 }
 
 fn validate_crls(
     crls: &[CertificateRevocationListDer<'static>],
-    client_cas: &[CertificateDer<'static>],
+    issuers: &[X509Certificate<'_>],
 ) -> Result<(), TlsConfigError> {
     let now = ASN1Time::now().timestamp();
     for der in crls {
@@ -1153,83 +1174,14 @@ fn validate_crls(
         if !remainder.is_empty() || crl.last_update().timestamp() > now || next.timestamp() <= now {
             return Err(TlsConfigError::CrlValidity);
         }
-        let signed_by_configured_ca = client_cas.iter().any(|ca_der| {
-            parse_x509_certificate(ca_der.as_ref()).is_ok_and(|(_, ca)| {
-                crl.issuer() == ca.subject() && crl.verify_signature(ca.public_key()).is_ok()
-            })
+        let signed_by_configured_ca = issuers.iter().any(|ca| {
+            crl.issuer() == ca.subject() && crl.verify_signature(ca.public_key()).is_ok()
         });
         if !signed_by_configured_ca {
             return Err(TlsConfigError::CrlIssuer);
         }
     }
     Ok(())
-}
-
-fn load_certificates(
-    path: &Path,
-    kind: &'static str,
-) -> Result<Vec<CertificateDer<'static>>, TlsConfigError> {
-    let file = std::fs::File::open(path).map_err(|source| TlsConfigError::OpenPem {
-        kind,
-        path: path.to_path_buf(),
-        source,
-    })?;
-    let certificates = rustls_pemfile::certs(&mut BufReader::new(file))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|source| TlsConfigError::InvalidPem {
-            kind,
-            path: path.to_path_buf(),
-            message: source.to_string(),
-        })?;
-    if certificates.is_empty() {
-        return Err(TlsConfigError::EmptyPem {
-            kind,
-            path: path.to_path_buf(),
-        });
-    }
-    Ok(certificates)
-}
-
-fn load_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, TlsConfigError> {
-    let kind = "server private key";
-    let file = std::fs::File::open(path).map_err(|source| TlsConfigError::OpenPem {
-        kind,
-        path: path.to_path_buf(),
-        source,
-    })?;
-    rustls_pemfile::private_key(&mut BufReader::new(file))
-        .map_err(|source| TlsConfigError::InvalidPem {
-            kind,
-            path: path.to_path_buf(),
-            message: source.to_string(),
-        })?
-        .ok_or_else(|| TlsConfigError::EmptyPem {
-            kind,
-            path: path.to_path_buf(),
-        })
-}
-
-fn load_crls(path: &Path) -> Result<Vec<CertificateRevocationListDer<'static>>, TlsConfigError> {
-    let kind = "client certificate revocation list";
-    let file = std::fs::File::open(path).map_err(|source| TlsConfigError::OpenPem {
-        kind,
-        path: path.to_path_buf(),
-        source,
-    })?;
-    let crls = rustls_pemfile::crls(&mut BufReader::new(file))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|source| TlsConfigError::InvalidPem {
-            kind,
-            path: path.to_path_buf(),
-            message: source.to_string(),
-        })?;
-    if crls.is_empty() {
-        return Err(TlsConfigError::EmptyPem {
-            kind,
-            path: path.to_path_buf(),
-        });
-    }
-    Ok(crls)
 }
 
 #[cfg(test)]

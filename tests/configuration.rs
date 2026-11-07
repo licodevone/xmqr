@@ -74,6 +74,29 @@ fn check_config_rejects_invalid_overrides_and_missing_security_files() {
 }
 
 #[test]
+fn check_config_rejects_oversized_tls_material_without_disclosing_paths() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    let material = directory.path().join("private-pem-fixture");
+    fs::File::create(material)
+        .unwrap()
+        .set_len(1024 * 1024 + 1)
+        .unwrap();
+    fs::write(
+        &path,
+        "version=1\n[broker]\nmode='tls-password'\nstate_dir='state'\n[tls]\nserver_cert='private-pem-fixture'\nserver_key='key.pem'\n[security]\nbundle='bundle.toml'",
+    )
+    .unwrap();
+    let output = broker(&path).arg("--check-config").output().unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(output.stdout, [] as [u8; 0]);
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("materiais TLS"));
+    assert!(!error.contains("private-pem-fixture"));
+    assert!(!directory.path().join("state").exists());
+}
+
+#[test]
 fn invalid_configuration_never_creates_state_or_echoes_source() {
     for tail in [
         "unknown='private-fixture'",

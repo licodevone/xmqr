@@ -38,6 +38,12 @@ O certificado do servidor deve incluir `IP:192.168.0.100` no Subject Alternative
 
 ## Rotação local de TLS (P100/B11)
 
+O P267 limita a leitura de cada cadeia do servidor, chave e arquivo de CAs
+a 1 MiB por arquivo e a lista de CRLs a 8 MiB. Os mesmos tetos se aplicam
+no startup, em `--check-config` e na rotação. Use arquivos regulares.
+Links simbólicos para arquivos regulares continuam válidos para renovação.
+Confira o tamanho do material antes de atualizar instalações existentes.
+
 Em Unix, `SIGUSR1` faz o broker reler os caminhos TLS configurados no startup.
 Prepare certificado, chave, CA e CRL como um conjunto coerente em arquivos
 privados, substitua-os e sinalize o PID conhecido da instância:
