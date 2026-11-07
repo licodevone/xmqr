@@ -1,5 +1,18 @@
 # Configuração versionada — implementação P52
 
+## Validação antes do início — P265
+
+Execute `mqtt-broker --check-config` com as mesmas variáveis `MQTT_*` e conta
+de execução do serviço. `MQTT_CONFIG` seleciona o TOML, e as variáveis
+explícitas preservam sua precedência. O comando verifica perfis, quotas,
+opções de transporte e materiais TLS e ACL aplicáveis. O código de saída 0
+vem com JSON de perfil, número de listeners TCP, limites de conexão e opções
+habilitadas. Um erro retorna código 2 e diagnóstico sem valores privados.
+
+A verificação opera sem listeners e sem acesso ao estado durável. A
+disponibilidade das portas, a recuperação de estado e a validação dos tokens
+do canal administrativo continuam a cargo da inicialização.
+
 Status: incluída no pacote0.11.0; aceita em Ubuntu26/WSL na fase1(P61).
 O modo legado MQTT_* e RUST_LOG continua disponível. Use um binário compilado
 deste código para experimentar MQTT_CONFIG; preserve o broker.env existente.

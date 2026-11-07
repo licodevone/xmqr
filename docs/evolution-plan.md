@@ -308,6 +308,20 @@ não o aceite de A02grupos/A03revogação/A09canal online desta matriz. Evidênc
 - [x] ~~P234: comprovação independente de rejeição de dados de texto WS/WSS no client 0.42.1, em MQTT 3.1.1/5, com controles binários fragmentados/concatenados.~~ [Registro](../prompts/registros/P234-quadros-websocket-client.md), [evidência](conformance/mqtt5-client-websocket-p234.json) e [CI específica](https://github.com/licodevone/xmqr/actions/runs/39259711349): 12/12 local e remoto, mesmo ELF e zero alteração de runtime. Fecha esse recorte de evidência MQTT-6.0.0-1; demais lacunas permanecem abertas.
 - [x] ~~Fase 8/T02: bridge com reconexão, 1–8 rotas, MQTT 5 nas duas pontas, propriedades/TTL, QoS/retained, journal formato 2 e percurso cooperativo limitado.~~ C147/C148 e distribuição C149 aceitos no contrato finito P235/P237. [Matriz e artefatos](phase8-acceptance.md), [CI exata](https://github.com/licodevone/xmqr-client/actions/runs/39301735099) com seis jobs PASS e [release client 0.43.0/bridge 0.5.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.43.0). Wire 33 PASS/1 NOT_RUN, segurança 13/13 e brokers 34/34 no debug/pacote/imagem; recuperação debug 16/16; tag, seis anexos e digest remoto conferidos. Sem transação distribuída nem garantia através de intermediário que remova propriedades.
 - [ ] Fase 9: Windows nativo, serviço, instalador, persistência e permissões homologados. [Relatório de planejamento](windows-native-evolution-plan.md); implementação futura, sem aceite nesta entrega.
+
+### Incrementos operacionais e paridade com Mosquitto 2.1
+
+| Prioridade | Entregas e dependências |
+| --- | --- |
+| Base | P265/C153/A30: verificação de configuração e comparação dos clientes. P266: diagnóstico do Manager. Fixar versão e digest do Mosquitto 2.1 para a campanha cruzada. |
+| Windows | Homologar instalação, identidade do serviço, permissões, reinício e upgrade/rollback. Em seguida, avaliar o canal local para reload e rotação. |
+| Operação | Diagnóstico de conexão por etapa, shell administrativo, simulador de ACL, inventário de certificados/dispositivos, explorador de tópicos/retained, alertas e assistente de migração. |
+| Integração | Perfil/quotas/namespace por listener, reload transacional, request/response e taxa de mensagens no Client, destinos alternativos na bridge, PROXY protocol e Sparkplug Aware. |
+| Avaliação | MQTT por Unix socket, TLS-PSK, `$SYS`, plugins isolados, SQLite e capacidade. Medir durabilidade e carga antes de alterar formatos ou limites. |
+
+Os aceites e bloqueios dos incrementos têm registros individuais. A fase 9
+exige a campanha nativa com serviços e instalador. Tags de checkpoint não
+substituem tags de versão acompanhadas de pacotes conferidos.
 - [ ] Distribuição: homologar instalação/units Ubuntu24, arm64 e repositório APT assinado.
 - [ ] Extensões de paridade: avaliar plugins/hooks, TLS PSK, sockets Unix e opções avançadas conforme demanda.
 

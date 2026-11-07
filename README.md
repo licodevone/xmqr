@@ -27,8 +27,14 @@ O transporte da fase7 e a [bridge/fase8](docs/phase8-acceptance.md) foram
 aceitos em seus contratos finitos. Client0.43.0 distribui bridge0.5.0 com
 múltiplas rotas, MQTT5/metadados/expiry, journal e percurso cooperativo;
 [release](https://github.com/licodevone/xmqr-client/releases/tag/v0.43.0).
-Windows nativo/fase9 permanece planejado. Não há certificação integral MQTT5 ou
-homologação de produção. Código próprio MIT; notices de terceiros preservados.
+Windows nativo tem implementação experimental e homologação pendente na
+[fase 9](docs/windows-native-evolution-plan.md). O aceite MQTT 5 se limita aos
+contratos publicados. Código próprio MIT; notices de terceiros preservados.
+
+Para verificar a configuração da fonte P265 antes de iniciar o processo,
+use `mqtt-broker --check-config` com o mesmo ambiente e conta do serviço.
+[O guia de configuração](docs/architecture/configuration.md) explica a
+precedência, a saída redigida e o alcance da verificação.
 
 ## Histórico dos marcos anteriores
 
@@ -646,9 +652,10 @@ QoS0/1/2, retained, sessões persistentes, SUBSCRIBE/UNSUBSCRIBE, filtros +/#,
 Last Will durável, TLS/mTLS, senha Argon2id e ACL deny-by-default.
 Persistência por WAL/snapshot e ator dedicado, commit durável antes de ACKs
 pertinentes. SIGTERM/SIGINT coordenam listener, Wills e shutdown do writer.
-MQTT 5 oferece sessões, propriedades e opções de assinatura em recortes
-experimentais; o aceite global das fases 6A–6D segue aberto. WS local está
-na 0.39.0 e WSS mTLS local na 0.40.0; bridge ainda não existe.
+MQTT 5, WS/WSS e o encaminhamento por `mqtt-bridge` têm os aceites experimentais
+das [fases 6](docs/phase6-acceptance.md), [7](docs/phase7-acceptance.md) e
+[8](docs/phase8-acceptance.md). A bridge 0.5.0 usa TOML próprio e integra a
+[distribuição do Client 0.43.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.43.0).
 Consulte o [plano de evolução](docs/evolution-plan.md) para limites e evidências.
 
 Limites:64 conexões/sessões,256 assinaturas por sessão,64 mensagens offline,

@@ -13,7 +13,7 @@ use std::{
 use mqtt_broker::{
     admin_channel::{AdminChannel, Config as AdminChannelConfig},
     auth::{AccessPolicy, AuthPolicy, DynamicPolicy, watch_security},
-    configuration::Configuration,
+    configuration::{Configuration, EndpointPolicyFiles},
     monitoring::{Config as MonitorConfig, Metrics, Monitor},
     mqtt::{self, Router},
     transport::{
@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .is_some_and(|arg| arg == "--windows-service")
     {
         let launch = windows_launch::Launch::parse(&env::args_os().skip(1).collect::<Vec<_>>())?;
-        windows_service::dispatch(launch.service_name, launch.logs, || match run() {
+        windows_service::dispatch(launch.service_name, launch.logs, || match run(false) {
             Ok(()) => true,
             Err(error) => {
                 windows_service::report_failure(error.as_ref());
@@ -51,25 +51,34 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     let mut arguments = env::args_os().skip(1);
     match (arguments.next(), arguments.next()) {
-        (None, None) => run(),
+        (None, None) => run(false),
+        (Some(argument), None) if argument == "--check-config" => {
+            if let Err(error) = run(true) {
+                eprintln!("Erro de configuração: {error}");
+                std::process::exit(2);
+            }
+            Ok(())
+        }
         (Some(argument), None) if argument == "--version" || argument == "-V" => {
             println!("mqtt-broker {}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }
         _ => {
-            eprintln!("Argumento inválido. Use mqtt-broker --version ou execute sem argumentos.");
+            eprintln!("Argumento inválido. Use mqtt-broker --version ou --check-config.");
             std::process::exit(2);
         }
     }
 }
 
 #[tokio::main]
-async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_target(false)
-        .compact()
-        .init();
+async fn run(check: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if !check {
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_target(false)
+            .compact()
+            .init();
+    }
 
     let config = load_configuration()?;
     let monitor_config = MonitorConfig::from_lookup(|name| config.var(name))?;
@@ -81,17 +90,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )
         .into());
     }
-    let metrics = Arc::new(Metrics::default());
     let mode = BrokerMode::from_config(&config)?;
     validate_security_environment(mode, &config)?;
-    let bind_address: SocketAddr = match config.var("MQTT_BIND") {
-        Ok(value) => value,
-        Err(env::VarError::NotPresent) => mode.default_bind().to_owned(),
-        Err(env::VarError::NotUnicode(_)) => {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid MQTT_BIND").into());
-        }
-    }
-    .parse()?;
+    let bind_address = configured_bind(&config, mode)?;
     let lab_websocket_bind = parse_ws_bind(&config, mode, bind_address)?;
     let additional_binds = config.additional_binds(bind_address)?;
     let secure_websocket_bind = parse_wss_bind(&config, mode, bind_address, &additional_binds)?;
@@ -127,28 +128,31 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     mode.validate_environment(&config)?;
     let state_directory = required_path(&config, "MQTT_STATE_DIR")?;
-    let required: &[&str] = match mode {
-        BrokerMode::SecureMtls => &["MQTT_SERVER_CERT", "MQTT_SERVER_KEY", "MQTT_CLIENT_CA"],
-        BrokerMode::TlsPassword => &["MQTT_SERVER_CERT", "MQTT_SERVER_KEY"],
-        BrokerMode::PasswordLab => &["MQTT_USERS_FILE"],
-        BrokerMode::OpenLab | BrokerMode::AclLab => &[],
-    };
-    for name in required {
-        required_path(&config, name)?;
-    }
-    if matches!(
-        mode,
-        BrokerMode::SecureMtls | BrokerMode::TlsPassword | BrokerMode::AclLab
-    ) && config.var_os("MQTT_SECURITY_BUNDLE").is_none()
-        && endpoint_policies.is_empty()
-    {
-        required_path(&config, "MQTT_USERS_FILE")?;
-        required_path(&config, "MQTT_ACL_FILE")?;
-    }
+    validate_required_paths(&config, mode, endpoint_policies.is_empty())?;
     let state_limits = config.state_limits()?;
     let limits = TransportLimits {
         max_concurrent_connections: config.max_connections()?,
     };
+    if check {
+        parse_wss_allowed_origins(&config, secure_websocket_bind.is_some())?;
+        config.server_keep_alive_seconds()?;
+        check_materials(&config, mode, &endpoint_policies).await?;
+        println!(
+            "{}",
+            serde_json::json!({
+                "schema": 1,
+                "valid": true,
+                "profile": mode.profile_name(),
+                "max_connections": limits.max_concurrent_connections,
+                "tcp_listeners": 1 + additional_binds.len(),
+                "ws_enabled": lab_websocket_bind.is_some(),
+                "wss_enabled": secure_websocket_bind.is_some(),
+                "monitor_enabled": monitor_config.enabled,
+                "admin_channel_configured": admin_config.is_some(),
+            })
+        );
+        return Ok(());
+    }
 
     serve(
         &config,
@@ -162,7 +166,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         state_directory,
         (limits, state_limits),
         (monitor_config, admin_config),
-        metrics,
+        Arc::new(Metrics::default()),
     )
     .await
 }
@@ -193,28 +197,12 @@ async fn serve(
     let server_keep_alive_seconds = config.server_keep_alive_seconds()?;
     match mode {
         BrokerMode::SecureMtls | BrokerMode::TlsPassword => {
-            let tls_files = if mode == BrokerMode::SecureMtls {
-                TlsFiles::Mtls(MtlsFiles {
-                    server_certificate_chain: required_path(config, "MQTT_SERVER_CERT")?,
-                    server_private_key: required_path(config, "MQTT_SERVER_KEY")?,
-                    client_ca_certificate: required_path(config, "MQTT_CLIENT_CA")?,
-                    client_crl: config.var_os("MQTT_CLIENT_CRL").map(PathBuf::from),
-                })
-            } else {
-                TlsFiles::Password {
-                    certificate_chain: required_path(config, "MQTT_SERVER_CERT")?,
-                    private_key: required_path(config, "MQTT_SERVER_KEY")?,
-                }
-            };
+            let tls_files = tls_files(config, mode)?;
             let tls_config = tls_files.load()?;
             let scoped = if endpoint_policies.is_empty() {
                 None
             } else {
-                let policies = endpoint_policies
-                    .iter()
-                    .map(|entry| AuthPolicy::load(&entry.users_file, &entry.acl_file))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Some(Arc::new(policies))
+                Some(Arc::new(load_endpoint_policies(&endpoint_policies)?))
             };
             let auth = if let Some(policies) = &scoped {
                 Arc::new(AccessPolicy::scoped(policies.clone(), None))
@@ -719,6 +707,99 @@ fn validate_security_environment(
             &["MQTT_USERS_FILE", "MQTT_ACL_FILE"],
             "security bundle rejects legacy users/ACL variables",
         )?;
+    }
+    Ok(())
+}
+
+fn configured_bind(config: &Configuration, mode: BrokerMode) -> io::Result<SocketAddr> {
+    let invalid = || io::Error::new(io::ErrorKind::InvalidInput, "invalid MQTT_BIND");
+    let value = match config.var("MQTT_BIND") {
+        Ok(value) => value,
+        Err(env::VarError::NotPresent) => mode.default_bind().to_owned(),
+        Err(env::VarError::NotUnicode(_)) => return Err(invalid()),
+    };
+    value.parse().map_err(|_| invalid())
+}
+
+fn validate_required_paths(
+    config: &Configuration,
+    mode: BrokerMode,
+    shared_policy: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let required: &[&str] = match mode {
+        BrokerMode::SecureMtls => &["MQTT_SERVER_CERT", "MQTT_SERVER_KEY", "MQTT_CLIENT_CA"],
+        BrokerMode::TlsPassword => &["MQTT_SERVER_CERT", "MQTT_SERVER_KEY"],
+        BrokerMode::PasswordLab => &["MQTT_USERS_FILE"],
+        BrokerMode::OpenLab | BrokerMode::AclLab => &[],
+    };
+    for name in required {
+        required_path(config, name)?;
+    }
+    if shared_policy
+        && matches!(
+            mode,
+            BrokerMode::SecureMtls | BrokerMode::TlsPassword | BrokerMode::AclLab
+        )
+        && config.var_os("MQTT_SECURITY_BUNDLE").is_none()
+    {
+        required_path(config, "MQTT_USERS_FILE")?;
+        required_path(config, "MQTT_ACL_FILE")?;
+    }
+    Ok(())
+}
+
+fn tls_files(
+    config: &Configuration,
+    mode: BrokerMode,
+) -> Result<TlsFiles, Box<dyn std::error::Error + Send + Sync>> {
+    let certificate_chain = required_path(config, "MQTT_SERVER_CERT")?;
+    let private_key = required_path(config, "MQTT_SERVER_KEY")?;
+    if mode == BrokerMode::SecureMtls {
+        Ok(TlsFiles::Mtls(MtlsFiles {
+            server_certificate_chain: certificate_chain,
+            server_private_key: private_key,
+            client_ca_certificate: required_path(config, "MQTT_CLIENT_CA")?,
+            client_crl: config.var_os("MQTT_CLIENT_CRL").map(PathBuf::from),
+        }))
+    } else {
+        Ok(TlsFiles::Password {
+            certificate_chain,
+            private_key,
+        })
+    }
+}
+
+fn load_endpoint_policies(
+    policies: &[EndpointPolicyFiles],
+) -> Result<Vec<AuthPolicy>, mqtt_broker::auth::AuthError> {
+    policies
+        .iter()
+        .map(|entry| AuthPolicy::load(&entry.users_file, &entry.acl_file))
+        .collect()
+}
+
+async fn check_materials(
+    config: &Configuration,
+    mode: BrokerMode,
+    endpoints: &[EndpointPolicyFiles],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if !mode.is_plain_lab() {
+        tls_files(config, mode)?
+            .load()
+            .map_err(|_| io::Error::other("não foi possível carregar os materiais TLS"))?;
+    }
+    let valid = match mode {
+        BrokerMode::OpenLab => true,
+        BrokerMode::PasswordLab => {
+            AuthPolicy::load_passwords(&required_path(config, "MQTT_USERS_FILE")?).is_ok()
+        }
+        BrokerMode::SecureMtls if !endpoints.is_empty() => {
+            load_endpoint_policies(endpoints).is_ok()
+        }
+        _ => load_policy(config, mode).await.is_ok(),
+    };
+    if !valid {
+        return Err(io::Error::other("não foi possível carregar a política de segurança").into());
     }
     Ok(())
 }

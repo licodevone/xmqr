@@ -20,6 +20,60 @@ fn broker(path: &std::path::Path) -> Command {
 }
 
 #[test]
+fn check_config_reports_effective_limits_without_touching_state() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    fs::write(
+        &path,
+        "version=1\n[broker]\nmode='open-lab'\nstate_dir='private-fixture'\n[limits]\nmax_connections=1",
+    )
+    .unwrap();
+    let output = broker(&path)
+        .arg("--check-config")
+        .env("MQTT_MAX_CONNECTIONS", "3")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["valid"], true);
+    assert_eq!(report["profile"], "open-lab");
+    assert_eq!(report["max_connections"], 3);
+    assert!(!directory.path().join("private-fixture").exists());
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("private-fixture"));
+}
+
+#[test]
+fn check_config_rejects_invalid_overrides_and_missing_security_files() {
+    for (configuration, overrides) in [
+        (
+            "[broker]\nmode='open-lab'\nstate_dir='state'",
+            Some(("MQTT_MAX_CONNECTIONS", "private-fixture")),
+        ),
+        (
+            "[broker]\nmode='open-lab'\nstate_dir='state'\nwss_allowed_origins=['https://private-fixture.example']",
+            None,
+        ),
+        (
+            "[broker]\nmode='secure-mtls'\nstate_dir='state'\n[tls]\nserver_cert='private-fixture'\nserver_key='missing.key'\nclient_ca='missing.ca'\n[security]\nbundle='missing.toml'",
+            None,
+        ),
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("broker.toml");
+        fs::write(&path, format!("version=1\n{configuration}")).unwrap();
+        let mut command = broker(&path);
+        if let Some((key, value)) = overrides {
+            command.env(key, value);
+        }
+        let output = command.arg("--check-config").output().unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("private-fixture"));
+        assert!(!directory.path().join("state").exists());
+    }
+}
+
+#[test]
 fn invalid_configuration_never_creates_state_or_echoes_source() {
     for tail in [
         "unknown='private-fixture'",
