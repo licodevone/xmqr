@@ -5691,6 +5691,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn expanded_quota_holds_500_live_sessions_and_recovers_them() {
+        let (directory, mut actor) = actor().await;
+        let limits = StateLimits::new(500, 256, 256, 64, 32).unwrap();
+        actor.store.shutdown().await.unwrap();
+        let (store, state) = MqttStore::open_with_limits(directory.path(), limits)
+            .await
+            .unwrap();
+        actor.limits = limits;
+        actor.store = store;
+        actor.state = state;
+
+        let mut connections = Vec::with_capacity(500);
+        for index in 0..500 {
+            connections.push(
+                actor
+                    .register(format!("p271-{index:03}"), "user".into(), false)
+                    .await
+                    .unwrap(),
+            );
+        }
+        assert_eq!(actor.live.len(), 500);
+        assert!(matches!(
+            actor.register("excess".into(), "user".into(), false).await,
+            Err(RouterError::Store(StateError::Limit("sessions")))
+        ));
+        assert_eq!(actor.live.len(), 500);
+        assert!(connections.iter().all(|session| !*session.closed.borrow()));
+        actor.store.shutdown().await.unwrap();
+
+        assert!(matches!(
+            MqttStore::open(directory.path()).await,
+            Err(StateError::Limit("sessions"))
+        ));
+        let (reopened, recovered) = MqttStore::open_with_limits(directory.path(), limits)
+            .await
+            .unwrap();
+        assert_eq!(recovered, actor.state);
+        reopened.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn assigned_client_id_collision_never_takes_over_existing_session() {
         let (_directory, mut actor) = actor().await;
         let existing = actor

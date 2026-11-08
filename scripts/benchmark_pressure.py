@@ -50,6 +50,7 @@ class Broker(fanout.Broker):
         env.update(MQTT_MODE='open-lab', MQTT_BIND=f'127.0.0.1:{self.port}',
                    MQTT_STATE_DIR=str(self.state), RUST_LOG='error',
                    MQTT_MAX_CONNECTIONS=str(self.limits[0]),
+                   MQTT_MAX_SESSIONS=str(max(64, self.limits[0])),
                    MQTT_MAX_INFLIGHT=str(self.limits[1]), MQTT_MAX_OFFLINE=str(self.limits[2]),
                    MQTT_MONITOR_ENABLED='true', MQTT_MONITOR_BIND=f'127.0.0.1:{self.monitor}')
         if self.security_root:
@@ -76,7 +77,8 @@ class Broker(fanout.Broker):
 
 
 class Client(f.WireClient):
-    def __init__(self, broker, identifier, context=None, clean=True, small_buffer=False):
+    def __init__(self, broker, identifier, context=None, clean=True, small_buffer=False,
+                 *, keepalive=60):
         self.socket = socket.socket()
         self.socket.settimeout(5)
         if small_buffer:
@@ -86,7 +88,7 @@ class Client(f.WireClient):
             if context:
                 self.socket = context.wrap_socket(self.socket, server_hostname='127.0.0.1')
             flags = (2 if clean else 0) | (0xc0 if context else 0)
-            body = f.text('MQTT') + bytes([4, flags, 0, 60]) + f.text(identifier)
+            body = f.text('MQTT') + bytes([4, flags]) + keepalive.to_bytes(2, 'big') + f.text(identifier)
             if context:
                 body += f.text('p72-device') + len(fanout.PASSWORD).to_bytes(2, 'big') + fanout.PASSWORD
             self.send(0x10, body)

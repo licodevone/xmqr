@@ -101,15 +101,36 @@ P54 acrescenta, incluído na versão0.11.0:
 max_connections = 64
 ```
 
-MQTT_MAX_CONNECTIONS prevalece sobre o TOML. Valores aceitos:1..64; padrão64.
+MQTT_MAX_CONNECTIONS prevalece sobre o TOML. Desde P271, o intervalo
+configurável é de 1 a 500 conexões e o padrão é 64.
 
-Esse limite conta conexões TCP/WS admitidas, incluindo a negociação TLS/MQTT,
+Para habilitar o perfil de até 500 clientes em um único processo, ajuste
+as duas quotas na seção existente:
+
+```toml
+[limits]
+max_connections = 500
+max_sessions = 500
+```
+
+Em ambiente, use `MQTT_MAX_CONNECTIONS=500` e `MQTT_MAX_SESSIONS=500`.
+As sessões persistentes desconectadas também ocupam a quota de sessões.
+O documento de estado continua limitado a 1.000.000 bytes, então a
+capacidade efetiva depende do volume de assinaturas, mensagens em trânsito,
+filas offline e mensagens retidas. O teto de admissão é independente da
+taxa de publicação. Preserve um backup compatível antes de elevar a
+quota se precisar voltar a um binário limitado a 64 sessões.
+
+Veja o [orçamento de vagas e o ensaio integrado](../capacity-500.md)
+para Client, Admin e Managers.
+
+Esse limite conta conexões TCP, WS e WSS admitidas, incluindo a negociação TLS/MQTT,
 não sessões persistentes nem mensagens por segundo. Ao atingir o limite, o
 broker fecha a nova conexão antes da negociação MQTT; no MQTT3.1.1 o client
 pode observar erro de transporte, sem motivo de quota transmitido no protocolo.
 A vaga é liberada quando a tarefa da conexão termina. Alteração exige restart.
-Reduzir esse valor não remove sessões persistentes. Quotas de sessões, filas,
-inflight, pacote e payload continuam fixas; sua configuração será outra fatia.
+Reduzir esse valor não remove sessões persistentes. As quotas de estado
+são independentes e estão na seção P55 abaixo.
 
 No perfil `open-lab`, `MQTT_WS_BIND=127.0.0.1:8083` (ou `ws_bind` na seção
 `[broker]` do TOML) ativa um listener WebSocket MQTT em `/mqtt` com
@@ -184,11 +205,10 @@ e senha interativa ou `--password-file` privado. SAN e validade do servidor
 continuam verificados. O diretório de estado `tls-password` não pode ser
 reutilizado por `secure-mtls` ou laboratório; não há migração de WAL.
 
-Etapa posterior: limites tipados propagados a transporte, ator, codec e store;
-preservar defaults 64 conexões/sessões, 32 inflight, 64 offline, 256 assinaturas,
-payload4096 e pacote64KiB. Não aumentar só o transporte sem ajustar o documento
-durável. Definir limites superiores após benchmarks, não aceitar ilimitado.
-Reduzir limites abaixo do estado existente deve falhar sem truncar dados.
+Os padrões são 64 conexões e sessões, 32 inflight, 64 offline, 256
+assinaturas, 4096 bytes por payload e 64 KiB por pacote. P271 amplia as
+faixas de conexões e sessões. A validação mantém o orçamento do documento
+durável e recusa quotas de estado abaixo dos dados existentes.
 
 ## Validação
 
@@ -214,7 +234,7 @@ Campos de [limits] e overrides explícitos:
 
 | TOML | Ambiente | Faixa/padrão |
 | --- | --- | --- |
-| max_sessions | MQTT_MAX_SESSIONS | 1..64 / 64 |
+| max_sessions | MQTT_MAX_SESSIONS | 1..500 / 64 |
 | max_retained | MQTT_MAX_RETAINED | 1..256 / 256 |
 | max_subscriptions | MQTT_MAX_SUBSCRIPTIONS | 1..256 / 256 por sessão |
 | max_offline | MQTT_MAX_OFFLINE | 1..64 / 64 por sessão |

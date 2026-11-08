@@ -1,7 +1,7 @@
 //! Immutable logical quotas shared by recovery, commits and routing.
 use std::io;
 
-/// Process-local MQTT state quotas. Defaults preserve the existing ceilings.
+/// Process-local MQTT state quotas with bounded, opt-in overrides.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(clippy::struct_field_names)] // Explicit maxima mirror configuration and avoid ambiguity.
 pub struct StateLimits {
@@ -36,7 +36,7 @@ impl StateLimits {
         inflight: usize,
     ) -> io::Result<Self> {
         for (value, ceiling) in [
-            (sessions, 64),
+            (sessions, 500),
             (retained, 256),
             (subscriptions, 256),
             (offline, 64),

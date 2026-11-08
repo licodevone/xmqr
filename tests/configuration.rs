@@ -1,4 +1,3 @@
-#[cfg(unix)]
 use std::process::Stdio;
 #[cfg(unix)]
 use std::{
@@ -71,15 +70,119 @@ fn check_config_refuses_invalid_or_unmatched_listener_protocols() {
     assert!(!directory.path().join("state").exists());
 }
 
-#[cfg(unix)]
 struct BrokerChild(std::process::Child);
 
-#[cfg(unix)]
 impl Drop for BrokerChild {
     fn drop(&mut self) {
         let _ = self.0.kill();
         let _ = self.0.wait();
     }
+}
+
+#[cfg_attr(not(unix), ignore = "requires Unix TCP integration environment")]
+#[tokio::test]
+async fn tcp_admits_500_mqtt_clients_rejects_excess_and_reuses_slot() {
+    use std::{
+        io::{self, ErrorKind},
+        net::TcpListener,
+        time::Duration,
+    };
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpStream,
+        time::{sleep, timeout},
+    };
+
+    async fn handshake(stream: &mut TcpStream, index: u16) -> io::Result<[u8; 4]> {
+        let client_id = format!("p271-{index:03}");
+        let mut connect = b"\x10\x14\x00\x04MQTT\x04\x02\x00\x00\x00\x08".to_vec();
+        connect.extend_from_slice(client_id.as_bytes());
+        stream.write_all(&connect).await?;
+        let mut reply = [0; 4];
+        stream.read_exact(&mut reply).await?;
+        Ok(reply)
+    }
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = reservation.local_addr().unwrap();
+    fs::write(
+        &path,
+        format!(
+            "version=1\n[broker]\nmode='open-lab'\nbind='{address}'\nstate_dir='state'\n\
+             [limits]\nmax_connections=500\nmax_sessions=500"
+        ),
+    )
+    .unwrap();
+    drop(reservation);
+    let mut command = broker(&path);
+    command.env("RUST_LOG", "warn").stdout(Stdio::null());
+    let _child = BrokerChild(command.spawn().unwrap());
+    let first = timeout(Duration::from_secs(5), async {
+        loop {
+            match TcpStream::connect(address).await {
+                Ok(stream) => break Ok(stream),
+                Err(error) if error.kind() == ErrorKind::ConnectionRefused => {
+                    sleep(Duration::from_millis(20)).await;
+                }
+                Err(error) => break Err(error),
+            }
+        }
+    })
+    .await
+    .expect("fixture broker did not bind before the deadline")
+    .expect("could not connect to the fixture broker");
+
+    timeout(Duration::from_secs(120), async {
+        let mut clients = Vec::with_capacity(500);
+        clients.push(first);
+        for index in 0..500_u16 {
+            if index != 0 {
+                clients.push(TcpStream::connect(address).await.unwrap());
+            }
+            let client = clients.last_mut().unwrap();
+            assert_eq!(handshake(client, index).await.unwrap(), [0x20, 2, 0, 0]);
+        }
+        let mut excess = TcpStream::connect(address).await.unwrap();
+        match excess.read(&mut [0]).await {
+            Ok(0) => {}
+            Err(error) if error.kind() == ErrorKind::ConnectionReset => {}
+            other => panic!("connection at full quota was not closed: {other:?}"),
+        }
+        for client in &mut clients {
+            client.write_all(&[0xc0, 0]).await.unwrap();
+            let mut pong = [0; 2];
+            client.read_exact(&mut pong).await.unwrap();
+            assert_eq!(pong, [0xd0, 0]);
+        }
+        let mut released = clients.pop().unwrap();
+        released.write_all(&[0xe0, 0]).await.unwrap();
+        assert_eq!(released.read(&mut [0]).await.unwrap(), 0);
+        // Socket closure can become observable just before the task drops its permit.
+        loop {
+            let mut replacement = TcpStream::connect(address).await.unwrap();
+            match handshake(&mut replacement, 501).await {
+                Ok(reply) => {
+                    assert_eq!(reply, [0x20, 2, 0, 0]);
+                    break;
+                }
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        ErrorKind::UnexpectedEof
+                            | ErrorKind::ConnectionReset
+                            | ErrorKind::BrokenPipe
+                    ) =>
+                {
+                    sleep(Duration::from_millis(20)).await;
+                }
+                Err(error) => panic!("replacement connection failed: {error}"),
+            }
+        }
+    })
+    .await
+    .expect("capacity scenario did not finish");
 }
 
 #[cfg(unix)]
@@ -220,6 +323,23 @@ fn check_config_reports_effective_limits_without_touching_state() {
 }
 
 #[test]
+fn check_config_accepts_500_connections_and_sessions() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    fs::write(
+        &path,
+        "version=1\n[broker]\nmode='open-lab'\nstate_dir='state'\n\
+         [limits]\nmax_connections=500\nmax_sessions=500",
+    )
+    .unwrap();
+    let output = broker(&path).arg("--check-config").output().unwrap();
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["max_connections"], 500);
+    assert!(!directory.path().join("state").exists());
+}
+
+#[test]
 fn check_config_rejects_invalid_overrides_and_missing_security_files() {
     for (configuration, overrides) in [
         (
@@ -244,7 +364,7 @@ fn check_config_rejects_invalid_overrides_and_missing_security_files() {
         }
         let output = command.arg("--check-config").output().unwrap();
         assert_eq!(output.status.code(), Some(2));
-        assert!(output.stdout.is_empty());
+        assert_eq!(output.stdout, [0_u8; 0]);
         assert!(!String::from_utf8_lossy(&output.stderr).contains("private-fixture"));
         assert!(!directory.path().join("state").exists());
     }
@@ -316,7 +436,7 @@ fn invalid_connection_limit_never_creates_state() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("broker.toml");
     let state = directory.path().join("state");
-    for value in ["0", "65", "invalid"] {
+    for value in ["0", "501", "invalid"] {
         fs::write(
             &path,
             "version=1\n[broker]\nmode='open-lab'\n[limits]\nmax_connections=1",
@@ -390,7 +510,7 @@ fn relative_file_configuration_starts_and_stops_durably() {
 #[test]
 fn invalid_state_quotas_never_create_state() {
     for (field, key, ceiling) in [
-        ("max_sessions", "MQTT_MAX_SESSIONS", 64),
+        ("max_sessions", "MQTT_MAX_SESSIONS", 500),
         ("max_retained", "MQTT_MAX_RETAINED", 256),
         ("max_subscriptions", "MQTT_MAX_SUBSCRIPTIONS", 256),
         ("max_offline", "MQTT_MAX_OFFLINE", 64),

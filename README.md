@@ -662,7 +662,7 @@ das [fases 6](docs/phase6-acceptance.md), [7](docs/phase7-acceptance.md) e
 [distribuição do Client 0.43.0](https://github.com/licodevone/xmqr-client/releases/tag/v0.43.0).
 Consulte o [plano de evolução](docs/evolution-plan.md) para limites e evidências.
 
-Limites:64 conexões/sessões,256 assinaturas por sessão,64 mensagens offline,
+Padrões:64 conexões/sessões,256 assinaturas por sessão,64 mensagens offline,
 32 inflight,1024 bytes UTF-8 por tópico/filtro,4096 bytes por payload e64KiB
 por pacote. São quotas de projeto, não benchmarks de capacidade.
 
@@ -722,8 +722,9 @@ com deb Ubuntu26 amd64 e checksum. Aceite local completo em
 
 O pacote0.11.0 aceita MQTT_CONFIG apontando para um TOML version=1.
 A instalação preserva broker.env e não ativa o TOML automaticamente.
-Em [limits], max_connections permite definir de1 a64 conexões TCP simultâneas;
-MQTT_MAX_CONNECTIONS prevalece sobre o arquivo. O padrão continua64.
+O P271 permite configurar `max_connections` e `max_sessions` de 1 a 500
+em `[limits]`. O padrão é 64 em ambas as quotas. `MQTT_MAX_CONNECTIONS`
+e `MQTT_MAX_SESSIONS` prevalecem sobre o arquivo.
 Veja [campos e exemplo](docs/architecture/configuration.md) e
 [arquivo de exemplo](packaging/broker.toml.example). A precedência é defaults,
 TOML e variáveis MQTT_* explícitas, nessa ordem. Caminhos relativos no TOML
