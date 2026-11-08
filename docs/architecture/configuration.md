@@ -101,25 +101,25 @@ P54 acrescenta, incluído na versão0.11.0:
 max_connections = 64
 ```
 
-MQTT_MAX_CONNECTIONS prevalece sobre o TOML. Desde P271, o intervalo
-configurável é de 1 a 500 conexões e o padrão é 64.
+MQTT_MAX_CONNECTIONS prevalece sobre o TOML. Desde P274, o intervalo
+configurável é de 1 a 1.000 conexões e o padrão é 64.
 
-Para habilitar o perfil de até 500 clientes em um único processo, ajuste
+Para habilitar o perfil de até 1.000 clientes em um único processo, ajuste
 as duas quotas na seção existente:
 
 ```toml
 [limits]
-max_connections = 500
-max_sessions = 500
+max_connections = 1000
+max_sessions = 1000
 ```
 
-Em ambiente, use `MQTT_MAX_CONNECTIONS=500` e `MQTT_MAX_SESSIONS=500`.
+Em ambiente, use `MQTT_MAX_CONNECTIONS=1000` e `MQTT_MAX_SESSIONS=1000`.
 As sessões persistentes desconectadas também ocupam a quota de sessões.
 O documento de estado continua limitado a 1.000.000 bytes, então a
 capacidade efetiva depende do volume de assinaturas, mensagens em trânsito,
 filas offline e mensagens retidas. O teto de admissão é independente da
 taxa de publicação. Preserve um backup compatível antes de elevar a
-quota se precisar voltar a um binário limitado a 64 sessões.
+quota se precisar voltar a um binário com teto de sessões menor.
 
 Veja o [orçamento de vagas e o ensaio integrado](../capacity-500.md)
 para Client, Admin e Managers.
@@ -206,7 +206,7 @@ continuam verificados. O diretório de estado `tls-password` não pode ser
 reutilizado por `secure-mtls` ou laboratório; não há migração de WAL.
 
 Os padrões são 64 conexões e sessões, 32 inflight, 64 offline, 256
-assinaturas, 4096 bytes por payload e 64 KiB por pacote. P271 amplia as
+assinaturas, 4096 bytes por payload e 64 KiB por pacote. P274 amplia as
 faixas de conexões e sessões. A validação mantém o orçamento do documento
 durável e recusa quotas de estado abaixo dos dados existentes.
 
@@ -234,7 +234,7 @@ Campos de [limits] e overrides explícitos:
 
 | TOML | Ambiente | Faixa/padrão |
 | --- | --- | --- |
-| max_sessions | MQTT_MAX_SESSIONS | 1..500 / 64 |
+| max_sessions | MQTT_MAX_SESSIONS | 1..1000 / 64 |
 | max_retained | MQTT_MAX_RETAINED | 1..256 / 256 |
 | max_subscriptions | MQTT_MAX_SUBSCRIPTIONS | 1..256 / 256 por sessão |
 | max_offline | MQTT_MAX_OFFLINE | 1..64 / 64 por sessão |

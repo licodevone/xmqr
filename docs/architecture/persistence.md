@@ -26,7 +26,7 @@ O diretório de dados deve existir previamente. A garantia de `fsync` do diretó
 
 ## Limites e evolução
 
-Chaves: 1–1024 bytes; valores: até 1 MiB; estado em memória: até 64 MiB/100 mil entradas; snapshot: até 80 MiB. O agregado MQTT tem quotas mais estreitas: 64 sessões por padrão, com teto configurável de 500 desde P271, 256 tópicos retidos, 256 assinaturas por sessão, 64 mensagens offline e 32 inflight por direção/sessão, payload de 4 KiB e documento de 1.000.000 bytes. A fila de 256 comandos limita trabalho pendente. O ator faz snapshot a cada 128 commits, mas o WAL não tem quota de disco independente: monitore espaço livre e faça backup. `fsync` do documento inteiro por mutação prioriza durabilidade e é um gargalo conhecido; não há benchmark que sustente uso em alta carga.
+Chaves: 1–1024 bytes; valores: até 1 MiB; estado em memória: até 64 MiB/100 mil entradas; snapshot: até 80 MiB. O agregado MQTT tem quotas mais estreitas: 64 sessões por padrão, com teto configurável de 1.000 desde P274, 256 tópicos retidos, 256 assinaturas por sessão, 64 mensagens offline e 32 inflight por direção/sessão, payload de 4 KiB e documento de 1.000.000 bytes. A fila de 256 comandos limita trabalho pendente. O ator faz snapshot a cada 128 commits, mas o WAL não tem quota de disco independente: monitore espaço livre e faça backup. `fsync` do documento inteiro por mutação prioriza durabilidade e é um gargalo conhecido; não há benchmark que sustente uso em alta carga.
 
 O snapshot WAL e o documento MQTT interno mantêm a versão 1. Os filtros
 wildcard preservam a representação textual e são validados na desserialização.

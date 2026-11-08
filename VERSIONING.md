@@ -1,12 +1,12 @@
 # Versionamento
 
-## P269/P273 — Broker e admin legado 0.44.0 em preparação
+## P269/P273/P274 — Broker e admin legado 0.44.0 em preparação
 
-O P268 adiciona política de versão MQTT por listener. O P271 permite até
-500 conexões e 500 sessões por processo, com padrão de 64 e estado v16.
+O P268 adiciona política de versão MQTT por listener. O P274 permite até
+1.000 conexões e sessões por processo, com padrão de 64 e estado v16.
 A tag `v0.44.0` identifica o candidato somente após a validação da fonte e dos
 pacotes. Consulte as [notas](docs/releases/0.44.0.md) e o
-[registro](prompts/registros/P273-release-044-capacidade.md).
+[registro P274](prompts/registros/P274-1000-conexoes-mqtt.md).
 
 ## Managers de desktop — versões independentes P256
 

@@ -343,8 +343,8 @@ impl Configuration {
                 return Err(invalid("invalid MQTT_MAX_CONNECTIONS"));
             }
         };
-        if !(1..=500).contains(&value) {
-            return Err(invalid("MQTT_MAX_CONNECTIONS must be between 1 and 500"));
+        if !(1..=1000).contains(&value) {
+            return Err(invalid("MQTT_MAX_CONNECTIONS must be between 1 and 1000"));
         }
         Ok(value)
     }
@@ -655,7 +655,7 @@ mod tests {
             crate::mqtt::StateLimits::default()
         );
         for (field, key, ceiling) in [
-            ("max_sessions", "MQTT_MAX_SESSIONS", 500),
+            ("max_sessions", "MQTT_MAX_SESSIONS", 1000),
             ("max_retained", "MQTT_MAX_RETAINED", 256),
             ("max_subscriptions", "MQTT_MAX_SUBSCRIPTIONS", 256),
             ("max_offline", "MQTT_MAX_OFFLINE", 64),
@@ -728,7 +728,7 @@ mod tests {
         std::fs::write(&path, "version=1\n[limits]\nmax_connections=1").unwrap();
         let config = Configuration::load_with(Some(&path), BTreeMap::new()).unwrap();
         assert_eq!(config.max_connections().unwrap(), 1);
-        for value in ["0", "501", "-1", "bad", "", "18446744073709551616"] {
+        for value in ["0", "1001", "-1", "bad", "", "18446744073709551616"] {
             let config = Configuration::load_with(
                 Some(&path),
                 BTreeMap::from([("MQTT_MAX_CONNECTIONS".to_owned(), value.into())]),
@@ -738,10 +738,10 @@ mod tests {
         }
         let config = Configuration::load_with(
             Some(&path),
-            BTreeMap::from([("MQTT_MAX_CONNECTIONS".to_owned(), "500".into())]),
+            BTreeMap::from([("MQTT_MAX_CONNECTIONS".to_owned(), "1000".into())]),
         )
         .unwrap();
-        assert_eq!(config.max_connections().unwrap(), 500);
+        assert_eq!(config.max_connections().unwrap(), 1000);
         for value in ["-1", "'1'", "true"] {
             assert!(
                 Configuration::parse(

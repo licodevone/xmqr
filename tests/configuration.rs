@@ -81,7 +81,7 @@ impl Drop for BrokerChild {
 
 #[cfg_attr(not(unix), ignore = "requires Unix TCP integration environment")]
 #[tokio::test]
-async fn tcp_admits_500_mqtt_clients_rejects_excess_and_reuses_slot() {
+async fn tcp_admits_1000_mqtt_clients_rejects_excess_and_reuses_slot() {
     use std::{
         io::{self, ErrorKind},
         net::TcpListener,
@@ -94,8 +94,8 @@ async fn tcp_admits_500_mqtt_clients_rejects_excess_and_reuses_slot() {
     };
 
     async fn handshake(stream: &mut TcpStream, index: u16) -> io::Result<[u8; 4]> {
-        let client_id = format!("p271-{index:03}");
-        let mut connect = b"\x10\x14\x00\x04MQTT\x04\x02\x00\x00\x00\x08".to_vec();
+        let client_id = format!("p274-{index:04}");
+        let mut connect = b"\x10\x15\x00\x04MQTT\x04\x02\x00\x00\x00\x09".to_vec();
         connect.extend_from_slice(client_id.as_bytes());
         stream.write_all(&connect).await?;
         let mut reply = [0; 4];
@@ -111,7 +111,7 @@ async fn tcp_admits_500_mqtt_clients_rejects_excess_and_reuses_slot() {
         &path,
         format!(
             "version=1\n[broker]\nmode='open-lab'\nbind='{address}'\nstate_dir='state'\n\
-             [limits]\nmax_connections=500\nmax_sessions=500"
+             [limits]\nmax_connections=1000\nmax_sessions=1000"
         ),
     )
     .unwrap();
@@ -134,10 +134,10 @@ async fn tcp_admits_500_mqtt_clients_rejects_excess_and_reuses_slot() {
     .expect("fixture broker did not bind before the deadline")
     .expect("could not connect to the fixture broker");
 
-    timeout(Duration::from_secs(120), async {
-        let mut clients = Vec::with_capacity(500);
+    timeout(Duration::from_secs(180), async {
+        let mut clients = Vec::with_capacity(1000);
         clients.push(first);
-        for index in 0..500_u16 {
+        for index in 0..1000_u16 {
             if index != 0 {
                 clients.push(TcpStream::connect(address).await.unwrap());
             }
@@ -162,7 +162,7 @@ async fn tcp_admits_500_mqtt_clients_rejects_excess_and_reuses_slot() {
         // Socket closure can become observable just before the task drops its permit.
         loop {
             let mut replacement = TcpStream::connect(address).await.unwrap();
-            match handshake(&mut replacement, 501).await {
+            match handshake(&mut replacement, 1001).await {
                 Ok(reply) => {
                     assert_eq!(reply, [0x20, 2, 0, 0]);
                     break;
@@ -323,20 +323,24 @@ fn check_config_reports_effective_limits_without_touching_state() {
 }
 
 #[test]
-fn check_config_accepts_500_connections_and_sessions() {
+fn check_config_accepts_500_and_1000_connections_and_sessions() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("broker.toml");
-    fs::write(
-        &path,
-        "version=1\n[broker]\nmode='open-lab'\nstate_dir='state'\n\
-         [limits]\nmax_connections=500\nmax_sessions=500",
-    )
-    .unwrap();
-    let output = broker(&path).arg("--check-config").output().unwrap();
-    assert!(output.status.success(), "{:?}", output.stderr);
-    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(report["max_connections"], 500);
-    assert!(!directory.path().join("state").exists());
+    for limit in [500, 1000] {
+        fs::write(
+            &path,
+            format!(
+                "version=1\n[broker]\nmode='open-lab'\nstate_dir='state'\n\
+                 [limits]\nmax_connections={limit}\nmax_sessions={limit}"
+            ),
+        )
+        .unwrap();
+        let output = broker(&path).arg("--check-config").output().unwrap();
+        assert!(output.status.success(), "{:?}", output.stderr);
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["max_connections"], limit);
+        assert!(!directory.path().join("state").exists());
+    }
 }
 
 #[test]
@@ -436,7 +440,7 @@ fn invalid_connection_limit_never_creates_state() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("broker.toml");
     let state = directory.path().join("state");
-    for value in ["0", "501", "invalid"] {
+    for value in ["0", "1001", "invalid"] {
         fs::write(
             &path,
             "version=1\n[broker]\nmode='open-lab'\n[limits]\nmax_connections=1",
@@ -510,7 +514,7 @@ fn relative_file_configuration_starts_and_stops_durably() {
 #[test]
 fn invalid_state_quotas_never_create_state() {
     for (field, key, ceiling) in [
-        ("max_sessions", "MQTT_MAX_SESSIONS", 500),
+        ("max_sessions", "MQTT_MAX_SESSIONS", 1000),
         ("max_retained", "MQTT_MAX_RETAINED", 256),
         ("max_subscriptions", "MQTT_MAX_SUBSCRIPTIONS", 256),
         ("max_offline", "MQTT_MAX_OFFLINE", 64),

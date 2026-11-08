@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""P272: isolated Broker + Client + Admin smoke at 500 MQTT connections."""
+"""Isolated Broker + Client + Admin smoke at 500 or 1000 MQTT connections."""
 import argparse
 from contextlib import ExitStack
 import hashlib
@@ -16,7 +16,6 @@ from urllib.request import ProxyHandler, Request, build_opener
 
 from benchmark_pressure import Broker, Client, disconnect, f, unused_port, wait_for
 
-LIMIT = 500
 TOPIC = "p272/suite"
 PAYLOAD = b"p272-qos1-at-capacity"
 
@@ -49,13 +48,14 @@ def check_saturation(broker):
 
 
 def run(args, root):
+    limit = args.connections
     env = {key: value for key, value in os.environ.items()
            if not key.startswith(("MQTT_", "XMQR_ADMIN_"))}
     env["RUST_LOG"] = "warn"
     opener = build_opener(ProxyHandler({}))
 
     with ExitStack() as stack:
-        broker = Broker(root, args.broker, None, connections=LIMIT)
+        broker = Broker(root, args.broker, None, connections=limit)
         stack.callback(broker.shutdown)
         broker.start()
 
@@ -93,7 +93,7 @@ def run(args, root):
                     raise
 
         clients = []
-        for index in range(LIMIT - 1):
+        for index in range(limit - 1):
             client = Client(broker, f"p272-{index:03}", keepalive=0)
             stack.callback(disconnect, client)
             clients.append(client)
@@ -119,9 +119,9 @@ def run(args, root):
         with opener.open(authorized, timeout=5) as response:
             status = json.load(response)
         metrics = status["metrics"]
-        if not (status["ready"] and metrics["xmqr_connections_active"] == LIMIT
-                and metrics["xmqr_sessions"] == LIMIT):
-            raise AssertionError("Admin did not observe a ready broker with 500 sessions")
+        if not (status["ready"] and metrics["xmqr_connections_active"] == limit
+                and metrics["xmqr_sessions"] == limit):
+            raise AssertionError(f"Admin did not observe a ready broker with {limit} sessions")
 
         publisher = clients[0]
         publisher.send(0x32, f.text(TOPIC) + b"\0\1" + PAYLOAD)
@@ -130,18 +130,19 @@ def run(args, root):
         delivered, _ = subscriber.communicate(timeout=10)
         if subscriber.returncode != 0 or delivered != PAYLOAD:
             raise AssertionError("Client did not deliver the exact publication")
-        wait_for(lambda: broker.metrics()["xmqr_connections_active"] == LIMIT - 1)
+        wait_for(lambda: broker.metrics()["xmqr_connections_active"] == limit - 1)
         with Client(broker, "p272-replacement") as replacement:
             replacement.ping()
-            wait_for(lambda: broker.metrics()["xmqr_connections_active"] == LIMIT)
+            wait_for(lambda: broker.metrics()["xmqr_connections_active"] == limit)
 
-    return {"mqtt_connections": LIMIT, "admin_connections": metrics["xmqr_connections_active"],
+    return {"mqtt_connections": limit, "admin_connections": metrics["xmqr_connections_active"],
             "admin_sessions": metrics["xmqr_sessions"], "admin_anonymous_denied": True,
             "excess_denied": True, "qos1_delivery": True, "slot_reused": True}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--connections", type=int, choices=(500, 1000), default=500)
     for name in ("broker", "client", "admin", "state-root"):
         parser.add_argument(f"--{name}", type=Path, required=True)
     args = parser.parse_args()

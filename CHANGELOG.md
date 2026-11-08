@@ -7,7 +7,7 @@
 - P265 adiciona `mqtt-broker --check-config` para validar a configuração
   antes de iniciar o serviço.
 - P267 limita o tamanho do material PEM e reaproveita as CAs decodificadas.
-- P271 permite configurar até 500 conexões e 500 sessões por processo.
+- P271/P274 permitem configurar até 1.000 conexões e sessões por processo.
   O padrão é 64 e o documento persistente permanece no formato v16.
 - P272 acrescenta o ensaio integrado do Client e do Admin com o Broker
   no limite de conexões.

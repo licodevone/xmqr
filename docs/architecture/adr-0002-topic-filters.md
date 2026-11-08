@@ -14,7 +14,7 @@ implicitamente ou alterar a barreira de durabilidade antes de ACKs e fan-out.
   validadas; manter serialização textual e formato de estado 1.
 - Matcher iterativo, sem recursão, alocação ou backtracking. Preservar níveis
   vazios, Unicode e maiúsculas/minúsculas; seguir a exclusão da raiz `$`.
-- Examinar até 500 sessões configuradas (64 por padrão) × 256 filtros por
+- Examinar até 1.000 sessões configuradas (64 por padrão) × 256 filtros por
   sessão, sujeitos também ao orçamento do estado. Cada filtro tem até
   1024 bytes UTF-8 (P41; antes, 256 bytes).
   Um índice trie fica adiado até existir evidência de gargalo.

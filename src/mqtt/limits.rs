@@ -36,7 +36,7 @@ impl StateLimits {
         inflight: usize,
     ) -> io::Result<Self> {
         for (value, ceiling) in [
-            (sessions, 500),
+            (sessions, 1000),
             (retained, 256),
             (subscriptions, 256),
             (offline, 64),

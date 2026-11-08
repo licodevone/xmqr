@@ -5691,9 +5691,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn expanded_quota_holds_500_live_sessions_and_recovers_them() {
+    async fn expanded_quota_holds_1000_live_sessions_and_recovers_them() {
         let (directory, mut actor) = actor().await;
-        let limits = StateLimits::new(500, 256, 256, 64, 32).unwrap();
+        let limits = StateLimits::new(1000, 256, 256, 64, 32).unwrap();
         actor.store.shutdown().await.unwrap();
         let (store, state) = MqttStore::open_with_limits(directory.path(), limits)
             .await
@@ -5702,26 +5702,27 @@ mod tests {
         actor.store = store;
         actor.state = state;
 
-        let mut connections = Vec::with_capacity(500);
-        for index in 0..500 {
+        let mut connections = Vec::with_capacity(1000);
+        for index in 0..1000 {
             connections.push(
                 actor
-                    .register(format!("p271-{index:03}"), "user".into(), false)
+                    .register(format!("p274-{index:04}"), "user".into(), false)
                     .await
                     .unwrap(),
             );
         }
-        assert_eq!(actor.live.len(), 500);
+        assert_eq!(actor.live.len(), 1000);
         assert!(matches!(
             actor.register("excess".into(), "user".into(), false).await,
             Err(RouterError::Store(StateError::Limit("sessions")))
         ));
-        assert_eq!(actor.live.len(), 500);
+        assert_eq!(actor.live.len(), 1000);
         assert!(connections.iter().all(|session| !*session.closed.borrow()));
         actor.store.shutdown().await.unwrap();
 
+        let previous = StateLimits::new(500, 256, 256, 64, 32).unwrap();
         assert!(matches!(
-            MqttStore::open(directory.path()).await,
+            MqttStore::open_with_limits(directory.path(), previous).await,
             Err(StateError::Limit("sessions"))
         ));
         let (reopened, recovered) = MqttStore::open_with_limits(directory.path(), limits)

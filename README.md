@@ -722,7 +722,7 @@ com deb Ubuntu26 amd64 e checksum. Aceite local completo em
 
 O pacote0.11.0 aceita MQTT_CONFIG apontando para um TOML version=1.
 A instalação preserva broker.env e não ativa o TOML automaticamente.
-O P271 permite configurar `max_connections` e `max_sessions` de 1 a 500
+O P274 permite configurar `max_connections` e `max_sessions` de 1 a 1.000
 em `[limits]`. O padrão é 64 em ambas as quotas. `MQTT_MAX_CONNECTIONS`
 e `MQTT_MAX_SESSIONS` prevalecem sobre o arquivo.
 Veja [campos e exemplo](docs/architecture/configuration.md) e
