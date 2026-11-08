@@ -49,6 +49,7 @@ pub struct Configuration {
     endpoint_policies: Vec<EndpointPolicyFiles>,
     listener_protocols: BTreeMap<SocketAddr, ProtocolVersions>,
     listener_limits: BTreeMap<SocketAddr, usize>,
+    publish_limits: BTreeMap<String, (u32, u32)>,
 }
 
 /// Static user/ACL files for one explicitly named mTLS listener.
@@ -198,7 +199,14 @@ impl Configuration {
         }
         result.listener_protocols = parse_listener_protocols(document.listener_protocols)?;
         result.listener_limits = parse_listener_limits(document.listener_limits)?;
+        result.publish_limits = parse_publish_limits(document.publish_limits)?;
         Ok(result)
+    }
+
+    /// Explicit publication rates as `(messages_per_second, burst)` by username.
+    #[must_use]
+    pub fn publish_limits(&self) -> &BTreeMap<String, (u32, u32)> {
+        &self.publish_limits
     }
 
     /// Reject policies that do not match an effective MQTT listener.
@@ -456,6 +464,13 @@ struct ListenerLimitEntry {
     bind: SocketAddr,
     max_connections: usize,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PublishLimitEntry {
+    username: String,
+    messages_per_second: u32,
+    burst: u32,
+}
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Monitor {
@@ -488,9 +503,35 @@ struct Document {
     #[serde(default)]
     listener_limits: Vec<ListenerLimitEntry>,
     #[serde(default)]
+    publish_limits: Vec<PublishLimitEntry>,
+    #[serde(default)]
     monitor: Monitor,
     #[serde(default)]
     admin: Admin,
+}
+
+fn parse_publish_limits(
+    entries: Vec<PublishLimitEntry>,
+) -> io::Result<BTreeMap<String, (u32, u32)>> {
+    if entries.len() > 256 {
+        return Err(invalid("at most 256 publication limits are supported"));
+    }
+    let mut limits = BTreeMap::new();
+    for entry in entries {
+        if !crate::auth::valid_username(&entry.username)
+            || !(1..=100_000).contains(&entry.messages_per_second)
+            || !(1..=100_000).contains(&entry.burst)
+        {
+            return Err(invalid("invalid username or publication rate or burst"));
+        }
+        if limits
+            .insert(entry.username, (entry.messages_per_second, entry.burst))
+            .is_some()
+        {
+            return Err(invalid("duplicate publication limit username"));
+        }
+    }
+    Ok(limits)
 }
 fn parse_listener_protocols(
     entries: Vec<ListenerProtocolEntry>,

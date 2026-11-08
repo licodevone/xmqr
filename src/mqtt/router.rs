@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     path::Path,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use sha2::{Digest, Sha256};
@@ -188,6 +188,8 @@ pub(super) enum RouterError {
     Store(#[from] StateError),
     #[error("inbound QoS 2 durable quota exhausted by an earlier session")]
     InboundQos2Quota,
+    #[error("publication rate limit exceeded")]
+    PublishRate,
     #[error("security generation changed or reload unavailable")]
     Security,
     #[error("session identity does not match the stored owner")]
@@ -284,6 +286,7 @@ struct Live {
 
 struct Actor {
     limits: StateLimits,
+    publish_rates: BTreeMap<String, PublishBucket>,
     metrics: Arc<Metrics>,
     store: MqttStore,
     state: DurableState,
@@ -292,6 +295,38 @@ struct Actor {
     next_generation: u64,
     fatal: bool,
     commits_since_snapshot: u64,
+}
+
+struct PublishBucket {
+    rate: u32,
+    capacity: u128,
+    credit: u128,
+    last: Instant,
+}
+
+impl PublishBucket {
+    const TOKEN: u128 = 1_000_000_000;
+
+    fn new(rate: u32, burst: u32, now: Instant) -> Self {
+        let capacity = u128::from(burst) * Self::TOKEN;
+        Self {
+            rate,
+            capacity,
+            credit: capacity,
+            last: now,
+        }
+    }
+
+    fn take(&mut self, now: Instant) -> bool {
+        let refill = now.saturating_duration_since(self.last).as_nanos() * u128::from(self.rate);
+        self.last = now;
+        self.credit = (self.credit + refill).min(self.capacity);
+        if self.credit < Self::TOKEN {
+            return false;
+        }
+        self.credit -= Self::TOKEN;
+        true
+    }
 }
 
 enum Command {
@@ -705,8 +740,40 @@ impl Router {
         metrics: Arc<Metrics>,
         limits: StateLimits,
     ) -> Result<Self, HandlerError> {
+        Self::start_observed_with_publish_rates(directory, auth, metrics, limits, &BTreeMap::new())
+            .await
+    }
+
+    /// Recover and start with publication budgets shared by authenticated username.
+    /// # Errors
+    /// Forwards store recovery failures and rejects invalid rate configuration.
+    pub async fn start_observed_with_publish_rates(
+        directory: &Path,
+        auth: Arc<AccessPolicy>,
+        metrics: Arc<Metrics>,
+        limits: StateLimits,
+        rates: &BTreeMap<String, (u32, u32)>,
+    ) -> Result<Self, HandlerError> {
+        if rates.len() > 256
+            || rates.iter().any(|(name, &(rate, burst))| {
+                !crate::auth::valid_username(name)
+                    || !(1..=100_000).contains(&rate)
+                    || !(1..=100_000).contains(&burst)
+            })
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "invalid publication limits",
+            )
+            .into());
+        }
         let (store, state) = MqttStore::open_with_limits(directory, limits).await?;
-        Self::start_from_store(store, state, auth, metrics, limits).await
+        let now = Instant::now();
+        let publish_rates = rates
+            .iter()
+            .map(|(name, &(rate, burst))| (name.clone(), PublishBucket::new(rate, burst, now)))
+            .collect();
+        Self::start_from_store(store, state, auth, metrics, limits, publish_rates).await
     }
 
     #[cfg(test)]
@@ -719,7 +786,7 @@ impl Router {
     ) -> Result<Self, HandlerError> {
         let (mut store, state) = MqttStore::open_with_limits(directory, limits).await?;
         store.set_clock(clock);
-        Self::start_from_store(store, state, auth, metrics, limits).await
+        Self::start_from_store(store, state, auth, metrics, limits, BTreeMap::new()).await
     }
 
     #[cfg(test)]
@@ -751,6 +818,7 @@ impl Router {
         auth: Arc<AccessPolicy>,
         metrics: Arc<Metrics>,
         limits: StateLimits,
+        publish_rates: BTreeMap<String, PublishBucket>,
     ) -> Result<Self, HandlerError> {
         let clock = store.clock();
         let before = state.clone();
@@ -828,6 +896,7 @@ impl Router {
             let _actor_metric = actor_metrics.actor();
             let mut actor = Actor {
                 limits,
+                publish_rates,
                 metrics: actor_metrics,
                 store,
                 state,
@@ -2178,6 +2247,7 @@ impl Actor {
                 RouterError::Store(StateError::Limit(_)) | RouterError::InboundQos2Quota => {
                     self.metrics.reject(Rejection::Quota);
                 }
+                RouterError::PublishRate => self.metrics.reject(Rejection::PublishRate),
                 RouterError::WillDenied | RouterError::PrincipalMismatch => {
                     self.metrics.reject(Rejection::Authorization);
                 }
@@ -2780,12 +2850,12 @@ impl Actor {
     ) -> Result<(), RouterError> {
         self.current(client_id, generation)?;
         let qos = usize::from(message.qos);
-        let mut candidate = self.state.clone();
         if message.qos == 2 {
             let packet_id = packet_id.ok_or(RouterError::Stale)?;
-            let session = candidate
+            let session = self
+                .state
                 .sessions
-                .get_mut(client_id)
+                .get(client_id)
                 .ok_or(RouterError::Stale)?;
             if session
                 .inbound_qos2
@@ -2802,6 +2872,12 @@ impl Actor {
             {
                 return Err(RouterError::InboundQos2Quota);
             }
+            self.charge_publish(client_id)?;
+            let mut candidate = self.state.clone();
+            let session = candidate
+                .sessions
+                .get_mut(client_id)
+                .ok_or(RouterError::Stale)?;
             session
                 .inbound_qos2
                 .push(InboundQos2 { packet_id, message });
@@ -2812,6 +2888,8 @@ impl Actor {
             self.metrics.received[qos].fetch_add(1, Ordering::Relaxed);
             return Ok(());
         }
+        self.charge_publish(client_id)?;
+        let mut candidate = self.state.clone();
         let deliveries = apply_message(
             self.limits,
             &mut candidate,
@@ -2824,6 +2902,25 @@ impl Actor {
         self.commit(candidate).await?;
         self.metrics.received[qos].fetch_add(1, Ordering::Relaxed);
         self.deliver(deliveries);
+        Ok(())
+    }
+
+    fn charge_publish(&mut self, client_id: &str) -> Result<(), RouterError> {
+        if self.publish_rates.is_empty() {
+            return Ok(());
+        }
+        let principal = &self
+            .state
+            .sessions
+            .get(client_id)
+            .ok_or(RouterError::Stale)?
+            .principal;
+        if let Some(username) = self.auth.publish_limit_username(principal)
+            && let Some(bucket) = self.publish_rates.get_mut(username)
+            && !bucket.take(Instant::now())
+        {
+            return Err(RouterError::PublishRate);
+        }
         Ok(())
     }
 
@@ -5678,6 +5775,7 @@ mod tests {
             directory,
             Actor {
                 limits: StateLimits::default(),
+                publish_rates: BTreeMap::new(),
                 metrics: Arc::default(),
                 store,
                 state,
@@ -5688,6 +5786,81 @@ mod tests {
                 commits_since_snapshot: 0,
             },
         )
+    }
+
+    #[test]
+    fn publication_bucket_refills_fractionally_and_caps_the_burst() {
+        let start = Instant::now();
+        let mut bucket = PublishBucket::new(2, 1, start);
+        assert!(bucket.take(start));
+        assert!(!bucket.take(start + Duration::from_millis(499)));
+        assert!(bucket.take(start + Duration::from_millis(500)));
+        let later = start + Duration::from_secs(10);
+        assert!(bucket.take(later));
+        assert!(!bucket.take(later));
+    }
+
+    #[tokio::test]
+    async fn publication_quota_is_shared_without_blocking_accepted_qos2_or_other_principals() {
+        let (_directory, mut actor) = actor().await;
+        let first = actor
+            .register("first".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let second = actor
+            .register("second".into(), "user".into(), true)
+            .await
+            .unwrap();
+        let other = actor
+            .register("other".into(), "different-user".into(), true)
+            .await
+            .unwrap();
+        actor
+            .publish_rates
+            .insert("user".into(), PublishBucket::new(1, 1, Instant::now()));
+        actor
+            .publish(
+                "first",
+                first.generation,
+                message("test/rate", 2, false, b"one"),
+                Some(8),
+            )
+            .await
+            .unwrap();
+        actor.publish_rates.get_mut("user").unwrap().last =
+            Instant::now() + Duration::from_secs(60);
+        actor
+            .publish(
+                "first",
+                first.generation,
+                message("test/rate", 2, false, b"one"),
+                Some(8),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            actor
+                .publish(
+                    "second",
+                    second.generation,
+                    message("test/rate", 1, true, b"refused"),
+                    Some(9)
+                )
+                .await,
+            Err(RouterError::PublishRate)
+        ));
+        assert!(!actor.state.retained.contains_key("test/rate"));
+        actor
+            .publish(
+                "other",
+                other.generation,
+                message("test/rate", 1, false, b"other"),
+                Some(9),
+            )
+            .await
+            .unwrap();
+        actor.pubrel("first", first.generation, 8).await.unwrap();
+        actor.store.shutdown().await.unwrap();
     }
 
     #[tokio::test]
@@ -7397,6 +7570,7 @@ mod tests {
         let (store, state) = MqttStore::open(directory.path()).await.unwrap();
         let mut reopened = Actor {
             limits: StateLimits::default(),
+            publish_rates: BTreeMap::new(),
             metrics: Arc::default(),
             store,
             state,
@@ -7563,6 +7737,7 @@ mod tests {
         let (store, state) = MqttStore::open(directory.path()).await.unwrap();
         let mut reopened = Actor {
             limits: StateLimits::default(),
+            publish_rates: BTreeMap::new(),
             metrics: Arc::default(),
             store,
             state,
@@ -8002,6 +8177,7 @@ mod tests {
         let (store, state) = MqttStore::open(directory.path()).await.unwrap();
         let mut reopened = Actor {
             limits: StateLimits::default(),
+            publish_rates: BTreeMap::new(),
             metrics: Arc::default(),
             store,
             state,

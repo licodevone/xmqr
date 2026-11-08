@@ -187,6 +187,14 @@ impl AccessPolicy {
         Some((policies.get(index)?, username))
     }
 
+    pub(crate) fn publish_limit_username<'a>(&self, principal: &'a str) -> Option<&'a str> {
+        match self {
+            Self::OpenLab => None,
+            Self::Scoped { .. } => principal.split_once(':').map(|(_, username)| username),
+            _ => Some(principal),
+        }
+    }
+
     #[must_use]
     pub fn tls_password(policy: AuthPolicy) -> Self {
         Self::TlsPassword(policy)
@@ -612,7 +620,7 @@ fn read_bounded(path: &Path) -> Result<String, AuthError> {
     Ok(text)
 }
 
-fn valid_username(name: &str) -> bool {
+pub(crate) fn valid_username(name: &str) -> bool {
     !name.is_empty() && name.len() <= MAX_USERNAME_BYTES && !name.chars().any(char::is_control)
 }
 

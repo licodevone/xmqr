@@ -23,7 +23,7 @@ const HEADER_LIMIT: usize = 4096;
 const HTTP_CONNECTIONS: usize = 16;
 const IO_TIMEOUT: Duration = Duration::from_secs(1);
 const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
-const REASONS: [&str; 8] = [
+const REASONS: [&str; 9] = [
     "authentication",
     "authorization",
     "quota",
@@ -32,6 +32,7 @@ const REASONS: [&str; 8] = [
     "persistence",
     "transport",
     "listener_admission",
+    "publish_rate",
 ];
 
 #[derive(Clone, Copy)]
@@ -44,6 +45,7 @@ pub(crate) enum Rejection {
     Persistence,
     Transport,
     ListenerAdmission,
+    PublishRate,
 }
 
 /// Process-local counters. No topic, principal, payload or client identifiers.
@@ -524,7 +526,7 @@ mod tests {
                 .lines()
                 .filter(|l| l.starts_with("xmqr_rejections_total{"))
                 .count(),
-            8
+            9
         );
         assert!(!rendered.contains("username"));
         assert!(!rendered.contains("topic"));

@@ -241,6 +241,7 @@ async fn serve(
                 &metrics,
                 state_limits,
                 server_keep_alive_seconds,
+                config,
             )
             .await?;
             let _security = watch_security(&auth, router.clone())?;
@@ -366,6 +367,7 @@ async fn serve(
                 &metrics,
                 state_limits,
                 server_keep_alive_seconds,
+                config,
             )
             .await?;
             let _security = watch_security(&auth, router.clone())?;
@@ -431,6 +433,7 @@ async fn serve(
                 &metrics,
                 state_limits,
                 server_keep_alive_seconds,
+                config,
             )
             .await?;
             let _security = watch_security(&auth, router.clone())?;
@@ -471,6 +474,7 @@ async fn serve(
                 &metrics,
                 state_limits,
                 server_keep_alive_seconds,
+                config,
             )
             .await?;
             let _security = watch_security(&auth, router.clone())?;
@@ -917,10 +921,17 @@ async fn start_router(
     metrics: &Arc<Metrics>,
     limits: mqtt::StateLimits,
     server_keep_alive_seconds: Option<u16>,
+    config: &Configuration,
 ) -> Result<Arc<Router>, mqtt_broker::transport::HandlerError> {
-    Router::start_observed_with_limits(directory, auth.clone(), metrics.clone(), limits)
-        .await
-        .map(|router| Arc::new(router.with_server_keep_alive(server_keep_alive_seconds)))
+    Router::start_observed_with_publish_rates(
+        directory,
+        auth.clone(),
+        metrics.clone(),
+        limits,
+        config.publish_limits(),
+    )
+    .await
+    .map(|router| Arc::new(router.with_server_keep_alive(server_keep_alive_seconds)))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -986,6 +997,12 @@ impl BrokerMode {
             "MQTT_CLIENT_CA",
             "MQTT_CLIENT_CRL",
         ];
+        if self == Self::OpenLab && !config.publish_limits().is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "publication limits require authenticated clients",
+            ));
+        }
         if self.is_plain_lab() {
             reject_variables(
                 config,

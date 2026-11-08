@@ -480,6 +480,9 @@ WebSocket/WSS, bridge e Windows nativo acima. Não há prazo ou versão atribuí
   atuais de persistência e segurança.
   [P276](../prompts/broker/276-quotas-por-listener.md) entrega a fatia de
   teto de conexões por listener, com métrica de recusa local.
+  [P277](../prompts/broker/277-publish-rate-by-identity.md) implementa a taxa
+  por usuário e [P278](../prompts/broker/278-qos1-offline-recovery.md) amplia
+  o ensaio de recuperação. O aceite wire e Unix continua em aberto.
 - [ ] **Prioridade 11 — regras e integração de dados:** regras opt-in para
   filtrar/transformar/encaminhar mensagens a destinos externos, seguidas de
   validação de formato/esquema quando houver caso de uso. Definir limites de

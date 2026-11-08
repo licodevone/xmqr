@@ -19,6 +19,100 @@ fn broker(path: &std::path::Path) -> Command {
 }
 
 #[test]
+fn rejects_publication_limit_with_invalid_entry_or_anonymous_mode() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    let base = "version=1\n[broker]\nmode='open-lab'\nbind='127.0.0.1:1883'\nstate_dir='state'\n";
+    for (entry, reason) in [
+        (
+            "username='device'\nmessages_per_second=0\nburst=1",
+            "invalid username or publication rate",
+        ),
+        (
+            "username='device'\nmessages_per_second=1\nburst=1",
+            "publication limits require authenticated clients",
+        ),
+    ] {
+        fs::write(&path, format!("{base}[[publish_limits]]\n{entry}\n")).unwrap();
+        let output = broker(&path).arg("--check-config").output().unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&output.stderr).contains(reason));
+        assert!(!directory.path().join("state").exists());
+    }
+    fs::write(directory.path().join("users.toml"), "users=[]\n").unwrap();
+    let authenticated = base.replace("open-lab", "password-lab");
+    let rule = "[[publish_limits]]\nusername='device'\nmessages_per_second=1\nburst=1\n";
+    fs::write(
+        &path,
+        format!("{authenticated}[security]\nusers_file='users.toml'\n{rule}"),
+    )
+    .unwrap();
+    assert!(
+        broker(&path)
+            .arg("--check-config")
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert!(!directory.path().join("state").exists());
+}
+
+#[cfg_attr(not(unix), ignore = "requires Unix TCP integration environment")]
+#[tokio::test]
+async fn publication_rate_wire_rejects_excess_without_confirming_it() {
+    use argon2::password_hash::{PasswordHasher, SaltString};
+    use std::{io::ErrorKind, net::TcpListener, time::Duration};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpStream,
+        time::{sleep, timeout},
+    };
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = reservation.local_addr().unwrap();
+    let salt = SaltString::encode_b64(b"p277-fixture-salt").unwrap();
+    let hash = mqtt_broker::auth::argon2_context()
+        .hash_password(b"fixture-pass", &salt)
+        .unwrap();
+    fs::write(
+        directory.path().join("users.toml"),
+        format!("[[users]]\nusername='device'\npassword_hash='{hash}'\n"),
+    )
+    .unwrap();
+    fs::write(&path, format!("version=1\n[broker]\nmode='password-lab'\nbind='{address}'\nstate_dir='state'\n[security]\nusers_file='users.toml'\n[[publish_limits]]\nusername='device'\nmessages_per_second=1\nburst=1\n")).unwrap();
+    drop(reservation);
+    let _child = BrokerChild(broker(&path).stdout(Stdio::null()).spawn().unwrap());
+
+    timeout(Duration::from_secs(15), async {
+        let mut stream = loop {
+            match TcpStream::connect(address).await {
+                Ok(stream) => break stream,
+                Err(error) if error.kind() == ErrorKind::ConnectionRefused => sleep(Duration::from_millis(20)).await,
+                Err(error) => panic!("fixture could not connect: {error}"),
+            }
+        };
+        let body = b"\x00\x04MQTT\x05\xc2\x00\x1e\x00\x00\x04rate\x00\x06device\x00\x0cfixture-pass";
+        let mut connect = vec![0x10, u8::try_from(body.len()).unwrap()];
+        connect.extend_from_slice(body);
+        stream.write_all(&connect).await.unwrap();
+        let mut header = [0; 2];
+        stream.read_exact(&mut header).await.unwrap();
+        assert_eq!(header[0], 0x20);
+        let mut connack = vec![0; usize::from(header[1])];
+        stream.read_exact(&mut connack).await.unwrap();
+        assert_eq!(connack[1], 0);
+        // Coalesce three publications so no reconnect or deliberate delay can refill the bucket.
+        stream.write_all(b"\x32\x07\x00\x01t\x00\x01\x00a\x32\x07\x00\x01t\x00\x02\x00b\x30\x05\x00\x01t\x00c").await.unwrap();
+        let mut reply = [0; 14];
+        stream.read_exact(&mut reply).await.unwrap();
+        assert_eq!(reply, [0x40, 2, 0, 1, 0x40, 4, 0, 2, 0x97, 0, 0xe0, 2, 0x96, 0]);
+    }).await.unwrap();
+}
+
+#[test]
 fn check_config_refuses_invalid_or_unmatched_listener_protocols() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("broker.toml");

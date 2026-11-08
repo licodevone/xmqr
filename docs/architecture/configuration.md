@@ -116,6 +116,26 @@ a 300 conexões, deixando até 700 vagas globais para outras portas
 quando esse listener é o único ocupado. A recusa ocorre antes do
 handshake e incrementa o contador fixo `listener_admission`.
 
+## Taxa de publicação por usuário (P277)
+
+```toml
+[[publish_limits]]
+username = "sensor-planta-a"
+messages_per_second = 25
+burst = 50
+```
+
+O orçamento começa cheio e é compartilhado pelas conexões autenticadas
+com o mesmo nome, inclusive em listeners distintos. São aceitas até 256
+regras explícitas. Taxa e rajada aceitam inteiros de 1 a 100.000. Usuários
+sem entrada usam o comportamento anterior. Alterar o TOML exige reiniciar
+o Broker. O orçamento é volátil e o restart o reinicia cheio.
+
+O Broker verifica a ACL antes do orçamento. Em MQTT 5, publicações QoS 1/2
+excedentes recebem motivo 0x97. QoS 0 recebe DISCONNECT 0x96. Em MQTT
+3.1.1, a conexão é encerrada sem confirmar a publicação. PUBREL e a
+retransmissão de QoS 2 já pendente preservam a obrigação aceita.
+
 ## Limites e etapas
 
 P54 acrescenta, incluído na versão0.11.0:

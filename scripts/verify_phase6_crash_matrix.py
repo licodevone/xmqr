@@ -232,6 +232,38 @@ def will_crash(binary, state, port):
             silent(retained)
 
 
+def qos1_offline_recovery(binary, state, port):
+    topic = b"p278/qos1/offline"
+    identity = b"p278-subscriber"
+    with server(binary, state, port) as broker:
+        subscriber, present = connect(port, identity, clean=True)
+        with subscriber:
+            assert not present
+            subscribe(subscriber, topic, 1)
+            send(subscriber, 0xE0, b"")
+            assert subscriber.recv(1) == b"", "subscriber did not disconnect"
+        publisher, _ = connect(port, b"p278-publisher", clean=True)
+        with publisher:
+            publish(publisher, topic, b"offline-fixture", 1, 8)
+            kill(broker)
+
+    with server(binary, state, port) as broker:
+        subscriber, present = connect(port, identity)
+        with subscriber:
+            assert present
+            identifier, _ = delivery(subscriber, topic, b"offline-fixture", 1, dup=False)
+            send(subscriber, 0x40, identifier.to_bytes(2, "big"))
+            send(subscriber, 0xC0, b"")
+            assert packet(subscriber) == (0xD0, b""), "PUBACK barrier not reached"
+            kill(broker)
+
+    with server(binary, state, port):
+        subscriber, present = connect(port, identity)
+        with subscriber:
+            assert present
+            silent(subscriber)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--broker", type=Path, required=True)
@@ -251,7 +283,7 @@ def main():
     started = time.monotonic()
     try:
         for repetition in range(1, args.repetitions + 1):
-            for exercise in (qos1_replay, qos2_replay, expiry_crash, will_crash):
+            for exercise in (qos1_replay, qos2_replay, expiry_crash, will_crash, qos1_offline_recovery):
                 row = {"case": exercise.__name__, "repetition": repetition, "status": "RUNNING"}
                 report["scenarios"].append(row)
                 began = time.monotonic()

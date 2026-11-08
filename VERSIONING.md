@@ -1,12 +1,14 @@
 # Versionamento
 
-## P275 — Broker e admin legado 0.45.0 em preparação
+## P279 — Broker e admin legado 0.45.0 em validação
 
 O P268 adiciona política de versão MQTT por listener. O P274 permite até
 1.000 conexões e sessões por processo, com padrão de 64 e estado v16.
+P276–P278 incluem tetos por listener, taxa por usuário e o ensaio de
+recuperação QoS 1 offline.
 A publicação da tag `v0.45.0` depende da validação da fonte e do pacote.
 Consulte as [notas](docs/releases/0.45.0.md) e o
-[registro P275](prompts/registros/P275-release-0.45.0.md).
+[registro P279](prompts/registros/P279-finalizar-0.45.0.md).
 
 ## Managers de desktop — versões independentes P256
 

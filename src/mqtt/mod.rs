@@ -624,6 +624,18 @@ async fn serve_mqtt(
                             let expiry_at_unix_ms = expiry_interval.map(|seconds| router.expiry_deadline(seconds)).transpose()?;
                             let message = StoredMessage { topic, payload, qos: qos.as_u8(), retain, expiry_at_unix_ms, expiry_interval_seconds: expiry_interval, expiry_delivery_id: None, payload_format_indicator, content_type, response_topic, correlation_data, user_properties, subscription_identifiers: Vec::new(), shared_origin: None };
                             match router.publish(&session, message, packet_id).await {
+                                Err(RouterError::PublishRate) => {
+                                    if mqtt5 && qos != Qos::AtMostOnce {
+                                        let id = packet_id.ok_or("QoS 1/2 PUBLISH without identifier")?;
+                                        let ack = if qos == Qos::AtLeastOnce { codec::encode_mqtt5_puback_reason(id, 0x97) } else { codec::encode_mqtt5_pubrec_reason(id, 0x97) };
+                                        write_limited(connection, &ack, outbound_maximum).await?;
+                                        continue;
+                                    }
+                                    if mqtt5 {
+                                        write_limited(connection, &[0xe0, 2, 0x96, 0], outbound_maximum).await?;
+                                    }
+                                    break;
+                                }
                                 Err(RouterError::InboundQos2Quota) if mqtt5 && qos == Qos::ExactlyOnce => {
                                     let id = packet_id.ok_or("QoS 2 PUBLISH without identifier")?;
                                     write_limited(connection, &codec::encode_mqtt5_pubrec_reason(id, 0x97), outbound_maximum).await?;

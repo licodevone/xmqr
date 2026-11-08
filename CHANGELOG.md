@@ -11,6 +11,9 @@
   O padrão é 64 e o documento persistente permanece no formato v16.
 - P272 acrescenta o ensaio integrado do Client e do Admin com o Broker
   no limite de conexões.
+- P276/P277 adicionam limite de conexões por listener e taxa de
+  publicação por usuário autenticado. P278 amplia o teste de recuperação
+  para publicações QoS 1 confirmadas enquanto o assinante estava offline.
 - [Notas do candidato](docs/releases/0.45.0.md) e
   [validação da distribuição](prompts/registros/P275-release-0.45.0.md).
 
