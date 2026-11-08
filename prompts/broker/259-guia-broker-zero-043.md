@@ -1,4 +1,4 @@
-# P259 v1.2 — percurso de construção do broker até 0.43.0
+# P259 v1.3 — percurso de construção do broker até 0.43.0
 
 ## Entrada verificada
 
@@ -25,9 +25,9 @@ componente e os pares exigidos para testes. Atualize a matriz de versões
 publicadas quando houver uma nova release validada. Uma versão declarada
 no manifesto de uma branch posterior não identifica sua fonte exata.
 
-Para reconstruir o candidato 0.44.0, use a base fixa e a sequência de release
-do [P269](269-release-0.44.0.md). A matriz acima identifica as versões já
-publicadas e será atualizada com o commit e os artefatos validados da 0.44.0.
+Para reconstruir o candidato 0.45.0, use a base fixa e a sequência
+do [P275](275-release-0.45.0.md). A matriz identifica as versões publicadas.
+O [P269](269-release-0.44.0.md) registra a preparação histórica da 0.44.0.
 
 ## Objetivo e escopo
 

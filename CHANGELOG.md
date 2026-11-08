@@ -1,6 +1,6 @@
 # Histórico de versões
 
-## 0.44.0 — candidato experimental
+## 0.45.0 — candidato experimental
 
 - P268 permite selecionar MQTT 3.1.1 e/ou MQTT 5 por listener TCP, WS
   ou WSS. A política padrão aceita as duas versões.
@@ -11,8 +11,13 @@
   O padrão é 64 e o documento persistente permanece no formato v16.
 - P272 acrescenta o ensaio integrado do Client e do Admin com o Broker
   no limite de conexões.
-- [Notas do candidato](docs/releases/0.44.0.md) e
-  [validação da distribuição](prompts/registros/P273-release-044-capacidade.md).
+- [Notas do candidato](docs/releases/0.45.0.md) e
+  [validação da distribuição](prompts/registros/P275-release-0.45.0.md).
+
+## 0.44.0 — candidato histórico
+
+- A fonte P274 em `ef5e5da` foi a base da preparação 0.45.0.
+  [Notas e registros históricos](docs/releases/0.44.0.md).
 
 ## 0.43.0 — fechamento experimental da fase6 e estado16
 
