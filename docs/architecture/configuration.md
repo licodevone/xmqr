@@ -92,6 +92,30 @@ autenticar ou abrir uma sessão. Em MQTT 5, fecha sem CONNACK quando o
 Maximum Packet Size anunciado não comporta a resposta.
 Pacotes já recusados pelo codec mantêm seu diagnóstico.
 
+## Quota de conexões por listener (P276)
+
+Use `[[listener_limits]]` para limitar um endereço TCP, WS ou WSS
+já configurado. Por exemplo, com quota global de 1.000 conexões:
+
+```toml
+[[listener_limits]]
+bind = "10.10.20.15:8883"
+max_connections = 300
+```
+
+O endereço deve corresponder ao bind efetivo, incluindo alterações por
+variáveis de ambiente. Cada limite deve estar entre 1 e o teto global.
+`mqtt-broker --check-config` recusa binds desconhecidos, porta zero,
+duplicatas e valores fora da faixa. Alterações exigem restart.
+
+Cada conexão admitida usa uma vaga global e, se configurada, uma vaga
+da porta desde o início da negociação. Uma porta sem teto explícito
+usa o pool global. O teto da porta não reserva vagas para as outras
+e é independente das sessões persistentes. O exemplo limita o listener
+a 300 conexões, deixando até 700 vagas globais para outras portas
+quando esse listener é o único ocupado. A recusa ocorre antes do
+handshake e incrementa o contador fixo `listener_admission`.
+
 ## Limites e etapas
 
 P54 acrescenta, incluído na versão0.11.0:

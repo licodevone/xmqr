@@ -23,7 +23,7 @@ const HEADER_LIMIT: usize = 4096;
 const HTTP_CONNECTIONS: usize = 16;
 const IO_TIMEOUT: Duration = Duration::from_secs(1);
 const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
-const REASONS: [&str; 7] = [
+const REASONS: [&str; 8] = [
     "authentication",
     "authorization",
     "quota",
@@ -31,6 +31,7 @@ const REASONS: [&str; 7] = [
     "delivery",
     "persistence",
     "transport",
+    "listener_admission",
 ];
 
 #[derive(Clone, Copy)]
@@ -42,6 +43,7 @@ pub(crate) enum Rejection {
     Delivery,
     Persistence,
     Transport,
+    ListenerAdmission,
 }
 
 /// Process-local counters. No topic, principal, payload or client identifiers.
@@ -52,7 +54,7 @@ pub struct Metrics {
     pub(crate) tcp_accepted: AtomicU64,
     pub(crate) received: [AtomicU64; 3],
     pub(crate) sent: [AtomicU64; 3],
-    rejected: [AtomicU64; 7],
+    rejected: [AtomicU64; REASONS.len()],
     pub(crate) commits: AtomicU64,
     pub(crate) commit_attempts: AtomicU64,
     pub(crate) commit_nanos: AtomicU64,
@@ -513,14 +515,16 @@ mod tests {
         }
         assert_eq!(metrics.connections_active.load(Ordering::Relaxed), 0);
         metrics.reject(Rejection::Authorization);
+        metrics.reject(Rejection::ListenerAdmission);
         let rendered = metrics.render();
         assert!(rendered.contains("reason=\"authorization\"} 1"));
+        assert!(rendered.contains("reason=\"listener_admission\"} 1"));
         assert_eq!(
             rendered
                 .lines()
                 .filter(|l| l.starts_with("xmqr_rejections_total{"))
                 .count(),
-            7
+            8
         );
         assert!(!rendered.contains("username"));
         assert!(!rendered.contains("topic"));

@@ -36,7 +36,7 @@ use thiserror::Error;
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
-    sync::{Semaphore, watch},
+    sync::{OwnedSemaphorePermit, Semaphore, watch},
     time::{sleep, timeout},
 };
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
@@ -391,6 +391,29 @@ fn admission_capacity(limit: usize) -> io::Result<u32> {
         })
 }
 
+fn listener_slots(limit: Option<usize>) -> io::Result<Option<Arc<Semaphore>>> {
+    limit
+        .map(|value| {
+            admission_capacity(value)?;
+            Ok(Arc::new(Semaphore::new(value)))
+        })
+        .transpose()
+}
+
+fn try_admit(
+    global: &Arc<Semaphore>,
+    listener: Option<&Arc<Semaphore>>,
+) -> Result<(Option<OwnedSemaphorePermit>, OwnedSemaphorePermit), Rejection> {
+    let local = listener
+        .map(|slots| Arc::clone(slots).try_acquire_owned())
+        .transpose()
+        .map_err(|_| Rejection::ListenerAdmission)?;
+    let global = Arc::clone(global)
+        .try_acquire_owned()
+        .map_err(|_| Rejection::Admission)?;
+    Ok((local, global))
+}
+
 impl SecureTransport {
     /// Bind WSS with the same mTLS generation and admission pool.
     /// # Errors
@@ -518,6 +541,18 @@ impl SecureTransport {
         H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
         F: Future<Output = Result<(), HandlerError>> + Send + 'static,
     {
+        self.serve_with_limit(None, handler).await
+    }
+
+    /// Serve with an optional ceiling local to this listener.
+    /// # Errors
+    /// Returns an invalid quota or a listener error.
+    pub async fn serve_with_limit<H, F>(self, limit: Option<usize>, handler: H) -> io::Result<()>
+    where
+        H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
+        F: Future<Output = Result<(), HandlerError>> + Send + 'static,
+    {
+        let listener_slots = listener_slots(limit)?;
         loop {
             let (socket, peer_addr) = match self.listener.accept().await {
                 Ok(connection) => connection,
@@ -531,13 +566,15 @@ impl SecureTransport {
             if let Some(metrics) = &self.metrics {
                 metrics.tcp_accepted.fetch_add(1, Ordering::Relaxed);
             }
-            let Ok(permit) = Arc::clone(&self.connection_slots).try_acquire_owned() else {
-                if let Some(metrics) = &self.metrics {
-                    metrics.reject(Rejection::Admission);
+            let permit = match try_admit(&self.connection_slots, listener_slots.as_ref()) {
+                Ok(permit) => permit,
+                Err(reason) => {
+                    if let Some(metrics) = &self.metrics {
+                        metrics.reject(reason);
+                    }
+                    warn!(%peer_addr, "connection rejected because the admission limit is full");
+                    continue;
                 }
-                warn!(%peer_addr, "connection rejected because the admission limit is full");
-                drop(socket);
-                continue;
             };
 
             if let Err(source) = socket.set_nodelay(true) {
@@ -662,6 +699,18 @@ impl OpenLabTransport {
         H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
         F: Future<Output = Result<(), HandlerError>> + Send + 'static,
     {
+        self.serve_with_limit(None, handler).await
+    }
+
+    /// Serve with an optional ceiling local to this listener.
+    /// # Errors
+    /// Returns an invalid quota or a listener error.
+    pub async fn serve_with_limit<H, F>(self, limit: Option<usize>, handler: H) -> io::Result<()>
+    where
+        H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
+        F: Future<Output = Result<(), HandlerError>> + Send + 'static,
+    {
+        let listener_slots = listener_slots(limit)?;
         loop {
             let (socket, peer_addr) = match self.listener.accept().await {
                 Ok(connection) => connection,
@@ -674,13 +723,15 @@ impl OpenLabTransport {
             if let Some(metrics) = &self.metrics {
                 metrics.tcp_accepted.fetch_add(1, Ordering::Relaxed);
             }
-            let Ok(permit) = Arc::clone(&self.connection_slots).try_acquire_owned() else {
-                if let Some(metrics) = &self.metrics {
-                    metrics.reject(Rejection::Admission);
+            let permit = match try_admit(&self.connection_slots, listener_slots.as_ref()) {
+                Ok(permit) => permit,
+                Err(reason) => {
+                    if let Some(metrics) = &self.metrics {
+                        metrics.reject(reason);
+                    }
+                    warn!(%peer_addr, "connection rejected because the admission limit is full");
+                    continue;
                 }
-                warn!(%peer_addr, "connection rejected because the admission limit is full");
-                drop(socket);
-                continue;
             };
             if let Err(source) = socket.set_nodelay(true) {
                 warn!(%peer_addr, error = %source, "cannot configure accepted socket");
@@ -727,6 +778,18 @@ impl WebSocketLabTransport {
         H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
         F: Future<Output = Result<(), HandlerError>> + Send + 'static,
     {
+        self.serve_with_limit(None, handler).await
+    }
+
+    /// Serve with an optional ceiling local to this listener.
+    /// # Errors
+    /// Returns an invalid quota or a listener error.
+    pub async fn serve_with_limit<H, F>(self, limit: Option<usize>, handler: H) -> io::Result<()>
+    where
+        H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
+        F: Future<Output = Result<(), HandlerError>> + Send + 'static,
+    {
+        let listener_slots = listener_slots(limit)?;
         loop {
             let (socket, peer_addr) = match self.listener.accept().await {
                 Ok(connection) => connection,
@@ -739,12 +802,15 @@ impl WebSocketLabTransport {
             if let Some(metrics) = &self.metrics {
                 metrics.tcp_accepted.fetch_add(1, Ordering::Relaxed);
             }
-            let Ok(permit) = Arc::clone(&self.connection_slots).try_acquire_owned() else {
-                if let Some(metrics) = &self.metrics {
-                    metrics.reject(Rejection::Admission);
+            let permit = match try_admit(&self.connection_slots, listener_slots.as_ref()) {
+                Ok(permit) => permit,
+                Err(reason) => {
+                    if let Some(metrics) = &self.metrics {
+                        metrics.reject(reason);
+                    }
+                    warn!(%peer_addr, "WebSocket connection rejected because admission limit is full");
+                    continue;
                 }
-                warn!(%peer_addr, "WebSocket connection rejected because admission limit is full");
-                continue;
             };
             if let Err(source) = socket.set_nodelay(true) {
                 warn!(%peer_addr, error = %source, "cannot configure accepted WebSocket socket");
@@ -793,6 +859,18 @@ impl WebSocketSecureTransport {
         H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
         F: Future<Output = Result<(), HandlerError>> + Send + 'static,
     {
+        self.serve_with_limit(None, handler).await
+    }
+
+    /// Serve with an optional ceiling local to this listener.
+    /// # Errors
+    /// Returns an invalid quota or a listener error.
+    pub async fn serve_with_limit<H, F>(self, limit: Option<usize>, handler: H) -> io::Result<()>
+    where
+        H: Fn(BrokerConnection) -> F + Clone + Send + Sync + 'static,
+        F: Future<Output = Result<(), HandlerError>> + Send + 'static,
+    {
+        let listener_slots = listener_slots(limit)?;
         loop {
             let (socket, peer_addr) = match self.listener.accept().await {
                 Ok(connection) => connection,
@@ -805,12 +883,15 @@ impl WebSocketSecureTransport {
             if let Some(metrics) = &self.metrics {
                 metrics.tcp_accepted.fetch_add(1, Ordering::Relaxed);
             }
-            let Ok(permit) = Arc::clone(&self.connection_slots).try_acquire_owned() else {
-                if let Some(metrics) = &self.metrics {
-                    metrics.reject(Rejection::Admission);
+            let permit = match try_admit(&self.connection_slots, listener_slots.as_ref()) {
+                Ok(permit) => permit,
+                Err(reason) => {
+                    if let Some(metrics) = &self.metrics {
+                        metrics.reject(reason);
+                    }
+                    warn!(%peer_addr, "WSS connection rejected because admission limit is full");
+                    continue;
                 }
-                warn!(%peer_addr, "WSS connection rejected because admission limit is full");
-                continue;
             };
             if let Err(source) = socket.set_nodelay(true) {
                 warn!(%peer_addr, error = %source, "cannot configure accepted WSS socket");
@@ -1186,6 +1267,33 @@ fn validate_crls(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn listener_and_global_admission_release_permits_independently() {
+        use super::{Arc, Rejection, Semaphore, listener_slots, try_admit};
+
+        let global = Arc::new(Semaphore::new(2));
+        let first = listener_slots(Some(1)).unwrap().unwrap();
+        let second = listener_slots(Some(2)).unwrap().unwrap();
+        let held_first = try_admit(&global, Some(&first)).unwrap_or_else(|_| panic!("first"));
+        assert!(matches!(
+            try_admit(&global, Some(&first)),
+            Err(Rejection::ListenerAdmission)
+        ));
+        assert_eq!(global.available_permits(), 1);
+        let held_second = try_admit(&global, Some(&second)).unwrap_or_else(|_| panic!("second"));
+        assert!(matches!(
+            try_admit(&global, Some(&second)),
+            Err(Rejection::Admission)
+        ));
+        assert_eq!(second.available_permits(), 1);
+        drop(held_first);
+        assert!(try_admit(&global, Some(&first)).is_ok());
+        drop(held_second);
+        assert_eq!(global.available_permits(), 2);
+        assert_eq!(first.available_permits(), 1);
+        assert_eq!(second.available_permits(), 2);
+    }
+
     #[test]
     fn websocket_origin_header_is_single_and_exact() {
         let allowed = vec!["https://browser.example".to_owned()];

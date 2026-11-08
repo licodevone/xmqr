@@ -55,7 +55,7 @@ observado; leituras atômicas relaxadas não formam snapshot transacional.
 | `xmqr_tcp_accepted_total` | sockets TCP aceitos, inclusive recusados por admissão |
 | `xmqr_messages_received_total{qos}` | PUBLISH de cliente aceito após commit; QoS2 conta uma vez por ownership, não por retransmissão/PUBREL |
 | `xmqr_messages_sent_total{qos}` | escritas de frames PUBLISH concluídas, inclusive retained, replay e Will |
-| `xmqr_rejections_total{reason}` | eventos de authentication, authorization, quota, admission, delivery, persistence ou transport |
+| `xmqr_rejections_total{reason}` | eventos de authentication, authorization, quota, admission, delivery, persistence, transport ou listener_admission |
 | `xmqr_persistence_commits_total` | commits concluídos; falha não conta como sucesso |
 | `xmqr_persistence_commit_attempts_total` | tentativas de commit, inclusive rejeições de candidato |
 | `xmqr_persistence_commit_duration_seconds` | summary sum/count de tentativas; validação/serialização e espera pelo writer, sem quantis |
@@ -72,7 +72,10 @@ observado; leituras atômicas relaxadas não formam snapshot transacional.
 | `xmqr_ready` | último resultado do probe, inicialmente zero |
 | `xmqr_monitor_rejected_total` | rejeições HTTP contabilizadas pelo monitor |
 
-Os únicos labels são QoS 0/1/2 e os sete motivos fixos. Não há payload, tópico,
+`admission` indica saturação do pool global. `listener_admission`
+indica saturação de um teto local configurado. O contador é agregado.
+
+Os únicos labels são QoS 0/1/2 e os oito motivos fixos. Não há payload, tópico,
 username, Client ID, senha ou chave em labels. ACK MQTT e escrita do socket não
 comprovam processamento pelo consumidor. Will interno não incrementa received.
 Erros/rejeições representam eventos e não necessariamente mensagens únicas.

@@ -185,7 +185,6 @@ async fn tcp_admits_1000_mqtt_clients_rejects_excess_and_reuses_slot() {
     .expect("capacity scenario did not finish");
 }
 
-#[cfg(unix)]
 async fn ws_exchange(
     address: std::net::SocketAddr,
     connect: &[u8],
@@ -209,6 +208,79 @@ async fn ws_exchange(
     })
     .await
     .unwrap()
+}
+
+#[cfg_attr(not(unix), ignore = "requires Unix TCP integration environment")]
+#[tokio::test]
+async fn saturated_tcp_listener_preserves_websocket_admission() {
+    use async_tungstenite::tungstenite::Message;
+    use std::{io::ErrorKind, net::TcpListener, time::Duration};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpStream,
+        time::{sleep, timeout},
+    };
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    let tcp_reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let ws_reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let tcp = tcp_reservation.local_addr().unwrap();
+    let ws = ws_reservation.local_addr().unwrap();
+    fs::write(
+        &path,
+        format!(
+            "version=1\n[broker]\nmode='open-lab'\nbind='{tcp}'\nws_bind='{ws}'\nstate_dir='state'\n\
+             [limits]\nmax_connections=2\n[[listener_limits]]\nbind='{tcp}'\nmax_connections=1\n\
+             [[listener_limits]]\nbind='{ws}'\nmax_connections=1"
+        ),
+    )
+    .unwrap();
+    drop(tcp_reservation);
+    drop(ws_reservation);
+    let _child = BrokerChild(broker(&path).stdout(Stdio::null()).spawn().unwrap());
+    let deadline = Duration::from_secs(5);
+    let mut first = timeout(deadline, async {
+        loop {
+            match TcpStream::connect(tcp).await {
+                Ok(stream) => break Ok(stream),
+                Err(error) if error.kind() == ErrorKind::ConnectionRefused => {
+                    sleep(Duration::from_millis(20)).await;
+                }
+                Err(error) => break Err(error),
+            }
+        }
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    first
+        .write_all(b"\x10\x11\x00\x04MQTT\x04\x02\x00\x1e\x00\x05test1")
+        .await
+        .unwrap();
+    let mut connack = [0; 4];
+    timeout(deadline, first.read_exact(&mut connack))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(connack, [0x20, 2, 0, 0]);
+    let mut excess = TcpStream::connect(tcp).await.unwrap();
+    match timeout(deadline, excess.read(&mut [0])).await.unwrap() {
+        Ok(0) => {}
+        Err(error) if error.kind() == ErrorKind::ConnectionReset => {}
+        result => panic!("excess TCP was not rejected: {result:?}"),
+    }
+    assert_eq!(
+        ws_exchange(ws, b"\x10\x11\x00\x04MQTT\x04\x02\x00\x1e\x00\x05test2").await,
+        Some(Message::Binary(vec![0x20, 2, 0, 0].into()))
+    );
+    first.write_all(&[0xc0, 0]).await.unwrap();
+    let mut pong = [0; 2];
+    timeout(deadline, first.read_exact(&mut pong))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(pong, [0xd0, 0]);
 }
 
 #[cfg(unix)]
@@ -320,6 +392,37 @@ fn check_config_reports_effective_limits_without_touching_state() {
     assert_eq!(report["max_connections"], 3);
     assert!(!directory.path().join("private-fixture").exists());
     assert!(!String::from_utf8_lossy(&output.stdout).contains("private-fixture"));
+}
+
+#[test]
+fn check_config_validates_listener_quota_against_effective_bind_and_global_limit() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("broker.toml");
+    let base = "version=1\n[broker]\nmode='open-lab'\nbind='127.0.0.1:1883'\nstate_dir='state'\n[limits]\nmax_connections=2\n";
+    let valid = "[[listener_limits]]\nbind='127.0.0.1:1883'\nmax_connections=2\n";
+    for bad in [
+        valid.replace("1883", "1884"),
+        valid.replace("1883", "0"),
+        valid.replace("=2", "=0"),
+        valid.replace("=2", "=3"),
+        format!("{valid}{valid}"),
+    ] {
+        fs::write(&path, format!("{base}{bad}")).unwrap();
+        let output = broker(&path).arg("--check-config").output().unwrap();
+        assert_eq!(output.status.code(), Some(2));
+    }
+    fs::write(&path, format!("{base}{valid}")).unwrap();
+    let run = |key, value| {
+        broker(&path)
+            .arg("--check-config")
+            .env(key, value)
+            .output()
+            .unwrap()
+    };
+    assert!(run("MQTT_MAX_CONNECTIONS", "2").status.success());
+    assert_eq!(run("MQTT_MAX_CONNECTIONS", "1").status.code(), Some(2));
+    assert_eq!(run("MQTT_BIND", "127.0.0.1:1884").status.code(), Some(2));
+    assert!(!directory.path().join("state").exists());
 }
 
 #[test]

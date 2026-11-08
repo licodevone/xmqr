@@ -139,7 +139,7 @@ async fn run(check: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>
         lab_websocket_bind,
         secure_websocket_bind,
     );
-    validate_listener_protocols(&config, &binds)?;
+    validate_listener_settings(&config, &binds, limits.max_concurrent_connections)?;
     if check {
         parse_wss_allowed_origins(&config, secure_websocket_bind.is_some())?;
         config.server_keep_alive_seconds()?;
@@ -180,14 +180,18 @@ type ListenerBinds = (
     Option<(SocketAddr, bool)>,
 );
 
-fn validate_listener_protocols(config: &Configuration, binds: &ListenerBinds) -> io::Result<()> {
+fn validate_listener_settings(
+    config: &Configuration,
+    binds: &ListenerBinds,
+    max_connections: usize,
+) -> io::Result<()> {
     let (primary, additional, ws, wss) = binds;
-    config.validate_listener_protocols(
-        std::iter::once(*primary)
-            .chain(additional.iter().copied())
-            .chain(*ws)
-            .chain(wss.map(|(address, _)| address)),
-    )
+    let addresses = std::iter::once(*primary)
+        .chain(additional.iter().copied())
+        .chain(*ws)
+        .chain(wss.map(|(address, _)| address));
+    config.validate_listener_protocols(addresses.clone())?;
+    config.validate_listener_limits(addresses, max_connections)
 }
 
 #[allow(clippy::too_many_lines)] // Keep each security profile's startup and stop boundary explicit.
@@ -208,6 +212,7 @@ async fn serve(
     let (limits, state_limits) = limits;
     let server_keep_alive_seconds = config.server_keep_alive_seconds()?;
     let primary_versions = config.listener_protocol_versions(bind_address);
+    let primary_limit = config.listener_connection_limit(bind_address);
     match mode {
         BrokerMode::SecureMtls | BrokerMode::TlsPassword => {
             let tls_files = tls_files(config, mode)?;
@@ -265,6 +270,7 @@ async fn serve(
                 transports.push((
                     transport.bind_additional(address).await?,
                     config.listener_protocol_versions(address),
+                    config.listener_connection_limit(address),
                 ));
             }
             let wss_transport = if let Some((address, remote_enabled)) = secure_websocket_bind {
@@ -273,6 +279,7 @@ async fn serve(
                         .bind_websocket_secure(address, remote_enabled, wss_allowed_origins)
                         .await?,
                     config.listener_protocol_versions(address),
+                    config.listener_connection_limit(address),
                 ))
             } else {
                 None
@@ -283,13 +290,14 @@ async fn serve(
             info!(%bind_address, "secure MQTT listener started");
             let shutdown_router = router.clone();
             let connections = transport.drain_handle();
-            transports.insert(0, (transport, primary_versions));
+            transports.insert(0, (transport, primary_versions, primary_limit));
             run_until_shutdown(
                 async move {
                     let mut listeners: Vec<
                         std::pin::Pin<Box<dyn std::future::Future<Output = io::Result<()>> + Send>>,
                     > = Vec::new();
-                    for (index, (transport, versions)) in transports.into_iter().enumerate() {
+                    for (index, (transport, versions, limit)) in transports.into_iter().enumerate()
+                    {
                         let auth = scoped.as_ref().map_or_else(
                             || Arc::clone(&auth),
                             |policies| {
@@ -299,7 +307,7 @@ async fn serve(
                         let router = Arc::clone(&router);
                         listeners.push(Box::pin(async move {
                             transport
-                                .serve(move |connection| {
+                                .serve_with_limit(limit, move |connection| {
                                     let auth = Arc::clone(&auth);
                                     let router = Arc::clone(&router);
                                     async move {
@@ -312,12 +320,12 @@ async fn serve(
                                 .await
                         }));
                     }
-                    if let Some((wss_transport, versions)) = wss_transport {
+                    if let Some((wss_transport, versions, limit)) = wss_transport {
                         let auth = Arc::clone(&auth);
                         let router = Arc::clone(&router);
                         listeners.push(Box::pin(async move {
                             wss_transport
-                                .serve(move |connection| {
+                                .serve_with_limit(limit, move |connection| {
                                     let auth = Arc::clone(&auth);
                                     let router = Arc::clone(&router);
                                     async move {
@@ -368,6 +376,7 @@ async fn serve(
                 Some((
                     transport.bind_websocket(address).await?,
                     config.listener_protocol_versions(address),
+                    config.listener_connection_limit(address),
                 ))
             } else {
                 None
@@ -380,7 +389,7 @@ async fn serve(
             let serving = async move {
                 let tcp_auth = Arc::clone(&auth);
                 let tcp_router = Arc::clone(&router);
-                let tcp = transport.serve(move |connection| {
+                let tcp = transport.serve_with_limit(primary_limit, move |connection| {
                     let auth = Arc::clone(&tcp_auth);
                     let router = Arc::clone(&tcp_router);
                     async move {
@@ -393,8 +402,8 @@ async fn serve(
                         .await
                     }
                 });
-                if let Some((ws_transport, versions)) = ws_transport {
-                    let ws = ws_transport.serve(move |connection| {
+                if let Some((ws_transport, versions, limit)) = ws_transport {
+                    let ws = ws_transport.serve_with_limit(limit, move |connection| {
                         let auth = Arc::clone(&auth);
                         let router = Arc::clone(&router);
                         async move {
@@ -434,7 +443,7 @@ async fn serve(
             let shutdown_router = router.clone();
             let connections = transport.drain_handle();
             run_until_shutdown(
-                transport.serve(move |connection| {
+                transport.serve_with_limit(primary_limit, move |connection| {
                     let auth = Arc::clone(&auth);
                     let router = Arc::clone(&router);
                     async move {
@@ -478,7 +487,7 @@ async fn serve(
             let shutdown_router = router.clone();
             let connections = transport.drain_handle();
             run_until_shutdown(
-                transport.serve(move |connection| {
+                transport.serve_with_limit(primary_limit, move |connection| {
                     let auth = Arc::clone(&auth);
                     let router = Arc::clone(&router);
                     async move {

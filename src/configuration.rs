@@ -48,6 +48,7 @@ pub struct Configuration {
     additional_binds: Vec<String>,
     endpoint_policies: Vec<EndpointPolicyFiles>,
     listener_protocols: BTreeMap<SocketAddr, ProtocolVersions>,
+    listener_limits: BTreeMap<SocketAddr, usize>,
 }
 
 /// Static user/ACL files for one explicitly named mTLS listener.
@@ -196,6 +197,7 @@ impl Configuration {
             });
         }
         result.listener_protocols = parse_listener_protocols(document.listener_protocols)?;
+        result.listener_limits = parse_listener_limits(document.listener_limits)?;
         Ok(result)
     }
 
@@ -226,6 +228,34 @@ impl Configuration {
             .get(&bind)
             .copied()
             .unwrap_or_default()
+    }
+
+    /// Check configured listener ceilings against the effective bind and global limit.
+    /// # Errors
+    /// Rejects unknown MQTT listeners and ceilings above the process quota.
+    pub fn validate_listener_limits(
+        &self,
+        listeners: impl IntoIterator<Item = SocketAddr>,
+        global_limit: usize,
+    ) -> io::Result<()> {
+        let listeners: BTreeSet<_> = listeners.into_iter().collect();
+        for (bind, limit) in &self.listener_limits {
+            if !listeners.contains(bind) {
+                return Err(invalid("listener limit refers to an unknown MQTT bind"));
+            }
+            if *limit > global_limit {
+                return Err(invalid(
+                    "listener limit exceeds global MQTT_MAX_CONNECTIONS",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Optional connection ceiling for an effective MQTT listener.
+    #[must_use]
+    pub fn listener_connection_limit(&self, bind: SocketAddr) -> Option<usize> {
+        self.listener_limits.get(&bind).copied()
     }
 
     /// Return one static policy for each listener, in bind order, if enabled.
@@ -420,6 +450,12 @@ struct ListenerProtocolEntry {
     bind: String,
     accept_protocol_versions: Vec<u8>,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ListenerLimitEntry {
+    bind: SocketAddr,
+    max_connections: usize,
+}
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Monitor {
@@ -449,6 +485,8 @@ struct Document {
     endpoint_policies: Vec<EndpointPolicyEntry>,
     #[serde(default)]
     listener_protocols: Vec<ListenerProtocolEntry>,
+    #[serde(default)]
+    listener_limits: Vec<ListenerLimitEntry>,
     #[serde(default)]
     monitor: Monitor,
     #[serde(default)]
@@ -484,6 +522,28 @@ fn parse_listener_protocols(
         }
     }
     Ok(policies)
+}
+
+fn parse_listener_limits(
+    entries: Vec<ListenerLimitEntry>,
+) -> io::Result<BTreeMap<SocketAddr, usize>> {
+    if entries.len() > 5 {
+        return Err(invalid(
+            "at most five listener connection limits are supported",
+        ));
+    }
+    let mut limits = BTreeMap::new();
+    for entry in entries {
+        if entry.bind.port() == 0 || entry.max_connections == 0 {
+            return Err(invalid(
+                "listener limit requires a nonzero port and positive quota",
+            ));
+        }
+        if limits.insert(entry.bind, entry.max_connections).is_some() {
+            return Err(invalid("duplicate listener connection limit bind"));
+        }
+    }
+    Ok(limits)
 }
 
 fn insert_string_values<const N: usize>(
