@@ -1,5 +1,20 @@
 # Instaladores Windows experimentais - P246
 
+## Revisão de upgrade P283
+
+Os novos builds agendam a remoção da versão anterior depois de
+`InstallInitialize` e antes de `ProcessComponents`. Isso inclui a remoção
+na transação do Windows Installer e permite restaurar o produto anterior
+se a instalação falhar com rollback habilitado. O verificador de tabelas
+confere a ordem nos MSIs compilados. A execução de uma falha após a remoção
+e a recuperação real do serviço ainda exigem validação em Windows descartável.
+
+O MSI P281 com SHA-256
+`8f36f86db1855daf0fdf1fe043260e40413621d3bfc3cdcc9f6c00ecd2a9b99d`
+usa o agendamento anterior e foi reprovado nesse critério pelo P282.
+Os artefatos revistos recebem outro hash e ficam identificados no registro
+[P283](../../prompts/registros/P283-upgrade-msi-transacional.md).
+
 ## Icones, atalhos e estado inicial
 
 P246 usa a marca XMQR no Broker e os nomes Admin/Client/Manager grandes com

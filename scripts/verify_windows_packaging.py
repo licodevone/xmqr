@@ -27,6 +27,12 @@ class PackagingContracts(unittest.TestCase):
         cls.product = ET.parse(PACKAGING / "Product.wxs")
         cls.manager = ET.parse(PACKAGING / "Manager.wxs")
 
+    def test_major_upgrade_keeps_removal_in_the_installation_transaction(self):
+        for document in (self.product, self.manager):
+            upgrade = document.find(".//w:MajorUpgrade", NS)
+            self.assertIsNotNone(upgrade)
+            self.assertEqual(upgrade.attrib.get("Schedule"), "afterInstallInitialize")
+
     def test_services_are_limited_account_and_not_started_by_install(self):
         service = self.product.find(".//w:ServiceInstall", NS)
         self.assertEqual(service.attrib["Account"], r"NT AUTHORITY\LocalService")

@@ -1,7 +1,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="XMQR Manager" Manufacturer="ACMEBR" Version="$(var.ProductVersion)"
       UpgradeCode="FCBCBF36-F876-44C8-898A-3AB86B26D890" Scope="perMachine" InstallerVersion="500">
-    <MajorUpgrade DowngradeErrorMessage="Uma versao mais recente ja esta instalada." />
+    <MajorUpgrade Schedule="afterInstallInitialize" DowngradeErrorMessage="Uma versao mais recente ja esta instalada." />
     <MediaTemplate EmbedCab="yes" />
     <Upgrade Id="FCBCBF36-F876-44C8-898A-3AB86B26D890">
       <UpgradeVersion Minimum="$(var.ProductVersion)" Maximum="$(var.ProductVersion)"

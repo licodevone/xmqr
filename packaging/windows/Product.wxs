@@ -8,6 +8,7 @@
       InstallerVersion="500">
 
     <MajorUpgrade
+        Schedule="afterInstallInitialize"
         DowngradeErrorMessage="Uma versão mais recente já está instalada." />
 
     <Property Id="MsiLogging" Value="voicewarmup" />

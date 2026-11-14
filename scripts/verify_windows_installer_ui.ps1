@@ -65,6 +65,15 @@ try {
     $launchConditions = @(Get-MsiTableRows $database 'LaunchCondition' @('Condition', 'Description'))
     $components = @(Get-MsiTableRows $database 'Component' @('Component', 'Condition', 'Directory_', 'Attributes'))
 
+    $executeSequence = @(Get-MsiTableRows $database 'InstallExecuteSequence' @('Action', 'Sequence'))
+    $initialize = @($executeSequence | Where-Object Action -EQ 'InstallInitialize')
+    $removeExisting = @($executeSequence | Where-Object Action -EQ 'RemoveExistingProducts')
+    $processComponents = @($executeSequence | Where-Object Action -EQ 'ProcessComponents')
+    Assert-Check ($initialize.Count -eq 1 -and $removeExisting.Count -eq 1 -and
+        $processComponents.Count -eq 1) 'upgrade has one initialization, removal and component processing action'
+    Assert-Check ([int]$initialize[0].Sequence -lt [int]$removeExisting[0].Sequence -and
+        [int]$removeExisting[0].Sequence -lt [int]$processComponents[0].Sequence) 'previous product removal is inside the installation transaction before component processing'
+
     $expectedDialogs = @(
         'XmqrWelcomeDlg', 'XmqrTermsDlg', 'XmqrProgressDlg', 'XmqrExitDlg', 'XmqrErrorDlg',
         'XmqrCancelDlg', 'XmqrCancelledDlg', 'XmqrFatalDlg', 'XmqrRemoveDlg'
