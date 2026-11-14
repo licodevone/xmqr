@@ -11,3 +11,13 @@ Base `fbea7e0`, com P277/P278 incorporados à fonte de validação.
   retorno à 0.43.0. A campanha usa estado descartável.
 - BLOCKED: WSL e Docker Desktop recusaram acesso. Gates Unix, pacote
   e publicação precisam da branch de validação no GitHub.
+
+- PASS: Clippy dos alvos validados no Windows, com as exceções locais
+  para código não usado nessa plataforma.
+- Fonte de validação: `e8712bfcf885e3b12ce59173e1a483f5de58b5b5`.
+  O push abaixo falhou com `Could not resolve host: github.com`. A CI
+  remota não foi disparada por este envio. Tag e release aguardam os gates.
+
+```sh
+git push origin e8712bfcf885e3b12ce59173e1a483f5de58b5b5:refs/heads/release/validation-0.45.0
+```

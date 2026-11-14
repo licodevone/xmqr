@@ -205,6 +205,7 @@ pub enum Action {
     Start,
     Stop,
     Restart,
+    Recover,
 }
 
 impl Action {
@@ -213,6 +214,7 @@ impl Action {
             "start" => Some(Self::Start),
             "stop" => Some(Self::Stop),
             "restart" => Some(Self::Restart),
+            "recover" => Some(Self::Recover),
             _ => None,
         }
     }
@@ -221,12 +223,14 @@ impl Action {
             Self::Start => "start",
             Self::Stop => "stop",
             Self::Restart => "restart",
+            Self::Recover => "recover",
         }
     }
     pub fn enabled(self, state: State) -> bool {
         match self {
             Self::Start => matches!(state, State::Stopped | State::NeverStarted | State::Failed),
             Self::Stop | Self::Restart => state == State::Running,
+            Self::Recover => state == State::Failed,
         }
     }
 }
@@ -272,10 +276,10 @@ pub fn control_plan(snapshot: &Snapshot, action: Action) -> Result<Vec<(String, 
             plan.push((entry.component.id.clone(), Action::Stop));
         }
     }
-    if matches!(action, Action::Start | Action::Restart) {
+    if matches!(action, Action::Start | Action::Restart | Action::Recover) {
         for entry in entries
             .iter()
-            .filter(|e| action == Action::Restart || e.state != State::Running)
+            .filter(|e| action == Action::Restart || action.enabled(e.state))
         {
             plan.push((entry.component.id.clone(), Action::Start));
         }
@@ -507,6 +511,27 @@ mod tests {
                 ("client-default".into(), Action::Start),
             ]
         );
+    }
+
+    #[test]
+    fn recovery_starts_only_failed_services_in_dependency_order() {
+        let mut snapshot = batch_snapshot();
+        snapshot.entries[0].state = State::Failed;
+        snapshot.entries[1].state = State::Failed;
+        assert_eq!(
+            control_plan(&snapshot, Action::Recover).unwrap(),
+            vec![
+                ("broker".into(), Action::Start),
+                ("client-default".into(), Action::Start),
+            ]
+        );
+        snapshot.entries[1].state = State::Stopped;
+        assert_eq!(
+            control_plan(&snapshot, Action::Recover).unwrap(),
+            vec![("client-default".into(), Action::Start)]
+        );
+        snapshot.entries[2].state = State::Unknown;
+        assert!(control_plan(&snapshot, Action::Recover).is_err());
     }
 
     #[test]

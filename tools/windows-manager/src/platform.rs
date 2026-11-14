@@ -52,7 +52,9 @@ pub fn entry() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         }
         [flag, action, id] if flag == "--control" => {
-            let action = Action::parse(action).ok_or("invalid action")?;
+            let action = Action::parse(action)
+                .filter(|action| *action != Action::Recover)
+                .ok_or("invalid action")?;
             if !valid_id(id) {
                 return Err("invalid component".into());
             }
@@ -75,7 +77,7 @@ pub fn entry() -> Result<(), Box<dyn std::error::Error>> {
         }
         [flag] if flag == "--help" => {
             println!(
-                "XMQR Manager\nSem argumentos: bandeja\n--diagnose: inventário e status JSON\n--version\n--control start|stop|restart COMPONENTE: helper local\n--control-all start|stop|restart: conjunto de serviços instalados\n--open config|config-dir|certificates|logs COMPONENTE: helper administrativo"
+                "XMQR Manager\nSem argumentos: bandeja\n--diagnose: inventário e status JSON\n--version\n--control start|stop|restart COMPONENTE: helper local\n--control-all start|stop|restart|recover: serviços instalados\n--open config|config-dir|certificates|logs COMPONENTE: helper administrativo"
             );
             Ok(())
         }

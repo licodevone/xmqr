@@ -50,8 +50,12 @@ operação e periodicamente; a bandeja reflete alterações feitas em Services.m
 
 ## Controles e atalhos
 
-O menu principal oferece **Iniciar todos os serviços**, **Parar todos os
-serviços** e **Reiniciar todos os serviços**, além dos controles individuais.
+O menu principal oferece **Iniciar todos**, **Parar todos** e
+**Reiniciar todos**, além dos controles individuais com ícones.
+**Recuperar serviços** tenta iniciar somente os serviços marcados como
+**Falha**, seguindo a ordem broker, admin e clients. A ação pode ser
+chamada com `--control-all recover` e mantém os dados e as configurações.
+Um serviço parado normalmente não é selecionado para recuperação.
 Inclui somente serviços registrados: inicia broker, admin e clients; para na
 ordem inversa. Reiniciar todos para o conjunto antes de iniciá-lo novamente,
 inclusive os que estavam parados. Serviços em transição ou com consulta

@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 try {
-    if ($env:XMQR_CONTROL_ACTION -notin @('start','stop','restart')) { exit 2 }
+    if ($env:XMQR_CONTROL_ACTION -notin @('start','stop','restart','recover')) { exit 2 }
     $arguments = @('--control-all', $env:XMQR_CONTROL_ACTION)
     $child = Start-Process -FilePath $env:XMQR_CONTROL_HELPER -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -PassThru
     # Bound the worst case for up to 64 registered services (stop then start).

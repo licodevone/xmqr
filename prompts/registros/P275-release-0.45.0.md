@@ -17,3 +17,18 @@ Base `ef5e5da058057db75d5c5a9607f6f25ea0012bac`.
 - BLOCKED: primeira conexão da fixture TCP retornou WinError 10013.
   WSL e Docker recusaram acesso. CI Ubuntu, admissão de 1.000
   clientes, ensaio integrado e verificação do pacote pendentes.
+
+## Candidato e publicação
+
+- Commit candidato `d128e47c04fa450b260d736555df69ea8c8aec71`.
+- Push da branch de validação falhou por DNS. O SHA está ausente no
+  GitHub. Gravação das notas via integração retornou HTTP 403.
+- Tag `v0.45.0` e pré-release pendentes. Para acionar a CI a partir de
+  terminal com acesso ao GitHub:
+
+  ```powershell
+  git -C 'D:\projects\my-project\acmebr-projects\xmqr.acmebr\xmqr' push origin 'd128e47c04fa450b260d736555df69ea8c8aec71:refs/heads/release/validation-0.45.0'
+  ```
+
+  Aplicar a tag após aceite da fonte exata, ensaio integrado e
+  verificação do pacote.

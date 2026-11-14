@@ -17,3 +17,17 @@ Base `02097af27efe601ada936dc964d82936e6771e5a`.
 - A versão `0.44.0` e a tag proposta continuam reservadas ao Broker
   e ao `mqtt-admin` legado. A validação e distribuição dos componentes
   independentes têm ciclos próprios.
+
+## Fonte e tentativa de publicação
+
+- Commit candidato: `389c4897aeaef143f60a4ff496d320e7e45c2913`. Inclui P270–P273.
+- Push para `release/validation-0.44.0` falhou por DNS. A consulta
+  GitHub confirmou que o SHA ainda estava ausente. Tentativa de gravar
+  o objeto das notas recebeu HTTP 403 da integração.
+- Tag e release pendentes. Enviar o commit exato de um terminal
+  autorizado para acionar a CI. Validar pacote e executar a integração
+  antes de aplicar a tag.
+
+  ```sh
+  git push origin '389c4897aeaef143f60a4ff496d320e7e45c2913:refs/heads/release/validation-0.44.0'
+  ```

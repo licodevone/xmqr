@@ -34,3 +34,23 @@ pela mesma integração recebeu HTTP 403 no P268.
 
 CI Ubuntu, integração TCP/WS, pacote e rollback do candidato pendentes.
 Sem tag `v0.44.0`, pré-release ou anexos publicados.
+
+### Retomada de publicação — 2026-11-07
+
+- Fonte confirmada em `02097af27efe601ada936dc964d82936e6771e5a`.
+  O teste local com Cargo locked passou novamente (8 configuração, 2 versão).
+- Consulta remota confirmou ausência do commit candidato e da tag.
+  Push da branch `release/validation-0.44.0` falhou por DNS. A tentativa
+  de gravar o objeto das notas pela integração retornou HTTP 403
+  (`Resource not accessible by integration`).
+- WSL e Docker continuam inacessíveis. CI, integração TCP/WS, pacote,
+  rollback e campanha de carga P270 seguem pendentes.
+- A partir de terminal autorizado com acesso ao remoto, executar no
+  repositório broker:
+
+  ```sh
+  git push origin '02097af27efe601ada936dc964d82936e6771e5a:refs/heads/release/validation-0.44.0'
+  ```
+
+  A CI roda em pushes para `release/**`. Validar a fonte exata e os
+  artefatos, incluindo ciclo de pacote e checksums, antes da publicação.

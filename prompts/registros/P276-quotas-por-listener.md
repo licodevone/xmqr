@@ -30,3 +30,14 @@ cargo test --locked --test configuration saturated_tcp_listener_preserves_websoc
 A promoção depende da CI Ubuntu, do ensaio de capacidade integrado e
 da verificação do pacote. Versão do manifesto permanece 0.45.0,
 candidato experimental.
+
+## Candidato e publicação
+
+- Commit `fbea7e0c056a49ace4ba48f8fb398ff59037fe8f`.
+- O push para `release/validation-p276` falhou por resolução DNS de
+  `github.com`. Tag e release pendentes.
+- Para acionar a CI em um terminal com acesso ao GitHub:
+
+  ```powershell
+  git push origin 'fbea7e0c056a49ace4ba48f8fb398ff59037fe8f:refs/heads/release/validation-p276'
+  ```

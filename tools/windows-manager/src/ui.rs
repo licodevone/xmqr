@@ -1,5 +1,5 @@
 use crate::{
-    model::{Action, Color, Snapshot, control_plan},
+    model::{Action, Color, Kind, Snapshot, State, control_plan},
     platform::{self, Shortcut},
 };
 use std::{
@@ -15,7 +15,10 @@ use tao::{
 };
 use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
-    menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{
+        Icon as MenuIcon, IconMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem,
+        Submenu,
+    },
 };
 
 #[derive(Debug)]
@@ -147,22 +150,23 @@ impl App {
         }
         let menu = Menu::new();
         self.actions.clear();
-        menu.append(&MenuItem::new("XMQR — sistemas instalados", false, None))?;
-        if let Some(error) = &self.snapshot.error {
-            menu.append(&MenuItem::new(error, false, None))?;
+        menu.append(&MenuItem::new("XMQR — Serviços", false, None))?;
+        if self.snapshot.error.is_some() {
+            menu.append(&MenuItem::new("Inventário indisponível", false, None))?;
         }
         if let Some(message) = &self.message {
-            menu.append(&MenuItem::new(message, false, None))?;
+            menu.append(&MenuItem::new(brief(message, 28), false, None))?;
         }
         menu.append(&PredefinedMenuItem::separator())?;
         for (action, label) in [
-            (Action::Start, "Iniciar todos os serviços"),
-            (Action::Stop, "Parar todos os serviços"),
-            (Action::Restart, "Reiniciar todos os serviços"),
+            (Action::Start, "Iniciar todos"),
+            (Action::Stop, "Parar todos"),
+            (Action::Restart, "Reiniciar todos"),
+            (Action::Recover, "Recuperar serviços"),
         ] {
             let enabled = !self.busy
                 && control_plan(&self.snapshot, action).is_ok_and(|plan| !plan.is_empty());
-            let item = MenuItem::new(label, enabled, None);
+            let item = action_item(label, enabled, action);
             self.actions.insert(
                 item.id().clone(),
                 MenuAction::Work(Work::ControlAll(action)),
@@ -172,12 +176,31 @@ impl App {
         menu.append(&PredefinedMenuItem::separator())?;
         for entry in &self.snapshot.entries {
             let c = &entry.component;
-            let submenu = Submenu::new(
-                format!("{} — {}", c.display_name, entry.state.label()),
-                true,
-            );
+            let name = c
+                .display_name
+                .strip_prefix("XMQR ")
+                .unwrap_or(&c.display_name);
+            let state = match entry.state {
+                State::NeverStarted => "Não iniciado",
+                State::Unknown => "Indisponível",
+                State::CliOnly => "Somente CLI",
+                state => state.label(),
+            };
+            let submenu = Submenu::new(format!("{} — {state}", brief(name, 20)), true);
+            let shape = match c.kind {
+                Kind::Broker => SERVER,
+                Kind::Admin => PANEL,
+                Kind::Client => TERMINAL,
+            };
+            let ink = match entry.state {
+                State::Running => [35, 117, 78],
+                State::Failed => [175, 49, 53],
+                State::Pending => [143, 96, 21],
+                _ => NEUTRAL,
+            };
+            submenu.set_icon(menu_icon(shape, ink));
             if let Some(detail) = &entry.detail {
-                submenu.append(&MenuItem::new(detail, false, None))?;
+                submenu.append(&MenuItem::new(brief(detail, 32), false, None))?;
             }
             if c.service_name.is_some() {
                 for (action, label) in [
@@ -186,7 +209,7 @@ impl App {
                     (Action::Restart, "Reiniciar"),
                 ] {
                     let item =
-                        MenuItem::new(label, !self.busy && action.enabled(entry.state), None);
+                        action_item(label, !self.busy && action.enabled(entry.state), action);
                     self.actions.insert(
                         item.id().clone(),
                         MenuAction::Work(Work::Control(c.id.clone(), action)),
@@ -196,26 +219,30 @@ impl App {
                 submenu.append(&PredefinedMenuItem::separator())?;
             }
             for (configured, shortcut, label) in [
-                (
-                    c.config_file.is_some(),
-                    Shortcut::Config,
-                    "Abrir configuração",
-                ),
+                (c.config_file.is_some(), Shortcut::Config, "Configuração"),
                 (
                     c.config_file.is_some(),
                     Shortcut::ConfigDir,
-                    "Abrir pasta de configurações",
+                    "Pasta de configuração",
                 ),
                 (
                     c.certificates_dir.is_some(),
                     Shortcut::Certificates,
-                    "Abrir pasta de certificados",
+                    "Certificados",
                 ),
-                (c.logs_dir.is_some(), Shortcut::Logs, "Abrir pasta de logs"),
-                (c.panel_url.is_some(), Shortcut::Panel, "Abrir painel"),
+                (c.logs_dir.is_some(), Shortcut::Logs, "Logs"),
+                (c.panel_url.is_some(), Shortcut::Panel, "Painel"),
             ] {
                 if configured {
-                    let item = MenuItem::new(label, !self.busy, None);
+                    let shape = match shortcut {
+                        Shortcut::Config => TOOL,
+                        Shortcut::ConfigDir => FOLDER,
+                        Shortcut::Certificates => KEY,
+                        Shortcut::Logs => DOCUMENT,
+                        Shortcut::Panel => PANEL,
+                    };
+                    let item =
+                        IconMenuItem::new(label, !self.busy, menu_icon(shape, NEUTRAL), None);
                     self.actions.insert(
                         item.id().clone(),
                         MenuAction::Work(Work::Open(c.id.clone(), shortcut)),
@@ -226,12 +253,7 @@ impl App {
             menu.append(&submenu)?;
         }
         menu.append(&PredefinedMenuItem::separator())?;
-        menu.append(&MenuItem::new(
-            "Verde: todos os serviços em execução; conexão MQTT não verificada",
-            false,
-            None,
-        ))?;
-        let quit = MenuItem::new("Sair da bandeja (mantém os serviços)", true, None);
+        let quit = IconMenuItem::new("Sair da bandeja", true, menu_icon(EXIT, NEUTRAL), None);
         self.actions.insert(quit.id().clone(), MenuAction::Quit);
         menu.append(&quit)?;
         let tooltip = format!(
@@ -240,7 +262,7 @@ impl App {
             if self.busy {
                 " — operação em andamento"
             } else {
-                ""
+                " — estado dos serviços; MQTT não testado"
             }
         );
         let icon = icon(if self.busy { Color::Yellow } else { color })?;
@@ -259,6 +281,53 @@ impl App {
         }
         Ok(())
     }
+}
+
+const NEUTRAL: [u8; 3] = [79, 110, 136];
+const PLAY: [u8; 8] = [0, 0x20, 0x30, 0x38, 0x3c, 0x38, 0x30, 0x20];
+const STOP: [u8; 8] = [0, 0x7e, 0x42, 0x42, 0x42, 0x42, 0x7e, 0];
+const REFRESH: [u8; 8] = [0x04, 0x3e, 0x46, 0x84, 0x81, 0x42, 0x3c, 0];
+const TOOL: [u8; 8] = [0x06, 0x09, 0x09, 0x1e, 0x30, 0x60, 0xc0, 0x80];
+const SERVER: [u8; 8] = [0x7e, 0x42, 0x52, 0x7e, 0x42, 0x52, 0x7e, 0];
+const PANEL: [u8; 8] = [0x7e, 0x42, 0x5a, 0x42, 0x42, 0x7e, 0x18, 0x3c];
+const TERMINAL: [u8; 8] = [0x7e, 0x42, 0x62, 0x52, 0x62, 0x4a, 0x7e, 0];
+const FOLDER: [u8; 8] = [0, 0x70, 0x4f, 0x81, 0x81, 0x81, 0xff, 0];
+const KEY: [u8; 8] = [0x38, 0x44, 0x44, 0x3c, 0x08, 0x0e, 0x08, 0x0e];
+const DOCUMENT: [u8; 8] = [0x78, 0x4c, 0x56, 0x42, 0x5a, 0x42, 0x7e, 0];
+const EXIT: [u8; 8] = [0x70, 0x50, 0x54, 0x5e, 0x5e, 0x54, 0x50, 0x70];
+
+fn brief(text: &str, limit: usize) -> String {
+    let mut chars = text.chars();
+    let mut result: String = chars.by_ref().take(limit).collect();
+    if chars.next().is_some() {
+        result.push('…');
+    }
+    result.replace('&', "&&")
+}
+
+fn action_item(label: &str, enabled: bool, action: Action) -> IconMenuItem {
+    let shape = match action {
+        Action::Start => PLAY,
+        Action::Stop => STOP,
+        Action::Restart => REFRESH,
+        Action::Recover => TOOL,
+    };
+    IconMenuItem::new(label, enabled, menu_icon(shape, NEUTRAL), None)
+}
+
+fn menu_icon(shape: [u8; 8], ink: [u8; 3]) -> Option<MenuIcon> {
+    let mut pixels = Vec::with_capacity(16 * 16 * 4);
+    for row in 0..16 {
+        for column in 0..16 {
+            let alpha = if shape[row / 2] & (0x80 >> (column / 2)) != 0 {
+                255
+            } else {
+                0
+            };
+            pixels.extend([ink[0], ink[1], ink[2], alpha]);
+        }
+    }
+    MenuIcon::from_rgba(pixels, 16, 16).ok()
 }
 
 fn icon(color: Color) -> Result<Icon, tray_icon::BadIcon> {
