@@ -1,4 +1,4 @@
-# P283 v1.0 — atualização transacional do MSI 0.45.0
+# P283 v1.1 — atualização transacional do MSI 0.45.0
 
 Entrada em 2026-11-14: Broker `a4ffe7687947ea84ebb6c1cc20eb870bc361002b`,
 0.45.0 em validação, com histórico de chat editado localmente. O P282
@@ -39,3 +39,14 @@ O novo teste de política falhou no template anterior, que não tinha Schedule.
 O verificador de tabelas também recusou o MSI P281 por remover a versão
 anterior antes de InstallInitialize. Os dois resultados são regressões
 esperadas que demonstram o defeito antes da alteração dos templates.
+
+## Adaptação após reavaliar a compilação
+
+O teste Cargo do Manager parou porque link.exe está indisponível nesta sessão.
+Para concluir a correção de empacotamento do Broker, é permitido vincular
+o MSI revisado com o executável previamente validado P281, extraído e
+conferido por hash, somente após confirmar que src, vendor, Cargo.toml,
+Cargo.lock e o manifesto/lockfile do serviço são idênticos entre as fontes.
+Registrar separadamente o commit do instalador e o do executável. Não
+declarar nova compilação Rust nem estender esta evidência ao Manager P280,
+cujo código mudou depois do executável auxiliar P281.
