@@ -29,3 +29,8 @@ Base `809a1e3`. Mantidas as alterações anteriores do histórico de chat.
 A CI roda ao enviar os commits para branches `release/**`. O job do Broker
 usa o Client 46f96b5 por SHA. Enviar primeiro a branch do Client disponibiliza
 esse ancestral. Somente resultados reais da CI podem fechar os gates P279.
+
+Commit de validação `0a9838f2309684701c9bfa3465fb56250630415f`.
+O push para `release/validation-0.45.0` falhou por DNS. A tentativa de enviar
+a árvore pela integração GitHub foi recusada com HTTP 403, Resource not
+accessible by integration. A CI não foi disparada por esta sessão.
