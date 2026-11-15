@@ -1,0 +1,88 @@
+name: Windows release acceptance
+
+on:
+  push:
+    branches: ['release/**']
+  pull_request:
+    paths:
+      - '.github/workflows/windows-release.yml'
+      - 'packaging/**'
+      - 'scripts/verify_windows_*.py'
+      - 'scripts/verify_windows_*.ps1'
+      - 'src/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-package-and-upgrade:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: xmqr
+      - uses: actions/checkout@v4
+        with:
+          repository: licodevone/xmqr-client
+          ref: 46f96b51336b2416c35f47dfb130510b0eef2e54
+          path: xmqr-client
+      - uses: actions/checkout@v4
+        with:
+          ref: 36f340facbbccc9ac4746f5ad4bd84ff2d33387a
+          path: baseline/xmqr
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: ilammy/msvc-dev-cmd@v1
+      - run: dotnet tool install --global wix --version 7.0.0
+      - name: Broker format and native tests
+        working-directory: xmqr
+        run: |
+          cargo fmt --all -- --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo test --locked
+      - name: Compile baseline packages
+        run: |
+          & ./baseline/xmqr/scripts/build-windows.ps1 -Components broker -OutputDirectory "$env:GITHUB_WORKSPACE/baseline/xmqr/dist/windows/p284"
+      - name: Compile exact Broker and Client packages
+        run: |
+          & ./xmqr/scripts/build-windows.ps1 -Components @('broker', 'client') -OutputDirectory "$env:GITHUB_WORKSPACE/xmqr/dist/windows/p284"
+      - name: Packaging contracts and compiled tables
+        working-directory: xmqr
+        run: python scripts/verify_windows_packaging.py --wix
+      - name: Native Broker process recovery
+        working-directory: xmqr
+        run: python scripts/verify_windows_broker_runtime.py --broker target/windows-msi/x86_64-pc-windows-msvc/release/mqtt-broker.exe --output dist/windows/native-runtime
+      - name: Broker LocalService lifecycle in disposable VM
+        working-directory: xmqr
+        run: |
+          & ./scripts/verify_windows_broker_scm.ps1 -BrokerExecutable target/windows-msi/x86_64-pc-windows-msvc/release/mqtt-broker.exe -DisposableVmAcceptance
+      - name: Real MSI upgrade, post-removal failure, rollback and paired Client SCM
+        working-directory: xmqr
+        run: >-
+          python scripts/verify_windows_msi_upgrade.py
+          --baseline-msi ../baseline/xmqr/dist/windows/p284/xmqr-broker-0.43.0-windows-x64-experimental.msi
+          --candidate-msi dist/windows/p284/xmqr-broker-0.45.0-windows-x64-experimental.msi
+          --client-executable ../xmqr-client/target/windows-msi/x86_64-pc-windows-msvc/release/mqtt-client.exe
+          --output dist/windows/msi-acceptance --disposable-vm-acceptance
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-packages-and-acceptance
+          path: |
+            xmqr/dist/windows/p284/*.msi
+            xmqr/dist/windows/p284/*.json
+            xmqr/dist/windows/p284/SHA256SUMS.txt
+            xmqr/dist/windows/native-runtime/report.json
+            xmqr/dist/windows/msi-acceptance/report.json
+            xmqr/dist/windows/msi-acceptance/*.log
+            ${{ runner.temp }}/xmqr-broker-scm-evidence-*/report.json
+            ${{ runner.temp }}/xmqr-component-scm-evidence-*/report.json
