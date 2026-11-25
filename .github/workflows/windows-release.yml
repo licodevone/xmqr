@@ -95,3 +95,4 @@ jobs:
             xmqr/dist/windows/msi-acceptance/*.log
             ${{ runner.temp }}/xmqr-broker-scm-evidence-*/report.json
             ${{ runner.temp }}/xmqr-component-scm-evidence-*/report.json
+            ${{ runner.temp }}/xmqr-component-scm-evidence-*/service.log

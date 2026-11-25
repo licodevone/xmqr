@@ -216,7 +216,13 @@ if ($marker.schema -ne 1 -or $marker.component -ne $Component -or $marker.servic
 
 $runId = [Guid]::NewGuid().ToString('N')
 $tempRoot = Join-Path ([IO.Path]::GetTempPath()) "xmqr-component-scm-$runId"
-$evidenceRoot = Join-Path ([IO.Path]::GetTempPath()) "xmqr-component-scm-evidence-$runId"
+$evidenceParent = if ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_ENVIRONMENT -eq 'github-hosted' -and
+    $env:RUNNER_TEMP -and (Test-Path -LiteralPath $env:RUNNER_TEMP -PathType Container)) {
+    $env:RUNNER_TEMP
+} else {
+    [IO.Path]::GetTempPath()
+}
+$evidenceRoot = Join-Path $evidenceParent "xmqr-component-scm-evidence-$runId"
 $serviceCreated = $false
 $serviceBinaryPath = $null
 $cleanupComplete = $true

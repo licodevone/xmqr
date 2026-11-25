@@ -136,10 +136,13 @@ def client_service(executable, data, port):
     state = root / "state"
     state.mkdir()
     config = root / "client.toml"
+    sink = state / "messages.ndjson"
+    with sink.open("xb"):
+        pass
     arguments = ["sub", "--open-lab", "--port", str(port), "--topic", "p241/retained", "--output", "jsonl"]
     config.write_text(
         "version = 1\narguments = " + json.dumps(arguments) + "\noutput_file = "
-        + json.dumps(str(state / "messages.ndjson")) + "\n", encoding="utf-8",
+        + json.dumps(str(sink)) + "\n", encoding="utf-8",
     )
     powershell(r"""
 $ErrorActionPreference = 'Stop'
@@ -151,10 +154,16 @@ foreach ($item in @(
  $acl.SetSecurityDescriptorSddlForm($item.Sddl)
  Set-Acl -LiteralPath $item.Path -AclObject $acl
 }
-$acl = [Security.AccessControl.FileSecurity]::new()
-$acl.SetSecurityDescriptorSddlForm('O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FR;;;LS)')
-Set-Acl -LiteralPath $env:XMQR_ACCEPTANCE_CONFIG -AclObject $acl
-""", XMQR_ACCEPTANCE_ROOT=str(root), XMQR_ACCEPTANCE_STATE=str(state), XMQR_ACCEPTANCE_CONFIG=str(config))
+foreach ($item in @(
+ @{ Path=$env:XMQR_ACCEPTANCE_CONFIG; Sddl='O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FR;;;LS)' },
+ @{ Path=$env:XMQR_ACCEPTANCE_SINK; Sddl='O:BAG:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;0x1301bf;;;LS)' }
+)) {
+ $acl = [Security.AccessControl.FileSecurity]::new()
+ $acl.SetSecurityDescriptorSddlForm($item.Sddl)
+ Set-Acl -LiteralPath $item.Path -AclObject $acl
+}
+""", XMQR_ACCEPTANCE_ROOT=str(root), XMQR_ACCEPTANCE_STATE=str(state), XMQR_ACCEPTANCE_CONFIG=str(config),
+       XMQR_ACCEPTANCE_SINK=str(sink))
     subprocess.run([
         "pwsh", "-NoProfile", "-NonInteractive", "-File",
         str(Path(__file__).with_name("verify_windows_component_scm.ps1")),
