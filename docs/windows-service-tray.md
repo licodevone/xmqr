@@ -137,3 +137,7 @@ Use o cache padrão do Cargo ou um caminho curto: o cache profundo dentro deste
 repositório causou falha de include no compilador C do AWS-LC; o mesmo lock
 compilou com o cache padrão. O MSRV declarado não foi testado por esta execução
 com Rust 1.99.1.
+
+O [P285](../prompts/registros/P285-manager-menu-compacto-local.md) registra a
+ativação local do menu compacto do Windows. Os rótulos curtos deixam o menu
+mais estreito, e a ressalva “MQTT não testado” continua no tooltip do ícone.
