@@ -103,7 +103,13 @@ def service(action):
         if service_state() == expected:
             return
         time.sleep(.25)
-    raise RuntimeError(f"SCM did not reach {expected}")
+    details = powershell(
+        """$s = Get-CimInstance Win32_Service -Filter "Name = 'xmqr-broker'" -ErrorAction Stop;
+        if ($null -ne $s) {
+            $s | Select-Object State, ExitCode, ServiceSpecificExitCode | ConvertTo-Json -Compress
+        }"""
+    )
+    raise RuntimeError(f"SCM did not reach {expected}: {details or 'service absent'}")
 
 
 def assert_vm():
@@ -289,7 +295,14 @@ def main():
 
         install(candidate, "candidate-remove", remove=True)
         install(baseline, "operational-rollback-install")
-        shutil.copytree(output / "backup-state", data / "rollback-state")
+        rollback_state = data / "rollback-state"
+        rollback_state.mkdir()
+        powershell(r"""
+$ErrorActionPreference = 'Stop'
+$acl = Get-Acl -LiteralPath $env:XMQR_ACCEPTANCE_STATE
+Set-Acl -LiteralPath $env:XMQR_ACCEPTANCE_ROLLBACK -AclObject $acl
+""", XMQR_ACCEPTANCE_STATE=str(data / "state"), XMQR_ACCEPTANCE_ROLLBACK=str(rollback_state))
+        shutil.copytree(output / "backup-state", rollback_state, dirs_exist_ok=True)
         config.write_text(content.replace('state_dir = "state"', 'state_dir = "rollback-state"'), encoding="utf-8")
         version("0.43.0")
         service("start")
@@ -303,6 +316,9 @@ def main():
     except Exception as error:
         report["error"] = f"{type(error).__name__}: {error}"
     finally:
+        lifecycle_log = data / "logs" / "service.log"
+        if lifecycle_log.is_file():
+            shutil.copyfile(lifecycle_log, output / "broker-service.log")
         (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))
     return 0 if report["result"] == "PASS" else 1

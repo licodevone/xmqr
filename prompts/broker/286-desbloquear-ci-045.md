@@ -14,3 +14,5 @@ Revisão v1.2: CI 45708319493 passou no WiX e no MSI de referência. A criação
 Revisão v1.3: 45709981398 gerou os MSIs, passou na recuperação e confirmou o Broker LocalService. O guard de VM falhou ao tratar a ausência esperada de serviço como erro do PowerShell. Usar consulta CIM filtrada que retorna vazio quando ausente e manter falha em erro de consulta.
 
 Revisão v1.4: execução 45712152318 confirmou rollback após remoção e chegou ao Client no upgrade. A fixture indicava um sink que o runtime exige provisionado previamente. Criar o arquivo vazio com ACL restrita e conservar logs sintéticos de SCM no artefato da CI.
+
+Revisão v1.5: execução 45714715652 passou no rollback transacional, no Client SCM e no upgrade com reinício. A pasta nova de retorno operacional herda somente leitura de LocalService do pai. Aplicar a mesma ACL da pasta de estado instalada antes da cópia e registrar o estágio/estado SCM em caso de falha.
