@@ -22,7 +22,8 @@ def powershell(script, **variables):
         env=os.environ | variables, capture_output=True, text=True, timeout=60,
     )
     if result.returncode:
-        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"PowerShell exited with code {result.returncode}" + (f": {detail}" if detail else ""))
     return result.stdout.strip()
 
 
@@ -85,8 +86,8 @@ def installed(product):
 
 def service_state():
     return powershell(
-        "$s = Get-Service xmqr-broker -ErrorAction SilentlyContinue; "
-        "if ($null -ne $s) { $s.Status.ToString() }"
+        """$s = Get-CimInstance Win32_Service -Filter "Name = 'xmqr-broker'" -ErrorAction Stop;
+        if ($null -ne $s) { $s.State }"""
     )
 
 
