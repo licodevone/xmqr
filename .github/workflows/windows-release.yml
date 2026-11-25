@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: licodevone/xmqr-client
-          ref: 46f96b51336b2416c35f47dfb130510b0eef2e54
+          ref: d95f9c0f8f8f90024215dbc6a19566dce2f1af70
           path: xmqr-client
       - uses: actions/checkout@v4
         with:

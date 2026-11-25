@@ -283,7 +283,7 @@ fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use argon2::password_hash::{PasswordHasher, SaltString};
@@ -358,7 +358,6 @@ mod tests {
         assert_eq!(list_users(&path).unwrap(), ["first", "second", "third"]);
     }
 
-    #[cfg(unix)]
     #[test]
     fn users_file_is_private_and_symlinks_are_rejected() {
         use std::os::unix::fs::{PermissionsExt, symlink};
