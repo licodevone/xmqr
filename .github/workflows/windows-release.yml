@@ -23,13 +23,20 @@ jobs:
       run:
         shell: pwsh
     steps:
+      - name: Confirm WiX 7 license acceptance
+        env:
+          XMQR_WIX7_EULA_ACCEPTED: ${{ vars.XMQR_WIX7_EULA_ACCEPTED }}
+        run: |
+          if ($env:XMQR_WIX7_EULA_ACCEPTED -cne 'true') {
+            throw 'WiX 7 requires OSMF EULA acceptance. Review https://docs.firegiant.com/wix/osmf/ and set repository variable XMQR_WIX7_EULA_ACCEPTED to true after acceptance.'
+          }
       - uses: actions/checkout@v4
         with:
           path: xmqr
       - uses: actions/checkout@v4
         with:
           repository: licodevone/xmqr-client
-          ref: d95f9c0f8f8f90024215dbc6a19566dce2f1af70
+          ref: 987844a40f8ae6b7167b3394ddea79301ec08a7e
           path: xmqr-client
       - uses: actions/checkout@v4
         with:
@@ -43,6 +50,8 @@ jobs:
           components: rustfmt
       - uses: ilammy/msvc-dev-cmd@v1
       - run: dotnet tool install --global wix --version 7.0.0
+      - name: Apply recorded WiX 7 license acceptance
+        run: wix eula accept wix7
       - name: Broker format and native tests
         working-directory: xmqr
         run: |

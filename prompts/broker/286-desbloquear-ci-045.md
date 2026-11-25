@@ -6,3 +6,5 @@ Alinhar a seleção dos testes à plataforma que implementa a operação,
 preservando todos no Ubuntu. Parear a CI com o Client corrigido por C160.
 Aceite: testes Ubuntu e Windows, SCM, MSI, upgrade e rollback induzido.
 Sem alteração de versão, estado persistente ou protocolo.
+
+Revisão v1.1: Ubuntu c2dc94e passou. O MSI parou com WiX WIX7015. Preparar um opt-in explícito na variável de repositório XMQR_WIX7_EULA_ACCEPTED, sem defini-la. O job deve indicar o bloqueio antes de instalar o WiX quando o aceite estiver ausente. Atualizar o pin do Client pareado para 987844a.
