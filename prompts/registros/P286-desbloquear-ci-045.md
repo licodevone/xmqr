@@ -19,3 +19,20 @@
 - NOT_RUN: MSI do candidato, SCM pareado, upgrade e rollback Windows.
 - Client 987844a passou nas execuções 45706979355 e 45706979145.
   Ainda precisa ser testado com o Broker no ensaio integrado de Windows.
+
+## Aceite final em 25/11/2026
+
+- Broker bfac6a3b9594d4ac942936d0f5f94379eeaad36f e Client
+  987844a40f8ae6b7167b3394ddea79301ec08a7e.
+- PASS: CI Ubuntu do Broker 45717093817, com pacote, upgrade e retorno.
+- PASS: CI Windows 45717093660. MSIs compilados, contratos verificados,
+  Broker LocalService e recuperação nativa. Cinco verificações no relatório
+  MSI. A falha após remoção restaurou a 0.43.0 com dados, a atualização
+  preservou configuração/estado após reinício, o Client passou no SCM e
+  o retorno operacional recuperou o backup privado na 0.43.0.
+- PASS: CI própria do Client no Ubuntu 45706979355 e Windows 45706979145.
+- PASS: quatro pacotes Broker/Client baixados e conferidos por SHA-256.
+  Pacotes e SHA256SUMS em dist/p286-release-candidates.
+- Usuário autorizou o aceite da EULA OSMF v1.1 na CI do Broker. O runner
+  aceitou o WiX e executou os gates. O teste de 1.000 conexões permanece
+  fora desta validação. Tags v0.45.0 e v0.44.0 disponíveis no remoto.
